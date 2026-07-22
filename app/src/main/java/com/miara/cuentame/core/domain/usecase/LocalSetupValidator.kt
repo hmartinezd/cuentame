@@ -33,12 +33,24 @@ class LocalSetupValidator {
             throw ValidationError.DuplicateActiveName
         }
 
+        // Validate contiguous area sort orders starting at zero
+        val areaSortOrders = command.areas.map { it.sortOrder }.sorted()
+        if (areaSortOrders != (0 until command.areas.size).toList()) {
+            throw ValidationError.InvalidSetupState
+        }
+
         val allCategoryNames = command.categories.map { it.name.normalizeName() }
         if (allCategoryNames.any { it.isBlank() }) {
             throw ValidationError.InvalidName
         }
         if (allCategoryNames.size != allCategoryNames.distinct().size) {
             throw ValidationError.DuplicateActiveName
+        }
+
+        // Validate contiguous category sort orders starting at zero
+        val categorySortOrders = command.categories.map { it.sortOrder }.sorted()
+        if (categorySortOrders != (0 until command.categories.size).toList()) {
+            throw ValidationError.InvalidSetupState
         }
     }
 }

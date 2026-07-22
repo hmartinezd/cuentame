@@ -27,6 +27,9 @@ interface IngredientCategoryDao {
     @Query("UPDATE ingredient_categories SET isActive = 0, deletedAt = :at WHERE id = :id")
     suspend fun softArchive(id: String, at: Long)
 
+    @Query("SELECT id FROM ingredient_categories WHERE restaurantId = :restaurantId AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveIds(restaurantId: String): List<String>
+
     @Update
     suspend fun updateAll(categories: List<IngredientCategoryEntity>)
 }

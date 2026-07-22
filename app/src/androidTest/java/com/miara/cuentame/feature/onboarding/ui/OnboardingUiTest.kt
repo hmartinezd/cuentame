@@ -1,17 +1,16 @@
 package com.miara.cuentame.feature.onboarding.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.R
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Before
@@ -33,27 +32,60 @@ class OnboardingUiTest {
     }
 
     @Test
-    fun onboarding_flow_validation() {
-        composeTestRule.waitForIdle()
+    fun onboarding_full_flow() {
+        // Wait for resolve startup and initial load
+        composeTestRule.waitUntil(20000) {
+            composeTestRule.onAllNodesWithTag("onboarding_screen_root").fetchSemanticsNodes().isNotEmpty()
+        }
 
         // Welcome Step
         composeTestRule.onNodeWithTag("onboarding_welcome_content").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_setup_button").performClick()
 
         // Restaurant Step
-        composeTestRule.onNodeWithTag("onboarding_next_button").assertIsNotEnabled()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithTag("onboarding_restaurant_name").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name").performTextInput("The Integrity Pass")
+        // Close keyboard if needed
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name").performImeAction()
         
-        composeTestRule.onNodeWithTag("onboarding_restaurant_name").performTextInput("Test Restaurant")
-        composeTestRule.onNodeWithTag("onboarding_next_button").assertIsEnabled()
         composeTestRule.onNodeWithTag("onboarding_next_button").performClick()
 
-        // Areas Step
-        composeTestRule.onNodeWithTag("onboarding_next_button").performClick()
+        // Wait for Areas Step
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("onboarding_areas_title").fetchSemanticsNodes().isNotEmpty()
+        }
+        
+        // Add custom area
+        composeTestRule.onNodeWithTag("onboarding_add_area_input").performTextInput("Back Dock")
+        composeTestRule.onNodeWithTag("onboarding_add_area_input").performImeAction()
+        composeTestRule.onNodeWithTag("onboarding_add_area_button").performClick()
+        
+        assertThat(composeTestRule.onAllNodesWithText("Back Dock", ignoreCase = true).fetchSemanticsNodes()).isNotEmpty()
+        
+        composeTestRule.onAllNodesWithTag("onboarding_next_button").onFirst().performClick()
 
-        // Categories Step
-        composeTestRule.onNodeWithTag("onboarding_next_button").performClick()
+        // Wait for Categories Step
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("onboarding_categories_title").fetchSemanticsNodes().isNotEmpty()
+        }
+        
+        composeTestRule.onAllNodesWithTag("onboarding_next_button").onFirst().performClick()
 
-        // Review Step
-        composeTestRule.onNodeWithTag("onboarding_finish_button").assertIsDisplayed()
+        // Wait for Review Step
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Review Setup", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertThat(composeTestRule.onAllNodesWithText("The Integrity Pass", ignoreCase = true, substring = true).fetchSemanticsNodes()).isNotEmpty()
+        
+        composeTestRule.onAllNodesWithTag("onboarding_finish_button").onFirst().performClick()
+
+        // Verify Home appears
+        composeTestRule.waitUntil(20000) {
+            composeTestRule.onAllNodesWithText("Dashboard", ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("Dashboard", ignoreCase = true).onFirst().assertIsDisplayed()
     }
 }

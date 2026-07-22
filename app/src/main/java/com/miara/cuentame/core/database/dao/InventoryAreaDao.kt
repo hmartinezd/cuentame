@@ -32,6 +32,9 @@ interface InventoryAreaDao {
     @Query("SELECT COUNT(*) FROM inventory_areas WHERE isActive = 1 AND deletedAt IS NULL")
     suspend fun getActiveCount(): Int
 
+    @Query("SELECT id FROM inventory_areas WHERE restaurantId = :restaurantId AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveIds(restaurantId: String): List<String>
+
     @Update
     suspend fun updateAll(areas: List<InventoryAreaEntity>)
 }

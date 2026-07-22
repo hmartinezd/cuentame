@@ -13,9 +13,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,12 +27,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,6 +48,14 @@ fun CategoryManagementRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it.message ?: context.getString(R.string.error_generic))
+            viewModel.clearError()
+        }
+    }
 
     CategoryManagementScreen(
         uiState = uiState,
@@ -87,13 +97,18 @@ fun CategoryManagementScreen(
                     value = newCategoryName,
                     onValueChange = { newCategoryName = it },
                     label = { Text(stringResource(R.string.onboarding_add_category)) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSaving
                 )
                 IconButton(onClick = { 
                     onAddCategory(newCategoryName)
                     newCategoryName = ""
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
+                }, enabled = !uiState.isSaving && newCategoryName.isNotBlank()) {
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    }
                 }
             }
 
@@ -101,8 +116,9 @@ fun CategoryManagementScreen(
                 itemsIndexed(uiState.categories) { index, category ->
                     CategoryItem(
                         category = category,
-                        canMoveUp = index > 0,
-                        canMoveDown = index < uiState.categories.size - 1,
+                        canMoveUp = index > 0 && !uiState.isSaving,
+                        canMoveDown = index < uiState.categories.size - 1 && !uiState.isSaving,
+                        isEnabled = !uiState.isSaving,
                         onMoveUp = { onMoveUp(index) },
                         onMoveDown = { onMoveDown(index) },
                         onArchive = { categoryToArchive = category },
@@ -151,7 +167,7 @@ fun CategoryManagementScreen(
                 TextButton(onClick = { 
                     onUpdateCategory(cat.copy(name = editName))
                     categoryToEdit = null
-                }) {
+                }, enabled = editName.isNotBlank()) {
                     Text(stringResource(R.string.action_save))
                 }
             },
@@ -169,6 +185,7 @@ fun CategoryItem(
     category: com.miara.cuentame.core.model.ingredient.IngredientCategory,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
+    isEnabled: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onArchive: () -> Unit,
@@ -180,7 +197,7 @@ fun CategoryItem(
     ) {
         Text(text = category.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         
-        IconButton(onClick = onEdit) {
+        IconButton(onClick = onEdit, enabled = isEnabled) {
             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.rename_item, category.name))
         }
         IconButton(onClick = onMoveUp, enabled = canMoveUp) {
@@ -189,7 +206,7 @@ fun CategoryItem(
         IconButton(onClick = onMoveDown, enabled = canMoveDown) {
             Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.move_down, category.name))
         }
-        IconButton(onClick = onArchive) {
+        IconButton(onClick = onArchive, enabled = isEnabled) {
             Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive_item, category.name))
         }
     }

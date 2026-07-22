@@ -6,7 +6,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryAreaEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
@@ -49,7 +48,7 @@ class RoomInventoryAreaRepositoryTest {
         
         try {
             repository.archive(InventoryAreaId("area_1"), Instant.now())
-            assertThat(true).isFalse() // Should not reach here
+            assertThat(true).isFalse()
         } catch (e: ValidationError.FinalAreaCannotBeArchived) {
             assertThat(e).isNotNull()
         }
@@ -67,5 +66,33 @@ class RoomInventoryAreaRepositoryTest {
         
         assertThat(a1?.sortOrder).isEqualTo(1)
         assertThat(a2?.sortOrder).isEqualTo(0)
+    }
+
+    @Test
+    fun reorder_subset_throwsError() = runBlocking {
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        try {
+            repository.reorder(listOf(InventoryAreaId("a1")))
+            assertThat(true).isFalse()
+        } catch (e: ValidationError.InvalidSetupState) {
+            assertThat(e).isNotNull()
+        }
+    }
+
+    @Test
+    fun reorder_otherRestaurant_throwsError() = runBlocking {
+        db.restaurantDao().insert(RestaurantEntity("rest_2", "Other", "USD", "en-US", 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_2", "B", "b", 0, true, 0, 0, null))
+        
+        try {
+            // Trying to reorder across restaurants
+            repository.reorder(listOf(InventoryAreaId("a1"), InventoryAreaId("a2")))
+            assertThat(true).isFalse()
+        } catch (e: ValidationError.InvalidSetupState) {
+            assertThat(e).isNotNull()
+        }
     }
 }

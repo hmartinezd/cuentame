@@ -12,8 +12,8 @@
 
 ### Milestone 3: Onboarding and Settings (Completed)
 * **Scope:** First-run experience, Restaurant setup, Area/Category configuration, DataStore-backed preferences, English/Spanish localization.
-* **Integrity:** Atomic setup transaction, crash-resilient completion flow, persistent onboarding draft.
-* **Result:** Users can configure their restaurant and manage core settings offline.
+* **Integrity:** Authoritative setup validation, atomic transactions, unified item ordering, and deterministic sequential autosave.
+* **Result:** Users can configure their restaurant and manage core settings offline with robust data integrity and crash resilience.
 
 ### Milestone 4: Ingredients Management
 * **Scope:** CRUD for ingredients, Unit conversions, Packaging options.

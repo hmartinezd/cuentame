@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -38,7 +39,13 @@ class ResolveAppStartStateUseCaseTest {
         override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
     }
 
-    private val useCase = ResolveAppStartStateUseCase(fakePreferencesRepository, fakeSetupRepository)
+    private val fakeRestaurantRepository = object : RestaurantRepository {
+        override fun observeRestaurant(): Flow<com.miara.cuentame.core.model.restaurant.Restaurant?> = MutableStateFlow(null)
+        override suspend fun getRestaurant(): com.miara.cuentame.core.model.restaurant.Restaurant? = null
+        override suspend fun save(restaurant: com.miara.cuentame.core.model.restaurant.Restaurant) {}
+    }
+
+    private val useCase = ResolveAppStartStateUseCase(fakePreferencesRepository, fakeSetupRepository, fakeRestaurantRepository)
 
     @Test
     fun `both incomplete returns RequiresOnboarding`() = runTest {

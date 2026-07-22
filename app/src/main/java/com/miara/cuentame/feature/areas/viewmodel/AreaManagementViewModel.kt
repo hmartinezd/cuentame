@@ -13,9 +13,10 @@ import com.miara.cuentame.core.domain.usecase.ReorderInventoryAreasUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateInventoryAreaUseCase
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,6 +24,7 @@ import javax.inject.Inject
 data class AreaManagementUiState(
     val areas: List<InventoryArea> = emptyList(),
     val isLoading: Boolean = true,
+    val isSaving: Boolean = false,
     val error: Throwable? = null
 )
 
@@ -38,15 +40,31 @@ class AreaManagementViewModel @Inject constructor(
     private val timeProvider: TimeProvider
 ) : ViewModel() {
 
-    val uiState: StateFlow<AreaManagementUiState> = observeInventoryAreasUseCase()
-        .map { AreaManagementUiState(areas = it, isLoading = false) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = AreaManagementUiState()
+    private val _isSaving = MutableStateFlow(false)
+    private val _error = MutableStateFlow<Throwable?>(null)
+
+    val uiState: StateFlow<AreaManagementUiState> = combine(
+        observeInventoryAreasUseCase(),
+        _isSaving,
+        _error
+    ) { areas, isSaving, error ->
+        AreaManagementUiState(
+            areas = areas,
+            isLoading = false,
+            isSaving = isSaving,
+            error = error
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = AreaManagementUiState()
+    )
 
     fun onAddArea(name: String) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant() ?: return@launch
@@ -61,49 +79,77 @@ class AreaManagementViewModel @Inject constructor(
                     updatedAt = timeProvider.now()
                 )
                 createInventoryAreaUseCase(area)
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO: handle error in state
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onUpdateArea(area: InventoryArea) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 updateInventoryAreaUseCase(area.copy(updatedAt = timeProvider.now()))
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onArchiveArea(id: InventoryAreaId) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 archiveInventoryAreaUseCase(id, timeProvider.now())
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onMoveUp(index: Int) {
-        if (index <= 0) return
+        if (_isSaving.value || index <= 0) return
         val list = uiState.value.areas.toMutableList()
         val item = list.removeAt(index)
         list.add(index - 1, item)
-        viewModelScope.launch {
-            reorderInventoryAreasUseCase(list.map { it.id })
-        }
+        executeReorder(list)
     }
 
     fun onMoveDown(index: Int) {
-        if (index >= uiState.value.areas.size - 1) return
+        if (_isSaving.value || index >= uiState.value.areas.size - 1) return
         val list = uiState.value.areas.toMutableList()
         val item = list.removeAt(index)
         list.add(index + 1, item)
+        executeReorder(list)
+    }
+
+    private fun executeReorder(newList: List<InventoryArea>) {
+        _isSaving.value = true
+        _error.value = null
         viewModelScope.launch {
-            reorderInventoryAreasUseCase(list.map { it.id })
+            try {
+                reorderInventoryAreasUseCase(newList.map { it.id })
+                _isSaving.value = false
+            } catch (e: Exception) {
+                _isSaving.value = false
+                _error.value = e
+            }
         }
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 }

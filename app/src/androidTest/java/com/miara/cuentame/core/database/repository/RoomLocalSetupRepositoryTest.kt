@@ -36,7 +36,8 @@ class RoomLocalSetupRepositoryTest {
             db.inventoryAreaDao(),
             db.ingredientCategoryDao(),
             UuidIdGenerator(),
-            SystemTimeProvider()
+            SystemTimeProvider(),
+            com.miara.cuentame.core.domain.usecase.LocalSetupValidator()
         )
     }
 

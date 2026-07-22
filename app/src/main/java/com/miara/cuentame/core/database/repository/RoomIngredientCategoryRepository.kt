@@ -50,11 +50,19 @@ class RoomIngredientCategoryRepository @Inject constructor(
     }
 
     override suspend fun reorder(ids: List<IngredientCategoryId>) {
+        if (ids.isEmpty()) return
         database.withTransaction {
-            if (ids.size != ids.distinct().size) throw ValidationError.InvalidSetupState
+            val firstEntity = categoryDao.getById(ids.first().value) ?: throw ValidationError.InvalidSetupState
+            val restaurantId = firstEntity.restaurantId
+            
+            val activeIds = categoryDao.getActiveIds(restaurantId).toSet()
+            val inputIds = ids.map { it.value }.toSet()
+            
+            if (inputIds.size != ids.size) throw ValidationError.InvalidSetupState
+            if (inputIds != activeIds) throw ValidationError.InvalidSetupState
             
             ids.forEachIndexed { index, id ->
-                val entity = categoryDao.getById(id.value) ?: throw ValidationError.InvalidSetupState
+                val entity = categoryDao.getById(id.value)!!
                 categoryDao.upsert(entity.copy(sortOrder = index))
             }
         }

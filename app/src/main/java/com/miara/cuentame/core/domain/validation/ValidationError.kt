@@ -21,6 +21,8 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object InvalidSetupState : ValidationError("Current setup state is invalid")
     data object FinalAreaCannotBeArchived : ValidationError("The last active area cannot be archived")
     data object OnboardingDraftCorrupted : ValidationError("The onboarding draft is corrupted and has been reset")
+    data object UnsupportedOnboardingDraftVersion : ValidationError("The onboarding draft version is not supported")
+    data object OnboardingDraftSaveFailed : ValidationError("Failed to save the onboarding draft")
 
     // Movement and Reversal Errors
     data object MovementNotFound : ValidationError("Movement not found")

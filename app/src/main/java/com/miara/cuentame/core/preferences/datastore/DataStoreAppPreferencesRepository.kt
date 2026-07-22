@@ -7,13 +7,17 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.IOException
@@ -23,6 +27,8 @@ class DataStoreAppPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) : AppPreferencesRepository {
+
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private object Keys {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
@@ -74,16 +80,16 @@ class DataStoreAppPreferencesRepository @Inject constructor(
             val jsonString = preferences[Keys.ONBOARDING_DRAFT] ?: return@map null
             try {
                 val draft = json.decodeFromString<OnboardingDraft>(jsonString)
-                if (draft.formatVersion != 1) {
-                    Log.w("DataStorePrefs", "Unsupported draft version: ${draft.formatVersion}")
+                if (draft.formatVersion != 2) {
+                    Log.w("DataStorePrefs", "Unsupported draft version: ${draft.formatVersion}. Expected 2. Clearing.")
+                    scope.launch { clearOnboardingDraft() }
                     null
                 } else {
                     draft
                 }
             } catch (e: Exception) {
                 Log.e("DataStorePrefs", "Failed to decode onboarding draft, clearing it", e)
-                // We can't clear from map, but we return null and prompt says "quarantined or removed"
-                // Clearing will happen next time save is called or we could clear it here by launching a side effect
+                scope.launch { clearOnboardingDraft() }
                 null
             }
         }
@@ -93,7 +99,8 @@ class DataStoreAppPreferencesRepository @Inject constructor(
             val jsonString = json.encodeToString(draft)
             dataStore.edit { it[Keys.ONBOARDING_DRAFT] = jsonString }
         } catch (e: Exception) {
-            Log.e("DataStorePrefs", "Failed to encode onboarding draft", e)
+            Log.e("DataStorePrefs", "Failed to encode/save onboarding draft", e)
+            throw ValidationError.OnboardingDraftSaveFailed
         }
     }
 

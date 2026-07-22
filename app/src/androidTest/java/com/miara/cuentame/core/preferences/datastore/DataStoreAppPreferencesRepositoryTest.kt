@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -62,5 +64,36 @@ class DataStoreAppPreferencesRepositoryTest {
         repository.saveOnboardingDraft(draft)
         val saved = repository.observeOnboardingDraft().first()
         assertThat(saved?.restaurantName).isEqualTo("Test Rest")
+    }
+
+    @Test
+    fun corruptDraft_isRemoved() = runBlocking {
+        // Manually insert corrupt JSON
+        dataStore.edit { 
+            it[stringPreferencesKey("onboarding_draft")] = "{ invalid json"
+        }
+        
+        val saved = repository.observeOnboardingDraft().first()
+        assertThat(saved).isNull()
+        
+        // Removal is launched in CoroutineScope(IO), so we might need a small delay
+        kotlinx.coroutines.delay(100)
+        val rawAfter = dataStore.data.first()[stringPreferencesKey("onboarding_draft")]
+        assertThat(rawAfter).isNull()
+    }
+
+    @Test
+    fun unsupportedVersion_isRemoved() = runBlocking {
+        // Manually insert version 999
+        dataStore.edit { 
+            it[stringPreferencesKey("onboarding_draft")] = """{"formatVersion":999}"""
+        }
+        
+        val saved = repository.observeOnboardingDraft().first()
+        assertThat(saved).isNull()
+        
+        kotlinx.coroutines.delay(100)
+        val rawAfter = dataStore.data.first()[stringPreferencesKey("onboarding_draft")]
+        assertThat(rawAfter).isNull()
     }
 }

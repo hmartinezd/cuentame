@@ -2,11 +2,12 @@
 
 Cuentame is a local-first Android application designed for restaurant inventory management. It operates entirely offline, providing tools for tracking ingredients, purchases, waste, and physical counts.
 
-## Current Milestone: Milestone 2 — Core Domain and Room Database
+## Current Milestone: Milestone 3 — Onboarding and Local Configuration
 
 ### Implemented Scope
 * **Milestone 1:** Responsive UI shell, Navigation, Theme, and project structure.
 * **Milestone 2:** Strongly modeled domain entities, UUID-based IDs, BigDecimal precision, complete Room v1 schema with foreign keys and indexes, DAOs, Repositories, and pure domain calculation services.
+* **Milestone 3:** Comprehensive onboarding with persistent draft, localized restaurant configuration, area and category management, and robust startup recovery.
 
 ### Technical Stack
 * **Language:** Kotlin
@@ -24,27 +25,24 @@ Cuentame is a local-first Android application designed for restaurant inventory 
 ./gradlew lintDebug
 ```
 
-### Current Status (Milestone 3)
+### Current Status (Milestone 3 Integrity Pass)
 - `testDebugUnitTest`: PASSED
 - `lintDebug`: PASSED
 - `assembleDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (21 tests including onboarding flow, recovery, and reordering)
-
-### Current milestone: Milestone 3
-### Next milestone: Milestone 4 — Ingredients and Units
+- `connectedDebugAndroidTest`: PASSED
 
 ### Milestone 3 Highlights
-- **Persistent Onboarding:** Multi-step setup with draft auto-save and crash recovery.
-- **Local Configuration:** Restaurant profile, area, and category management.
-- **Theming:** Full support for Light/Dark/System themes and Material You dynamic color.
-- **Localization:** English and Spanish support with in-app language switching.
+- **Persistent Onboarding:** Multi-step setup with deterministic sequential autosave and crash recovery.
+- **Unified Ordering:** Combined suggested and custom items in a single, stable ordered list.
+- **Robust Integrity:** Authoritative validation for restaurant details, areas, and categories.
+- **Setup Recovery:** Automatic repair of incomplete database states and synchronized Preferences DataStore.
+- **Localization:** Real-time English and Spanish switching with full resource-based implementation.
 
 ### Resetting App Data
 To re-run onboarding, clear the application storage via Android Settings. This will remove both the Room database and Preferences DataStore.
 
-
 ## Next Milestone
-**Milestone 3 — Onboarding and Local Configuration**: Implementing the setup flow and local restaurant configuration.
+**Milestone 4 — Ingredients and Units**: Implementing ingredient CRUD, advanced unit conversions, and packaging options.
 
 ## Project Documentation
 * [Product Specs](docs/product-spec.md)

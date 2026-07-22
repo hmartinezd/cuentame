@@ -37,7 +37,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.feature.onboarding.model.OnboardingItemUiModel
 import com.miara.cuentame.feature.onboarding.model.OnboardingStep
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingEvent
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingUiState
@@ -81,8 +81,8 @@ fun OnboardingRoute(
         }
     }
 
-    val suggestedAreaLabels = uiState.suggestedAreas.associate { it.key to stringResource(it.labelResId) }
-    val suggestedCategoryLabels = uiState.suggestedCategories.associate { it.key to stringResource(it.labelResId) }
+    val suggestedAreaLabels = uiState.areas.filter { it.isSuggested }.associate { it.templateKey!! to stringResource(it.labelResId!!) }
+    val suggestedCategoryLabels = uiState.categories.filter { it.isSuggested }.associate { it.templateKey!! to stringResource(it.labelResId!!) }
 
     OnboardingScreen(
         uiState = uiState,
@@ -90,19 +90,12 @@ fun OnboardingRoute(
         onRestaurantNameChanged = viewModel::onRestaurantNameChanged,
         onCurrencySelected = viewModel::onCurrencySelected,
         onLocaleSelected = viewModel::onLocaleSelected,
-        onSuggestedAreaToggled = viewModel::onSuggestedAreaToggled,
-        onCustomAreaAdded = viewModel::onCustomAreaAdded,
-        onCustomAreaRemoved = viewModel::onCustomAreaRemoved,
-        onCustomAreaRenamed = viewModel::onCustomAreaRenamed,
-        onAreaMovedUp = viewModel::onAreaMovedUp,
-        onAreaMovedDown = viewModel::onAreaMovedDown,
-        onSuggestedCategoryToggled = viewModel::onSuggestedCategoryToggled,
-        onCustomCategoryAdded = viewModel::onCustomCategoryAdded,
-        onCustomCategoryRemoved = viewModel::onCustomCategoryRemoved,
-        onCustomCategoryRenamed = viewModel::onCustomCategoryRenamed,
-        onCategoryMovedUp = viewModel::onCategoryMovedUp,
-        onCategoryMovedDown = viewModel::onCategoryMovedDown,
-        onNext = viewModel::onNext,
+        onToggleItem = viewModel::onToggleItem,
+        onAddItem = viewModel::onAddItem,
+        onRemoveItem = viewModel::onRemoveItem,
+        onRenameItem = viewModel::onRenameCustomItem,
+        onMoveItem = viewModel::onMoveItem,
+        onNext = { viewModel.onNext(suggestedAreaLabels, suggestedCategoryLabels) },
         onBack = viewModel::onBack,
         onEditStep = viewModel::onEditStep,
         onFinish = { 
@@ -118,18 +111,11 @@ fun OnboardingScreen(
     onRestaurantNameChanged: (String) -> Unit,
     onCurrencySelected: (String) -> Unit,
     onLocaleSelected: (String) -> Unit,
-    onSuggestedAreaToggled: (String) -> Unit,
-    onCustomAreaAdded: (String) -> Unit,
-    onCustomAreaRemoved: (String) -> Unit,
-    onCustomAreaRenamed: (String, String) -> Unit,
-    onAreaMovedUp: (String) -> Unit,
-    onAreaMovedDown: (String) -> Unit,
-    onSuggestedCategoryToggled: (String) -> Unit,
-    onCustomCategoryAdded: (String) -> Unit,
-    onCustomCategoryRemoved: (String) -> Unit,
-    onCustomCategoryRenamed: (String, String) -> Unit,
-    onCategoryMovedUp: (String) -> Unit,
-    onCategoryMovedDown: (String) -> Unit,
+    onToggleItem: (Boolean, String) -> Unit,
+    onAddItem: (Boolean, String) -> Unit,
+    onRemoveItem: (Boolean, String) -> Unit,
+    onRenameItem: (Boolean, String, String) -> Unit,
+    onMoveItem: (Boolean, String, Boolean) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
     onEditStep: (OnboardingStep) -> Unit,
@@ -143,6 +129,7 @@ fun OnboardingScreen(
     }
 
     Scaffold(
+        modifier = Modifier.testTag("onboarding_screen_root"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             OnboardingBottomBar(
@@ -183,29 +170,36 @@ fun OnboardingScreen(
                             name = uiState.restaurantName,
                             currency = uiState.currencyCode,
                             locale = uiState.localeTag,
+                            errorResId = uiState.validationErrors["restaurantName"],
                             onNameChanged = onRestaurantNameChanged,
                             onCurrencySelected = onCurrencySelected,
                             onLocaleSelected = onLocaleSelected
                         )
-                        OnboardingStep.AREAS -> AreasStep(
-                            suggested = uiState.suggestedAreas,
-                            custom = uiState.customAreas,
-                            onToggleSuggested = onSuggestedAreaToggled,
-                            onAddCustom = onCustomAreaAdded,
-                            onRemoveCustom = onCustomAreaRemoved,
-                            onRenameCustom = onCustomAreaRenamed,
-                            onMoveUp = onAreaMovedUp,
-                            onMoveDown = onAreaMovedDown
+                        OnboardingStep.AREAS -> ItemsStep(
+                            isArea = true,
+                            titleResId = R.string.onboarding_areas_title,
+                            descResId = R.string.onboarding_areas_desc,
+                            addLabelResId = R.string.onboarding_add_area,
+                            items = uiState.areas,
+                            errorResId = uiState.validationErrors["areas"],
+                            onToggle = onToggleItem,
+                            onAdd = onAddItem,
+                            onRemove = onRemoveItem,
+                            onRename = onRenameItem,
+                            onMove = onMoveItem
                         )
-                        OnboardingStep.CATEGORIES -> CategoriesStep(
-                            suggested = uiState.suggestedCategories,
-                            custom = uiState.customCategories,
-                            onToggleSuggested = onSuggestedCategoryToggled,
-                            onAddCustom = onCustomCategoryAdded,
-                            onRemoveCustom = onCustomCategoryRemoved,
-                            onRenameCustom = onCustomCategoryRenamed,
-                            onMoveUp = onCategoryMovedUp,
-                            onMoveDown = onCategoryMovedDown
+                        OnboardingStep.CATEGORIES -> ItemsStep(
+                            isArea = false,
+                            titleResId = R.string.onboarding_categories_title,
+                            descResId = R.string.onboarding_categories_desc,
+                            addLabelResId = R.string.onboarding_add_category,
+                            items = uiState.categories,
+                            errorResId = uiState.validationErrors["categories"],
+                            onToggle = onToggleItem,
+                            onAdd = onAddItem,
+                            onRemove = onRemoveItem,
+                            onRename = onRenameItem,
+                            onMove = onMoveItem
                         )
                         OnboardingStep.REVIEW -> ReviewStep(uiState, onEditStep)
                     }
@@ -240,6 +234,7 @@ fun RestaurantStep(
     name: String,
     currency: String,
     locale: String,
+    errorResId: Int?,
     onNameChanged: (String) -> Unit,
     onCurrencySelected: (String) -> Unit,
     onLocaleSelected: (String) -> Unit
@@ -253,6 +248,8 @@ fun RestaurantStep(
             label = { Text(stringResource(R.string.onboarding_field_name)) },
             modifier = Modifier.fillMaxWidth().testTag("onboarding_restaurant_name"),
             singleLine = true,
+            isError = errorResId != null,
+            supportingText = errorResId?.let { { Text(stringResource(it)) } },
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
                 imeAction = ImeAction.Next
@@ -327,134 +324,95 @@ fun RestaurantStep(
 }
 
 @Composable
-fun AreasStep(
-    suggested: List<com.miara.cuentame.feature.onboarding.model.SelectableTemplateUiModel>,
-    custom: List<com.miara.cuentame.feature.onboarding.model.EditableNameUiModel>,
-    onToggleSuggested: (String) -> Unit,
-    onAddCustom: (String) -> Unit,
-    onRemoveCustom: (String) -> Unit,
-    onRenameCustom: (String, String) -> Unit,
-    onMoveUp: (String) -> Unit,
-    onMoveDown: (String) -> Unit
+fun ItemsStep(
+    isArea: Boolean,
+    titleResId: Int,
+    descResId: Int,
+    addLabelResId: Int,
+    items: List<OnboardingItemUiModel>,
+    errorResId: Int?,
+    onToggle: (Boolean, String) -> Unit,
+    onAdd: (Boolean, String) -> Unit,
+    onRemove: (Boolean, String) -> Unit,
+    onRename: (Boolean, String, String) -> Unit,
+    onMove: (Boolean, String, Boolean) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(text = stringResource(R.string.onboarding_areas_title), style = MaterialTheme.typography.headlineSmall)
-        Text(text = stringResource(R.string.onboarding_areas_desc))
+        Text(
+            text = stringResource(titleResId),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.testTag(if (isArea) "onboarding_areas_title" else "onboarding_categories_title")
+        )
+        Text(text = stringResource(descResId))
 
-        suggested.forEach { area ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+        if (errorResId != null) {
+            Text(text = stringResource(errorResId), color = MaterialTheme.colorScheme.error)
+        }
+
+        // Input for adding custom items
+        var customName by remember { mutableStateOf("") }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = customName,
+                onValueChange = { customName = it },
+                label = { Text(stringResource(addLabelResId)) },
+                modifier = Modifier.weight(1f).testTag(if (isArea) "onboarding_add_area_input" else "onboarding_add_category_input"),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done
+                )
+            )
+            Button(
+                onClick = { 
+                    onAdd(isArea, customName)
+                    customName = ""
+                },
+                modifier = Modifier.testTag(if (isArea) "onboarding_add_area_button" else "onboarding_add_category_button")
             ) {
-                Checkbox(checked = area.isSelected, onCheckedChange = { onToggleSuggested(area.key) })
-                Text(text = stringResource(area.labelResId))
+                Text(stringResource(R.string.action_add))
             }
+        }
+
+        // Combined list of suggestions and custom items
+        items.forEachIndexed { index, item ->
+            ListItem(
+                headlineContent = {
+                    if (item.isSuggested) {
+                        Text(text = stringResource(item.labelResId!!))
+                    } else {
+                        OutlinedTextField(
+                            value = item.customName ?: "",
+                            onValueChange = { onRename(isArea, item.id, it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                },
+                leadingContent = {
+                    Checkbox(checked = item.isSelected, onCheckedChange = { onToggle(isArea, item.id) })
+                },
+                trailingContent = {
+                    Row {
+                        IconButton(onClick = { onMove(isArea, item.id, true) }, enabled = index > 0) {
+                            Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.move_up, if (item.isSuggested) stringResource(item.labelResId!!) else item.customName ?: ""))
+                        }
+                        IconButton(onClick = { onMove(isArea, item.id, false) }, enabled = index < items.size - 1) {
+                            Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.move_down, if (item.isSuggested) stringResource(item.labelResId!!) else item.customName ?: ""))
+                        }
+                        if (!item.isSuggested) {
+                            IconButton(onClick = { onRemove(isArea, item.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove))
+                            }
+                        }
+                    }
+                }
+            )
+            HorizontalDivider()
         }
         
-        // Custom Area Input
-        var customName by remember { mutableStateOf("") }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = customName,
-                onValueChange = { customName = it },
-                label = { Text(stringResource(R.string.onboarding_add_area)) },
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-            )
-            Button(onClick = { 
-                onAddCustom(customName)
-                customName = ""
-            }) {
-                Text(stringResource(R.string.action_add))
-            }
+        if (!isArea) {
+            Text(text = stringResource(R.string.onboarding_category_recommend), style = MaterialTheme.typography.bodySmall)
         }
-
-        custom.forEach { area ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = area.name,
-                    onValueChange = { onRenameCustom(area.id, it) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                IconButton(onClick = { onMoveUp(area.id) }) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = null)
-                }
-                IconButton(onClick = { onMoveDown(area.id) }) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = null)
-                }
-                IconButton(onClick = { onRemoveCustom(area.id) }) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CategoriesStep(
-    suggested: List<com.miara.cuentame.feature.onboarding.model.SelectableTemplateUiModel>,
-    custom: List<com.miara.cuentame.feature.onboarding.model.EditableNameUiModel>,
-    onToggleSuggested: (String) -> Unit,
-    onAddCustom: (String) -> Unit,
-    onRemoveCustom: (String) -> Unit,
-    onRenameCustom: (String, String) -> Unit,
-    onMoveUp: (String) -> Unit,
-    onMoveDown: (String) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(text = stringResource(R.string.onboarding_categories_title), style = MaterialTheme.typography.headlineSmall)
-        Text(text = stringResource(R.string.onboarding_categories_desc))
-
-        suggested.forEach { cat ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Checkbox(checked = cat.isSelected, onCheckedChange = { onToggleSuggested(cat.key) })
-                Text(text = stringResource(cat.labelResId))
-            }
-        }
-
-        // Custom Category Input
-        var customName by remember { mutableStateOf("") }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = customName,
-                onValueChange = { customName = it },
-                label = { Text(stringResource(R.string.onboarding_add_category)) },
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-            )
-            Button(onClick = { 
-                onAddCustom(customName)
-                customName = ""
-            }) {
-                Text(stringResource(R.string.action_add))
-            }
-        }
-
-        custom.forEach { cat ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = cat.name,
-                    onValueChange = { onRenameCustom(cat.id, it) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                IconButton(onClick = { onMoveUp(cat.id) }) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = null)
-                }
-                IconButton(onClick = { onMoveDown(cat.id) }) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = null)
-                }
-                IconButton(onClick = { onRemoveCustom(cat.id) }) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
-                }
-            }
-        }
-
-        Text(text = stringResource(R.string.onboarding_category_recommend), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -478,8 +436,9 @@ fun ReviewStep(state: OnboardingUiState, onEditStep: (OnboardingStep) -> Unit) {
             label = stringResource(R.string.settings_areas),
             onEdit = { onEditStep(OnboardingStep.AREAS) }
         ) {
-            val areaNames = state.suggestedAreas.filter { it.isSelected }.map { stringResource(it.labelResId) } +
-                    state.customAreas.map { it.name }
+            val areaNames = state.areas.filter { it.isSelected }.map { 
+                if (it.isSuggested) stringResource(it.labelResId!!) else it.customName!!
+            }
             Text(text = areaNames.joinToString(", "))
         }
 
@@ -487,8 +446,9 @@ fun ReviewStep(state: OnboardingUiState, onEditStep: (OnboardingStep) -> Unit) {
             label = stringResource(R.string.settings_categories),
             onEdit = { onEditStep(OnboardingStep.CATEGORIES) }
         ) {
-            val catNames = state.suggestedCategories.filter { it.isSelected }.map { stringResource(it.labelResId) } +
-                    state.customCategories.map { it.name }
+            val catNames = state.categories.filter { it.isSelected }.map { 
+                if (it.isSuggested) stringResource(it.labelResId!!) else it.customName!!
+            }
             if (catNames.isEmpty()) {
                 Text(text = stringResource(R.string.state_empty_desc))
             } else {
@@ -538,14 +498,15 @@ fun OnboardingBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (canBack) {
             OutlinedButton(onClick = onBack, enabled = !isSubmitting) {
                 Text(stringResource(R.string.action_back))
             }
         } else {
-            Box(modifier = Modifier.width(1.dp))
+            Box(Modifier.padding(1.dp))
         }
 
         if (currentStep == OnboardingStep.REVIEW) {

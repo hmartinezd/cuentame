@@ -16,19 +16,30 @@ Onboarding progress is saved automatically to Preferences DataStore as a JSON-se
 *   **Resume:** If the application is closed or crashes, it re-opens at the last saved step with all previous inputs restored.
 *   **Cleanup:** The draft is cleared only after successful database insertion and completion flag updates.
 
+## Unified Ordering
+Suggested and custom items are combined into a single ordered list during onboarding.
+*   **Item Model:** Each item has an ID (template key or UUID), optional template reference, custom name, and a sort order.
+*   **Reordering:** Users can move any selected item (suggested or custom) up or down the list.
+*   **Persistence:** The order is preserved in the draft and committed to Room as contiguous sort orders starting at zero.
+
+## Sequential Autosave
+The flow uses a deterministic sequential autosave pipeline:
+*   **Debounce:** Text entry (restaurant name) is debounced by 300ms to avoid excessive writes.
+*   **Immediate Save:** Selections, reordering, and step changes are saved immediately.
+*   **Sequential Writes:** A `Mutex` ensures only one DataStore write operation executes at a time, preventing older states from overwriting newer ones.
+*   **Flush:** State is explicitly flushed to DataStore before navigation actions (Next, Back, Finish) to ensure no progress is lost.
+
 ## Completion Integrity
 The `CompleteOnboardingUseCase` orchestrates the final transition:
-1.  **Atomic Transaction:** `LocalSetupRepository.completeSetup` inserts the restaurant, areas, and categories in a single Room transaction.
-2.  **Recovery:** If a restaurant exists but setup is incomplete (no areas), it recovers by updating the existing restaurant and adding new areas/categories.
-3.  **Idempotency:** The setup repository detects if a restaurant already exists with complete setup and returns `AlreadyCompleted`.
-4.  **Crash Recovery:** `ResolveAppStartStateUseCase` checks both Room and DataStore. If Room is setup but DataStore is not, it repairs the DataStore flag.
+1.  **Authoritative Validation:** `LocalSetupValidator` enforces all business rules (names, currency, locale, areas, sort orders) before any data is committed.
+2.  **Atomic Transaction:** `LocalSetupRepository.completeSetup` inserts the restaurant, areas, and categories in a single Room transaction.
+3.  **Recovery:** If Room setup succeeds but DataStore completion fails, the application repairs the state upon next startup by observing the Room setup and updating DataStore/Locale accordingly.
+4.  **Idempotency:** Setup cannot be overwritten once completed.
 
-## Startup Resolution
-`AppStartState` drives the root UI:
-*   `Loading`: Initial state while inspecting data sources.
-*   `RequiresOnboarding`: Shown if no active restaurant or areas exist.
-*   `Ready`: Shown when configuration is complete.
-The transition is reactive; when setup completes, the root state automatically switches to `Ready`.
+## Corruption and Versioning
+*   **Supported Version:** Version 2.
+*   **Handling:** If an unsupported version or corrupted JSON is detected in DataStore, the invalid entry is automatically removed, and the user starts with a fresh setup.
+
 
 ## Settings Management
 After onboarding, users can manage their configuration in the Settings hub:

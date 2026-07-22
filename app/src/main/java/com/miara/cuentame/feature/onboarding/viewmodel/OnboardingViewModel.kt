@@ -2,7 +2,9 @@ package com.miara.cuentame.feature.onboarding.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IdGenerator
+import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.repository.SetupAreaInput
@@ -10,26 +12,24 @@ import com.miara.cuentame.core.domain.repository.SetupCategoryInput
 import com.miara.cuentame.core.domain.usecase.CompleteOnboardingUseCase
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.feature.onboarding.model.EditableNameUiModel
-import com.miara.cuentame.feature.onboarding.model.OnboardingCustomItemDraft
 import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import com.miara.cuentame.feature.onboarding.model.OnboardingItemDraft
+import com.miara.cuentame.feature.onboarding.model.OnboardingItemUiModel
 import com.miara.cuentame.feature.onboarding.model.OnboardingStep
 import com.miara.cuentame.feature.onboarding.model.OnboardingTemplates
-import com.miara.cuentame.feature.onboarding.model.SelectableTemplateUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 data class OnboardingUiState(
@@ -39,10 +39,9 @@ data class OnboardingUiState(
     val restaurantName: String = "",
     val currencyCode: String = "USD",
     val localeTag: String = "en-US",
-    val suggestedAreas: List<SelectableTemplateUiModel> = emptyList(),
-    val customAreas: List<EditableNameUiModel> = emptyList(),
-    val suggestedCategories: List<SelectableTemplateUiModel> = emptyList(),
-    val customCategories: List<EditableNameUiModel> = emptyList(),
+    val areas: List<OnboardingItemUiModel> = emptyList(),
+    val categories: List<OnboardingItemUiModel> = emptyList(),
+    val validationErrors: Map<String, Int> = emptyMap(),
     val canGoBack: Boolean = false,
     val canContinue: Boolean = false
 )
@@ -67,6 +66,9 @@ class OnboardingViewModel @Inject constructor(
     private val _events = Channel<OnboardingEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    private val saveMutex = Mutex()
+    private var pendingSaveJob: Job? = null
+
     init {
         viewModelScope.launch {
             val draft = preferencesRepository.observeOnboardingDraft().first()
@@ -75,21 +77,33 @@ class OnboardingViewModel @Inject constructor(
             } else {
                 restoreFromDraft(draft)
             }
-            
-            observeStateForAutosave()
         }
     }
 
     private fun initializeWithDefaults() {
+        val areas = OnboardingTemplates.SUGGESTED_AREAS.mapIndexed { index, t ->
+            OnboardingItemUiModel(
+                id = t.key,
+                templateKey = t.key,
+                labelResId = t.labelResId,
+                isSelected = t.defaultSelected,
+                sortOrder = index
+            )
+        }
+        val categories = OnboardingTemplates.SUGGESTED_CATEGORIES.mapIndexed { index, t ->
+            OnboardingItemUiModel(
+                id = t.key,
+                templateKey = t.key,
+                labelResId = t.labelResId,
+                isSelected = false,
+                sortOrder = index
+            )
+        }
         _uiState.update { 
             it.copy(
                 isLoading = false,
-                suggestedAreas = OnboardingTemplates.SUGGESTED_AREAS.map { t ->
-                    SelectableTemplateUiModel(t.key, t.labelResId, t.defaultSelected)
-                },
-                suggestedCategories = OnboardingTemplates.SUGGESTED_CATEGORIES.map { t ->
-                    SelectableTemplateUiModel(t.key, t.labelResId, false)
-                }
+                areas = areas,
+                categories = categories
             )
         }
         updateCanContinue()
@@ -103,200 +117,197 @@ class OnboardingViewModel @Inject constructor(
                 restaurantName = draft.restaurantName,
                 currencyCode = draft.currencyCode,
                 localeTag = draft.localeTag,
-                suggestedAreas = OnboardingTemplates.SUGGESTED_AREAS.map { t ->
-                    SelectableTemplateUiModel(t.key, t.labelResId, draft.selectedSuggestedAreaKeys.contains(t.key))
+                areas = draft.areas.map { item ->
+                    OnboardingItemUiModel(
+                        id = item.id,
+                        templateKey = item.templateKey,
+                        labelResId = item.templateKey?.let { key -> 
+                            OnboardingTemplates.SUGGESTED_AREAS.find { it.key == key }?.labelResId 
+                        },
+                        customName = item.customName,
+                        isSelected = item.isSelected,
+                        sortOrder = item.sortOrder
+                    )
                 },
-                customAreas = draft.customAreas.map { EditableNameUiModel(it.id, it.name) },
-                suggestedCategories = OnboardingTemplates.SUGGESTED_CATEGORIES.map { t ->
-                    SelectableTemplateUiModel(t.key, t.labelResId, draft.selectedSuggestedCategoryKeys.contains(t.key))
+                categories = draft.categories.map { item ->
+                    OnboardingItemUiModel(
+                        id = item.id,
+                        templateKey = item.templateKey,
+                        labelResId = item.templateKey?.let { key -> 
+                            OnboardingTemplates.SUGGESTED_CATEGORIES.find { it.key == key }?.labelResId 
+                        },
+                        customName = item.customName,
+                        isSelected = item.isSelected,
+                        sortOrder = item.sortOrder
+                    )
                 },
-                customCategories = draft.customCategories.map { EditableNameUiModel(it.id, it.name) },
                 canGoBack = draft.currentStep != OnboardingStep.WELCOME
             )
         }
         updateCanContinue()
     }
 
-    private fun observeStateForAutosave() {
-        viewModelScope.launch {
-            _uiState
-                .drop(1)
-                .map { state ->
-                    OnboardingDraft(
-                        currentStep = state.currentStep,
-                        restaurantName = state.restaurantName,
-                        currencyCode = state.currencyCode,
-                        localeTag = state.localeTag,
-                        selectedSuggestedAreaKeys = state.suggestedAreas.filter { it.isSelected }.map { it.key }.toSet(),
-                        customAreas = state.customAreas.mapIndexed { i, it -> OnboardingCustomItemDraft(it.id, it.name, i) },
-                        selectedSuggestedCategoryKeys = state.suggestedCategories.filter { it.isSelected }.map { it.key }.toSet(),
-                        customCategories = state.customCategories.mapIndexed { i, it -> OnboardingCustomItemDraft(it.id, it.name, i) }
-                    )
-                }
-                .distinctUntilChanged()
-                .debounce(300)
-                .collectLatest { draft ->
-                    preferencesRepository.saveOnboardingDraft(draft)
-                }
-        }
-    }
-
     fun onRestaurantNameChanged(value: String) {
-        _uiState.update { it.copy(restaurantName = value) }
+        _uiState.update { it.copy(restaurantName = value, validationErrors = it.validationErrors - "restaurantName") }
         updateCanContinue()
+        scheduleSave(debounced = true)
     }
 
     fun onCurrencySelected(code: String) {
         _uiState.update { it.copy(currencyCode = code) }
+        scheduleSave()
     }
 
     fun onLocaleSelected(tag: String) {
         _uiState.update { it.copy(localeTag = tag) }
+        scheduleSave()
     }
 
-    fun onSuggestedAreaToggled(key: String) {
+    fun onToggleItem(isArea: Boolean, id: String) {
         _uiState.update { state ->
-            val updated = state.suggestedAreas.map { 
-                if (it.key == key) it.copy(isSelected = !it.isSelected) else it
+            val list = if (isArea) state.areas else state.categories
+            val updated = list.map { 
+                if (it.id == id) it.copy(isSelected = !it.isSelected) else it
             }
-            state.copy(suggestedAreas = updated)
+            if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
+        scheduleSave()
     }
 
-    fun onCustomAreaAdded(name: String) {
+    fun onAddItem(isArea: Boolean, name: String) {
         if (name.isBlank()) return
         _uiState.update { state ->
-            state.copy(customAreas = state.customAreas + EditableNameUiModel(idGenerator.newId(), name))
+            val list = if (isArea) state.areas else state.categories
+            val newItem = OnboardingItemUiModel(
+                id = idGenerator.newId(),
+                customName = name,
+                isSelected = true,
+                sortOrder = list.size
+            )
+            if (isArea) state.copy(areas = list + newItem) else state.copy(categories = list + newItem)
         }
         updateCanContinue()
+        scheduleSave()
     }
 
-    fun onCustomAreaRenamed(id: String, name: String) {
+    fun onRenameCustomItem(isArea: Boolean, id: String, name: String) {
         _uiState.update { state ->
-            val updated = state.customAreas.map { 
-                if (it.id == id) it.copy(name = name) else it
+            val list = if (isArea) state.areas else state.categories
+            val updated = list.map { 
+                if (it.id == id) it.copy(customName = name) else it
             }
-            state.copy(customAreas = updated)
+            if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
+        scheduleSave(debounced = true)
     }
 
-    fun onCustomAreaRemoved(id: String) {
+    fun onRemoveItem(isArea: Boolean, id: String) {
         _uiState.update { state ->
-            state.copy(customAreas = state.customAreas.filter { it.id != id })
+            val list = if (isArea) state.areas else state.categories
+            val updated = list.filter { it.id != id }
+            if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
+        scheduleSave()
     }
 
-    fun onAreaMovedUp(id: String) {
+    fun onMoveItem(isArea: Boolean, id: String, up: Boolean) {
         _uiState.update { state ->
-            val list = state.customAreas.toMutableList()
+            val list = (if (isArea) state.areas else state.categories).toMutableList()
             val index = list.indexOfFirst { it.id == id }
-            if (index > 0) {
+            val targetIndex = if (up) index - 1 else index + 1
+            if (index != -1 && targetIndex in list.indices) {
                 val item = list.removeAt(index)
-                list.add(index - 1, item)
+                list.add(targetIndex, item)
+                val updated = list.mapIndexed { i, it -> it.copy(sortOrder = i) }
+                if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
+            } else {
+                state
             }
-            state.copy(customAreas = list)
         }
+        scheduleSave()
     }
 
-    fun onAreaMovedDown(id: String) {
-        _uiState.update { state ->
-            val list = state.customAreas.toMutableList()
-            val index = list.indexOfFirst { it.id == id }
-            if (index != -1 && index < list.size - 1) {
-                val item = list.removeAt(index)
-                list.add(index + 1, item)
+    fun onNext(suggestedAreaLabels: Map<String, String>, suggestedCategoryLabels: Map<String, String>) {
+        viewModelScope.launch {
+            if (validateCurrentStep(suggestedAreaLabels, suggestedCategoryLabels)) {
+                flushDraft()
+                val current = _uiState.value.currentStep
+                val nextStep = when (current) {
+                    OnboardingStep.WELCOME -> OnboardingStep.RESTAURANT
+                    OnboardingStep.RESTAURANT -> OnboardingStep.AREAS
+                    OnboardingStep.AREAS -> OnboardingStep.CATEGORIES
+                    OnboardingStep.CATEGORIES -> OnboardingStep.REVIEW
+                    OnboardingStep.REVIEW -> return@launch
+                }
+                _uiState.update { it.copy(currentStep = nextStep, canGoBack = true, validationErrors = emptyMap()) }
+                updateCanContinue()
+                scheduleSave()
             }
-            state.copy(customAreas = list)
         }
     }
 
-    fun onSuggestedCategoryToggled(key: String) {
-        _uiState.update { state ->
-            val updated = state.suggestedCategories.map { 
-                if (it.key == key) it.copy(isSelected = !it.isSelected) else it
+    private fun validateCurrentStep(
+        suggestedAreaLabels: Map<String, String>,
+        suggestedCategoryLabels: Map<String, String>
+    ): Boolean {
+        val state = _uiState.value
+        val errors = mutableMapOf<String, Int>()
+        
+        when (state.currentStep) {
+            OnboardingStep.RESTAURANT -> {
+                if (state.restaurantName.trim().isEmpty()) {
+                    errors["restaurantName"] = R.string.error_name_empty
+                }
             }
-            state.copy(suggestedCategories = updated)
-        }
-    }
-
-    fun onCustomCategoryAdded(name: String) {
-        if (name.isBlank()) return
-        _uiState.update { state ->
-            state.copy(customCategories = state.customCategories + EditableNameUiModel(idGenerator.newId(), name))
-        }
-    }
-
-    fun onCustomCategoryRenamed(id: String, name: String) {
-        _uiState.update { state ->
-            val updated = state.customCategories.map { 
-                if (it.id == id) it.copy(name = name) else it
+            OnboardingStep.AREAS -> {
+                val selected = state.areas.filter { it.isSelected }
+                if (selected.isEmpty()) {
+                    errors["areas"] = R.string.onboarding_areas_selection_empty
+                }
+                val names = selected.map { (it.customName ?: suggestedAreaLabels[it.templateKey] ?: it.id).normalizeName() }
+                if (names.any { it.isBlank() }) errors["areas"] = R.string.error_name_empty
+                if (names.size != names.distinct().size) errors["areas"] = R.string.error_duplicate_name
             }
-            state.copy(customCategories = updated)
-        }
-    }
-
-    fun onCustomCategoryRemoved(id: String) {
-        _uiState.update { state ->
-            state.copy(customCategories = state.customCategories.filter { it.id != id })
-        }
-    }
-
-    fun onCategoryMovedUp(id: String) {
-        _uiState.update { state ->
-            val list = state.customCategories.toMutableList()
-            val index = list.indexOfFirst { it.id == id }
-            if (index > 0) {
-                val item = list.removeAt(index)
-                list.add(index - 1, item)
+            OnboardingStep.CATEGORIES -> {
+                val selected = state.categories.filter { it.isSelected }
+                val names = selected.map { (it.customName ?: suggestedCategoryLabels[it.templateKey] ?: it.id).normalizeName() }
+                if (names.any { it.isBlank() }) errors["categories"] = R.string.error_name_empty
+                if (names.size != names.distinct().size) errors["categories"] = R.string.error_duplicate_name
             }
-            state.copy(customCategories = list)
+            else -> {}
         }
-    }
-
-    fun onCategoryMovedDown(id: String) {
-        _uiState.update { state ->
-            val list = state.customCategories.toMutableList()
-            val index = list.indexOfFirst { it.id == id }
-            if (index != -1 && index < list.size - 1) {
-                val item = list.removeAt(index)
-                list.add(index + 1, item)
-            }
-            state.copy(customCategories = list)
-        }
-    }
-
-    fun onNext() {
-        val current = _uiState.value.currentStep
-        val nextStep = when (current) {
-            OnboardingStep.WELCOME -> OnboardingStep.RESTAURANT
-            OnboardingStep.RESTAURANT -> OnboardingStep.AREAS
-            OnboardingStep.AREAS -> OnboardingStep.CATEGORIES
-            OnboardingStep.CATEGORIES -> OnboardingStep.REVIEW
-            OnboardingStep.REVIEW -> return
-        }
-        _uiState.update { it.copy(currentStep = nextStep, canGoBack = true) }
-        updateCanContinue()
+        
+        _uiState.update { it.copy(validationErrors = errors) }
+        return errors.isEmpty()
     }
 
     fun onBack() {
-        val current = _uiState.value.currentStep
-        val prevStep = when (current) {
-            OnboardingStep.WELCOME -> return
-            OnboardingStep.RESTAURANT -> OnboardingStep.WELCOME
-            OnboardingStep.AREAS -> OnboardingStep.RESTAURANT
-            OnboardingStep.CATEGORIES -> OnboardingStep.AREAS
-            OnboardingStep.REVIEW -> OnboardingStep.CATEGORIES
+        viewModelScope.launch {
+            flushDraft()
+            val current = _uiState.value.currentStep
+            val prevStep = when (current) {
+                OnboardingStep.WELCOME -> return@launch
+                OnboardingStep.RESTAURANT -> OnboardingStep.WELCOME
+                OnboardingStep.AREAS -> OnboardingStep.RESTAURANT
+                OnboardingStep.CATEGORIES -> OnboardingStep.AREAS
+                OnboardingStep.REVIEW -> OnboardingStep.CATEGORIES
+            }
+            _uiState.update { it.copy(currentStep = prevStep, canGoBack = prevStep != OnboardingStep.WELCOME, validationErrors = emptyMap()) }
+            updateCanContinue()
+            scheduleSave()
         }
-        _uiState.update { it.copy(currentStep = prevStep, canGoBack = prevStep != OnboardingStep.WELCOME) }
-        updateCanContinue()
     }
 
     fun onEditStep(step: OnboardingStep) {
-        _uiState.update { it.copy(currentStep = step, canGoBack = true) }
-        updateCanContinue()
+        viewModelScope.launch {
+            flushDraft()
+            _uiState.update { it.copy(currentStep = step, canGoBack = true, validationErrors = emptyMap()) }
+            updateCanContinue()
+            scheduleSave()
+        }
     }
 
     fun onCompleteClicked(suggestedAreaLabels: Map<String, String>, suggestedCategoryLabels: Map<String, String>) {
@@ -306,6 +317,7 @@ class OnboardingViewModel @Inject constructor(
         _uiState.update { it.copy(isSubmitting = true) }
         
         viewModelScope.launch {
+            flushDraft()
             val command = CompleteLocalSetupCommand(
                 restaurantName = state.restaurantName,
                 currencyCode = state.currencyCode,
@@ -333,24 +345,14 @@ class OnboardingViewModel @Inject constructor(
     }
 
     private fun getFinalAreas(suggestedLabels: Map<String, String>): List<SetupAreaInput> {
-        val state = _uiState.value
-        val suggested = state.suggestedAreas.filter { it.isSelected }.map { 
-            suggestedLabels[it.key] ?: it.key
-        }
-        val custom = state.customAreas.map { it.name }
-        return (suggested + custom).mapIndexed { index, name ->
-            SetupAreaInput(name, index)
+        return _uiState.value.areas.filter { it.isSelected }.mapIndexed { index, item ->
+            SetupAreaInput(item.customName ?: suggestedLabels[item.templateKey] ?: item.id, index)
         }
     }
 
     private fun getFinalCategories(suggestedLabels: Map<String, String>): List<SetupCategoryInput> {
-        val state = _uiState.value
-        val suggested = state.suggestedCategories.filter { it.isSelected }.map { 
-            suggestedLabels[it.key] ?: it.key
-        }
-        val custom = state.customCategories.map { it.name }
-        return (suggested + custom).mapIndexed { index, name ->
-            SetupCategoryInput(name, index)
+        return _uiState.value.categories.filter { it.isSelected }.mapIndexed { index, item ->
+            SetupCategoryInput(item.customName ?: suggestedLabels[item.templateKey] ?: item.id, index)
         }
     }
 
@@ -359,10 +361,45 @@ class OnboardingViewModel @Inject constructor(
         val canContinue = when (state.currentStep) {
             OnboardingStep.WELCOME -> true
             OnboardingStep.RESTAURANT -> state.restaurantName.isNotBlank()
-            OnboardingStep.AREAS -> state.suggestedAreas.any { it.isSelected } || state.customAreas.isNotEmpty()
+            OnboardingStep.AREAS -> state.areas.any { it.isSelected }
             OnboardingStep.CATEGORIES -> true
             OnboardingStep.REVIEW -> !state.isSubmitting
         }
         _uiState.update { it.copy(canContinue = canContinue) }
+    }
+
+    private fun scheduleSave(debounced: Boolean = false) {
+        pendingSaveJob?.cancel()
+        pendingSaveJob = viewModelScope.launch {
+            if (debounced) delay(300)
+            saveDraft()
+        }
+    }
+
+    private suspend fun flushDraft() {
+        pendingSaveJob?.cancel()
+        saveDraft()
+    }
+
+    private suspend fun saveDraft() {
+        val state = _uiState.value
+        if (state.isLoading) return
+        
+        val draft = OnboardingDraft(
+            currentStep = state.currentStep,
+            restaurantName = state.restaurantName,
+            currencyCode = state.currencyCode,
+            localeTag = state.localeTag,
+            areas = state.areas.map { OnboardingItemDraft(it.id, it.templateKey, it.customName, it.isSelected, it.sortOrder) },
+            categories = state.categories.map { OnboardingItemDraft(it.id, it.templateKey, it.customName, it.isSelected, it.sortOrder) }
+        )
+        
+        saveMutex.withLock {
+            try {
+                preferencesRepository.saveOnboardingDraft(draft)
+            } catch (e: Exception) {
+                // Ignore autosave failure
+            }
+        }
     }
 }

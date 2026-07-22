@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,6 +48,14 @@ fun AreaManagementRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it.message ?: context.getString(R.string.error_generic))
+            viewModel.clearError()
+        }
+    }
 
     AreaManagementScreen(
         uiState = uiState,
@@ -87,13 +97,18 @@ fun AreaManagementScreen(
                     value = newAreaName,
                     onValueChange = { newAreaName = it },
                     label = { Text(stringResource(R.string.onboarding_add_area)) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSaving
                 )
                 IconButton(onClick = { 
                     onAddArea(newAreaName)
                     newAreaName = ""
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
+                }, enabled = !uiState.isSaving && newAreaName.isNotBlank()) {
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    }
                 }
             }
 
@@ -101,8 +116,9 @@ fun AreaManagementScreen(
                 itemsIndexed(uiState.areas) { index, area ->
                     AreaItem(
                         area = area,
-                        canMoveUp = index > 0,
-                        canMoveDown = index < uiState.areas.size - 1,
+                        canMoveUp = index > 0 && !uiState.isSaving,
+                        canMoveDown = index < uiState.areas.size - 1 && !uiState.isSaving,
+                        isEnabled = !uiState.isSaving,
                         onMoveUp = { onMoveUp(index) },
                         onMoveDown = { onMoveDown(index) },
                         onArchive = { areaToArchive = area },
@@ -151,7 +167,7 @@ fun AreaManagementScreen(
                 TextButton(onClick = { 
                     onUpdateArea(area.copy(name = editName))
                     areaToEdit = null
-                }) {
+                }, enabled = editName.isNotBlank()) {
                     Text(stringResource(R.string.action_save))
                 }
             },
@@ -169,6 +185,7 @@ fun AreaItem(
     area: com.miara.cuentame.core.model.inventory.InventoryArea,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
+    isEnabled: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onArchive: () -> Unit,
@@ -180,7 +197,7 @@ fun AreaItem(
     ) {
         Text(text = area.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         
-        IconButton(onClick = onEdit) {
+        IconButton(onClick = onEdit, enabled = isEnabled) {
             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.rename_item, area.name))
         }
         IconButton(onClick = onMoveUp, enabled = canMoveUp) {
@@ -189,7 +206,7 @@ fun AreaItem(
         IconButton(onClick = onMoveDown, enabled = canMoveDown) {
             Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.move_down, area.name))
         }
-        IconButton(onClick = onArchive) {
+        IconButton(onClick = onArchive, enabled = isEnabled) {
             Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive_item, area.name))
         }
     }

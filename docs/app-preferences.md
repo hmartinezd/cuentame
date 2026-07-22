@@ -31,5 +31,11 @@ The `ResolveAppStartStateUseCase` is responsible for keeping Room and DataStore 
 *   If Room has valid setup but DataStore says incomplete, DataStore is updated to `true`.
 *   If Room is empty but DataStore says complete, DataStore is reset to `false` to force onboarding.
 
-## Corruption Handling
-The `DataStoreAppPreferencesRepository` handles decoding errors gracefully. If the onboarding draft JSON is corrupted, it is logged and treated as `null`, allowing the user to start over rather than crashing the app.
+## Corruption and Versioning
+The `DataStoreAppPreferencesRepository` validates the `formatVersion` of the onboarding draft. 
+*   **Current Version:** 2
+*   **Corruption Handling:** If decoding fails or an unsupported version is found, the `ONBOARDING_DRAFT` key is removed from DataStore to prevent repeat failures, and a log diagnostic is recorded.
+
+## Authoritative Validation
+Configuration changes (in both onboarding and settings) are validated by the `LocalSetupValidator`, ensuring consistency in business rules across the application.
+

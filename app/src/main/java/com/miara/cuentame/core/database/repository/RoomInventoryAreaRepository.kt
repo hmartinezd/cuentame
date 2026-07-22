@@ -47,8 +47,9 @@ class RoomInventoryAreaRepository @Inject constructor(
 
     override suspend fun archive(id: InventoryAreaId, at: Instant) {
         database.withTransaction {
-            val count = inventoryAreaDao.getActiveCount()
-            if (count <= 1) {
+            val entity = inventoryAreaDao.getById(id.value) ?: throw ValidationError.MovementNotFound
+            val activeCount = inventoryAreaDao.getActiveCount()
+            if (activeCount <= 1) {
                 throw ValidationError.FinalAreaCannotBeArchived
             }
             inventoryAreaDao.softArchive(id.value, at.toEpochMilli())
@@ -56,12 +57,19 @@ class RoomInventoryAreaRepository @Inject constructor(
     }
 
     override suspend fun reorder(ids: List<InventoryAreaId>) {
+        if (ids.isEmpty()) return
         database.withTransaction {
-            // Check for duplicates in input
-            if (ids.size != ids.distinct().size) throw ValidationError.InvalidSetupState
+            val firstEntity = inventoryAreaDao.getById(ids.first().value) ?: throw ValidationError.InvalidSetupState
+            val restaurantId = firstEntity.restaurantId
+            
+            val activeIds = inventoryAreaDao.getActiveIds(restaurantId).toSet()
+            val inputIds = ids.map { it.value }.toSet()
+            
+            if (inputIds.size != ids.size) throw ValidationError.InvalidSetupState
+            if (inputIds != activeIds) throw ValidationError.InvalidSetupState
             
             ids.forEachIndexed { index, id ->
-                val entity = inventoryAreaDao.getById(id.value) ?: throw ValidationError.InvalidSetupState
+                val entity = inventoryAreaDao.getById(id.value)!! // Checked above by activeIds
                 inventoryAreaDao.upsert(entity.copy(sortOrder = index))
             }
         }

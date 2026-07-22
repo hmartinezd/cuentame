@@ -50,8 +50,9 @@ class OnboardingViewModelTest {
         override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
     }
 
+    private var idCounter = 0
     private val idGenerator = object : IdGenerator {
-        override fun newId(): String = "id"
+        override fun newId(): String = "id_${++idCounter}"
     }
 
     private val validator = LocalSetupValidator()
@@ -76,16 +77,21 @@ class OnboardingViewModelTest {
             val state = awaitItem()
             assertThat(state.isLoading).isFalse()
             assertThat(state.currentStep).isEqualTo(OnboardingStep.WELCOME)
-            assertThat(state.suggestedAreas).isNotEmpty()
+            assertThat(state.areas).isNotEmpty()
         }
     }
 
     @Test
-    fun `autosave persists changes with debounce`() = runTest {
+    fun `autosave persists changes with debounce for name`() = runTest {
         runCurrent()
-        viewModel.onRestaurantNameChanged("New Name")
+        // Ensure VM is initialized
         
-        // Wait for debounce
+        viewModel.onRestaurantNameChanged("New Name")
+        runCurrent()
+        
+        // No save immediately (waiting for debounce)
+        assertThat(draftFlow.value).isNull()
+        
         advanceTimeBy(500)
         runCurrent()
         
@@ -93,14 +99,47 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `step navigation works`() = runTest {
+    fun `autosave persists selections immediately`() = runTest {
         runCurrent()
-        viewModel.onNext()
-        runCurrent()
-        assertThat(viewModel.uiState.value.currentStep).isEqualTo(OnboardingStep.RESTAURANT)
+        val areaId = viewModel.uiState.value.areas.first().id
+        viewModel.onToggleItem(isArea = true, id = areaId)
         
-        viewModel.onBack()
         runCurrent()
-        assertThat(viewModel.uiState.value.currentStep).isEqualTo(OnboardingStep.WELCOME)
+        
+        val area = viewModel.uiState.value.areas.find { it.id == areaId }!!
+        assertThat(draftFlow.value?.areas?.find { it.id == areaId }?.isSelected).isEqualTo(area.isSelected)
+    }
+
+    @Test
+    fun `step navigation flushes pending name`() = runTest {
+        runCurrent()
+        viewModel.onNext(emptyMap(), emptyMap()) // WELCOME to RESTAURANT
+        runCurrent()
+        
+        viewModel.onRestaurantNameChanged("Flushed Name")
+        viewModel.onNext(emptyMap(), emptyMap()) // RESTAURANT to AREAS
+        
+        // Flush should have triggered save immediately
+        runCurrent()
+        assertThat(draftFlow.value?.restaurantName).isEqualTo("Flushed Name")
+        assertThat(viewModel.uiState.value.currentStep).isEqualTo(OnboardingStep.AREAS)
+    }
+
+    @Test
+    fun `reordering updates sort order stably`() = runTest {
+        runCurrent()
+        val firstId = viewModel.uiState.value.areas.first().id
+        val secondId = viewModel.uiState.value.areas[1].id
+        
+        viewModel.onMoveItem(isArea = true, id = secondId, up = true)
+        runCurrent()
+        
+        val updatedAreas = viewModel.uiState.value.areas
+        assertThat(updatedAreas.first().id).isEqualTo(secondId)
+        assertThat(updatedAreas.first().sortOrder).isEqualTo(0)
+        assertThat(updatedAreas[1].id).isEqualTo(firstId)
+        assertThat(updatedAreas[1].sortOrder).isEqualTo(1)
+        
+        assertThat(draftFlow.value?.areas?.first()?.id).isEqualTo(secondId)
     }
 }

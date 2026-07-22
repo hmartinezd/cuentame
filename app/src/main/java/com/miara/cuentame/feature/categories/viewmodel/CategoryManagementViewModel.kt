@@ -13,16 +13,19 @@ import com.miara.cuentame.core.domain.usecase.ReorderIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateIngredientCategoryUseCase
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class CategoryManagementUiState(
     val categories: List<IngredientCategory> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isSaving: Boolean = false,
+    val error: Throwable? = null
 )
 
 @HiltViewModel
@@ -37,15 +40,31 @@ class CategoryManagementViewModel @Inject constructor(
     private val timeProvider: TimeProvider
 ) : ViewModel() {
 
-    val uiState: StateFlow<CategoryManagementUiState> = observeIngredientCategoriesUseCase()
-        .map { CategoryManagementUiState(categories = it, isLoading = false) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = CategoryManagementUiState()
+    private val _isSaving = MutableStateFlow(false)
+    private val _error = MutableStateFlow<Throwable?>(null)
+
+    val uiState: StateFlow<CategoryManagementUiState> = combine(
+        observeIngredientCategoriesUseCase(),
+        _isSaving,
+        _error
+    ) { categories, isSaving, error ->
+        CategoryManagementUiState(
+            categories = categories,
+            isLoading = false,
+            isSaving = isSaving,
+            error = error
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = CategoryManagementUiState()
+    )
 
     fun onAddCategory(name: String) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant() ?: return@launch
@@ -60,49 +79,77 @@ class CategoryManagementViewModel @Inject constructor(
                     updatedAt = timeProvider.now()
                 )
                 createIngredientCategoryUseCase(category)
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onUpdateCategory(category: IngredientCategory) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 updateIngredientCategoryUseCase(category.copy(updatedAt = timeProvider.now()))
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onArchiveCategory(id: IngredientCategoryId) {
+        if (_isSaving.value) return
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
             try {
                 archiveIngredientCategoryUseCase(id, timeProvider.now())
+                _isSaving.value = false
             } catch (e: Exception) {
-                // TODO
+                _isSaving.value = false
+                _error.value = e
             }
         }
     }
 
     fun onMoveUp(index: Int) {
-        if (index <= 0) return
+        if (_isSaving.value || index <= 0) return
         val list = uiState.value.categories.toMutableList()
         val item = list.removeAt(index)
         list.add(index - 1, item)
-        viewModelScope.launch {
-            reorderIngredientCategoriesUseCase(list.map { it.id })
-        }
+        executeReorder(list)
     }
 
     fun onMoveDown(index: Int) {
-        if (index >= uiState.value.categories.size - 1) return
+        if (_isSaving.value || index >= uiState.value.categories.size - 1) return
         val list = uiState.value.categories.toMutableList()
         val item = list.removeAt(index)
         list.add(index + 1, item)
+        executeReorder(list)
+    }
+
+    private fun executeReorder(newList: List<IngredientCategory>) {
+        _isSaving.value = true
+        _error.value = null
         viewModelScope.launch {
-            reorderIngredientCategoriesUseCase(list.map { it.id })
+            try {
+                reorderIngredientCategoriesUseCase(newList.map { it.id })
+                _isSaving.value = false
+            } catch (e: Exception) {
+                _isSaving.value = false
+                _error.value = e
+            }
         }
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 }

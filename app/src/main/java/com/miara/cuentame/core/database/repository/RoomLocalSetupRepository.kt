@@ -14,10 +14,10 @@ import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
+import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class RoomLocalSetupRepository @Inject constructor(
@@ -26,7 +26,8 @@ class RoomLocalSetupRepository @Inject constructor(
     private val areaDao: InventoryAreaDao,
     private val categoryDao: IngredientCategoryDao,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val validator: LocalSetupValidator
 ) : LocalSetupRepository {
 
     override suspend fun isSetupComplete(): Boolean {
@@ -47,7 +48,7 @@ class RoomLocalSetupRepository @Inject constructor(
 
     override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult {
         return try {
-            validateCommand(command)
+            validator.validate(command)
 
             database.withTransaction {
                 val existing = restaurantDao.getRestaurant()
@@ -119,16 +120,6 @@ class RoomLocalSetupRepository @Inject constructor(
             }
         } catch (e: Exception) {
             LocalSetupResult.Failure(e)
-        }
-    }
-
-    private suspend fun validateCommand(command: CompleteLocalSetupCommand) {
-        if (command.restaurantName.normalizeName().isBlank()) throw ValidationError.InvalidName
-        if (command.areas.isEmpty()) throw ValidationError.NoActiveInventoryArea
-        
-        val normalizedAreas = command.areas.map { it.name.normalizeName() }
-        if (normalizedAreas.size != normalizedAreas.distinct().size) {
-            throw ValidationError.DuplicateActiveName
         }
     }
 }
