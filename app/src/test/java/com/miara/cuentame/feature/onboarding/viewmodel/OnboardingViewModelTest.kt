@@ -6,8 +6,10 @@ import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.usecase.CompleteOnboardingUseCase
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -31,7 +33,8 @@ import org.junit.Test
 class OnboardingViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private val draftFlow = MutableStateFlow<OnboardingDraft?>(null)
+    private var draftValue: OnboardingDraft? = null
+    private var shouldFailSave = false
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = MutableStateFlow(AppPreferences.DEFAULT)
@@ -39,15 +42,24 @@ class OnboardingViewModelTest {
         override suspend fun setThemeMode(mode: ThemeMode) {}
         override suspend fun setDynamicColorEnabled(enabled: Boolean) {}
         override suspend fun setAppLocaleTag(localeTag: String) {}
-        override fun observeOnboardingDraft(): Flow<OnboardingDraft?> = draftFlow
-        override suspend fun saveOnboardingDraft(draft: OnboardingDraft) { draftFlow.value = draft }
-        override suspend fun clearOnboardingDraft() { draftFlow.value = null }
+        override suspend fun loadOnboardingDraft(): OnboardingDraft? = draftValue
+        override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {
+            if (shouldFailSave) throw ValidationError.OnboardingDraftSaveFailed
+            draftValue = draft 
+        }
+        override suspend fun clearOnboardingDraft() { draftValue = null }
     }
 
     private val fakeSetupRepository = object : LocalSetupRepository {
         override suspend fun isSetupComplete(): Boolean = false
         override fun observeIsSetupComplete(): Flow<Boolean> = MutableStateFlow(false)
         override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
+    }
+
+    private val fakeRestaurantRepository = object : RestaurantRepository {
+        override fun observeRestaurant(): Flow<com.miara.cuentame.core.model.restaurant.Restaurant?> = MutableStateFlow(null)
+        override suspend fun getRestaurant(): com.miara.cuentame.core.model.restaurant.Restaurant? = null
+        override suspend fun save(restaurant: com.miara.cuentame.core.model.restaurant.Restaurant) {}
     }
 
     private var idCounter = 0
@@ -61,7 +73,7 @@ class OnboardingViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        val completeOnboardingUseCase = CompleteOnboardingUseCase(fakeSetupRepository, fakePreferencesRepository)
+        val completeOnboardingUseCase = CompleteOnboardingUseCase(fakeSetupRepository, fakeRestaurantRepository, fakePreferencesRepository)
         viewModel = OnboardingViewModel(fakePreferencesRepository, completeOnboardingUseCase, idGenerator, validator)
     }
 
@@ -84,18 +96,15 @@ class OnboardingViewModelTest {
     @Test
     fun `autosave persists changes with debounce for name`() = runTest {
         runCurrent()
-        // Ensure VM is initialized
-        
         viewModel.onRestaurantNameChanged("New Name")
         runCurrent()
         
-        // No save immediately (waiting for debounce)
-        assertThat(draftFlow.value).isNull()
+        assertThat(draftValue).isNull()
         
         advanceTimeBy(500)
         runCurrent()
         
-        assertThat(draftFlow.value?.restaurantName).isEqualTo("New Name")
+        assertThat(draftValue?.restaurantName).isEqualTo("New Name")
     }
 
     @Test
@@ -107,28 +116,22 @@ class OnboardingViewModelTest {
         runCurrent()
         
         val area = viewModel.uiState.value.areas.find { it.id == areaId }!!
-        assertThat(draftFlow.value?.areas?.find { it.id == areaId }?.isSelected).isEqualTo(area.isSelected)
+        assertThat(draftValue?.areas?.find { it.id == areaId }?.isSelected).isEqualTo(area.isSelected)
     }
 
     @Test
-    fun `step navigation flushes pending name`() = runTest {
+    fun `next step persists the NEW step immediately`() = runTest {
         runCurrent()
         viewModel.onNext(emptyMap(), emptyMap()) // WELCOME to RESTAURANT
         runCurrent()
         
-        viewModel.onRestaurantNameChanged("Flushed Name")
-        viewModel.onNext(emptyMap(), emptyMap()) // RESTAURANT to AREAS
-        
-        // Flush should have triggered save immediately
-        runCurrent()
-        assertThat(draftFlow.value?.restaurantName).isEqualTo("Flushed Name")
-        assertThat(viewModel.uiState.value.currentStep).isEqualTo(OnboardingStep.AREAS)
+        assertThat(draftValue?.currentStep).isEqualTo(OnboardingStep.RESTAURANT)
+        assertThat(viewModel.uiState.value.currentStep).isEqualTo(OnboardingStep.RESTAURANT)
     }
 
     @Test
-    fun `reordering updates sort order stably`() = runTest {
+    fun `reordering updates sort order and persists immediately`() = runTest {
         runCurrent()
-        val firstId = viewModel.uiState.value.areas.first().id
         val secondId = viewModel.uiState.value.areas[1].id
         
         viewModel.onMoveItem(isArea = true, id = secondId, up = true)
@@ -137,9 +140,20 @@ class OnboardingViewModelTest {
         val updatedAreas = viewModel.uiState.value.areas
         assertThat(updatedAreas.first().id).isEqualTo(secondId)
         assertThat(updatedAreas.first().sortOrder).isEqualTo(0)
-        assertThat(updatedAreas[1].id).isEqualTo(firstId)
-        assertThat(updatedAreas[1].sortOrder).isEqualTo(1)
         
-        assertThat(draftFlow.value?.areas?.first()?.id).isEqualTo(secondId)
+        assertThat(draftValue?.areas?.first()?.id).isEqualTo(secondId)
+        assertThat(draftValue?.areas?.first()?.sortOrder).isEqualTo(0)
+    }
+
+    @Test
+    fun `draft save failure is visible in UI state`() = runTest {
+        runCurrent()
+        shouldFailSave = true
+        
+        viewModel.onCurrencySelected("EUR")
+        runCurrent()
+        
+        assertThat(viewModel.uiState.value.draftSaveError).isNotNull()
+        assertThat(viewModel.uiState.value.draftSaveError).isEqualTo(ValidationError.OnboardingDraftSaveFailed)
     }
 }

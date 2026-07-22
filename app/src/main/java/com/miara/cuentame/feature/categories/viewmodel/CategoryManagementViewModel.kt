@@ -13,10 +13,12 @@ import com.miara.cuentame.core.domain.usecase.ReorderIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateIngredientCategoryUseCase
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,6 +29,10 @@ data class CategoryManagementUiState(
     val isSaving: Boolean = false,
     val error: Throwable? = null
 )
+
+sealed interface CategoryManagementEvent {
+    data object OperationSuccess : CategoryManagementEvent
+}
 
 @HiltViewModel
 class CategoryManagementViewModel @Inject constructor(
@@ -42,6 +48,9 @@ class CategoryManagementViewModel @Inject constructor(
 
     private val _isSaving = MutableStateFlow(false)
     private val _error = MutableStateFlow<Throwable?>(null)
+
+    private val _events = Channel<CategoryManagementEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     val uiState: StateFlow<CategoryManagementUiState> = combine(
         observeIngredientCategoriesUseCase(),
@@ -80,6 +89,7 @@ class CategoryManagementViewModel @Inject constructor(
                 )
                 createIngredientCategoryUseCase(category)
                 _isSaving.value = false
+                _events.send(CategoryManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -96,6 +106,7 @@ class CategoryManagementViewModel @Inject constructor(
             try {
                 updateIngredientCategoryUseCase(category.copy(updatedAt = timeProvider.now()))
                 _isSaving.value = false
+                _events.send(CategoryManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -112,6 +123,7 @@ class CategoryManagementViewModel @Inject constructor(
             try {
                 archiveIngredientCategoryUseCase(id, timeProvider.now())
                 _isSaving.value = false
+                _events.send(CategoryManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -142,6 +154,7 @@ class CategoryManagementViewModel @Inject constructor(
             try {
                 reorderIngredientCategoriesUseCase(newList.map { it.id })
                 _isSaving.value = false
+                _events.send(CategoryManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e

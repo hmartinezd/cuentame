@@ -47,8 +47,8 @@ class RoomInventoryAreaRepository @Inject constructor(
 
     override suspend fun archive(id: InventoryAreaId, at: Instant) {
         database.withTransaction {
-            val entity = inventoryAreaDao.getById(id.value) ?: throw ValidationError.MovementNotFound
-            val activeCount = inventoryAreaDao.getActiveCount()
+            val entity = inventoryAreaDao.getById(id.value) ?: throw ValidationError.RecordNotFound
+            val activeCount = inventoryAreaDao.getActiveCount(entity.restaurantId)
             if (activeCount <= 1) {
                 throw ValidationError.FinalAreaCannotBeArchived
             }
@@ -69,7 +69,7 @@ class RoomInventoryAreaRepository @Inject constructor(
             if (inputIds != activeIds) throw ValidationError.InvalidSetupState
             
             ids.forEachIndexed { index, id ->
-                val entity = inventoryAreaDao.getById(id.value)!! // Checked above by activeIds
+                val entity = inventoryAreaDao.getById(id.value)!!
                 inventoryAreaDao.upsert(entity.copy(sortOrder = index))
             }
         }

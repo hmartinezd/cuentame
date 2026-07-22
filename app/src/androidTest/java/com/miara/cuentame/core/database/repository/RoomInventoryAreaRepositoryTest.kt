@@ -55,6 +55,28 @@ class RoomInventoryAreaRepositoryTest {
     }
 
     @Test
+    fun archiveFinalArea_scopedByRestaurant() = runBlocking {
+        // rest_1 has one area (area_1)
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area_1", "rest_1", "K1", "k1", 0, true, 0, 0, null))
+        
+        // rest_2 has two areas (area_2, area_3)
+        db.restaurantDao().insert(RestaurantEntity("rest_2", "R2", "USD", "en-US", 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area_2", "rest_2", "K2", "k2", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area_3", "rest_2", "K3", "k3", 1, true, 0, 0, null))
+        
+        // area_2 should be archivable because rest_2 has another active area
+        repository.archive(InventoryAreaId("area_2"), Instant.now())
+        
+        // area_1 should NOT be archivable
+        try {
+            repository.archive(InventoryAreaId("area_1"), Instant.now())
+            assertThat(true).isFalse()
+        } catch (e: ValidationError.FinalAreaCannotBeArchived) {
+            assertThat(e).isNotNull()
+        }
+    }
+
+    @Test
     fun reorder_updatesSortOrderContiguously() = runBlocking {
         db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
         db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))

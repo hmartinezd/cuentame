@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.feature.categories.viewmodel.CategoryManagementEvent
 import com.miara.cuentame.feature.categories.viewmodel.CategoryManagementViewModel
 
 @Composable
@@ -50,16 +53,34 @@ fun CategoryManagementRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    var categoryToArchive by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
+    var categoryToEdit by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is CategoryManagementEvent.OperationSuccess -> {
+                    categoryToArchive = null
+                    categoryToEdit = null
+                }
+            }
+        }
+    }
+
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
-            snackbarHostState.showSnackbar(it.message ?: context.getString(R.string.error_generic))
+            snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
             viewModel.clearError()
         }
     }
 
     CategoryManagementScreen(
         uiState = uiState,
+        categoryToArchive = categoryToArchive,
+        categoryToEdit = categoryToEdit,
         snackbarHostState = snackbarHostState,
+        onSetCategoryToArchive = { categoryToArchive = it },
+        onSetCategoryToEdit = { categoryToEdit = it },
         onAddCategory = viewModel::onAddCategory,
         onUpdateCategory = viewModel::onUpdateCategory,
         onArchiveCategory = { viewModel.onArchiveCategory(it.id) },
@@ -71,16 +92,17 @@ fun CategoryManagementRoute(
 @Composable
 fun CategoryManagementScreen(
     uiState: com.miara.cuentame.feature.categories.viewmodel.CategoryManagementUiState,
+    categoryToArchive: com.miara.cuentame.core.model.ingredient.IngredientCategory?,
+    categoryToEdit: com.miara.cuentame.core.model.ingredient.IngredientCategory?,
     snackbarHostState: SnackbarHostState,
+    onSetCategoryToArchive: (com.miara.cuentame.core.model.ingredient.IngredientCategory?) -> Unit,
+    onSetCategoryToEdit: (com.miara.cuentame.core.model.ingredient.IngredientCategory?) -> Unit,
     onAddCategory: (String) -> Unit,
     onUpdateCategory: (com.miara.cuentame.core.model.ingredient.IngredientCategory) -> Unit,
     onArchiveCategory: (com.miara.cuentame.core.model.ingredient.IngredientCategory) -> Unit,
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit
 ) {
-    var categoryToArchive by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
-    var categoryToEdit by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
@@ -105,9 +127,9 @@ fun CategoryManagementScreen(
                     newCategoryName = ""
                 }, enabled = !uiState.isSaving && newCategoryName.isNotBlank()) {
                     if (uiState.isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Default.Add, contentDescription = null)
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_add_category))
                     }
                 }
             }
@@ -121,8 +143,8 @@ fun CategoryManagementScreen(
                         isEnabled = !uiState.isSaving,
                         onMoveUp = { onMoveUp(index) },
                         onMoveDown = { onMoveDown(index) },
-                        onArchive = { categoryToArchive = category },
-                        onEdit = { categoryToEdit = category }
+                        onArchive = { onSetCategoryToArchive(category) },
+                        onEdit = { onSetCategoryToEdit(category) }
                     )
                     HorizontalDivider()
                 }
@@ -132,19 +154,16 @@ fun CategoryManagementScreen(
 
     categoryToArchive?.let { cat ->
         AlertDialog(
-            onDismissRequest = { categoryToArchive = null },
+            onDismissRequest = { onSetCategoryToArchive(null) },
             title = { Text(stringResource(R.string.action_archive)) },
-            text = { Text("Are you sure you want to archive ${cat.name}?") },
+            text = { Text(stringResource(R.string.archive_category_confirmation, cat.name)) },
             confirmButton = {
-                TextButton(onClick = { 
-                    onArchiveCategory(cat)
-                    categoryToArchive = null
-                }) {
-                    Text(stringResource(R.string.action_archive))
+                TextButton(onClick = { onArchiveCategory(cat) }, enabled = !uiState.isSaving) {
+                    Text(stringResource(R.string.archive_confirm_action))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { categoryToArchive = null }) {
+                TextButton(onClick = { onSetCategoryToArchive(null) }, enabled = !uiState.isSaving) {
                     Text(stringResource(android.R.string.cancel))
                 }
             }
@@ -154,25 +173,23 @@ fun CategoryManagementScreen(
     categoryToEdit?.let { cat ->
         var editName by remember { mutableStateOf(cat.name) }
         AlertDialog(
-            onDismissRequest = { categoryToEdit = null },
+            onDismissRequest = { if (!uiState.isSaving) onSetCategoryToEdit(null) },
             title = { Text(stringResource(R.string.action_edit)) },
             text = {
                 OutlinedTextField(
                     value = editName,
                     onValueChange = { editName = it },
-                    label = { Text(stringResource(R.string.onboarding_field_name)) }
+                    label = { Text(stringResource(R.string.onboarding_field_name)) },
+                    enabled = !uiState.isSaving
                 )
             },
             confirmButton = {
-                TextButton(onClick = { 
-                    onUpdateCategory(cat.copy(name = editName))
-                    categoryToEdit = null
-                }, enabled = editName.isNotBlank()) {
+                TextButton(onClick = { onUpdateCategory(cat.copy(name = editName)) }, enabled = !uiState.isSaving && editName.isNotBlank()) {
                     Text(stringResource(R.string.action_save))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { categoryToEdit = null }) {
+                TextButton(onClick = { onSetCategoryToEdit(null) }, enabled = !uiState.isSaving) {
                     Text(stringResource(android.R.string.cancel))
                 }
             }

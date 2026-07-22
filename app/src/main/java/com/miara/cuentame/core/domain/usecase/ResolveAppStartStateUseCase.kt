@@ -23,25 +23,26 @@ class ResolveAppStartStateUseCase @Inject constructor(
         preferencesRepository.observePreferences(),
         setupRepository.observeIsSetupComplete()
     ) { prefs, isDbComplete ->
-        val isPrefComplete = prefs.onboardingCompleted
-
         when {
-            isDbComplete && !isPrefComplete -> {
-                // Repair DataStore
-                preferencesRepository.setOnboardingCompleted(true)
-                // Also repair locale from restaurant
-                restaurantRepository.getRestaurant()?.let {
-                    if (it.localeTag != prefs.appLocaleTag) {
-                        preferencesRepository.setAppLocaleTag(it.localeTag)
+            isDbComplete -> {
+                // DB is complete, Room is the source of truth for locale
+                val restaurant = restaurantRepository.getRestaurant()
+                if (restaurant != null) {
+                    if (restaurant.localeTag != prefs.appLocaleTag) {
+                        preferencesRepository.setAppLocaleTag(restaurant.localeTag)
                     }
+                }
+                
+                if (!prefs.onboardingCompleted) {
+                    preferencesRepository.setOnboardingCompleted(true)
                 }
                 AppStartState.Ready
             }
-            !isDbComplete && isPrefComplete -> {
+            prefs.onboardingCompleted -> {
+                // DB incomplete but DataStore says complete -> Repair DataStore
                 preferencesRepository.setOnboardingCompleted(false)
                 AppStartState.RequiresOnboarding
             }
-            isDbComplete -> AppStartState.Ready
             else -> AppStartState.RequiresOnboarding
         }
     }.distinctUntilChanged()

@@ -105,6 +105,7 @@
     <string name="error_unsupported_locale">Idioma no soportado</string>
     <string name="error_no_areas">Se requiere al menos un área</string>
     <string name="error_draft_corrupted">El borrador de configuración estaba corrupto y ha sido reiniciado</string>
+    <string name="error_draft_save">Error al guardar el borrador</string>
 
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
@@ -117,4 +118,11 @@
     <string name="move_down">Mover %1$s abajo</string>
     <string name="archive_item">Archivar %1$s</string>
     <string name="rename_item">Renombrar %1$s</string>
+    <string name="archive_area_confirmation">¿Está seguro de que desea archivar %1$s?</string>
+    <string name="archive_category_confirmation">¿Está seguro de que desea archivar %1$s?</string>
+    <string name="action_add_area">Añadir área de inventario</string>
+    <string name="action_add_category">Añadir categoría de ingredientes</string>
+    <string name="action_remove_item">Eliminar %1$s</string>
+    <string name="archive_confirm_action">Archivar</string>
+    <string name="add_item_desc">Añadir %1$s</string>
 </resources>

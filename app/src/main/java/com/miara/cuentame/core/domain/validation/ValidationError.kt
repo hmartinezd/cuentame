@@ -23,6 +23,7 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object OnboardingDraftCorrupted : ValidationError("The onboarding draft is corrupted and has been reset")
     data object UnsupportedOnboardingDraftVersion : ValidationError("The onboarding draft version is not supported")
     data object OnboardingDraftSaveFailed : ValidationError("Failed to save the onboarding draft")
+    data object RecordNotFound : ValidationError("The requested record was not found")
 
     // Movement and Reversal Errors
     data object MovementNotFound : ValidationError("Movement not found")

@@ -38,13 +38,21 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
-            preferencesRepository.setThemeMode(mode)
+            try {
+                preferencesRepository.setThemeMode(mode)
+            } catch (e: Exception) {
+                _error.value = e
+            }
         }
     }
 
     fun setDynamicColorEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            preferencesRepository.setDynamicColorEnabled(enabled)
+            try {
+                preferencesRepository.setDynamicColorEnabled(enabled)
+            } catch (e: Exception) {
+                _error.value = e
+            }
         }
     }
 
@@ -55,13 +63,13 @@ class SettingsViewModel @Inject constructor(
         
         viewModelScope.launch {
             try {
-                // Update DataStore first
-                preferencesRepository.setAppLocaleTag(tag)
-                
-                // Sync with restaurant if it exists
-                restaurantRepository.getRestaurant()?.let {
-                    updateRestaurantProfileUseCase(it.copy(localeTag = tag))
+                // authoratative Room first
+                val restaurant = restaurantRepository.getRestaurant()
+                if (restaurant != null) {
+                    updateRestaurantProfileUseCase(restaurant.copy(localeTag = tag))
                 }
+                // DataStore second
+                preferencesRepository.setAppLocaleTag(tag)
                 _isSaving.value = false
             } catch (e: Exception) {
                 _isSaving.value = false

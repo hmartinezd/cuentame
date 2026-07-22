@@ -1,6 +1,5 @@
 package com.miara.cuentame.core.domain.usecase
 
-import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
@@ -15,10 +14,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
-class ResolveAppStartStateUseCaseTest {
+class CompleteOnboardingUseCaseTest {
 
     private val preferencesFlow = MutableStateFlow(AppPreferences.DEFAULT)
-    private val dbCompleteFlow = MutableStateFlow(false)
+    private var setupResult: LocalSetupResult = LocalSetupResult.Success
     private var restaurantValue: com.miara.cuentame.core.model.restaurant.Restaurant? = null
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
@@ -37,9 +36,9 @@ class ResolveAppStartStateUseCaseTest {
     }
 
     private val fakeSetupRepository = object : LocalSetupRepository {
-        override suspend fun isSetupComplete(): Boolean = dbCompleteFlow.value
-        override fun observeIsSetupComplete(): Flow<Boolean> = dbCompleteFlow
-        override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
+        override suspend fun isSetupComplete(): Boolean = true
+        override fun observeIsSetupComplete(): Flow<Boolean> = MutableStateFlow(true)
+        override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = setupResult
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
@@ -50,40 +49,23 @@ class ResolveAppStartStateUseCaseTest {
         }
     }
 
-    private val useCase = ResolveAppStartStateUseCase(fakePreferencesRepository, fakeSetupRepository, fakeRestaurantRepository)
+    private val useCase = CompleteOnboardingUseCase(fakeSetupRepository, fakeRestaurantRepository, fakePreferencesRepository)
 
     @Test
-    fun `both incomplete returns RequiresOnboarding`() = runTest {
-        dbCompleteFlow.value = false
-        preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = false)
-
-        useCase().test {
-            assertThat(awaitItem()).isEqualTo(AppStartState.RequiresOnboarding)
-        }
+    fun `Success updates DataStore and clears draft`() = runTest {
+        val command = CompleteLocalSetupCommand("Rest", "USD", "es-US", emptyList(), emptyList())
+        setupResult = LocalSetupResult.Success
+        
+        val result = useCase(command)
+        
+        assertThat(result).isEqualTo(LocalSetupResult.Success)
+        assertThat(preferencesFlow.value.onboardingCompleted).isTrue()
+        assertThat(preferencesFlow.value.appLocaleTag).isEqualTo("es-US")
     }
 
     @Test
-    fun `both complete returns Ready`() = runTest {
-        dbCompleteFlow.value = true
-        preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = true)
-        restaurantValue = com.miara.cuentame.core.model.restaurant.Restaurant(
-            id = com.miara.cuentame.core.common.ids.RestaurantId("id"),
-            name = "Test",
-            currencyCode = "USD",
-            localeTag = "en-US",
-            createdAt = java.time.Instant.now(),
-            updatedAt = java.time.Instant.now()
-        )
-
-        useCase().test {
-            assertThat(awaitItem()).isEqualTo(AppStartState.Ready)
-        }
-    }
-
-    @Test
-    fun `db complete but locale mismatch repairs DataStore and returns Ready`() = runTest {
-        dbCompleteFlow.value = true
-        preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = true, appLocaleTag = "en-US")
+    fun `AlreadyCompleted uses Room locale as authoritative`() = runTest {
+        // Existing restaurant is Spanish
         restaurantValue = com.miara.cuentame.core.model.restaurant.Restaurant(
             id = com.miara.cuentame.core.common.ids.RestaurantId("id"),
             name = "Test",
@@ -92,21 +74,15 @@ class ResolveAppStartStateUseCaseTest {
             createdAt = java.time.Instant.now(),
             updatedAt = java.time.Instant.now()
         )
-
-        useCase().test {
-            assertThat(awaitItem()).isEqualTo(AppStartState.Ready)
-            assertThat(preferencesFlow.value.appLocaleTag).isEqualTo("es-US")
-        }
-    }
-
-    @Test
-    fun `db incomplete but DataStore says complete repairs DataStore and returns RequiresOnboarding`() = runTest {
-        dbCompleteFlow.value = false
-        preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = true)
-
-        useCase().test {
-            assertThat(awaitItem()).isEqualTo(AppStartState.RequiresOnboarding)
-            assertThat(preferencesFlow.value.onboardingCompleted).isFalse()
-        }
+        
+        // Stale command says English
+        val command = CompleteLocalSetupCommand("Rest", "USD", "en-US", emptyList(), emptyList())
+        setupResult = LocalSetupResult.AlreadyCompleted
+        
+        val result = useCase(command)
+        
+        assertThat(result).isEqualTo(LocalSetupResult.AlreadyCompleted)
+        assertThat(preferencesFlow.value.onboardingCompleted).isTrue()
+        assertThat(preferencesFlow.value.appLocaleTag).isEqualTo("es-US")
     }
 }

@@ -34,7 +34,7 @@ class RoomLocalSetupRepository @Inject constructor(
         val restaurant = restaurantDao.getRestaurant()
         if (restaurant == null) return false
         
-        return areaDao.getActiveCount() > 0
+        return areaDao.getActiveCount(restaurant.id) > 0
     }
 
     override fun observeIsSetupComplete(): Flow<Boolean> {
@@ -56,7 +56,7 @@ class RoomLocalSetupRepository @Inject constructor(
                 
                 val restaurantId = if (existing != null) {
                     // Check if setup is already complete
-                    if (areaDao.getActiveCount() > 0) {
+                    if (areaDao.getActiveCount(existing.id) > 0) {
                         return@withTransaction LocalSetupResult.AlreadyCompleted
                     }
                     // Recovery: update existing restaurant

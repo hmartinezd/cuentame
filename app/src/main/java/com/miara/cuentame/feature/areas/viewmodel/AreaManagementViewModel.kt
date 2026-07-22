@@ -13,10 +13,12 @@ import com.miara.cuentame.core.domain.usecase.ReorderInventoryAreasUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateInventoryAreaUseCase
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,6 +29,10 @@ data class AreaManagementUiState(
     val isSaving: Boolean = false,
     val error: Throwable? = null
 )
+
+sealed interface AreaManagementEvent {
+    data object OperationSuccess : AreaManagementEvent
+}
 
 @HiltViewModel
 class AreaManagementViewModel @Inject constructor(
@@ -42,6 +48,9 @@ class AreaManagementViewModel @Inject constructor(
 
     private val _isSaving = MutableStateFlow(false)
     private val _error = MutableStateFlow<Throwable?>(null)
+
+    private val _events = Channel<AreaManagementEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     val uiState: StateFlow<AreaManagementUiState> = combine(
         observeInventoryAreasUseCase(),
@@ -72,7 +81,7 @@ class AreaManagementViewModel @Inject constructor(
                     id = InventoryAreaId(idGenerator.newId()),
                     restaurantId = restaurant.id,
                     name = name,
-                    normalizedName = "", // Repository handles normalization
+                    normalizedName = "", 
                     sortOrder = uiState.value.areas.size,
                     isActive = true,
                     createdAt = timeProvider.now(),
@@ -80,6 +89,7 @@ class AreaManagementViewModel @Inject constructor(
                 )
                 createInventoryAreaUseCase(area)
                 _isSaving.value = false
+                _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -96,6 +106,7 @@ class AreaManagementViewModel @Inject constructor(
             try {
                 updateInventoryAreaUseCase(area.copy(updatedAt = timeProvider.now()))
                 _isSaving.value = false
+                _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -112,6 +123,7 @@ class AreaManagementViewModel @Inject constructor(
             try {
                 archiveInventoryAreaUseCase(id, timeProvider.now())
                 _isSaving.value = false
+                _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e
@@ -142,6 +154,7 @@ class AreaManagementViewModel @Inject constructor(
             try {
                 reorderInventoryAreasUseCase(newList.map { it.id })
                 _isSaving.value = false
+                _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
                 _isSaving.value = false
                 _error.value = e

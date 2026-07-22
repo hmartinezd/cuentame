@@ -59,40 +59,35 @@ class DataStoreAppPreferencesRepositoryTest {
     }
 
     @Test
-    fun saveAndObserveDraft() = runBlocking {
+    fun saveAndLoadDraft() = runBlocking {
         val draft = OnboardingDraft(restaurantName = "Test Rest")
         repository.saveOnboardingDraft(draft)
-        val saved = repository.observeOnboardingDraft().first()
+        val saved = repository.loadOnboardingDraft()
         assertThat(saved?.restaurantName).isEqualTo("Test Rest")
     }
 
     @Test
-    fun corruptDraft_isRemoved() = runBlocking {
-        // Manually insert corrupt JSON
+    fun corruptDraft_isRemovedSynchronously() = runBlocking {
         dataStore.edit { 
             it[stringPreferencesKey("onboarding_draft")] = "{ invalid json"
         }
         
-        val saved = repository.observeOnboardingDraft().first()
+        val saved = repository.loadOnboardingDraft()
         assertThat(saved).isNull()
         
-        // Removal is launched in CoroutineScope(IO), so we might need a small delay
-        kotlinx.coroutines.delay(100)
         val rawAfter = dataStore.data.first()[stringPreferencesKey("onboarding_draft")]
         assertThat(rawAfter).isNull()
     }
 
     @Test
-    fun unsupportedVersion_isRemoved() = runBlocking {
-        // Manually insert version 999
+    fun unsupportedVersion_isRemovedSynchronously() = runBlocking {
         dataStore.edit { 
             it[stringPreferencesKey("onboarding_draft")] = """{"formatVersion":999}"""
         }
         
-        val saved = repository.observeOnboardingDraft().first()
+        val saved = repository.loadOnboardingDraft()
         assertThat(saved).isNull()
         
-        kotlinx.coroutines.delay(100)
         val rawAfter = dataStore.data.first()[stringPreferencesKey("onboarding_draft")]
         assertThat(rawAfter).isNull()
     }

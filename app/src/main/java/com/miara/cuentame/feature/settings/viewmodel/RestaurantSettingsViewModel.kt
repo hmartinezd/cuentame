@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -52,6 +51,8 @@ class RestaurantSettingsViewModel @Inject constructor(
 
     fun onUpdateRestaurant(name: String, currency: String, locale: String, onSuccess: () -> Unit) {
         val current = uiState.value.restaurant ?: return
+        if (_isSaving.value) return
+        
         _isSaving.value = true
         _error.value = null
         
@@ -62,8 +63,11 @@ class RestaurantSettingsViewModel @Inject constructor(
                     currencyCode = currency,
                     localeTag = locale
                 )
+                // AUTHORATATIVE Room first
                 updateRestaurantProfileUseCase(updated)
+                // DataStore second
                 preferencesRepository.setAppLocaleTag(locale)
+
                 _isSaving.value = false
                 onSuccess()
             } catch (e: Exception) {

@@ -75,7 +75,7 @@ fun OnboardingFlow() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Destination.ONBOARDING.route) {
         composable(Destination.ONBOARDING.route) {
-            OnboardingRoute(onOnboardingFinished = {})
+            OnboardingRoute()
         }
     }
 }

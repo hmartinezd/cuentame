@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.miara.cuentame.app.ui.AppPreferencesState
 import com.miara.cuentame.app.ui.AppViewModel
 import com.miara.cuentame.app.ui.CuentameApp
 import com.miara.cuentame.app.ui.theme.CuentameTheme
@@ -29,24 +30,29 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
-            val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+            val prefState by viewModel.preferencesState.collectAsStateWithLifecycle()
             
-            LaunchedEffect(preferences.appLocaleTag) {
-                val appLocales = LocaleListCompat.forLanguageTags(preferences.appLocaleTag)
-                AppCompatDelegate.setApplicationLocales(appLocales)
+            val preferences = (prefState as? AppPreferencesState.Ready)?.preferences
+
+            LaunchedEffect(preferences?.appLocaleTag) {
+                preferences?.appLocaleTag?.let { tag ->
+                    val appLocales = LocaleListCompat.forLanguageTags(tag)
+                    if (AppCompatDelegate.getApplicationLocales() != appLocales) {
+                        AppCompatDelegate.setApplicationLocales(appLocales)
+                    }
+                }
             }
 
             CuentameTheme(
-                darkTheme = when (preferences.themeMode) {
-                    ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+                darkTheme = when (preferences?.themeMode) {
+                    ThemeMode.SYSTEM, null -> androidx.compose.foundation.isSystemInDarkTheme()
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 },
-                dynamicColor = preferences.dynamicColorEnabled
+                dynamicColor = preferences?.dynamicColorEnabled ?: true
             ) {
                 CuentameApp(windowSizeClass = windowSizeClass)
             }
         }
     }
 }
-

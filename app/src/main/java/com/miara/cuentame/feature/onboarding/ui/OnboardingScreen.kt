@@ -8,15 +8,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.feature.onboarding.model.OnboardingItemUiModel
 import com.miara.cuentame.feature.onboarding.model.OnboardingStep
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingEvent
@@ -63,7 +66,6 @@ import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingViewModel
 
 @Composable
 fun OnboardingRoute(
-    onOnboardingFinished: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -73,9 +75,8 @@ fun OnboardingRoute(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is OnboardingEvent.NavigateToHome -> onOnboardingFinished()
                 is OnboardingEvent.ShowError -> {
-                    snackbarHostState.showSnackbar(event.error.message ?: context.getString(R.string.error_generic))
+                    snackbarHostState.showSnackbar(context.getString(event.error.toUserMessageRes()))
                 }
             }
         }
@@ -157,11 +158,28 @@ fun OnboardingScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    if (uiState.draftSaveError != null) {
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = stringResource(R.string.error_draft_save),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else if (uiState.isDraftSaving) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                }
 
                 AnimatedContent(targetState = uiState.currentStep, label = "OnboardingStep") { step ->
                     when (step) {

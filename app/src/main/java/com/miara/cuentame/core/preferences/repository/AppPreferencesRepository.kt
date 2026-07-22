@@ -12,7 +12,7 @@ interface AppPreferencesRepository {
     suspend fun setDynamicColorEnabled(enabled: Boolean)
     suspend fun setAppLocaleTag(localeTag: String)
 
-    fun observeOnboardingDraft(): Flow<OnboardingDraft?>
+    suspend fun loadOnboardingDraft(): OnboardingDraft?
     suspend fun saveOnboardingDraft(draft: OnboardingDraft)
     suspend fun clearOnboardingDraft()
 }

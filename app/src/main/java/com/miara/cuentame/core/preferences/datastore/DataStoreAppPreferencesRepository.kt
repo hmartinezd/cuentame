@@ -12,12 +12,10 @@ import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.IOException
@@ -27,8 +25,6 @@ class DataStoreAppPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) : AppPreferencesRepository {
-
-    private val scope = CoroutineScope(Dispatchers.IO)
 
     private object Keys {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
@@ -75,24 +71,25 @@ class DataStoreAppPreferencesRepository @Inject constructor(
         dataStore.edit { it[Keys.APP_LOCALE_TAG] = localeTag }
     }
 
-    override fun observeOnboardingDraft(): Flow<OnboardingDraft?> = dataStore.data
-        .map { preferences ->
-            val jsonString = preferences[Keys.ONBOARDING_DRAFT] ?: return@map null
-            try {
-                val draft = json.decodeFromString<OnboardingDraft>(jsonString)
-                if (draft.formatVersion != 2) {
-                    Log.w("DataStorePrefs", "Unsupported draft version: ${draft.formatVersion}. Expected 2. Clearing.")
-                    scope.launch { clearOnboardingDraft() }
-                    null
-                } else {
-                    draft
-                }
-            } catch (e: Exception) {
-                Log.e("DataStorePrefs", "Failed to decode onboarding draft, clearing it", e)
-                scope.launch { clearOnboardingDraft() }
+    override suspend fun loadOnboardingDraft(): OnboardingDraft? {
+        val preferences = dataStore.data.first()
+        val jsonString = preferences[Keys.ONBOARDING_DRAFT] ?: return null
+        
+        return try {
+            val draft = json.decodeFromString<OnboardingDraft>(jsonString)
+            if (draft.formatVersion != 2) {
+                Log.w("DataStorePrefs", "Unsupported draft version: ${draft.formatVersion}. Expected 2. Clearing.")
+                clearOnboardingDraft()
                 null
+            } else {
+                draft
             }
+        } catch (e: Exception) {
+            Log.e("DataStorePrefs", "Failed to decode onboarding draft, clearing it", e)
+            clearOnboardingDraft()
+            null
         }
+    }
 
     override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {
         try {

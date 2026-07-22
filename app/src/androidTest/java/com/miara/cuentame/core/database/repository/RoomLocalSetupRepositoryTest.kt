@@ -12,6 +12,8 @@ import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.repository.SetupAreaInput
 import com.miara.cuentame.core.domain.repository.SetupCategoryInput
+import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
+import com.miara.cuentame.core.domain.validation.ValidationError
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -23,6 +25,7 @@ class RoomLocalSetupRepositoryTest {
 
     private lateinit var db: RestaurantInventoryDatabase
     private lateinit var repository: RoomLocalSetupRepository
+    private val validator = LocalSetupValidator()
 
     @Before
     fun setup() {
@@ -37,7 +40,7 @@ class RoomLocalSetupRepositoryTest {
             db.ingredientCategoryDao(),
             UuidIdGenerator(),
             SystemTimeProvider(),
-            com.miara.cuentame.core.domain.usecase.LocalSetupValidator()
+            validator
         )
     }
 
@@ -61,6 +64,24 @@ class RoomLocalSetupRepositoryTest {
         assertThat(result).isEqualTo(LocalSetupResult.Success)
         assertThat(repository.isSetupComplete()).isTrue()
         assertThat(db.restaurantDao().getRestaurant()?.name).isEqualTo("Test Rest")
+    }
+
+    @Test
+    fun completeSetup_invalidCommand_rollsBack() = runBlocking {
+        val command = CompleteLocalSetupCommand(
+            restaurantName = "", // Invalid
+            currencyCode = "USD",
+            localeTag = "en-US",
+            areas = listOf(SetupAreaInput("Kitchen", 0)),
+            categories = emptyList()
+        )
+
+        val result = repository.completeSetup(command)
+        assertThat(result).isInstanceOf(LocalSetupResult.Failure::class.java)
+        val failure = result as LocalSetupResult.Failure
+        assertThat(failure.error).isEqualTo(ValidationError.InvalidName)
+        
+        assertThat(db.restaurantDao().getRestaurant()).isNull()
     }
 
     @Test
@@ -94,5 +115,21 @@ class RoomLocalSetupRepositoryTest {
     @Test
     fun isSetupComplete_returnsFalseIfNoRestaurant() = runBlocking {
         assertThat(repository.isSetupComplete()).isFalse()
+    }
+
+    @Test
+    fun completeSetup_alreadyComplete_returnsAlreadyCompleted() = runBlocking {
+        val command = CompleteLocalSetupCommand(
+            restaurantName = "Test Rest",
+            currencyCode = "USD",
+            localeTag = "en-US",
+            areas = listOf(SetupAreaInput("Kitchen", 0)),
+            categories = emptyList()
+        )
+
+        repository.completeSetup(command)
+        
+        val result = repository.completeSetup(command)
+        assertThat(result).isEqualTo(LocalSetupResult.AlreadyCompleted)
     }
 }

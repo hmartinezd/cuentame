@@ -24,7 +24,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -43,11 +42,12 @@ data class OnboardingUiState(
     val categories: List<OnboardingItemUiModel> = emptyList(),
     val validationErrors: Map<String, Int> = emptyMap(),
     val canGoBack: Boolean = false,
-    val canContinue: Boolean = false
+    val canContinue: Boolean = false,
+    val draftSaveError: Throwable? = null,
+    val isDraftSaving: Boolean = false
 )
 
 sealed interface OnboardingEvent {
-    data object NavigateToHome : OnboardingEvent
     data class ShowError(val error: Throwable) : OnboardingEvent
 }
 
@@ -67,11 +67,16 @@ class OnboardingViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     private val saveMutex = Mutex()
-    private var pendingSaveJob: Job? = null
+    private var pendingDebouncedSaveJob: Job? = null
 
     init {
         viewModelScope.launch {
-            val draft = preferencesRepository.observeOnboardingDraft().first()
+            val draft = try {
+                preferencesRepository.loadOnboardingDraft()
+            } catch (e: Exception) {
+                null
+            }
+            
             if (draft == null) {
                 initializeWithDefaults()
             } else {
@@ -150,17 +155,17 @@ class OnboardingViewModel @Inject constructor(
     fun onRestaurantNameChanged(value: String) {
         _uiState.update { it.copy(restaurantName = value, validationErrors = it.validationErrors - "restaurantName") }
         updateCanContinue()
-        scheduleSave(debounced = true)
+        scheduleDebouncedSave()
     }
 
     fun onCurrencySelected(code: String) {
         _uiState.update { it.copy(currencyCode = code) }
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onLocaleSelected(tag: String) {
         _uiState.update { it.copy(localeTag = tag) }
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onToggleItem(isArea: Boolean, id: String) {
@@ -172,7 +177,7 @@ class OnboardingViewModel @Inject constructor(
             if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onAddItem(isArea: Boolean, name: String) {
@@ -188,7 +193,7 @@ class OnboardingViewModel @Inject constructor(
             if (isArea) state.copy(areas = list + newItem) else state.copy(categories = list + newItem)
         }
         updateCanContinue()
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onRenameCustomItem(isArea: Boolean, id: String, name: String) {
@@ -200,7 +205,7 @@ class OnboardingViewModel @Inject constructor(
             if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
-        scheduleSave(debounced = true)
+        scheduleDebouncedSave()
     }
 
     fun onRemoveItem(isArea: Boolean, id: String) {
@@ -210,7 +215,7 @@ class OnboardingViewModel @Inject constructor(
             if (isArea) state.copy(areas = updated) else state.copy(categories = updated)
         }
         updateCanContinue()
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onMoveItem(isArea: Boolean, id: String, up: Boolean) {
@@ -227,24 +232,51 @@ class OnboardingViewModel @Inject constructor(
                 state
             }
         }
-        scheduleSave()
+        scheduleImmediateSave()
     }
 
     fun onNext(suggestedAreaLabels: Map<String, String>, suggestedCategoryLabels: Map<String, String>) {
+        if (validateCurrentStep(suggestedAreaLabels, suggestedCategoryLabels)) {
+            val nextStep = when (_uiState.value.currentStep) {
+                OnboardingStep.WELCOME -> OnboardingStep.RESTAURANT
+                OnboardingStep.RESTAURANT -> OnboardingStep.AREAS
+                OnboardingStep.AREAS -> OnboardingStep.CATEGORIES
+                OnboardingStep.CATEGORIES -> OnboardingStep.REVIEW
+                OnboardingStep.REVIEW -> return
+            }
+            updateStepAndPersist(nextStep)
+        }
+    }
+
+    fun onBack() {
+        val prevStep = when (_uiState.value.currentStep) {
+            OnboardingStep.WELCOME -> return
+            OnboardingStep.RESTAURANT -> OnboardingStep.WELCOME
+            OnboardingStep.AREAS -> OnboardingStep.RESTAURANT
+            OnboardingStep.CATEGORIES -> OnboardingStep.AREAS
+            OnboardingStep.REVIEW -> OnboardingStep.CATEGORIES
+        }
+        updateStepAndPersist(prevStep)
+    }
+
+    fun onEditStep(step: OnboardingStep) {
+        updateStepAndPersist(step)
+    }
+
+    private fun updateStepAndPersist(newStep: OnboardingStep) {
+        _uiState.update { 
+            it.copy(
+                currentStep = newStep, 
+                canGoBack = newStep != OnboardingStep.WELCOME, 
+                validationErrors = emptyMap() 
+            ) 
+        }
+        updateCanContinue()
         viewModelScope.launch {
-            if (validateCurrentStep(suggestedAreaLabels, suggestedCategoryLabels)) {
+            try {
                 flushDraft()
-                val current = _uiState.value.currentStep
-                val nextStep = when (current) {
-                    OnboardingStep.WELCOME -> OnboardingStep.RESTAURANT
-                    OnboardingStep.RESTAURANT -> OnboardingStep.AREAS
-                    OnboardingStep.AREAS -> OnboardingStep.CATEGORIES
-                    OnboardingStep.CATEGORIES -> OnboardingStep.REVIEW
-                    OnboardingStep.REVIEW -> return@launch
-                }
-                _uiState.update { it.copy(currentStep = nextStep, canGoBack = true, validationErrors = emptyMap()) }
-                updateCanContinue()
-                scheduleSave()
+            } catch (e: Exception) {
+                _events.send(OnboardingEvent.ShowError(e))
             }
         }
     }
@@ -284,58 +316,29 @@ class OnboardingViewModel @Inject constructor(
         return errors.isEmpty()
     }
 
-    fun onBack() {
-        viewModelScope.launch {
-            flushDraft()
-            val current = _uiState.value.currentStep
-            val prevStep = when (current) {
-                OnboardingStep.WELCOME -> return@launch
-                OnboardingStep.RESTAURANT -> OnboardingStep.WELCOME
-                OnboardingStep.AREAS -> OnboardingStep.RESTAURANT
-                OnboardingStep.CATEGORIES -> OnboardingStep.AREAS
-                OnboardingStep.REVIEW -> OnboardingStep.CATEGORIES
-            }
-            _uiState.update { it.copy(currentStep = prevStep, canGoBack = prevStep != OnboardingStep.WELCOME, validationErrors = emptyMap()) }
-            updateCanContinue()
-            scheduleSave()
-        }
-    }
-
-    fun onEditStep(step: OnboardingStep) {
-        viewModelScope.launch {
-            flushDraft()
-            _uiState.update { it.copy(currentStep = step, canGoBack = true, validationErrors = emptyMap()) }
-            updateCanContinue()
-            scheduleSave()
-        }
-    }
-
     fun onCompleteClicked(suggestedAreaLabels: Map<String, String>, suggestedCategoryLabels: Map<String, String>) {
-        val state = _uiState.value
-        if (state.isSubmitting) return
+        if (_uiState.value.isSubmitting) return
         
         _uiState.update { it.copy(isSubmitting = true) }
         
         viewModelScope.launch {
-            flushDraft()
-            val command = CompleteLocalSetupCommand(
-                restaurantName = state.restaurantName,
-                currencyCode = state.currencyCode,
-                localeTag = state.localeTag,
-                areas = getFinalAreas(suggestedAreaLabels),
-                categories = getFinalCategories(suggestedCategoryLabels)
-            )
-            
             try {
+                flushDraft()
+                val state = _uiState.value
+                val command = CompleteLocalSetupCommand(
+                    restaurantName = state.restaurantName,
+                    currencyCode = state.currencyCode,
+                    localeTag = state.localeTag,
+                    areas = getFinalAreas(state, suggestedAreaLabels),
+                    categories = getFinalCategories(state, suggestedCategoryLabels)
+                )
+                
                 validator.validate(command)
-                when (val result = completeOnboardingUseCase(command)) {
-                    LocalSetupResult.Success, LocalSetupResult.AlreadyCompleted -> {
-                        _events.send(OnboardingEvent.NavigateToHome)
-                    }
-                    is LocalSetupResult.Failure -> {
-                        _uiState.update { it.copy(isSubmitting = false) }
-                        _events.send(OnboardingEvent.ShowError(result.error))
-                    }
+                
+                val result = completeOnboardingUseCase(command)
+                if (result is LocalSetupResult.Failure) {
+                    _uiState.update { it.copy(isSubmitting = false) }
+                    _events.send(OnboardingEvent.ShowError(result.error))
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSubmitting = false) }
@@ -344,14 +347,14 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    private fun getFinalAreas(suggestedLabels: Map<String, String>): List<SetupAreaInput> {
-        return _uiState.value.areas.filter { it.isSelected }.mapIndexed { index, item ->
+    private fun getFinalAreas(state: OnboardingUiState, suggestedLabels: Map<String, String>): List<SetupAreaInput> {
+        return state.areas.filter { it.isSelected }.mapIndexed { index, item ->
             SetupAreaInput(item.customName ?: suggestedLabels[item.templateKey] ?: item.id, index)
         }
     }
 
-    private fun getFinalCategories(suggestedLabels: Map<String, String>): List<SetupCategoryInput> {
-        return _uiState.value.categories.filter { it.isSelected }.mapIndexed { index, item ->
+    private fun getFinalCategories(state: OnboardingUiState, suggestedLabels: Map<String, String>): List<SetupCategoryInput> {
+        return state.categories.filter { it.isSelected }.mapIndexed { index, item ->
             SetupCategoryInput(item.customName ?: suggestedLabels[item.templateKey] ?: item.id, index)
         }
     }
@@ -368,20 +371,27 @@ class OnboardingViewModel @Inject constructor(
         _uiState.update { it.copy(canContinue = canContinue) }
     }
 
-    private fun scheduleSave(debounced: Boolean = false) {
-        pendingSaveJob?.cancel()
-        pendingSaveJob = viewModelScope.launch {
-            if (debounced) delay(300)
-            saveDraft()
+    private fun scheduleDebouncedSave() {
+        pendingDebouncedSaveJob?.cancel()
+        pendingDebouncedSaveJob = viewModelScope.launch {
+            delay(300)
+            saveDraftSync()
+        }
+    }
+
+    private fun scheduleImmediateSave() {
+        pendingDebouncedSaveJob?.cancel()
+        viewModelScope.launch {
+            saveDraftSync()
         }
     }
 
     private suspend fun flushDraft() {
-        pendingSaveJob?.cancel()
-        saveDraft()
+        pendingDebouncedSaveJob?.cancel()
+        saveDraftSync(rethrow = true)
     }
 
-    private suspend fun saveDraft() {
+    private suspend fun saveDraftSync(rethrow: Boolean = false) {
         val state = _uiState.value
         if (state.isLoading) return
         
@@ -394,11 +404,14 @@ class OnboardingViewModel @Inject constructor(
             categories = state.categories.map { OnboardingItemDraft(it.id, it.templateKey, it.customName, it.isSelected, it.sortOrder) }
         )
         
+        _uiState.update { it.copy(isDraftSaving = true) }
         saveMutex.withLock {
             try {
                 preferencesRepository.saveOnboardingDraft(draft)
+                _uiState.update { it.copy(isDraftSaving = false, draftSaveError = null) }
             } catch (e: Exception) {
-                // Ignore autosave failure
+                _uiState.update { it.copy(isDraftSaving = false, draftSaveError = e) }
+                if (rethrow) throw e
             }
         }
     }
