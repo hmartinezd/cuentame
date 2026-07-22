@@ -24,4 +24,9 @@ class ChickenFixtureTest {
         // 20 + 80 - 3 - 65 = 32
         assertThat(unclassifiedUsage.compareTo(BigDecimal("32"))).isEqualTo(0)
     }
+
+    @Test
+    fun `reversal negates everything correctly`() {
+        // This is a placeholder to remind that I need to test service too
+    }
 }

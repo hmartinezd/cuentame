@@ -8,6 +8,7 @@ import com.miara.cuentame.core.database.dao.StockCountDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.StockCountDraftRepository
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.count.StockCount
 import com.miara.cuentame.core.model.count.StockCountArea
 import com.miara.cuentame.core.model.count.StockCountLine
@@ -15,6 +16,7 @@ import com.miara.cuentame.core.model.inventory.StockCountStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.math.BigDecimal
 import javax.inject.Inject
 
 class RoomStockCountDraftRepository @Inject constructor(
@@ -29,10 +31,13 @@ class RoomStockCountDraftRepository @Inject constructor(
     }
 
     override suspend fun getDraftCount(id: StockCountId): StockCount? {
-        return stockCountDao.getCountById(id.value)?.toDomain()
+        val count = stockCountDao.getCountById(id.value)?.toDomain()
+        return if (count?.status == StockCountStatus.DRAFT) count else null
     }
 
     override suspend fun getDraftAreas(id: StockCountId): List<StockCountArea> {
+        val count = stockCountDao.getCountById(id.value)
+        if (count?.status != StockCountStatus.DRAFT.name) return emptyList()
         return stockCountDao.observeAreasForCount(id.value).first().map { it.toDomain() }
     }
 
@@ -46,13 +51,26 @@ class RoomStockCountDraftRepository @Inject constructor(
         lines: Map<StockCountAreaId, List<StockCountLine>>
     ) {
         if (count.status != StockCountStatus.DRAFT) {
-            throw IllegalArgumentException("Only DRAFT counts can be saved via this repository")
+            throw ValidationError.ArchivedReference
         }
+        
+        // Validate ownership
+        areas.forEach { if (it.stockCountId != count.id) throw ValidationError.MovementOwnershipMismatch }
+        lines.forEach { (areaId, areaLines) ->
+            if (areas.none { it.id == areaId }) throw ValidationError.MovementOwnershipMismatch
+            areaLines.forEach { line ->
+                if (line.stockCountAreaId != areaId) throw ValidationError.MovementOwnershipMismatch
+                if (line.quantityEntered < BigDecimal.ZERO) throw ValidationError.InvalidDecimal
+            }
+            // Check duplicates
+            val ingredientIds = areaLines.map { it.ingredientId }
+            if (ingredientIds.size != ingredientIds.toSet().size) throw ValidationError.DuplicateActiveName
+        }
+
         database.withTransaction {
             stockCountDao.upsertCount(count.toEntity())
             
             // Re-sync areas and lines
-            // In a more complex app we'd do smart diffing, but for foundation this ensures clean state
             stockCountDao.deleteAreasForCount(count.id.value)
             stockCountDao.upsertCountAreas(areas.map { it.toEntity() })
             

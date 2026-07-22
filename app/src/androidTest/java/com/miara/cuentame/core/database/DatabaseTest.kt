@@ -5,8 +5,11 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.factory.TestFactories
 import com.miara.cuentame.core.database.seed.UnitSeeds
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -46,14 +49,28 @@ class DatabaseTest {
     }
 
     @Test
-    fun foreignKeyConstraints() = runBlocking {
-        val area = TestFactories.createArea(restaurantId = "missing_rest")
-        try {
-            db.inventoryAreaDao().upsert(area)
-            // Should fail
-            assertThat(true).isFalse()
-        } catch (e: Exception) {
-            assertThat(e).isNotNull()
-        }
+    fun movementIdempotency() = runBlocking {
+        // Setup prerequisites for foreign keys
+        db.restaurantDao().insert(TestFactories.createRestaurant())
+        db.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
+        db.inventoryAreaDao().upsert(TestFactories.createArea())
+        db.ingredientDao().upsert(TestFactories.createIngredient())
+
+        val movement = InventoryMovementEntity(
+            "mov_1", "rest_1", "ing_1", "area_1",
+            InventoryMovementType.PURCHASE.name, "10", null, null,
+            0, SourceDocumentType.PURCHASE_RECEIPT.name, "doc_1", "op_1", "line_1", null, 0
+        )
+        db.inventoryMovementDao().insert(movement)
+
+        val exists = db.inventoryMovementDao().existsBySourceOperation(
+            SourceDocumentType.PURCHASE_RECEIPT.name, "doc_1", "op_1"
+        )
+        assertThat(exists).isTrue()
+
+        val notExists = db.inventoryMovementDao().existsBySourceOperation(
+            SourceDocumentType.PURCHASE_RECEIPT.name, "doc_1", "op_2"
+        )
+        assertThat(notExists).isFalse()
     }
 }

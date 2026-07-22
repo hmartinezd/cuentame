@@ -22,6 +22,9 @@ interface PurchaseDao {
     @Upsert
     suspend fun upsertLines(lines: List<PurchaseLineEntity>)
 
+    @Query("DELETE FROM purchase_lines WHERE id = :id")
+    suspend fun deleteLine(id: String)
+
     @Query("DELETE FROM purchase_lines WHERE purchaseReceiptId = :receiptId")
     suspend fun deleteLinesForReceipt(receiptId: String)
 

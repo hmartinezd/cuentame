@@ -26,6 +26,6 @@ interface IngredientDao {
     @Query("UPDATE ingredients SET isActive = 0, deletedAt = :at WHERE id = :id")
     suspend fun softArchive(id: String, at: Long)
 
-    @Query("SELECT COUNT(*) FROM inventory_movements WHERE ingredientId = :ingredientId LIMIT 1")
+    @Query("SELECT EXISTS(SELECT 1 FROM inventory_movements WHERE ingredientId = :ingredientId LIMIT 1)")
     suspend fun hasMovements(ingredientId: String): Boolean
 }

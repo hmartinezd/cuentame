@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.database.seed.SystemUnitSeeder
 import com.miara.cuentame.core.database.seed.UnitSeeds
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -24,12 +25,7 @@ class DatabaseSeedingTest {
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    UnitSeeds.ALL_UNITS.forEach { unit ->
-                        db.execSQL(
-                            "INSERT OR IGNORE INTO units (id, name, symbol, dimension, factorToCanonical, isSystem, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            arrayOf(unit.id, unit.name, unit.symbol, unit.dimension, unit.factorToCanonical, if (unit.isSystem) 1 else 0, unit.sortOrder)
-                        )
-                    }
+                    SystemUnitSeeder.seed(db)
                 }
             })
             .allowMainThreadQueries()

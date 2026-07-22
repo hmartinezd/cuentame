@@ -38,7 +38,7 @@ class IngredientRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomIngredientRepository(db, db.ingredientDao(), db.ingredientUnitOptionDao())
+        repository = RoomIngredientRepository(db, db.ingredientDao(), db.ingredientUnitOptionDao(), db.unitDao())
         
         runBlocking {
             db.restaurantDao().insert(TestFactories.createRestaurant())
@@ -83,7 +83,7 @@ class IngredientRepositoryTest {
 
         // Try change base unit
         val updated = ingredient.copy(baseUnitId = UnitId("mass_g"))
-        repository.save(updated)
+        repository.updateIngredient(updated)
     }
 
     private fun createIngredient(id: String) = Ingredient(

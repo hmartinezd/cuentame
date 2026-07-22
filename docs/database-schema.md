@@ -78,6 +78,7 @@ Derived table for average costs.
 ## Design Decisions
 
 *   **Idempotency:** Inventory movements use a unique index on `(sourceDocumentType, sourceDocumentId, sourceOperationId)` to prevent duplicate generation from the same document operation.
+*   **Reversals:** Reversals are tracked as separate movements referencing the original. A unique index on `reversalOfMovementId` ensures only one reversal exists per movement.
 *   **Soft Deletion:** Used for master data (Ingredients, Areas, etc.) to maintain historical integrity.
 *   **Decimal Storage:** All `BigDecimal` values are stored as `TEXT` in canonical format to ensure precision and locale independence.
 *   **Enum Storage:** Enums are stored as `TEXT` names.

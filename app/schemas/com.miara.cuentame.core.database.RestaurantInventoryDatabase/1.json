@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "f72e545a84c68b3d608913f84c0f2535",
+    "identityHash": "b2bc79efdc99df9daf5f158c180e464b",
     "entities": [
       {
         "tableName": "restaurants",
@@ -1928,12 +1928,12 @@
           },
           {
             "name": "index_inventory_movements_reversalOfMovementId",
-            "unique": false,
+            "unique": true,
             "columnNames": [
               "reversalOfMovementId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_inventory_movements_reversalOfMovementId` ON `${TABLE_NAME}` (`reversalOfMovementId`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_inventory_movements_reversalOfMovementId` ON `${TABLE_NAME}` (`reversalOfMovementId`)"
           }
         ],
         "foreignKeys": [
@@ -2119,7 +2119,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f72e545a84c68b3d608913f84c0f2535')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b2bc79efdc99df9daf5f158c180e464b')"
     ]
   }
 }

@@ -49,7 +49,18 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
             val ingredient = ingredientDao.getById(ingredientId.value) ?: return@withTransaction
             val restaurantId = RestaurantId(ingredient.restaurantId)
             
-            val movements = movementDao.getByIngredient(ingredientId.value).map { it.toDomain() }
+            val allMovements = movementDao.getByIngredient(ingredientId.value).map { it.toDomain() }
+            
+            // Reversal logic: Identify which movements are reversed
+            val reversedMovementIds = allMovements
+                .mapNotNull { it.reversalOfMovementId?.value }
+                .toSet()
+            
+            // Filter out reversals themselves and the movements they reverse
+            val effectiveMovements = allMovements.filter { movement ->
+                movement.movementType != InventoryMovementType.REVERSAL && 
+                !reversedMovementIds.contains(movement.id.value)
+            }
             
             // Rebuild balance by area
             projectionDao.deleteForIngredient(ingredientId.value)
@@ -62,7 +73,7 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
             
             val updatedAt = timeProvider.now().toEpochMilli()
             
-            movements.forEach { movement ->
+            effectiveMovements.forEach { movement ->
                 // Balance update
                 val areaId = movement.areaId.value
                 val currentAreaBalance = areaBalances.getOrDefault(areaId, BigDecimal.ZERO)
@@ -72,27 +83,21 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
                 when (movement.movementType) {
                     InventoryMovementType.PURCHASE, 
                     InventoryMovementType.OPENING_BALANCE -> {
-                        val purchaseQuantity = movement.quantityBaseSigned
-                        val purchaseUnitCost = movement.unitCostBaseSnapshot
+                        val incomingQuantity = movement.quantityBaseSigned
+                        val incomingUnitCost = movement.unitCostBaseSnapshot
                         
-                        if (purchaseQuantity > BigDecimal.ZERO && purchaseUnitCost != null) {
+                        if (incomingQuantity > BigDecimal.ZERO && incomingUnitCost != null) {
                             currentAverageCost = costCalculator.calculate(
                                 currentQuantity = currentTotalQuantity,
                                 currentAverageCost = currentAverageCost,
-                                purchaseQuantity = purchaseQuantity,
-                                purchaseUnitCost = purchaseUnitCost
+                                purchaseQuantity = incomingQuantity,
+                                purchaseUnitCost = incomingUnitCost
                             )
                         }
-                        currentTotalQuantity = currentTotalQuantity.add(purchaseQuantity)
-                    }
-                    InventoryMovementType.REVERSAL -> {
-                        // REVERSAL is the opposite of the original movement
-                        // For simplicity in foundation, we just add the signed quantity to total.
-                        // A more robust implementation would check the original movement type.
-                        currentTotalQuantity = currentTotalQuantity.add(movement.quantityBaseSigned)
+                        currentTotalQuantity = currentTotalQuantity.add(incomingQuantity)
                     }
                     else -> {
-                        // WASTE, ADJUSTMENTS
+                        // WASTE, ADJUSTMENTS, etc.
                         currentTotalQuantity = currentTotalQuantity.add(movement.quantityBaseSigned)
                     }
                 }

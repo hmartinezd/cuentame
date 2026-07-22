@@ -7,6 +7,7 @@
 
 ### Milestone 2: Core Domain and Database (Completed)
 * **Scope:** Data models, Room Entities, DAOs, Type Converters, Repositories, initial Unit seeds, Domain services for calculations and conversions.
+* **Integrity:** Enforced atomic ingredient creation, movement idempotency, and deterministic reversal handling with projection rebuilding.
 * **Result:** A robust, testable persistence and business logic foundation.
 
 ### Milestone 3: Onboarding and Settings

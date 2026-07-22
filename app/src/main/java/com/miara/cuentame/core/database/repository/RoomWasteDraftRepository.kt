@@ -5,10 +5,12 @@ import com.miara.cuentame.core.database.dao.WasteDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.WasteDraftRepository
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.waste.WasteEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.math.BigDecimal
 import javax.inject.Inject
 
 class RoomWasteDraftRepository @Inject constructor(
@@ -22,13 +24,16 @@ class RoomWasteDraftRepository @Inject constructor(
     }
 
     override suspend fun getDraftEvent(id: WasteEventId): WasteEvent? {
-        return wasteDao.getById(id.value)?.toDomain()
+        val event = wasteDao.getById(id.value)?.toDomain()
+        return if (event?.status == DocumentStatus.DRAFT) event else null
     }
 
     override suspend fun saveDraft(event: WasteEvent) {
         if (event.status != DocumentStatus.DRAFT) {
-            throw IllegalArgumentException("Only DRAFT waste events can be saved via this repository")
+            throw ValidationError.ArchivedReference
         }
+        if (event.quantityEntered <= BigDecimal.ZERO) throw ValidationError.InvalidDecimal
+
         wasteDao.upsert(event.toEntity())
     }
 

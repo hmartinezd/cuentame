@@ -41,7 +41,7 @@ import androidx.room.PrimaryKey
         Index("ingredientId", "areaId", "effectiveAt"),
         Index("sourceDocumentType", "sourceDocumentId"),
         Index("sourceDocumentType", "sourceDocumentId", "sourceOperationId", unique = true),
-        Index("reversalOfMovementId")
+        Index("reversalOfMovementId", unique = true)
     ]
 )
 data class InventoryMovementEntity(

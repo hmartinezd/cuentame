@@ -14,6 +14,21 @@ interface IngredientUnitOptionDao {
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isBase = 1 AND deletedAt IS NULL LIMIT 1")
     suspend fun getBaseOption(ingredientId: String): IngredientUnitOptionEntity?
 
+    @Query("SELECT * FROM ingredient_unit_options WHERE id = :id")
+    suspend fun getById(id: String): IngredientUnitOptionEntity?
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveOptions(ingredientId: String): List<IngredientUnitOptionEntity>
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isBase = 1 AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveBaseOptions(ingredientId: String): List<IngredientUnitOptionEntity>
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isDefaultCount = 1 AND isActive = 1 AND deletedAt IS NULL LIMIT 1")
+    suspend fun getDefaultCountOption(ingredientId: String): IngredientUnitOptionEntity?
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isDefaultPurchase = 1 AND isActive = 1 AND deletedAt IS NULL LIMIT 1")
+    suspend fun getDefaultPurchaseOption(ingredientId: String): IngredientUnitOptionEntity?
+
     @Upsert
     suspend fun upsert(option: IngredientUnitOptionEntity)
 

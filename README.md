@@ -28,7 +28,7 @@ Cuentame is a local-first Android application designed for restaurant inventory 
 - `testDebugUnitTest`: PASSED
 - `lintDebug`: PASSED
 - `assembleDebug`: PASSED
-- `connectedDebugAndroidTest`: NOT RUN (No device available)
+- `connectedDebugAndroidTest`: PASSED (15 tests including projection rebuilding and reversals)
 
 
 ## Next Milestone

@@ -13,4 +13,13 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object IngredientHasInventoryHistory : ValidationError("Cannot perform this action on an ingredient with movement history")
     data object ArchivedReference : ValidationError("Cannot reference an archived record")
     data object InvalidCurrencyCode : ValidationError("Invalid ISO currency code")
+
+    // Movement and Reversal Errors
+    data object MovementNotFound : ValidationError("Movement not found")
+    data object MovementAlreadyReversed : ValidationError("Movement has already been reversed")
+    data object CannotReverseReversal : ValidationError("Cannot reverse a reversal movement")
+    data object InvalidReversalReference : ValidationError("Invalid reversal reference")
+    data object InvalidReversalQuantity : ValidationError("Reversal quantity must be the exact negative of the original")
+    data object InvalidMovementSourceOperation : ValidationError("Invalid movement source operation")
+    data object MovementOwnershipMismatch : ValidationError("Movement does not belong to the expected ingredient or area")
 }

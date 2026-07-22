@@ -7,6 +7,7 @@ import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryMovement
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
@@ -28,16 +29,22 @@ class InventoryMovementServiceTest {
 
     @Test
     fun `createReversal returns negative quantity and references original`() {
-        val original = createMovement(BigDecimal("10"))
+        val original = createMovement(BigDecimal("10")).copy(
+            unitCostBaseSnapshot = BigDecimal("5.5"),
+            totalValueSnapshot = BigDecimal("55")
+        )
         val reversal = service.createReversal(original)
 
         assertThat(reversal.quantityBaseSigned.compareTo(BigDecimal("-10"))).isEqualTo(0)
+        assertThat(reversal.unitCostBaseSnapshot?.compareTo(BigDecimal("5.5"))).isEqualTo(0)
+        assertThat(reversal.totalValueSnapshot?.compareTo(BigDecimal("-55"))).isEqualTo(0)
         assertThat(reversal.reversalOfMovementId).isEqualTo(original.id)
         assertThat(reversal.movementType).isEqualTo(InventoryMovementType.REVERSAL)
         assertThat(reversal.createdAt).isEqualTo(fixedTime)
+        assertThat(reversal.sourceOperationId).isEqualTo("reversal:1")
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test(expected = ValidationError.CannotReverseReversal::class)
     fun `cannot reverse a reversal`() {
         val original = createMovement(BigDecimal("10")).copy(movementType = InventoryMovementType.REVERSAL)
         service.createReversal(original)

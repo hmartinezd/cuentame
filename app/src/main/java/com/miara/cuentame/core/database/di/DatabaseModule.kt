@@ -18,7 +18,7 @@ import com.miara.cuentame.core.database.dao.StockCountDao
 import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.dao.UnitDao
 import com.miara.cuentame.core.database.dao.WasteDao
-import com.miara.cuentame.core.database.seed.UnitSeeds
+import com.miara.cuentame.core.database.seed.SystemUnitSeeder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -42,33 +42,12 @@ object DatabaseModule {
         ).addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                seedUnits(db)
+                SystemUnitSeeder.seed(db)
             }
 
             override fun onOpen(db: SupportSQLiteDatabase) {
                 super.onOpen(db)
-                // Ensure units exist even if onCreate wasn't called (e.g. migration)
-                seedUnits(db)
-            }
-
-            private fun seedUnits(db: SupportSQLiteDatabase) {
-                UnitSeeds.ALL_UNITS.forEach { unit ->
-                    db.execSQL(
-                        """
-                        INSERT OR IGNORE INTO units (id, name, symbol, dimension, factorToCanonical, isSystem, sortOrder)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """.trimIndent(),
-                        arrayOf(
-                            unit.id,
-                            unit.name,
-                            unit.symbol,
-                            unit.dimension,
-                            unit.factorToCanonical,
-                            if (unit.isSystem) 1 else 0,
-                            unit.sortOrder
-                        )
-                    )
-                }
+                SystemUnitSeeder.seed(db)
             }
         }).build()
     }

@@ -11,7 +11,7 @@ interface IngredientRepository {
     fun observeActiveIngredients(): Flow<List<Ingredient>>
     fun observeIngredient(id: IngredientId): Flow<Ingredient?>
     suspend fun getById(id: IngredientId): Ingredient?
-    suspend fun save(ingredient: Ingredient)
+    suspend fun updateIngredient(ingredient: Ingredient)
     suspend fun archive(id: IngredientId, at: Instant)
 
     fun observeUnitOptions(ingredientId: IngredientId): Flow<List<IngredientUnitOption>>
