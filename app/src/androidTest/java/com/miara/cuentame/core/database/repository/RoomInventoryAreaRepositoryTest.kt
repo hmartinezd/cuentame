@@ -29,7 +29,7 @@ class RoomInventoryAreaRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomInventoryAreaRepository(db, db.inventoryAreaDao())
+        repository = RoomInventoryAreaRepository(db, db.inventoryAreaDao(), db.restaurantDao())
         
         runBlocking {
             db.restaurantDao().insert(RestaurantEntity("rest_1", "Test", "USD", "en-US", 0, 0, null))

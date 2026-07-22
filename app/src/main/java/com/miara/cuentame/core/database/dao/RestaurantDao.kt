@@ -15,6 +15,9 @@ interface RestaurantDao {
     @Query("SELECT * FROM restaurants WHERE deletedAt IS NULL LIMIT 1")
     suspend fun getRestaurant(): RestaurantEntity?
 
+    @Query("SELECT * FROM restaurants WHERE id = :id")
+    suspend fun getById(id: String): RestaurantEntity?
+
     @Insert
     suspend fun insert(restaurant: RestaurantEntity)
 

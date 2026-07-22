@@ -1,11 +1,16 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.common.ids.IdGenerator
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.common.text.normalizeName
+import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.domain.repository.CreateSupplierCommand
 import com.miara.cuentame.core.domain.repository.SupplierRepository
+import com.miara.cuentame.core.domain.repository.UpdateSupplierCommand
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.supplier.Supplier
 import kotlinx.coroutines.flow.Flow
@@ -14,29 +19,84 @@ import java.time.Instant
 import javax.inject.Inject
 
 class RoomSupplierRepository @Inject constructor(
-    private val supplierDao: SupplierDao
+    private val supplierDao: SupplierDao,
+    private val idGenerator: IdGenerator,
+    private val timeProvider: TimeProvider
 ) : SupplierRepository {
-    override fun observeActiveSuppliers(): Flow<List<Supplier>> {
-        return supplierDao.observeActiveSuppliers().map { entities ->
-            entities.map { it.toDomain() }
+
+    override fun observeSuppliers(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Supplier>> {
+        val flow = if (includeArchived) {
+            supplierDao.observeAllSuppliers(restaurantId.value)
+        } else {
+            supplierDao.observeActiveSuppliers(restaurantId.value)
         }
+        return flow.map { entities -> entities.map { it.toDomain() } }
     }
 
-    override suspend fun getById(id: SupplierId): Supplier? {
+    override fun observeSupplier(id: SupplierId): Flow<Supplier?> {
+        return supplierDao.observeById(id.value).map { it?.toDomain() }
+    }
+
+    override suspend fun getSupplier(id: SupplierId): Supplier? {
         return supplierDao.getById(id.value)?.toDomain()
     }
 
-    override suspend fun save(supplier: Supplier) {
-        val normalizedName = supplier.name.normalizeName()
+    override suspend fun createSupplier(command: CreateSupplierCommand): SupplierId {
+        val normalizedName = command.name.normalizeName()
         if (normalizedName.isBlank()) throw ValidationError.InvalidName
+        
+        val existing = supplierDao.findByNormalizedName(command.restaurantId.value, normalizedName)
+        if (existing != null) throw ValidationError.SupplierNameAlreadyExists
 
-        val duplicate = supplierDao.findByNormalizedName(supplier.restaurantId.value, normalizedName)
-        if (duplicate != null && duplicate.id != supplier.id.value) throw ValidationError.DuplicateActiveName
+        val now = timeProvider.now()
+        val supplier = Supplier(
+            id = SupplierId(idGenerator.newId()),
+            restaurantId = command.restaurantId,
+            name = command.name.trim(),
+            normalizedName = normalizedName,
+            phone = command.phone?.trim()?.ifBlank { null },
+            email = command.email?.trim()?.ifBlank { null },
+            notes = command.notes?.trim()?.ifBlank { null },
+            isActive = true,
+            createdAt = now,
+            updatedAt = now
+        )
 
-        supplierDao.upsert(supplier.copy(normalizedName = normalizedName).toEntity())
+        supplierDao.insert(supplier.toEntity())
+        return supplier.id
     }
 
-    override suspend fun archive(id: SupplierId, at: Instant) {
+    override suspend fun updateSupplier(command: UpdateSupplierCommand) {
+        val existingEntity = supplierDao.getById(command.supplierId.value)
+            ?: throw ValidationError.SupplierNotFound
+        
+        if (!existingEntity.isActive || existingEntity.deletedAt != null) {
+            throw ValidationError.SupplierArchived
+        }
+
+        val normalizedName = command.name.normalizeName()
+        if (normalizedName.isBlank()) throw ValidationError.InvalidName
+        
+        val duplicate = supplierDao.findByNormalizedName(existingEntity.restaurantId, normalizedName)
+        if (duplicate != null && duplicate.id != existingEntity.id) {
+            throw ValidationError.SupplierNameAlreadyExists
+        }
+
+        val updated = existingEntity.copy(
+            name = command.name.trim(),
+            normalizedName = normalizedName,
+            phone = command.phone?.trim()?.ifBlank { null },
+            email = command.email?.trim()?.ifBlank { null },
+            notes = command.notes?.trim()?.ifBlank { null },
+            updatedAt = timeProvider.now().toEpochMilli()
+        )
+
+        supplierDao.update(updated)
+    }
+
+    override suspend fun archiveSupplier(id: SupplierId, at: Instant) {
+        val existing = supplierDao.getById(id.value) ?: return
+        if (existing.deletedAt != null) return
         supplierDao.softArchive(id.value, at.toEpochMilli())
     }
 }

@@ -16,10 +16,14 @@ import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import com.miara.cuentame.core.domain.validation.ValidationError
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RoomLocalSetupRepository @Inject constructor(
     private val database: RestaurantInventoryDatabase,
     private val restaurantDao: RestaurantDao,
@@ -38,11 +42,9 @@ class RoomLocalSetupRepository @Inject constructor(
     }
 
     override fun observeIsSetupComplete(): Flow<Boolean> {
-        return combine(
-            restaurantDao.observeRestaurant(),
-            areaDao.observeActiveAreas()
-        ) { restaurant, areas ->
-            restaurant != null && areas.isNotEmpty()
+        return restaurantDao.observeRestaurant().flatMapLatest { restaurant ->
+            if (restaurant == null) flowOf(false)
+            else areaDao.observeActiveAreas(restaurant.id).map { it.isNotEmpty() }
         }
     }
 

@@ -54,6 +54,7 @@ fun SettingsRoute(
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
+    onNavigateToSuppliers: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
@@ -80,7 +81,8 @@ fun SettingsRoute(
         onLocaleChanged = viewModel::setAppLocaleTag,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
-        onNavigateToRestaurant = onNavigateToRestaurant
+        onNavigateToRestaurant = onNavigateToRestaurant,
+        onNavigateToSuppliers = onNavigateToSuppliers
     )
 }
 
@@ -96,7 +98,8 @@ fun SettingsScreen(
     onLocaleChanged: (String) -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
-    onNavigateToRestaurant: () -> Unit
+    onNavigateToRestaurant: () -> Unit,
+    onNavigateToSuppliers: () -> Unit
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -125,6 +128,11 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_categories),
                 icon = Icons.Default.Palette,
                 onClick = onNavigateToCategories
+            )
+            SettingsItem(
+                title = stringResource(R.string.suppliers),
+                icon = Icons.Default.Store,
+                onClick = onNavigateToSuppliers
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

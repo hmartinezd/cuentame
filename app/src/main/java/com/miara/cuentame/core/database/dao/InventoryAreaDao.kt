@@ -11,11 +11,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InventoryAreaDao {
-    @Query("SELECT * FROM inventory_areas WHERE isActive = 1 AND deletedAt IS NULL ORDER BY sortOrder")
-    fun observeActiveAreas(): Flow<List<InventoryAreaEntity>>
+    @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId AND isActive = 1 AND deletedAt IS NULL ORDER BY sortOrder")
+    fun observeActiveAreas(restaurantId: String): Flow<List<InventoryAreaEntity>>
 
-    @Query("SELECT * FROM inventory_areas WHERE deletedAt IS NULL ORDER BY sortOrder")
-    fun observeAllAreas(): Flow<List<InventoryAreaEntity>>
+    @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId AND deletedAt IS NULL ORDER BY sortOrder")
+    fun observeAllAreas(restaurantId: String): Flow<List<InventoryAreaEntity>>
 
     @Query("SELECT * FROM inventory_areas WHERE id = :id")
     suspend fun getById(id: String): InventoryAreaEntity?

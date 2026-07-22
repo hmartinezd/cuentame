@@ -27,6 +27,9 @@ interface InventoryMovementDao {
     @Query("SELECT * FROM inventory_movements WHERE reversalOfMovementId = :originalMovementId LIMIT 1")
     suspend fun findReversalFor(originalMovementId: String): InventoryMovementEntity?
 
+    @Query("SELECT * FROM inventory_movements WHERE sourceDocumentType = :type AND sourceDocumentId = :docId")
+    suspend fun getBySourceDocument(type: String, docId: String): List<InventoryMovementEntity>
+
     @Query("SELECT EXISTS(SELECT 1 FROM inventory_movements WHERE sourceDocumentType = :type AND sourceDocumentId = :docId AND sourceOperationId = :opId LIMIT 1)")
     suspend fun existsBySourceOperation(type: String, docId: String, opId: String): Boolean
 }

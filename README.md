@@ -14,8 +14,8 @@ A local-first restaurant inventory application built with modern Android practic
 - **Advanced UI:** Search with debounce and normalization, Uncategorized/Archived filtering, and reactive detail screens.
 - **Decimal Precision:** Full `BigDecimal` integration from Room entities to UI, ensuring total inventory accuracy.
 
-### Current milestone: Milestone 4
-### Next milestone: Milestone 5 — Purchases
+### Current milestone: Milestone 5
+### Next milestone: Milestone 6 — Stock Counts
 
 ## Tech Stack
 - **UI:** Jetpack Compose with Material 3.

@@ -165,6 +165,51 @@
     <string name="desc_is_default_count">%1$s es la unidad por defecto para conteo</string>
     <string name="desc_is_default_purchase">%1$s es la unidad por defecto para compra</string>
     <string name="no_ingredients">No se encontraron ingredientes</string>
+
+    <!-- Suppliers -->
+    <string name="suppliers">Proveedores</string>
+    <string name="add_supplier">Añadir Proveedor</string>
+    <string name="edit_supplier">Editar Proveedor</string>
+    <string name="archive_supplier">Archivar Proveedor</string>
+    <string name="supplier_name">Nombre del Proveedor</string>
+    <string name="phone">Teléfono</string>
+    <string name="email">Correo electrónico</string>
+    <string name="supplier_archived_msg">%1$s ha sido archivado.</string>
+    <string name="archive_supplier_confirm">¿Está seguro de que desea archivar a %1$s? Ya no estará disponible para nuevas compras.</string>
+
+    <!-- Purchases -->
+    <string name="purchases">Compras</string>
+    <string name="add_purchase">Añadir Compra</string>
+    <string name="invoice_number">Número de Factura</string>
+    <string name="purchase_date">Fecha de Compra</string>
+    <string name="receiving_area">Área de Recepción</string>
+    <string name="purchase_unit">Unidad de Compra</string>
+    <string name="quantity">Cantidad</string>
+    <string name="line_total">Total de la Línea</string>
+    <string name="cost_per_base_unit">Costo por %1$s</string>
+    <string name="receipt_total">Total del Recibo</string>
+    <string name="add_line">Añadir Línea</string>
+    <string name="edit_line">Editar Línea</string>
+    <string name="delete_line">Eliminar Línea</string>
+    <string name="post_purchase">Publicar Compra</string>
+    <string name="void_purchase">Anular Compra</string>
+    <string name="delete_draft">Eliminar Borrador</string>
+    <string name="posting_warning">¿Publicar esta compra? Después de publicar, el recibo no se podrá editar.</string>
+    <string name="voiding_warning">¿Anular esta compra? Los movimientos de inventario se revertirán y el recibo permanecerá en el historial.</string>
+    <string name="delete_draft_confirm">¿Eliminar esta compra en borrador? Esta acción elimina el borrador no publicado y sus líneas.</string>
+    <string name="no_supplier">Sin Proveedor</string>
+    <string name="status_draft">Borrador</string>
+    <string name="status_posted">Publicado</string>
+    <string name="status_voided">Anulado</string>
+    <string name="posted_at">Publicado el: %1$s</string>
+    <string name="voided_at">Anulado el: %1$s</string>
+    <string name="purchase_line_desc">Editar línea de compra para %1$s</string>
+    <string name="delete_line_desc">Eliminar línea de compra para %1$s</string>
+    <string name="post_purchase_desc">Publicar compra con fecha %1$s</string>
+    <string name="archive_supplier_desc">Archivar proveedor %1$s</string>
+    <string name="action_search">Buscar…</string>
+    <string name="notes">Notas</string>
+    <string name="all">Todos</string>
     <string name="no_unit_options">No hay unidades adicionales definidas</string>
     <string name="archive_ingredient_confirmation">¿Está seguro de que desea archivar %1$s? Ya no aparecerá en nuevas compras o conteos.</string>
 
