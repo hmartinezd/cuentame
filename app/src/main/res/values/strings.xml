@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Cuentame</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_inventory">Inventory</string>
+    <string name="nav_count">Count</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_reports">Reports</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Placeholders -->
+    <string name="home_title">Dashboard</string>
+    <string name="home_description">Welcome to Cuentame Inventory. Summary of your restaurant status will appear here.</string>
+    <string name="inventory_title">Ingredients</string>
+    <string name="inventory_description">Manage your ingredients, units, and packaging.</string>
+    <string name="count_title">Physical Count</string>
+    <string name="count_description">Perform inventory counts by area.</string>
+    <string name="activity_title">Movements</string>
+    <string name="activity_description">Track purchases, waste, and adjustments.</string>
+    <string name="reports_title">Analytics</string>
+    <string name="reports_description">View inventory value and usage reports.</string>
+
+    <!-- States -->
+    <string name="state_loading_desc">Loading…</string>
+    <string name="state_empty_desc">Nothing to show yet.</string>
+    <string name="state_error_desc">Something went wrong.</string>
+    <string name="action_retry_desc">Retry</string>
+</resources>

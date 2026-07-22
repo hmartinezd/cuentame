@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Cuéntame</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_inventory">Inventario</string>
+    <string name="nav_count">Conteo</string>
+    <string name="nav_activity">Actividad</string>
+    <string name="nav_reports">Reportes</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <!-- Placeholders -->
+    <string name="home_title">Tablero</string>
+    <string name="home_description">Bienvenido a Cuéntame Inventario. El resumen del estado de su restaurante aparecerá aquí.</string>
+    <string name="inventory_title">Ingredientes</string>
+    <string name="inventory_description">Gestione sus ingredientes, unidades y empaques.</string>
+    <string name="count_title">Conteo Físico</string>
+    <string name="count_description">Realice conteos de inventario por área.</string>
+    <string name="activity_title">Movimientos</string>
+    <string name="activity_description">Rastree compras, mermas y ajustes.</string>
+    <string name="reports_title">Analítica</string>
+    <string name="reports_description">Vea el valor del inventario y reportes de uso.</string>
+
+    <!-- States -->
+    <string name="state_loading_desc">Cargando…</string>
+    <string name="state_empty_desc">Nada que mostrar todavía.</string>
+    <string name="state_error_desc">Algo salió mal.</string>
+    <string name="action_retry_desc">Reintentar</string>
+</resources>
