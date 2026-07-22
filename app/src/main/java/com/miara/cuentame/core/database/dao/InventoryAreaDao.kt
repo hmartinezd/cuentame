@@ -20,8 +20,8 @@ interface InventoryAreaDao {
     @Query("SELECT * FROM inventory_areas WHERE id = :id")
     suspend fun getById(id: String): InventoryAreaEntity?
 
-    @Query("SELECT * FROM inventory_areas WHERE normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
-    suspend fun findByNormalizedName(normalizedName: String): InventoryAreaEntity?
+    @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId AND normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
+    suspend fun findByNormalizedName(restaurantId: String, normalizedName: String): InventoryAreaEntity?
 
     @Upsert
     suspend fun upsert(area: InventoryAreaEntity)

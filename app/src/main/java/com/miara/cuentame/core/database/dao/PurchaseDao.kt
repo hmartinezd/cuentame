@@ -1,19 +1,17 @@
 package com.miara.cuentame.core.database.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PurchaseDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReceipt(receipt: PurchaseReceiptEntity)
+    @Upsert
+    suspend fun upsertReceipt(receipt: PurchaseReceiptEntity)
 
     @Update
     suspend fun updateReceipt(receipt: PurchaseReceiptEntity)
@@ -21,8 +19,8 @@ interface PurchaseDao {
     @Query("DELETE FROM purchase_receipts WHERE id = :id AND status = 'DRAFT'")
     suspend fun deleteDraftReceipt(id: String)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLines(lines: List<PurchaseLineEntity>)
+    @Upsert
+    suspend fun upsertLines(lines: List<PurchaseLineEntity>)
 
     @Query("DELETE FROM purchase_lines WHERE purchaseReceiptId = :receiptId")
     suspend fun deleteLinesForReceipt(receiptId: String)

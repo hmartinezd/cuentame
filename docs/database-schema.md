@@ -65,7 +65,7 @@ Records of discarded items.
 **Source of Truth** for all inventory changes.
 *   `quantityBaseSigned`: String (BigDecimal)
 *   `unitCostBaseSnapshot`: String?
-*   `sourceDocumentType`, `sourceDocumentId`, `sourceLineId`
+*   `sourceDocumentType`, `sourceDocumentId`, `sourceOperationId`, `sourceLineId`
 
 ### `inventory_balance_projection`
 Derived table for fast balance lookups.
@@ -77,6 +77,7 @@ Derived table for average costs.
 
 ## Design Decisions
 
+*   **Idempotency:** Inventory movements use a unique index on `(sourceDocumentType, sourceDocumentId, sourceOperationId)` to prevent duplicate generation from the same document operation.
 *   **Soft Deletion:** Used for master data (Ingredients, Areas, etc.) to maintain historical integrity.
 *   **Decimal Storage:** All `BigDecimal` values are stored as `TEXT` in canonical format to ensure precision and locale independence.
 *   **Enum Storage:** Enums are stored as `TEXT` names.

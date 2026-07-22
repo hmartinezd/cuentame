@@ -17,4 +17,9 @@ interface IngredientRepository {
     fun observeUnitOptions(ingredientId: IngredientId): Flow<List<IngredientUnitOption>>
     suspend fun saveUnitOption(option: IngredientUnitOption)
     suspend fun archiveUnitOption(id: IngredientUnitOptionId, at: Instant)
+
+    suspend fun createIngredientWithBaseOption(
+        ingredient: Ingredient,
+        baseOption: IngredientUnitOption
+    )
 }

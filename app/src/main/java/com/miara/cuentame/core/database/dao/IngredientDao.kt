@@ -17,8 +17,8 @@ interface IngredientDao {
     @Query("SELECT * FROM ingredients WHERE id = :id")
     suspend fun getById(id: String): IngredientEntity?
 
-    @Query("SELECT * FROM ingredients WHERE normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
-    suspend fun findByNormalizedName(normalizedName: String): IngredientEntity?
+    @Query("SELECT * FROM ingredients WHERE restaurantId = :restaurantId AND normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
+    suspend fun findByNormalizedName(restaurantId: String, normalizedName: String): IngredientEntity?
 
     @Upsert
     suspend fun upsert(ingredient: IngredientEntity)

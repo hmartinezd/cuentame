@@ -14,8 +14,8 @@ interface SupplierDao {
     @Query("SELECT * FROM suppliers WHERE id = :id")
     suspend fun getById(id: String): SupplierEntity?
 
-    @Query("SELECT * FROM suppliers WHERE normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
-    suspend fun findByNormalizedName(normalizedName: String): SupplierEntity?
+    @Query("SELECT * FROM suppliers WHERE restaurantId = :restaurantId AND normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
+    suspend fun findByNormalizedName(restaurantId: String, normalizedName: String): SupplierEntity?
 
     @Upsert
     suspend fun upsert(supplier: SupplierEntity)

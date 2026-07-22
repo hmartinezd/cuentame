@@ -24,10 +24,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import javax.inject.Provider
 import javax.inject.Singleton
 
 @Module
@@ -37,8 +33,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(
-        @ApplicationContext context: Context,
-        unitDaoProvider: Provider<UnitDao>
+        @ApplicationContext context: Context
     ): RestaurantInventoryDatabase {
         return Room.databaseBuilder(
             context,
@@ -47,9 +42,32 @@ object DatabaseModule {
         ).addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // We use a coroutine scope to seed units after creation
-                CoroutineScope(Dispatchers.IO).launch {
-                    unitDaoProvider.get().insertSeedUnits(UnitSeeds.ALL_UNITS)
+                seedUnits(db)
+            }
+
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                // Ensure units exist even if onCreate wasn't called (e.g. migration)
+                seedUnits(db)
+            }
+
+            private fun seedUnits(db: SupportSQLiteDatabase) {
+                UnitSeeds.ALL_UNITS.forEach { unit ->
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO units (id, name, symbol, dimension, factorToCanonical, isSystem, sortOrder)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent(),
+                        arrayOf(
+                            unit.id,
+                            unit.name,
+                            unit.symbol,
+                            unit.dimension,
+                            unit.factorToCanonical,
+                            if (unit.isSystem) 1 else 0,
+                            unit.sortOrder
+                        )
+                    )
                 }
             }
         }).build()

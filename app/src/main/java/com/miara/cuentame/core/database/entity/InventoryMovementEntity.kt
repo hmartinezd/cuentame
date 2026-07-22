@@ -40,7 +40,7 @@ import androidx.room.PrimaryKey
         Index("effectiveAt"),
         Index("ingredientId", "areaId", "effectiveAt"),
         Index("sourceDocumentType", "sourceDocumentId"),
-        Index("sourceDocumentType", "sourceLineId", "movementType", unique = true),
+        Index("sourceDocumentType", "sourceDocumentId", "sourceOperationId", unique = true),
         Index("reversalOfMovementId")
     ]
 )
@@ -56,6 +56,7 @@ data class InventoryMovementEntity(
     val effectiveAt: Long,
     val sourceDocumentType: String,
     val sourceDocumentId: String,
+    val sourceOperationId: String,
     val sourceLineId: String?,
     val reversalOfMovementId: String?,
     val createdAt: Long

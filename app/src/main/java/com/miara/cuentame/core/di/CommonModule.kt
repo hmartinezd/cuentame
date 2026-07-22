@@ -10,6 +10,7 @@ import com.miara.cuentame.core.domain.service.IngredientUnitConverter
 import com.miara.cuentame.core.domain.service.InventoryBalanceCalculator
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
+import com.miara.cuentame.core.domain.service.InventoryMovementService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,6 +28,13 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideTimeProvider(): TimeProvider = SystemTimeProvider()
+
+    @Provides
+    @Singleton
+    fun provideInventoryMovementService(
+        idGenerator: IdGenerator,
+        timeProvider: TimeProvider
+    ): InventoryMovementService = InventoryMovementService(idGenerator, timeProvider)
 
     @Provides
     @Singleton

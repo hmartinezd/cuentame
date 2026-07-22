@@ -8,6 +8,7 @@ import com.miara.cuentame.core.database.dao.IngredientCategoryDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,8 +36,13 @@ class RoomIngredientCategoryRepository @Inject constructor(
     }
 
     override suspend fun save(category: IngredientCategory) {
-        val normalized = category.copy(normalizedName = category.name.normalizeName())
-        categoryDao.upsert(normalized.toEntity())
+        val normalizedName = category.name.normalizeName()
+        if (normalizedName.isBlank()) throw ValidationError.InvalidName
+
+        val duplicate = categoryDao.findByNormalizedName(category.restaurantId.value, normalizedName)
+        if (duplicate != null && duplicate.id != category.id.value) throw ValidationError.DuplicateActiveName
+
+        categoryDao.upsert(category.copy(normalizedName = normalizedName).toEntity())
     }
 
     override suspend fun archive(id: IngredientCategoryId, at: Instant) {

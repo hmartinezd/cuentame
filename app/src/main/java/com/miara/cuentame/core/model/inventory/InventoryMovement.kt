@@ -19,6 +19,7 @@ data class InventoryMovement(
     val effectiveAt: Instant,
     val sourceDocumentType: SourceDocumentType,
     val sourceDocumentId: String,
+    val sourceOperationId: String,
     val sourceLineId: String? = null,
     val reversalOfMovementId: InventoryMovementId? = null,
     val createdAt: Instant

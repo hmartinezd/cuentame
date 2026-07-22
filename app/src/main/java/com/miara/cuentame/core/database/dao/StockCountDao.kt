@@ -1,11 +1,9 @@
 package com.miara.cuentame.core.database.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.miara.cuentame.core.database.entity.StockCountAreaEntity
 import com.miara.cuentame.core.database.entity.StockCountEntity
 import com.miara.cuentame.core.database.entity.StockCountLineEntity
@@ -13,8 +11,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StockCountDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCount(count: StockCountEntity)
+    @Upsert
+    suspend fun upsertCount(count: StockCountEntity)
 
     @Update
     suspend fun updateCount(count: StockCountEntity)
@@ -22,14 +20,14 @@ interface StockCountDao {
     @Query("DELETE FROM stock_counts WHERE id = :id AND status = 'DRAFT'")
     suspend fun deleteDraftCount(id: String)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCountAreas(areas: List<StockCountAreaEntity>)
+    @Upsert
+    suspend fun upsertCountAreas(areas: List<StockCountAreaEntity>)
 
     @Query("DELETE FROM stock_count_areas WHERE stockCountId = :countId")
     suspend fun deleteAreasForCount(countId: String)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCountLines(lines: List<StockCountLineEntity>)
+    @Upsert
+    suspend fun upsertCountLines(lines: List<StockCountLineEntity>)
 
     @Query("DELETE FROM stock_count_lines WHERE stockCountAreaId = :areaId")
     suspend fun deleteLinesForArea(areaId: String)

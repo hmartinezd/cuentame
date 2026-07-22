@@ -6,6 +6,7 @@ import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.SupplierRepository
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.supplier.Supplier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -26,8 +27,13 @@ class RoomSupplierRepository @Inject constructor(
     }
 
     override suspend fun save(supplier: Supplier) {
-        val normalized = supplier.copy(normalizedName = supplier.name.normalizeName())
-        supplierDao.upsert(normalized.toEntity())
+        val normalizedName = supplier.name.normalizeName()
+        if (normalizedName.isBlank()) throw ValidationError.InvalidName
+
+        val duplicate = supplierDao.findByNormalizedName(supplier.restaurantId.value, normalizedName)
+        if (duplicate != null && duplicate.id != supplier.id.value) throw ValidationError.DuplicateActiveName
+
+        supplierDao.upsert(supplier.copy(normalizedName = normalizedName).toEntity())
     }
 
     override suspend fun archive(id: SupplierId, at: Instant) {

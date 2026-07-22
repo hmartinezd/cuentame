@@ -48,6 +48,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs(files("$projectDir/schemas"))
+        }
+    }
 }
 
 dependencies {
@@ -104,6 +110,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.hilt.android.testing)
     androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.room.testing)
     kspAndroidTest(libs.hilt.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

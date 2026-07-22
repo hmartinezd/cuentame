@@ -1,10 +1,10 @@
 # Database Migrations
 
-## Overview
+## Current Strategy (Milestone 2 Hardening)
 
-Cuentame uses Room for database management. As the schema evolves, we must provide explicit migration paths to preserve user data.
+As this application has not yet been distributed with real user data, we are **correcting the Room version 1 schema directly**. The exported version 1 schema will be regenerated and replaced. No artificial migrations are created for this unreleased schema.
 
-## Process for Schema Updates
+## Process for future Schema Updates
 
 When a schema change is required (e.g., adding a new table or column):
 

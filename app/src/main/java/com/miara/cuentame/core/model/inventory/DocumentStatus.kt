@@ -33,7 +33,8 @@ enum class InventoryMovementType {
     WASTE,
     COUNT_ADJUSTMENT,
     MANUAL_ADJUSTMENT,
-    OPENING_BALANCE
+    OPENING_BALANCE,
+    REVERSAL
 }
 
 enum class SourceDocumentType {
