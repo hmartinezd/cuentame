@@ -3,6 +3,7 @@ package com.miara.cuentame.core.database.entity
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.math.BigDecimal
 
 @Entity(
     tableName = "units",
@@ -16,7 +17,7 @@ data class UnitEntity(
     val name: String,
     val symbol: String,
     val dimension: String,
-    val factorToCanonical: String,
+    val factorToCanonical: BigDecimal,
     val isSystem: Boolean,
     val sortOrder: Int
 )

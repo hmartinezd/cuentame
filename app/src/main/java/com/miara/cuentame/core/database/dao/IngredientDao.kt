@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface IngredientDao {
-    @Query("SELECT * FROM ingredients WHERE isActive = 1 AND deletedAt IS NULL")
+    @Query("SELECT * FROM ingredients WHERE isActive = 1 AND deletedAt IS NULL ORDER BY normalizedName ASC")
     fun observeActiveIngredients(): Flow<List<IngredientEntity>>
+
+    @Query("SELECT * FROM ingredients WHERE deletedAt IS NULL ORDER BY normalizedName ASC")
+    fun observeAllIngredients(): Flow<List<IngredientEntity>>
 
     @Query("SELECT * FROM ingredients WHERE id = :id")
     fun observeIngredient(id: String): Flow<IngredientEntity?>

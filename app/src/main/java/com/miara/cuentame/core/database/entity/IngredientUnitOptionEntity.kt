@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.math.BigDecimal
 
 @Entity(
     tableName = "ingredient_unit_options",
@@ -34,7 +35,7 @@ data class IngredientUnitOptionEntity(
     val displayName: String,
     val shortLabel: String,
     val standardUnitId: String?,
-    val factorToBase: String,
+    val factorToBase: BigDecimal,
     val isBase: Boolean,
     val isDefaultCount: Boolean,
     val isDefaultPurchase: Boolean,

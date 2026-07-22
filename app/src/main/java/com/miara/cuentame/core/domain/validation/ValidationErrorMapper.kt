@@ -21,7 +21,13 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.BaseUnitOptionCannotBeArchived -> R.string.error_base_option_archive
             ValidationError.DefaultUnitOptionCannotBeArchived -> R.string.error_default_option_archive
             ValidationError.StandardUnitAlreadyAdded -> R.string.error_standard_unit_exists
+            ValidationError.InvalidStandardUnitFactor -> R.string.error_standard_factor_mismatch
             ValidationError.InvalidPackageQuantity -> R.string.error_invalid_package_qty
+            ValidationError.InvalidDefaultUnitOption -> R.string.error_default_selection
+            ValidationError.MissingBaseUnitOption -> R.string.error_generic
+            ValidationError.MultipleBaseUnitOptions -> R.string.error_generic
+            ValidationError.InvalidBaseUnitFactor -> R.string.error_generic
+            ValidationError.IncompatibleUnitDimensions -> R.string.error_dimension_mismatch
             ValidationError.RecordNotFound -> R.string.error_generic
             else -> R.string.error_generic
         }

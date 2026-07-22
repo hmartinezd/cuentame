@@ -21,6 +21,7 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object BaseUnitOptionCannotBeArchived : ValidationError("The base unit option cannot be archived")
     data object DefaultUnitOptionCannotBeArchived : ValidationError("A default count or purchase option cannot be archived")
     data object StandardUnitAlreadyAdded : ValidationError("This standard unit is already added as an option")
+    data object InvalidStandardUnitFactor : ValidationError("The standard unit factor must match the system conversion")
     data object InvalidPackageQuantity : ValidationError("Quantity must be greater than zero")
     data object InvalidCurrencyCode : ValidationError("Invalid ISO currency code")
 

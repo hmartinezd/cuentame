@@ -1,6 +1,5 @@
 package com.miara.cuentame.feature.ingredients.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,13 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -28,9 +26,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,18 +41,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.text.DecimalParser
+import com.miara.cuentame.core.common.ids.UnitId
+import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
+import com.miara.cuentame.feature.ingredients.model.EditableUnitOptionUiModel
 import com.miara.cuentame.feature.ingredients.model.IngredientFormUiState
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientFormEvent
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientFormViewModel
@@ -63,17 +65,28 @@ import java.math.BigDecimal
 fun IngredientFormRoute(
     ingredientId: IngredientId? = null,
     onBack: () -> Unit,
+    onSaveSuccess: (IngredientId) -> Unit,
     viewModel: IngredientFormViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val compatibleUnits by viewModel.compatibleUnits.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is IngredientFormEvent.Success -> onBack()
+                is IngredientFormEvent.Created -> onSaveSuccess(event.ingredientId)
+                is IngredientFormEvent.Updated -> onSaveSuccess(event.ingredientId)
             }
+        }
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
+            viewModel.clearError()
         }
     }
 
@@ -81,6 +94,7 @@ fun IngredientFormRoute(
         uiState = uiState,
         categories = categories,
         compatibleUnits = compatibleUnits,
+        snackbarHostState = snackbarHostState,
         onNameChanged = viewModel::onNameChanged,
         onCategorySelected = viewModel::onCategorySelected,
         onDimensionSelected = viewModel::onDimensionSelected,
@@ -101,6 +115,7 @@ fun IngredientFormScreen(
     uiState: IngredientFormUiState,
     categories: List<IngredientCategory>,
     compatibleUnits: List<UnitOfMeasure>,
+    snackbarHostState: SnackbarHostState,
     onNameChanged: (String) -> Unit,
     onCategorySelected: (IngredientCategoryId?) -> Unit,
     onDimensionSelected: (UnitDimension) -> Unit,
@@ -117,6 +132,7 @@ fun IngredientFormScreen(
     var showPackageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { 
@@ -175,12 +191,22 @@ fun IngredientFormScreen(
                         )
                     }
                 } else {
-                    Text("${stringResource(R.string.base_unit)}: ${uiState.selectedBaseUnitId?.value}")
+                    Text(
+                        text = "${stringResource(R.string.base_unit)}: ${uiState.selectedBaseUnitId?.value}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = stringResource(R.string.error_base_unit_immutable),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 if (uiState.selectedBaseUnitId != null) {
                     UnitOptionsSection(
                         options = uiState.unitOptions,
+                        baseUnitId = uiState.selectedBaseUnitId,
+                        isEditMode = uiState.isEditMode,
                         onAddStandard = { showStandardDialog = true },
                         onAddPackage = { showPackageDialog = true },
                         onRemove = onRemoveOption,
@@ -191,7 +217,7 @@ fun IngredientFormScreen(
 
                 Button(
                     onClick = onSave,
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("ingredient_form_save"),
                     enabled = !uiState.isSubmitting && uiState.name.isNotBlank() && uiState.selectedBaseUnitId != null
                 ) {
                     if (uiState.isSubmitting) {
@@ -206,6 +232,7 @@ fun IngredientFormScreen(
     if (showStandardDialog) {
         StandardUnitDialog(
             units = compatibleUnits,
+            excludedUnitIds = uiState.unitOptions.mapNotNull { it.standardUnitId }.toSet(),
             onDismiss = { showStandardDialog = false },
             onSelect = { 
                 onAddStandardOption(it)
@@ -325,7 +352,7 @@ fun DimensionSelector(
 @Composable
 fun BaseUnitSelector(
     units: List<UnitOfMeasure>,
-    selectedId: com.miara.cuentame.core.common.ids.UnitId?,
+    selectedId: UnitId?,
     onSelected: (UnitOfMeasure) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -362,7 +389,9 @@ fun BaseUnitSelector(
 
 @Composable
 fun UnitOptionsSection(
-    options: List<com.miara.cuentame.feature.ingredients.model.EditableUnitOptionUiModel>,
+    options: List<EditableUnitOptionUiModel>,
+    baseUnitId: UnitId?,
+    isEditMode: Boolean,
     onAddStandard: () -> Unit,
     onAddPackage: () -> Unit,
     onRemove: (String) -> Unit,
@@ -376,35 +405,51 @@ fun UnitOptionsSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = stringResource(R.string.unit_options), style = MaterialTheme.typography.titleMedium)
-            Row {
-                TextButton(onClick = onAddStandard) { Text(stringResource(R.string.standard_unit)) }
-                TextButton(onClick = onAddPackage) { Text(stringResource(R.string.package_option)) }
+            if (!isEditMode) {
+                Row {
+                    TextButton(onClick = onAddStandard) { Text(stringResource(R.string.standard_unit)) }
+                    TextButton(onClick = onAddPackage) { Text(stringResource(R.string.package_option)) }
+                }
             }
         }
 
         options.forEach { option ->
             ListItem(
-                headlineContent = { Text(option.name) },
-                supportingContent = { Text("Factor: ${option.factorToBase}") },
+                headlineContent = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(option.name)
+                        if (option.isBase) {
+                            Text(
+                                text = " (Base)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                },
+                supportingContent = { 
+                    Text("1 ${option.name} = ${option.factorToBase} ${baseUnitId?.value}") 
+                },
                 trailingContent = {
                     Row {
                         IconButton(onClick = { onSetDefaultCount(option.id) }) {
                             Icon(
-                                Icons.Default.Add, // Use appropriate icon
-                                contentDescription = "Set Count Default",
+                                Icons.Default.Straighten, 
+                                contentDescription = stringResource(R.string.set_default_count),
                                 tint = if (option.isDefaultCount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         IconButton(onClick = { onSetDefaultPurchase(option.id) }) {
                             Icon(
-                                Icons.Default.Add, // Use appropriate icon
-                                contentDescription = "Set Purchase Default",
+                                Icons.Default.ShoppingCart, 
+                                contentDescription = stringResource(R.string.set_default_purchase),
                                 tint = if (option.isDefaultPurchase) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (!option.isBase) {
+                        if (!option.isBase && !isEditMode) {
                             IconButton(onClick = { onRemove(option.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = null)
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove_item, option.name))
                             }
                         }
                     }
@@ -413,70 +458,4 @@ fun UnitOptionsSection(
             HorizontalDivider()
         }
     }
-}
-
-@Composable
-fun StandardUnitDialog(
-    units: List<UnitOfMeasure>,
-    onDismiss: () -> Unit,
-    onSelect: (UnitOfMeasure) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.standard_unit)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                units.forEach { unit ->
-                    ListItem(
-                        headlineContent = { Text(unit.name) },
-                        trailingContent = { Text(unit.symbol) },
-                        modifier = Modifier.clickable { onSelect(unit) }
-                    )
-                }
-            }
-        },
-        confirmButton = {}
-    )
-}
-
-@Composable
-fun AddPackageDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String, BigDecimal) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var qtyText by remember { mutableStateOf("") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.package_option)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.package_name)) }
-                )
-                OutlinedTextField(
-                    value = qtyText,
-                    onValueChange = { qtyText = it },
-                    label = { Text(stringResource(R.string.contains_quantity)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { 
-                    DecimalParser.parse(qtyText)?.let { onConfirm(name, it) }
-                },
-                enabled = name.isNotBlank() && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true
-            ) {
-                Text(stringResource(R.string.action_add))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
-        }
-    )
 }

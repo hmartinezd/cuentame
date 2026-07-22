@@ -70,24 +70,32 @@ fun CuentameNavHost(
         }
         
         composable(route = Destination.INGREDIENT_CREATE.route) {
-            IngredientFormRoute(onBack = { navController.popBackStack() })
+            IngredientFormRoute(
+                onBack = { navController.popBackStack() },
+                onSaveSuccess = { id: IngredientId ->
+                    navController.navigate("ingredient/${id.value}") {
+                        popUpTo(Destination.INGREDIENT_CREATE.route) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(route = Destination.INGREDIENT_DETAIL.route) { backStackEntry ->
-            val id = backStackEntry.arguments?.getString("ingredientId")?.let { IngredientId(it) }
-            if (id != null) {
+            val idStr = backStackEntry.arguments?.getString("ingredientId")
+            if (idStr != null) {
                 IngredientDetailRoute(
-                    ingredientId = id,
-                    onEditClick = { navController.navigate("ingredient/${it.value}/edit") },
+                    ingredientId = IngredientId(idStr),
+                    onEditClick = { id -> navController.navigate("ingredient/${id.value}/edit") },
                     onBack = { navController.popBackStack() }
                 )
             }
         }
         composable(route = Destination.INGREDIENT_EDIT.route) { backStackEntry ->
-            val id = backStackEntry.arguments?.getString("ingredientId")?.let { IngredientId(it) }
-            if (id != null) {
+            val idStr = backStackEntry.arguments?.getString("ingredientId")
+            if (idStr != null) {
                 IngredientFormRoute(
-                    ingredientId = id,
-                    onBack = { navController.popBackStack() }
+                    ingredientId = IngredientId(idStr),
+                    onBack = { navController.popBackStack() },
+                    onSaveSuccess = { _ -> navController.popBackStack() }
                 )
             }
         }

@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
 import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.factory.TestFactories
@@ -15,6 +16,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.math.BigDecimal
 import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
@@ -33,8 +35,8 @@ class ParentUpdateTest {
             db.inventoryAreaDao().upsert(TestFactories.createArea())
             db.ingredientDao().upsert(TestFactories.createIngredient())
             db.ingredientUnitOptionDao().upsert(
-                com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(
-                    "opt_1", "ing_1", "lb", "lb", null, "1", true, true, true, true, 0, 0, null
+                IngredientUnitOptionEntity(
+                    "opt_1", "ing_1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0, 0, null
                 )
             )
         }

@@ -147,6 +147,10 @@
     <string name="search_ingredients">Search ingredients…</string>
     <string name="filter_by_category">Filter by category</string>
     <string name="show_archived">Show archived</string>
+    <string name="archived_label">Archived</string>
+    <string name="active">Active</string>
+    <string name="set_default_count">Set as default count</string>
+    <string name="set_default_purchase">Set as default purchase</string>
     <string name="no_ingredients">No ingredients found</string>
     <string name="no_unit_options">No additional units defined</string>
     <string name="archive_ingredient_confirmation">Are you sure you want to archive %1$s? It will no longer appear in new purchases or counts.</string>
@@ -164,5 +168,8 @@
     <string name="error_base_option_archive">The base unit option cannot be archived</string>
     <string name="error_default_option_archive">A default count or purchase option cannot be archived</string>
     <string name="error_standard_unit_exists">This standard unit is already added as an option</string>
+    <string name="error_standard_factor_mismatch">Standard factor does not match system conversion</string>
     <string name="error_invalid_package_qty">Quantity must be greater than zero</string>
+    <string name="error_default_selection">Invalid default unit selection</string>
+    <string name="error_dimension_mismatch">Units must have the same dimension</string>
 </resources>

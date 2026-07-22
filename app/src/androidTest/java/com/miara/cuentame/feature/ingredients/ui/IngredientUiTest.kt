@@ -32,8 +32,7 @@ class IngredientUiTest {
     }
 
     @Test
-    fun ingredient_list_to_create_flow() {
-        // Wait for resolve startup
+    fun complete_ingredient_creation_flow() {
         composeTestRule.waitForIdle()
 
         // If in onboarding, complete it quickly
@@ -44,9 +43,9 @@ class IngredientUiTest {
             composeTestRule.onNodeWithText(setupAction).performClick()
             composeTestRule.onNodeWithTag("onboarding_restaurant_name").performTextInput("Test Rest")
             composeTestRule.onNodeWithTag("onboarding_next_button").performClick() // to areas
-            composeTestRule.onAllNodesWithTag("onboarding_next_button")[0].performClick() // to categories
-            composeTestRule.onAllNodesWithTag("onboarding_next_button")[0].performClick() // to review
-            composeTestRule.onAllNodesWithTag("onboarding_finish_button")[0].performClick()
+            composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true)[0].performClick() // to categories
+            composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true)[0].performClick() // to review
+            composeTestRule.onAllNodesWithTag("onboarding_finish_button", useUnmergedTree = true)[0].performClick()
             composeTestRule.waitForIdle()
         }
 
@@ -62,11 +61,30 @@ class IngredientUiTest {
         val nameLabel = composeTestRule.activity.getString(R.string.ingredient_name)
         composeTestRule.onNodeWithText(nameLabel).performTextInput("Chicken Breast")
         
-        // Save
-        val saveLabel = composeTestRule.activity.getString(R.string.action_save)
-        composeTestRule.onNodeWithText(saveLabel).performClick()
+        // Select Dimension (Mass)
+        val dimLabel = composeTestRule.activity.getString(R.string.measurement_dimension)
+        composeTestRule.onNodeWithText(dimLabel).performClick()
+        composeTestRule.onNodeWithText("Mass").performClick() // Use literal for simplicity in test if localized fails
+
+        // Select Base Unit (Pound)
+        val baseUnitLabel = composeTestRule.activity.getString(R.string.base_unit)
+        composeTestRule.onNodeWithText(baseUnitLabel).performClick()
+        composeTestRule.onNodeWithText("Pound (lb)").performClick()
+
+        // Add Case Package
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.package_option)).performClick()
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.package_name)).performTextInput("Case")
+        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.contains_quantity)).performTextInput("40")
+        composeTestRule.onNodeWithTag("package_dialog_confirm").performClick()
+
+        // Save Ingredient
+        composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
         
-        // Verify detail appears
+        // Wait for detail appears
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+        }
+        
         composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
     }
 }

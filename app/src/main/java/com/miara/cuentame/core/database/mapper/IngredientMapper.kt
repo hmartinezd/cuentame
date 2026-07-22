@@ -7,7 +7,6 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.model.ingredient.Ingredient
-import java.math.BigDecimal
 import java.time.Instant
 
 fun IngredientEntity.toDomain(): Ingredient = Ingredient(
@@ -20,7 +19,7 @@ fun IngredientEntity.toDomain(): Ingredient = Ingredient(
     defaultAreaId = defaultAreaId?.let { InventoryAreaId(it) },
     sku = sku,
     notes = notes,
-    reorderPointBase = reorderPointBase?.let { BigDecimal(it) },
+    reorderPointBase = reorderPointBase,
     isActive = isActive,
     createdAt = Instant.ofEpochMilli(createdAt),
     updatedAt = Instant.ofEpochMilli(updatedAt),
@@ -37,7 +36,7 @@ fun Ingredient.toEntity(): IngredientEntity = IngredientEntity(
     defaultAreaId = defaultAreaId?.value,
     sku = sku,
     notes = notes,
-    reorderPointBase = reorderPointBase?.toPlainString(),
+    reorderPointBase = reorderPointBase,
     isActive = isActive,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli(),

@@ -3,12 +3,10 @@ package com.miara.cuentame.feature.ingredients.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -20,6 +18,7 @@ import com.miara.cuentame.core.domain.usecase.ObserveIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
 import com.miara.cuentame.core.domain.usecase.PreviewUnitConversionUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateIngredientUseCase
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.UnitDimension
@@ -42,7 +41,8 @@ import java.math.BigDecimal
 import javax.inject.Inject
 
 sealed interface IngredientFormEvent {
-    data object Success : IngredientFormEvent
+    data class Created(val ingredientId: IngredientId) : IngredientFormEvent
+    data class Updated(val ingredientId: IngredientId) : IngredientFormEvent
 }
 
 @HiltViewModel
@@ -50,7 +50,7 @@ class IngredientFormViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getIngredientDetailUseCase: GetIngredientDetailUseCase,
     private val observeIngredientUnitOptionsUseCase: ObserveIngredientUnitOptionsUseCase,
-    observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
+    private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
     private val observeCompatibleSystemUnitsUseCase: ObserveCompatibleSystemUnitsUseCase,
     private val createIngredientUseCase: CreateIngredientUseCase,
     private val updateIngredientUseCase: UpdateIngredientUseCase,
@@ -87,7 +87,8 @@ class IngredientFormViewModel @Inject constructor(
     private fun loadInitialData() {
         viewModelScope.launch {
             if (ingredientId != null) {
-                val ingredient = getIngredientDetailUseCase(IngredientId(ingredientId))
+                val id = IngredientId(ingredientId)
+                val ingredient = getIngredientDetailUseCase(id)
                 if (ingredient != null) {
                     val options = observeIngredientUnitOptionsUseCase(ingredient.id).first()
                     val baseUnit = unitRepository.getById(ingredient.baseUnitId)
@@ -112,6 +113,8 @@ class IngredientFormViewModel @Inject constructor(
                             }
                         )
                     }
+                } else {
+                    // Handle not found
                 }
             } else {
                 _uiState.update { it.copy(isLoading = false) }
@@ -145,7 +148,7 @@ class IngredientFormViewModel @Inject constructor(
                 selectedBaseUnitId = unit.id,
                 unitOptions = listOf(
                     EditableUnitOptionUiModel(
-                        id = "base",
+                        id = idGenerator.newId(),
                         name = unit.symbol,
                         standardUnitId = unit.id,
                         factorToBase = "1",
@@ -209,25 +212,26 @@ class IngredientFormViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isSubmitting) return
         
-        _uiState.update { it.copy(isSubmitting = true) }
+        _uiState.update { it.copy(isSubmitting = true, error = null) }
         
         viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant() ?: throw IllegalStateException("No restaurant")
                 
                 if (state.ingredientId == null) {
-                    createIngredient(restaurant.id, state)
+                    val newId = createIngredient(restaurant.id, state)
+                    _events.send(IngredientFormEvent.Created(newId))
                 } else {
                     updateIngredient(state)
+                    _events.send(IngredientFormEvent.Updated(state.ingredientId))
                 }
-                _events.send(IngredientFormEvent.Success)
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSubmitting = false, error = e) }
             }
         }
     }
 
-    private suspend fun createIngredient(restaurantId: RestaurantId, state: IngredientFormUiState) {
+    private suspend fun createIngredient(restaurantId: com.miara.cuentame.core.common.ids.RestaurantId, state: IngredientFormUiState): IngredientId {
         val ingredientId = IngredientId(idGenerator.newId())
         val now = timeProvider.now()
         
@@ -245,7 +249,7 @@ class IngredientFormViewModel @Inject constructor(
         
         val baseOptionUi = state.unitOptions.first { it.isBase }
         val baseOption = IngredientUnitOption(
-            id = IngredientUnitOptionId(idGenerator.newId()),
+            id = IngredientUnitOptionId(baseOptionUi.id),
             ingredientId = ingredientId,
             displayName = baseOptionUi.name,
             shortLabel = baseOptionUi.name,
@@ -261,7 +265,7 @@ class IngredientFormViewModel @Inject constructor(
         
         val additionalOptions = state.unitOptions.filter { !it.isBase }.map { optUi ->
             IngredientUnitOption(
-                id = IngredientUnitOptionId(idGenerator.newId()),
+                id = IngredientUnitOptionId(optUi.id),
                 ingredientId = ingredientId,
                 displayName = optUi.name,
                 shortLabel = optUi.name,
@@ -277,11 +281,12 @@ class IngredientFormViewModel @Inject constructor(
         }
         
         createIngredientUseCase(ingredient, baseOption, additionalOptions)
+        return ingredientId
     }
 
     private suspend fun updateIngredient(state: IngredientFormUiState) {
         val ingredientId = state.ingredientId!!
-        val existing = getIngredientDetailUseCase(ingredientId) ?: throw IllegalStateException()
+        val existing = getIngredientDetailUseCase(ingredientId) ?: throw ValidationError.IngredientNotFound
         
         val updated = existing.copy(
             name = state.name,
@@ -289,5 +294,9 @@ class IngredientFormViewModel @Inject constructor(
             updatedAt = timeProvider.now()
         )
         updateIngredientUseCase(updated)
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 }

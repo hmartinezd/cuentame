@@ -11,7 +11,8 @@ import javax.inject.Inject
 class ObserveIngredientsUseCase @Inject constructor(
     private val repository: IngredientRepository
 ) {
-    operator fun invoke(): Flow<List<Ingredient>> = repository.observeActiveIngredients()
+    operator fun invoke(includeArchived: Boolean = false): Flow<List<Ingredient>> = 
+        repository.observeIngredients(includeArchived)
 }
 
 class GetIngredientDetailUseCase @Inject constructor(

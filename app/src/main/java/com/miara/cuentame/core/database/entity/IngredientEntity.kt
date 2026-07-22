@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.math.BigDecimal
 
 @Entity(
     tableName = "ingredients",
@@ -52,7 +53,7 @@ data class IngredientEntity(
     val defaultAreaId: String?,
     val sku: String?,
     val notes: String?,
-    val reorderPointBase: String?,
+    val reorderPointBase: BigDecimal?,
     val isActive: Boolean,
     val createdAt: Long,
     val updatedAt: Long,

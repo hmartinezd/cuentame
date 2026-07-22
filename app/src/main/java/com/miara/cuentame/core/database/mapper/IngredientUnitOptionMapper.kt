@@ -5,7 +5,6 @@ import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
-import java.math.BigDecimal
 import java.time.Instant
 
 fun IngredientUnitOptionEntity.toDomain(): IngredientUnitOption = IngredientUnitOption(
@@ -14,7 +13,7 @@ fun IngredientUnitOptionEntity.toDomain(): IngredientUnitOption = IngredientUnit
     displayName = displayName,
     shortLabel = shortLabel,
     standardUnitId = standardUnitId?.let { UnitId(it) },
-    factorToBase = BigDecimal(factorToBase),
+    factorToBase = factorToBase,
     isBase = isBase,
     isDefaultCount = isDefaultCount,
     isDefaultPurchase = isDefaultPurchase,
@@ -30,7 +29,7 @@ fun IngredientUnitOption.toEntity(): IngredientUnitOptionEntity = IngredientUnit
     displayName = displayName,
     shortLabel = shortLabel,
     standardUnitId = standardUnitId?.value,
-    factorToBase = factorToBase.toPlainString(),
+    factorToBase = factorToBase,
     isBase = isBase,
     isDefaultCount = isDefaultCount,
     isDefaultPurchase = isDefaultPurchase,

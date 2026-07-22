@@ -147,6 +147,10 @@
     <string name="search_ingredients">Buscar ingredientes…</string>
     <string name="filter_by_category">Filtrar por categoría</string>
     <string name="show_archived">Mostrar archivados</string>
+    <string name="archived_label">Archivado</string>
+    <string name="active">Activo</string>
+    <string name="set_default_count">Marcar como defecto para conteo</string>
+    <string name="set_default_purchase">Marcar como defecto para compra</string>
     <string name="no_ingredients">No se encontraron ingredientes</string>
     <string name="no_unit_options">No hay unidades adicionales definidas</string>
     <string name="archive_ingredient_confirmation">¿Está seguro de que desea archivar %1$s? Ya no aparecerá en nuevas compras o conteos.</string>
@@ -164,5 +168,8 @@
     <string name="error_base_option_archive">La opción de unidad base no se puede archivar</string>
     <string name="error_default_option_archive">No se puede archivar una unidad por defecto (compra/conteo)</string>
     <string name="error_standard_unit_exists">Esta unidad estándar ya está añadida como opción</string>
+    <string name="error_standard_factor_mismatch">El factor no coincide con la conversión del sistema</string>
     <string name="error_invalid_package_qty">La cantidad debe ser mayor a cero</string>
+    <string name="error_default_selection">Selección de unidad por defecto no válida</string>
+    <string name="error_dimension_mismatch">Las unidades deben tener la misma dimensión</string>
 </resources>
