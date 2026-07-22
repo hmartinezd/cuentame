@@ -20,6 +20,7 @@ interface IngredientRepository {
 
     suspend fun createIngredientWithBaseOption(
         ingredient: Ingredient,
-        baseOption: IngredientUnitOption
+        baseOption: IngredientUnitOption,
+        additionalOptions: List<IngredientUnitOption> = emptyList()
     )
 }

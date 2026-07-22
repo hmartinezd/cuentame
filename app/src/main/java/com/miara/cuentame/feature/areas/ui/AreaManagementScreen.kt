@@ -55,6 +55,7 @@ fun AreaManagementRoute(
 
     var areaToArchive by remember { mutableStateOf<com.miara.cuentame.core.model.inventory.InventoryArea?>(null) }
     var areaToEdit by remember { mutableStateOf<com.miara.cuentame.core.model.inventory.InventoryArea?>(null) }
+    var newAreaName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -62,6 +63,7 @@ fun AreaManagementRoute(
                 is AreaManagementEvent.OperationSuccess -> {
                     areaToArchive = null
                     areaToEdit = null
+                    newAreaName = ""
                 }
             }
         }
@@ -78,7 +80,9 @@ fun AreaManagementRoute(
         uiState = uiState,
         areaToArchive = areaToArchive,
         areaToEdit = areaToEdit,
+        newAreaName = newAreaName,
         snackbarHostState = snackbarHostState,
+        onNewAreaNameChange = { newAreaName = it },
         onSetAreaToArchive = { areaToArchive = it },
         onSetAreaToEdit = { areaToEdit = it },
         onAddArea = viewModel::onAddArea,
@@ -94,7 +98,9 @@ fun AreaManagementScreen(
     uiState: com.miara.cuentame.feature.areas.viewmodel.AreaManagementUiState,
     areaToArchive: com.miara.cuentame.core.model.inventory.InventoryArea?,
     areaToEdit: com.miara.cuentame.core.model.inventory.InventoryArea?,
+    newAreaName: String,
     snackbarHostState: SnackbarHostState,
+    onNewAreaNameChange: (String) -> Unit,
     onSetAreaToArchive: (com.miara.cuentame.core.model.inventory.InventoryArea?) -> Unit,
     onSetAreaToEdit: (com.miara.cuentame.core.model.inventory.InventoryArea?) -> Unit,
     onAddArea: (String) -> Unit,
@@ -109,7 +115,6 @@ fun AreaManagementScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text(text = stringResource(R.string.settings_areas), style = MaterialTheme.typography.headlineSmall)
             
-            var newAreaName by remember { mutableStateOf("") }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -117,14 +122,13 @@ fun AreaManagementScreen(
             ) {
                 OutlinedTextField(
                     value = newAreaName,
-                    onValueChange = { newAreaName = it },
+                    onValueChange = onNewAreaNameChange,
                     label = { Text(stringResource(R.string.onboarding_add_area)) },
                     modifier = Modifier.weight(1f),
                     enabled = !uiState.isSaving
                 )
                 IconButton(onClick = { 
                     onAddArea(newAreaName)
-                    newAreaName = ""
                 }, enabled = !uiState.isSaving && newAreaName.isNotBlank()) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)

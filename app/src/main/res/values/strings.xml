@@ -125,4 +125,44 @@
     <string name="action_remove_item">Remove %1$s</string>
     <string name="archive_confirm_action">Archive</string>
     <string name="add_item_desc">Add %1$s</string>
+
+    <!-- Ingredients -->
+    <string name="ingredients_title">Ingredients</string>
+    <string name="ingredient_name">Ingredient Name</string>
+    <string name="add_ingredient">Add Ingredient</string>
+    <string name="edit_ingredient">Edit Ingredient</string>
+    <string name="archive_ingredient">Archive Ingredient</string>
+    <string name="category">Category</string>
+    <string name="uncategorized">Uncategorized</string>
+    <string name="measurement_dimension">Measurement Dimension</string>
+    <string name="base_unit">Base Unit</string>
+    <string name="unit_options">Unit Options</string>
+    <string name="standard_unit">Standard Unit</string>
+    <string name="package_option">Package</string>
+    <string name="package_name">Package Name</string>
+    <string name="contains_quantity">Contains</string>
+    <string name="default_count_unit">Default Count Unit</string>
+    <string name="default_purchase_unit">Default Purchase Unit</string>
+    <string name="conversion_preview">Conversion</string>
+    <string name="search_ingredients">Search ingredients…</string>
+    <string name="filter_by_category">Filter by category</string>
+    <string name="show_archived">Show archived</string>
+    <string name="no_ingredients">No ingredients found</string>
+    <string name="no_unit_options">No additional units defined</string>
+    <string name="archive_ingredient_confirmation">Are you sure you want to archive %1$s? It will no longer appear in new purchases or counts.</string>
+
+    <string name="dim_mass">Mass</string>
+    <string name="dim_volume">Volume</string>
+    <string name="dim_count">Count</string>
+
+    <string name="error_ingredient_not_found">Ingredient not found</string>
+    <string name="error_base_unit_immutable">The base unit cannot be changed after creation</string>
+    <string name="error_duplicate_ingredient">An ingredient with this name already exists</string>
+    <string name="error_unit_option_not_found">Unit option not found</string>
+    <string name="error_duplicate_unit_option">An option with this name already exists for this ingredient</string>
+    <string name="error_base_option_modify">The base unit option cannot be modified</string>
+    <string name="error_base_option_archive">The base unit option cannot be archived</string>
+    <string name="error_default_option_archive">A default count or purchase option cannot be archived</string>
+    <string name="error_standard_unit_exists">This standard unit is already added as an option</string>
+    <string name="error_invalid_package_qty">Quantity must be greater than zero</string>
 </resources>

@@ -125,4 +125,44 @@
     <string name="action_remove_item">Eliminar %1$s</string>
     <string name="archive_confirm_action">Archivar</string>
     <string name="add_item_desc">Añadir %1$s</string>
+
+    <!-- Ingredients -->
+    <string name="ingredients_title">Ingredientes</string>
+    <string name="ingredient_name">Nombre del Ingrediente</string>
+    <string name="add_ingredient">Añadir Ingrediente</string>
+    <string name="edit_ingredient">Editar Ingrediente</string>
+    <string name="archive_ingredient">Archivar Ingrediente</string>
+    <string name="category">Categoría</string>
+    <string name="uncategorized">Sin categoría</string>
+    <string name="measurement_dimension">Dimensión de Medida</string>
+    <string name="base_unit">Unidad Base</string>
+    <string name="unit_options">Opciones de Unidad</string>
+    <string name="standard_unit">Unidad Estándar</string>
+    <string name="package_option">Paquete</string>
+    <string name="package_name">Nombre del Paquete</string>
+    <string name="contains_quantity">Contiene</string>
+    <string name="default_count_unit">Unidad por Defecto (Conteo)</string>
+    <string name="default_purchase_unit">Unidad por Defecto (Compra)</string>
+    <string name="conversion_preview">Conversión</string>
+    <string name="search_ingredients">Buscar ingredientes…</string>
+    <string name="filter_by_category">Filtrar por categoría</string>
+    <string name="show_archived">Mostrar archivados</string>
+    <string name="no_ingredients">No se encontraron ingredientes</string>
+    <string name="no_unit_options">No hay unidades adicionales definidas</string>
+    <string name="archive_ingredient_confirmation">¿Está seguro de que desea archivar %1$s? Ya no aparecerá en nuevas compras o conteos.</string>
+
+    <string name="dim_mass">Masa</string>
+    <string name="dim_volume">Volumen</string>
+    <string name="dim_count">Unidades</string>
+
+    <string name="error_ingredient_not_found">Ingrediente no encontrado</string>
+    <string name="error_base_unit_immutable">La unidad base no se puede cambiar después de la creación</string>
+    <string name="error_duplicate_ingredient">Ya existe un ingrediente con este nombre</string>
+    <string name="error_unit_option_not_found">Opción de unidad no encontrada</string>
+    <string name="error_duplicate_unit_option">Ya existe una opción con este nombre para este ingrediente</string>
+    <string name="error_base_option_modify">La opción de unidad base no se puede modificar</string>
+    <string name="error_base_option_archive">La opción de unidad base no se puede archivar</string>
+    <string name="error_default_option_archive">No se puede archivar una unidad por defecto (compra/conteo)</string>
+    <string name="error_standard_unit_exists">Esta unidad estándar ya está añadida como opción</string>
+    <string name="error_invalid_package_qty">La cantidad debe ser mayor a cero</string>
 </resources>

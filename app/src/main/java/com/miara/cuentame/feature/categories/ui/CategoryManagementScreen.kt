@@ -55,6 +55,7 @@ fun CategoryManagementRoute(
 
     var categoryToArchive by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
     var categoryToEdit by remember { mutableStateOf<com.miara.cuentame.core.model.ingredient.IngredientCategory?>(null) }
+    var newCategoryName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -62,6 +63,7 @@ fun CategoryManagementRoute(
                 is CategoryManagementEvent.OperationSuccess -> {
                     categoryToArchive = null
                     categoryToEdit = null
+                    newCategoryName = ""
                 }
             }
         }
@@ -78,7 +80,9 @@ fun CategoryManagementRoute(
         uiState = uiState,
         categoryToArchive = categoryToArchive,
         categoryToEdit = categoryToEdit,
+        newCategoryName = newCategoryName,
         snackbarHostState = snackbarHostState,
+        onNewCategoryNameChange = { newCategoryName = it },
         onSetCategoryToArchive = { categoryToArchive = it },
         onSetCategoryToEdit = { categoryToEdit = it },
         onAddCategory = viewModel::onAddCategory,
@@ -94,7 +98,9 @@ fun CategoryManagementScreen(
     uiState: com.miara.cuentame.feature.categories.viewmodel.CategoryManagementUiState,
     categoryToArchive: com.miara.cuentame.core.model.ingredient.IngredientCategory?,
     categoryToEdit: com.miara.cuentame.core.model.ingredient.IngredientCategory?,
+    newCategoryName: String,
     snackbarHostState: SnackbarHostState,
+    onNewCategoryNameChange: (String) -> Unit,
     onSetCategoryToArchive: (com.miara.cuentame.core.model.ingredient.IngredientCategory?) -> Unit,
     onSetCategoryToEdit: (com.miara.cuentame.core.model.ingredient.IngredientCategory?) -> Unit,
     onAddCategory: (String) -> Unit,
@@ -109,7 +115,6 @@ fun CategoryManagementScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text(text = stringResource(R.string.settings_categories), style = MaterialTheme.typography.headlineSmall)
             
-            var newCategoryName by remember { mutableStateOf("") }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -117,14 +122,13 @@ fun CategoryManagementScreen(
             ) {
                 OutlinedTextField(
                     value = newCategoryName,
-                    onValueChange = { newCategoryName = it },
+                    onValueChange = onNewCategoryNameChange,
                     label = { Text(stringResource(R.string.onboarding_add_category)) },
                     modifier = Modifier.weight(1f),
                     enabled = !uiState.isSaving
                 )
                 IconButton(onClick = { 
                     onAddCategory(newCategoryName)
-                    newCategoryName = ""
                 }, enabled = !uiState.isSaving && newCategoryName.isNotBlank()) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)

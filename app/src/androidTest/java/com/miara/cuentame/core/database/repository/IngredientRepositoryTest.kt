@@ -66,24 +66,34 @@ class IngredientRepositoryTest {
         assertThat(options).isNotNull()
     }
 
-    @Test(expected = ValidationError.IngredientHasInventoryHistory::class)
-    fun updateBaseUnit_failsIfHistoryExists() = runBlocking {
+    @Test(expected = ValidationError.IngredientBaseUnitImmutable::class)
+    fun updateBaseUnit_alwaysFailsInMilestone4() = runBlocking {
         val ingredient = createIngredient("ing_1")
         val baseOption = createBaseOption("ing_1", "opt_1")
         repository.createIngredientWithBaseOption(ingredient, baseOption)
 
-        // Add movement
-        db.inventoryMovementDao().insert(
-            InventoryMovementEntity(
-                "mov_1", "rest_1", "ing_1", "area_1",
-                InventoryMovementType.PURCHASE.name, "10", null, null,
-                0, SourceDocumentType.PURCHASE_RECEIPT.name, "doc_1", "op_1", "line_1", null, 0
-            )
-        )
-
-        // Try change base unit
         val updated = ingredient.copy(baseUnitId = UnitId("mass_g"))
         repository.updateIngredient(updated)
+    }
+
+    @Test(expected = ValidationError.BaseUnitOptionCannotBeArchived::class)
+    fun archiveBaseOption_fails() = runBlocking {
+        val ingredient = createIngredient("ing_1")
+        val baseOption = createBaseOption("ing_1", "opt_1")
+        repository.createIngredientWithBaseOption(ingredient, baseOption)
+
+        repository.archiveUnitOption(IngredientUnitOptionId("opt_1"), Instant.now())
+    }
+
+    @Test
+    fun archiveIngredient_isSoftDelete() = runBlocking {
+        val ingredient = createIngredient("ing_1")
+        repository.createIngredientWithBaseOption(ingredient, createBaseOption("ing_1", "opt_1"))
+
+        repository.archive(IngredientId("ing_1"), Instant.now())
+        
+        val savedIng = repository.getById(IngredientId("ing_1"))
+        assertThat(savedIng?.isActive).isFalse()
     }
 
     private fun createIngredient(id: String) = Ingredient(

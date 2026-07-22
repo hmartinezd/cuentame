@@ -43,25 +43,15 @@ class RoomIngredientRepository @Inject constructor(
 
     override suspend fun updateIngredient(ingredient: Ingredient) {
         val existing = ingredientDao.getById(ingredient.id.value)?.toDomain()
-            ?: throw ValidationError.ArchivedReference // Reject if doesn't exist
+            ?: throw ValidationError.IngredientNotFound
 
         validateIngredient(ingredient)
         
         if (existing.baseUnitId != ingredient.baseUnitId) {
-            if (ingredientDao.hasMovements(ingredient.id.value)) {
-                throw ValidationError.IngredientHasInventoryHistory
-            }
-            // Update base option as well
-            database.withTransaction {
-                val baseOption = unitOptionDao.getBaseOption(ingredient.id.value)
-                if (baseOption != null) {
-                    unitOptionDao.upsert(baseOption.copy(standardUnitId = ingredient.baseUnitId.value))
-                }
-                ingredientDao.upsert(ingredient.copy(normalizedName = ingredient.name.normalizeName()).toEntity())
-            }
-        } else {
-            ingredientDao.upsert(ingredient.copy(normalizedName = ingredient.name.normalizeName()).toEntity())
+            throw ValidationError.IngredientBaseUnitImmutable
         }
+
+        ingredientDao.upsert(ingredient.copy(normalizedName = ingredient.name.normalizeName()).toEntity())
     }
 
     override suspend fun archive(id: IngredientId, at: Instant) {
@@ -76,7 +66,7 @@ class RoomIngredientRepository @Inject constructor(
 
     override suspend fun saveUnitOption(option: IngredientUnitOption) {
         val ingredient = ingredientDao.getById(option.ingredientId.value)?.toDomain()
-            ?: throw ValidationError.ArchivedReference
+            ?: throw ValidationError.IngredientNotFound
         if (!ingredient.isActive) throw ValidationError.ArchivedReference
 
         validateUnitOption(option, ingredient)
@@ -93,16 +83,11 @@ class RoomIngredientRepository @Inject constructor(
     }
 
     override suspend fun archiveUnitOption(id: IngredientUnitOptionId, at: Instant) {
-        val option = unitOptionDao.getById(id.value)?.toDomain() ?: return
-        if (option.isBase) throw ValidationError.MissingBaseUnitOption
+        val option = unitOptionDao.getById(id.value)?.toDomain() ?: throw ValidationError.UnitOptionNotFound
+        if (option.isBase) throw ValidationError.BaseUnitOptionCannotBeArchived
         
-        val ingredient = ingredientDao.getById(option.ingredientId.value)
-        if (ingredient != null) {
-            val countDefault = unitOptionDao.getDefaultCountOption(ingredient.id)
-            if (countDefault?.id == id.value) throw ValidationError.InvalidDefaultUnitOption
-            
-            val purchaseDefault = unitOptionDao.getDefaultPurchaseOption(ingredient.id)
-            if (purchaseDefault?.id == id.value) throw ValidationError.InvalidDefaultUnitOption
+        if (option.isDefaultCount || option.isDefaultPurchase) {
+            throw ValidationError.DefaultUnitOptionCannotBeArchived
         }
 
         unitOptionDao.softArchive(id.value, at.toEpochMilli())
@@ -110,7 +95,8 @@ class RoomIngredientRepository @Inject constructor(
 
     override suspend fun createIngredientWithBaseOption(
         ingredient: Ingredient,
-        baseOption: IngredientUnitOption
+        baseOption: IngredientUnitOption,
+        additionalOptions: List<IngredientUnitOption>
     ) {
         if (ingredient.id != baseOption.ingredientId) throw ValidationError.InvalidDefaultUnitOption
         if (!baseOption.isBase) throw ValidationError.MissingBaseUnitOption
@@ -129,6 +115,12 @@ class RoomIngredientRepository @Inject constructor(
         database.withTransaction {
             ingredientDao.upsert(ingredient.copy(normalizedName = ingredient.name.normalizeName()).toEntity())
             unitOptionDao.upsert(baseOption.toEntity())
+            
+            additionalOptions.forEach { opt ->
+                if (opt.ingredientId != ingredient.id) throw ValidationError.InvalidDefaultUnitOption
+                validateUnitOption(opt, ingredient)
+                unitOptionDao.upsert(opt.toEntity())
+            }
         }
     }
 
@@ -142,6 +134,22 @@ class RoomIngredientRepository @Inject constructor(
     private suspend fun validateUnitOption(option: IngredientUnitOption, ingredient: Ingredient) {
         if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
         
+        val existing = unitOptionDao.getById(option.id.value)?.toDomain()
+        
+        if (existing != null) {
+            if (existing.ingredientId != option.ingredientId) {
+                throw ValidationError.InvalidDefaultUnitOption // Cannot move to another ingredient
+            }
+            if (existing.isBase) {
+                // Cannot degrade base option
+                if (!option.isBase || !option.isActive || option.deletedAt != null || 
+                    option.factorToBase.compareTo(BigDecimal.ONE) != 0 || 
+                    option.standardUnitId != ingredient.baseUnitId) {
+                    throw ValidationError.BaseUnitOptionCannotBeModified
+                }
+            }
+        }
+
         if (option.isBase) {
             if (option.factorToBase.compareTo(BigDecimal.ONE) != 0) throw ValidationError.InvalidBaseUnitFactor
             if (option.standardUnitId != ingredient.baseUnitId) throw ValidationError.InvalidBaseUnitFactor
@@ -151,15 +159,23 @@ class RoomIngredientRepository @Inject constructor(
             val unit = unitDao.getById(option.standardUnitId.value) ?: throw ValidationError.ArchivedReference
             val baseUnit = unitDao.getById(ingredient.baseUnitId.value) ?: throw ValidationError.ArchivedReference
             if (unit.dimension != baseUnit.dimension) throw ValidationError.IncompatibleUnitDimensions
+            
+            // Check if standard unit already added (other than itself)
+            val activeOptions = unitOptionDao.getActiveOptions(option.ingredientId.value)
+            if (activeOptions.any { it.standardUnitId == option.standardUnitId.value && it.id != option.id.value }) {
+                throw ValidationError.StandardUnitAlreadyAdded
+            }
+        } else {
+            // Package option - check name uniqueness within ingredient
+            val activeOptions = unitOptionDao.getActiveOptions(option.ingredientId.value)
+            val normalizedName = option.displayName.normalizeName()
+            if (activeOptions.any { it.displayName.normalizeName() == normalizedName && it.id != option.id.value }) {
+                throw ValidationError.UnitOptionNameAlreadyExists
+            }
         }
 
         if (!option.isActive && (option.isDefaultCount || option.isDefaultPurchase)) {
             throw ValidationError.InvalidDefaultUnitOption
-        }
-
-        val existing = unitOptionDao.getById(option.id.value)
-        if (existing != null && existing.ingredientId != option.ingredientId.value) {
-            throw ValidationError.InvalidDefaultUnitOption // Cannot move to another ingredient
         }
         
         if (option.isBase && option.isActive) {

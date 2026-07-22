@@ -11,6 +11,7 @@ import com.miara.cuentame.core.domain.service.InventoryBalanceCalculator
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
+import com.miara.cuentame.core.domain.usecase.IngredientValidator
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import dagger.Module
 import dagger.Provides
@@ -64,4 +65,8 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideLocalSetupValidator(): LocalSetupValidator = LocalSetupValidator()
+
+    @Provides
+    @Singleton
+    fun provideIngredientValidator(): IngredientValidator = IngredientValidator()
 }

@@ -15,9 +15,10 @@
 * **Integrity:** Sequential deterministic autosave with flush, authoritative validation, unified reorderable lists, restaurant-scoped protection, and reactive startup repair.
 * **Result:** A hardened configuration foundation that ensures consistency between local storage and business records.
 
-### Milestone 4: Ingredients Management
-* **Scope:** CRUD for ingredients, Unit conversions, Packaging options.
-* **Dependency:** Milestone 2.
+### Milestone 4: Ingredients Management (Completed)
+* **Scope:** CRUD for ingredients, Unit conversions, Packaging options, Category assignment, Base unit immutability, Search and Filtering.
+* **Integrity:** Atomic ingredient/unit creation, base unit immutability enforced in repository, dimension-safe conversions.
+* **Result:** A fully functional ingredient catalog with precise measurement and packaging support.
 
 ### Milestone 5: Purchases
 * **Scope:** Supplier management, Purchase receipts (Draft/Posted/Void), Inventory movements, Cost averaging.

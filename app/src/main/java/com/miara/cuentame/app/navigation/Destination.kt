@@ -64,6 +64,10 @@ enum class TopLevelDestination(
 enum class Destination(val route: String) {
     ONBOARDING("onboarding"),
     SETTINGS("settings"),
-    LOADING("loading")
+    LOADING("loading"),
+    INGREDIENT_LIST("ingredients"),
+    INGREDIENT_CREATE("ingredient/create"),
+    INGREDIENT_DETAIL("ingredient/{ingredientId}"),
+    INGREDIENT_EDIT("ingredient/{ingredientId}/edit")
 }
 

@@ -13,6 +13,15 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.FinalAreaCannotBeArchived -> R.string.error_final_area
             ValidationError.OnboardingDraftCorrupted -> R.string.error_draft_corrupted
             ValidationError.OnboardingDraftSaveFailed -> R.string.error_draft_save
+            ValidationError.IngredientNotFound -> R.string.error_ingredient_not_found
+            ValidationError.IngredientBaseUnitImmutable -> R.string.error_base_unit_immutable
+            ValidationError.UnitOptionNotFound -> R.string.error_unit_option_not_found
+            ValidationError.UnitOptionNameAlreadyExists -> R.string.error_duplicate_unit_option
+            ValidationError.BaseUnitOptionCannotBeModified -> R.string.error_base_option_modify
+            ValidationError.BaseUnitOptionCannotBeArchived -> R.string.error_base_option_archive
+            ValidationError.DefaultUnitOptionCannotBeArchived -> R.string.error_default_option_archive
+            ValidationError.StandardUnitAlreadyAdded -> R.string.error_standard_unit_exists
+            ValidationError.InvalidPackageQuantity -> R.string.error_invalid_package_qty
             ValidationError.RecordNotFound -> R.string.error_generic
             else -> R.string.error_generic
         }

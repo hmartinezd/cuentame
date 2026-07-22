@@ -12,9 +12,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.feature.areas.ui.AreaManagementRoute
 import com.miara.cuentame.feature.categories.ui.CategoryManagementRoute
 import com.miara.cuentame.feature.home.HomeRoute
+import com.miara.cuentame.feature.ingredients.ui.IngredientDetailRoute
+import com.miara.cuentame.feature.ingredients.ui.IngredientFormRoute
+import com.miara.cuentame.feature.ingredients.ui.IngredientListRoute
 import com.miara.cuentame.feature.settings.ui.RestaurantProfileRoute
 import com.miara.cuentame.feature.settings.ui.SettingsRoute
 
@@ -34,7 +38,10 @@ fun CuentameNavHost(
             HomeRoute()
         }
         composable(route = TopLevelDestination.INVENTORY.route) {
-            PlaceholderScreen(TopLevelDestination.INVENTORY)
+            IngredientListRoute(
+                onAddIngredient = { navController.navigate(Destination.INGREDIENT_CREATE.route) },
+                onIngredientClick = { id -> navController.navigate("ingredient/${id.value}") }
+            )
         }
         composable(route = TopLevelDestination.COUNT.route) {
             PlaceholderScreen(TopLevelDestination.COUNT)
@@ -60,6 +67,29 @@ fun CuentameNavHost(
         }
         composable("settings/restaurant") {
             RestaurantProfileRoute(onBack = onBackClick)
+        }
+        
+        composable(route = Destination.INGREDIENT_CREATE.route) {
+            IngredientFormRoute(onBack = { navController.popBackStack() })
+        }
+        composable(route = Destination.INGREDIENT_DETAIL.route) { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("ingredientId")?.let { IngredientId(it) }
+            if (id != null) {
+                IngredientDetailRoute(
+                    ingredientId = id,
+                    onEditClick = { navController.navigate("ingredient/${it.value}/edit") },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
+        composable(route = Destination.INGREDIENT_EDIT.route) { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("ingredientId")?.let { IngredientId(it) }
+            if (id != null) {
+                IngredientFormRoute(
+                    ingredientId = id,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

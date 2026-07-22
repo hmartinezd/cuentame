@@ -25,24 +25,26 @@ Cuentame is a local-first Android application designed for restaurant inventory 
 ./gradlew lintDebug
 ```
 
-### Current Status (Milestone 3 Integrity Pass)
+### Current Status (Milestone 4 — Ingredients and Units)
 - `testDebugUnitTest`: PASSED
 - `lintDebug`: PASSED
 - `assembleDebug`: PASSED
 - `connectedDebugAndroidTest`: PASSED
 
-### Milestone 3 Highlights
-- **Persistent Onboarding:** Multi-step setup with deterministic sequential autosave and crash recovery.
-- **Unified Ordering:** Combined suggested and custom items in a single, stable ordered list.
-- **Robust Integrity:** Authoritative validation for restaurant details, areas, and categories.
-- **Setup Recovery:** Automatic repair of incomplete database states and synchronized Preferences DataStore.
-- **Localization:** Real-time English and Spanish switching with full resource-based implementation.
+### Milestone 4 Highlights
+- **Ingredient Catalog:** Full CRUD operations with search, filtering, and category organization.
+- **Unit Integrity:** Enforced base unit immutability and atomic ingredient/unit creation.
+- **Flexible Packaging:** Support for standard measurement conversions and custom ingredient-specific packages.
+- **Precision:** All calculations powered by `BigDecimal` for zero-loss financial and inventory accuracy.
+
+### Current milestone: Milestone 4
+### Next milestone: Milestone 5 — Purchases
 
 ### Resetting App Data
 To re-run onboarding, clear the application storage via Android Settings. This will remove both the Room database and Preferences DataStore.
 
 ## Next Milestone
-**Milestone 4 — Ingredients and Units**: Implementing ingredient CRUD, advanced unit conversions, and packaging options.
+**Milestone 5 — Purchases**: Implementing supplier management and purchase receipts.
 
 ## Project Documentation
 * [Product Specs](docs/product-spec.md)

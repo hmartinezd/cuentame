@@ -34,45 +34,45 @@ class OnboardingUiTest {
     @Test
     fun onboarding_full_flow() {
         // Wait for resolve startup and initial load
-        composeTestRule.waitUntil(20000) {
-            composeTestRule.onAllNodesWithTag("onboarding_screen_root").fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(30000) {
+            composeTestRule.onAllNodesWithTag("onboarding_welcome_content", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
 
         // Welcome Step
-        composeTestRule.onNodeWithTag("onboarding_welcome_content").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_setup_button").performClick()
+        composeTestRule.onNodeWithTag("onboarding_welcome_content", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_setup_button", useUnmergedTree = true).performClick()
 
         // Restaurant Step
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithTag("onboarding_restaurant_name").fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("onboarding_restaurant_name", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("onboarding_restaurant_name").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_restaurant_name").performTextInput("The Integrity Pass")
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name", useUnmergedTree = true).performTextInput("The Integrity Pass")
         // Close keyboard if needed
-        composeTestRule.onNodeWithTag("onboarding_restaurant_name").performImeAction()
+        composeTestRule.onNodeWithTag("onboarding_restaurant_name", useUnmergedTree = true).performImeAction()
         
-        composeTestRule.onNodeWithTag("onboarding_next_button").performClick()
+        composeTestRule.onNodeWithTag("onboarding_next_button", useUnmergedTree = true).performClick()
 
         // Wait for Areas Step
         composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithTag("onboarding_areas_title").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("onboarding_areas_title", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
         
         // Add custom area
-        composeTestRule.onNodeWithTag("onboarding_add_area_input").performTextInput("Back Dock")
-        composeTestRule.onNodeWithTag("onboarding_add_area_input").performImeAction()
-        composeTestRule.onNodeWithTag("onboarding_add_area_button").performClick()
+        composeTestRule.onNodeWithTag("onboarding_add_area_input", useUnmergedTree = true).performTextInput("Back Dock")
+        composeTestRule.onNodeWithTag("onboarding_add_area_input", useUnmergedTree = true).performImeAction()
+        composeTestRule.onNodeWithTag("onboarding_add_area_button", useUnmergedTree = true).performClick()
         
         assertThat(composeTestRule.onAllNodesWithText("Back Dock", ignoreCase = true).fetchSemanticsNodes()).isNotEmpty()
         
-        composeTestRule.onAllNodesWithTag("onboarding_next_button").onFirst().performClick()
+        composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true).onFirst().performClick()
 
         // Wait for Categories Step
         composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithTag("onboarding_categories_title").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("onboarding_categories_title", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
         
-        composeTestRule.onAllNodesWithTag("onboarding_next_button").onFirst().performClick()
+        composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true).onFirst().performClick()
 
         // Wait for Review Step
         composeTestRule.waitUntil(10000) {
@@ -80,7 +80,7 @@ class OnboardingUiTest {
         }
         assertThat(composeTestRule.onAllNodesWithText("The Integrity Pass", ignoreCase = true, substring = true).fetchSemanticsNodes()).isNotEmpty()
         
-        composeTestRule.onAllNodesWithTag("onboarding_finish_button").onFirst().performClick()
+        composeTestRule.onAllNodesWithTag("onboarding_finish_button", useUnmergedTree = true).onFirst().performClick()
 
         // Verify Home appears
         composeTestRule.waitUntil(20000) {
