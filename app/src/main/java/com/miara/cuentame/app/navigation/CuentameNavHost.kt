@@ -12,7 +12,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.miara.cuentame.feature.areas.ui.AreaManagementRoute
+import com.miara.cuentame.feature.categories.ui.CategoryManagementRoute
 import com.miara.cuentame.feature.home.HomeRoute
+import com.miara.cuentame.feature.settings.ui.RestaurantProfileRoute
+import com.miara.cuentame.feature.settings.ui.SettingsRoute
 
 @Composable
 fun CuentameNavHost(
@@ -42,7 +46,20 @@ fun CuentameNavHost(
             PlaceholderScreen(TopLevelDestination.REPORTS)
         }
         composable(route = Destination.SETTINGS.route) {
-            PlaceholderScreen(stringResource(com.miara.cuentame.R.string.nav_settings))
+            SettingsRoute(
+                onNavigateToAreas = { navController.navigate("settings/areas") },
+                onNavigateToCategories = { navController.navigate("settings/categories") },
+                onNavigateToRestaurant = { navController.navigate("settings/restaurant") }
+            )
+        }
+        composable("settings/areas") {
+            AreaManagementRoute()
+        }
+        composable("settings/categories") {
+            CategoryManagementRoute()
+        }
+        composable("settings/restaurant") {
+            RestaurantProfileRoute(onBack = onBackClick)
         }
     }
 }

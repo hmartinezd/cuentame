@@ -10,9 +10,10 @@
 * **Integrity:** Enforced atomic ingredient creation, movement idempotency, and deterministic reversal handling with projection rebuilding.
 * **Result:** A robust, testable persistence and business logic foundation.
 
-### Milestone 3: Onboarding and Settings
-* **Scope:** First-run experience, Restaurant setup, Area/Category configuration, Demo data injection.
-* **Dependency:** Milestone 2.
+### Milestone 3: Onboarding and Settings (Completed)
+* **Scope:** First-run experience, Restaurant setup, Area/Category configuration, DataStore-backed preferences, English/Spanish localization.
+* **Integrity:** Atomic setup transaction, crash-resilient completion flow, persistent onboarding draft.
+* **Result:** Users can configure their restaurant and manage core settings offline.
 
 ### Milestone 4: Ingredients Management
 * **Scope:** CRUD for ingredients, Unit conversions, Packaging options.

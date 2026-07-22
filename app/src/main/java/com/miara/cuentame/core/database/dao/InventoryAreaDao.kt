@@ -29,6 +29,9 @@ interface InventoryAreaDao {
     @Query("UPDATE inventory_areas SET isActive = 0, deletedAt = :at WHERE id = :id")
     suspend fun softArchive(id: String, at: Long)
 
+    @Query("SELECT COUNT(*) FROM inventory_areas WHERE isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveCount(): Int
+
     @Update
     suspend fun updateAll(areas: List<InventoryAreaEntity>)
 }

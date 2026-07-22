@@ -14,6 +14,14 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object ArchivedReference : ValidationError("Cannot reference an archived record")
     data object InvalidCurrencyCode : ValidationError("Invalid ISO currency code")
 
+    // Onboarding and Setup Errors
+    data object SetupAlreadyCompleted : ValidationError("Setup has already been completed")
+    data object NoActiveInventoryArea : ValidationError("At least one active inventory area is required")
+    data object UnsupportedLocale : ValidationError("Unsupported application locale")
+    data object InvalidSetupState : ValidationError("Current setup state is invalid")
+    data object FinalAreaCannotBeArchived : ValidationError("The last active area cannot be archived")
+    data object OnboardingDraftCorrupted : ValidationError("The onboarding draft is corrupted and has been reset")
+
     // Movement and Reversal Errors
     data object MovementNotFound : ValidationError("Movement not found")
     data object MovementAlreadyReversed : ValidationError("Movement has already been reversed")

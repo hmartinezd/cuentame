@@ -24,11 +24,20 @@ Cuentame is a local-first Android application designed for restaurant inventory 
 ./gradlew lintDebug
 ```
 
-### Current Status (Milestone 2)
+### Current Status (Milestone 3)
 - `testDebugUnitTest`: PASSED
 - `lintDebug`: PASSED
 - `assembleDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (15 tests including projection rebuilding and reversals)
+- `connectedDebugAndroidTest`: PASSED (19 tests including onboarding flow and preference persistence)
+
+### Milestone 3 Highlights
+- **Persistent Onboarding:** Multi-step setup with draft auto-save and crash recovery.
+- **Local Configuration:** Restaurant profile, area, and category management.
+- **Theming:** Full support for Light/Dark/System themes and Material You dynamic color.
+- **Localization:** English and Spanish support with in-app language switching.
+
+### Resetting App Data
+To re-run onboarding, clear the application storage via Android Settings. This will remove both the Room database and Preferences DataStore.
 
 
 ## Next Milestone

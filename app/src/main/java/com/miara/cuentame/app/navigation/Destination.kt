@@ -62,5 +62,8 @@ enum class TopLevelDestination(
 }
 
 enum class Destination(val route: String) {
-    SETTINGS("settings")
+    ONBOARDING("onboarding"),
+    SETTINGS("settings"),
+    LOADING("loading")
 }
+

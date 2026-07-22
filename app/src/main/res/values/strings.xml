@@ -21,6 +21,83 @@
     <string name="reports_title">Analytics</string>
     <string name="reports_description">View inventory value and usage reports.</string>
 
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Welcome to Cuentame</string>
+    <string name="onboarding_welcome_desc">Cuentame is your local-first restaurant inventory manager. Track everything offline, with full control over your data.</string>
+    <string name="onboarding_welcome_note">Don\'t worry, you can change your settings later.</string>
+    <string name="onboarding_setup_action">Set up restaurant</string>
+
+    <string name="onboarding_restaurant_title">Restaurant Details</string>
+    <string name="onboarding_restaurant_desc">Tell us a bit about your business.</string>
+    <string name="onboarding_field_name">Restaurant Name</string>
+    <string name="onboarding_field_currency">Currency</string>
+    <string name="onboarding_field_language">Application Language</string>
+    <string name="onboarding_currency_note">Currency is used for calculating total inventory value.</string>
+    <string name="onboarding_language_note">You can change the language at any time in Settings.</string>
+
+    <string name="onboarding_areas_title">Inventory Areas</string>
+    <string name="onboarding_areas_desc">Where do you store your items? Select the ones that apply or add your own.</string>
+    <string name="onboarding_add_area">Add custom area</string>
+    <string name="onboarding_area_required">At least one area is required.</string>
+    <string name="onboarding_areas_selection_empty">Please select at least one storage area.</string>
+
+    <string name="onboarding_categories_title">Ingredient Categories</string>
+    <string name="onboarding_categories_desc">Organize your items into groups. This helps with reporting and counting.</string>
+    <string name="onboarding_add_category">Add custom category</string>
+    <string name="onboarding_category_recommend">We recommend using categories to organize your inventory better.</string>
+
+    <string name="onboarding_review_title">Review Setup</string>
+    <string name="onboarding_finish_action">Finish setup</string>
+
+    <!-- Templates -->
+    <string name="template_area_walk_in">Walk-in Cooler</string>
+    <string name="template_area_freezer">Freezer</string>
+    <string name="template_area_dry_storage">Dry Storage</string>
+    <string name="template_area_bar">Bar</string>
+    <string name="template_area_prep">Prep Area</string>
+    <string name="template_area_line">Kitchen Line</string>
+
+    <string name="template_cat_meat">Meat</string>
+    <string name="template_cat_seafood">Seafood</string>
+    <string name="template_cat_dairy">Dairy</string>
+    <string name="template_cat_produce">Produce</string>
+    <string name="template_cat_dry">Dry Goods</string>
+    <string name="template_cat_beverages">Beverages</string>
+    <string name="template_cat_alcohol">Alcohol</string>
+    <string name="template_cat_bakery">Bakery</string>
+    <string name="template_cat_cleaning">Cleaning Supplies</string>
+    <string name="template_cat_other">Other</string>
+
+    <!-- Settings -->
+    <string name="settings_restaurant">Restaurant Profile</string>
+    <string name="settings_areas">Inventory Areas</string>
+    <string name="settings_categories">Ingredient Categories</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_about">About</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_dynamic_color">Dynamic Color</string>
+
+    <string name="theme_system">System Default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <string name="action_next">Continue</string>
+    <string name="action_back">Back</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_save">Save Changes</string>
+    <string name="action_add">Add</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_archive">Archive</string>
+
+    <string name="about_desc">Cuentame is a local-only inventory management solution. All your data stays on this device.</string>
+    <string name="about_version">Version %s</string>
+
+    <!-- Errors -->
+    <string name="error_name_empty">Name cannot be empty</string>
+    <string name="error_duplicate_name">This name is already in use</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+
     <!-- States -->
     <string name="state_loading_desc">Loading…</string>
     <string name="state_empty_desc">Nothing to show yet.</string>

@@ -5,6 +5,7 @@ import com.miara.cuentame.core.database.repository.RoomIngredientRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryAreaRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryReadRepository
 import com.miara.cuentame.core.database.repository.RoomPurchaseDraftRepository
+import com.miara.cuentame.core.database.repository.RoomLocalSetupRepository
 import com.miara.cuentame.core.database.repository.RoomRestaurantRepository
 import com.miara.cuentame.core.database.repository.RoomStockCountDraftRepository
 import com.miara.cuentame.core.database.repository.RoomSupplierRepository
@@ -14,6 +15,7 @@ import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
 import com.miara.cuentame.core.domain.repository.InventoryReadRepository
+import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.PurchaseDraftRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.StockCountDraftRepository
@@ -33,6 +35,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRestaurantRepository(repo: RoomRestaurantRepository): RestaurantRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindLocalSetupRepository(repo: RoomLocalSetupRepository): LocalSetupRepository
 
     @Binds
     @Singleton

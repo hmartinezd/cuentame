@@ -21,6 +21,83 @@
     <string name="reports_title">Analítica</string>
     <string name="reports_description">Vea el valor del inventario y reportes de uso.</string>
 
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Bienvenido a Cuéntame</string>
+    <string name="onboarding_welcome_desc">Cuéntame es su gestor de inventario local. Rastree todo sin conexión, con control total sobre sus datos.</string>
+    <string name="onboarding_welcome_note">No se preocupe, puede cambiar sus ajustes más tarde.</string>
+    <string name="onboarding_setup_action">Configurar restaurante</string>
+
+    <string name="onboarding_restaurant_title">Detalles del Restaurante</string>
+    <string name="onboarding_restaurant_desc">Cuéntenos un poco sobre su negocio.</string>
+    <string name="onboarding_field_name">Nombre del Restaurante</string>
+    <string name="onboarding_field_currency">Moneda</string>
+    <string name="onboarding_field_language">Idioma de la Aplicación</string>
+    <string name="onboarding_currency_note">La moneda se utiliza para calcular el valor total del inventario.</string>
+    <string name="onboarding_language_note">Puede cambiar el idioma en cualquier momento en los Ajustes.</string>
+
+    <string name="onboarding_areas_title">Áreas de Inventario</string>
+    <string name="onboarding_areas_desc">¿Dónde guarda sus artículos? Seleccione los que apliquen o añada los suyos.</string>
+    <string name="onboarding_add_area">Añadir área personalizada</string>
+    <string name="onboarding_area_required">Se requiere al menos un área.</string>
+    <string name="onboarding_areas_selection_empty">Por favor, seleccione al menos un área de almacenamiento.</string>
+
+    <string name="onboarding_categories_title">Categorías de Ingredientes</string>
+    <string name="onboarding_categories_desc">Organice sus artículos en grupos. Esto ayuda con los reportes y conteos.</string>
+    <string name="onboarding_add_category">Añadir categoría personalizada</string>
+    <string name="onboarding_category_recommend">Recomendamos usar categorías para organizar mejor su inventario.</string>
+
+    <string name="onboarding_review_title">Revisar Configuración</string>
+    <string name="onboarding_finish_action">Finalizar configuración</string>
+
+    <!-- Templates -->
+    <string name="template_area_walk_in">Cámara refrigerada</string>
+    <string name="template_area_freezer">Congelador</string>
+    <string name="template_area_dry_storage">Almacén seco</string>
+    <string name="template_area_bar">Bar</string>
+    <string name="template_area_prep">Área de preparación</string>
+    <string name="template_area_line">Línea de cocina</string>
+
+    <string name="template_cat_meat">Carnes</string>
+    <string name="template_cat_seafood">Mariscos</string>
+    <string name="template_cat_dairy">Lácteos</string>
+    <string name="template_cat_produce">Frutas y vegetales</string>
+    <string name="template_cat_dry">Productos secos</string>
+    <string name="template_cat_beverages">Bebidas</string>
+    <string name="template_cat_alcohol">Alcohol</string>
+    <string name="template_cat_bakery">Panadería</string>
+    <string name="template_cat_cleaning">Productos de limpieza</string>
+    <string name="template_cat_other">Otros</string>
+
+    <!-- Settings -->
+    <string name="settings_restaurant">Perfil del Restaurante</string>
+    <string name="settings_areas">Áreas de Inventario</string>
+    <string name="settings_categories">Categorías de Ingredientes</string>
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_dynamic_color">Color Dinámico</string>
+
+    <string name="theme_system">Predeterminado del sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+
+    <string name="action_next">Continuar</string>
+    <string name="action_back">Volver</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_save">Guardar Cambios</string>
+    <string name="action_add">Añadir</string>
+    <string name="action_remove">Eliminar</string>
+    <string name="action_archive">Archivar</string>
+
+    <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
+    <string name="about_version">Versión %s</string>
+
+    <!-- Errors -->
+    <string name="error_name_empty">El nombre no puede estar vacío</string>
+    <string name="error_duplicate_name">Este nombre ya está en uso</string>
+    <string name="error_generic">Algo salió mal. Por favor, inténtelo de nuevo.</string>
+
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
     <string name="state_empty_desc">Nada que mostrar todavía.</string>

@@ -1,11 +1,13 @@
 package com.miara.cuentame.app.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,23 +22,68 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navOptions
 import com.miara.cuentame.app.navigation.CuentameNavHost
 import com.miara.cuentame.app.navigation.Destination
 import com.miara.cuentame.app.navigation.TopLevelDestination
+import com.miara.cuentame.core.domain.usecase.AppStartState
+import com.miara.cuentame.feature.onboarding.ui.OnboardingRoute
+
+@Composable
+fun CuentameApp(
+    windowSizeClass: WindowSizeClass,
+    viewModel: AppViewModel = hiltViewModel()
+) {
+    val startState by viewModel.startState.collectAsStateWithLifecycle()
+
+    when (startState) {
+        AppStartState.Loading -> {
+            LoadingContent()
+        }
+        AppStartState.RequiresOnboarding -> {
+            OnboardingFlow(onOnboardingFinished = {})
+        }
+        AppStartState.Ready -> {
+            MainAppContent(windowSizeClass = windowSizeClass)
+        }
+    }
+}
+
+@Composable
+fun LoadingContent() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun OnboardingFlow(onOnboardingFinished: () -> Unit) {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = Destination.ONBOARDING.route) {
+        composable(Destination.ONBOARDING.route) {
+            OnboardingRoute(onOnboardingFinished = onOnboardingFinished)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CuentameApp(
+fun MainAppContent(
     windowSizeClass: WindowSizeClass,
     navController: NavHostController = rememberNavController()
 ) {
