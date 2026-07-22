@@ -89,40 +89,41 @@ class IngredientRepositoryTest {
         repository.createIngredientWithBaseOption(ingredient.copy(name = "Other"), createBaseOption("ing_1", "opt_2"))
     }
 
-    @Test(expected = ValidationError.IngredientBaseUnitImmutable::class)
-    fun updateIngredient_preventsBaseUnitChange() = runBlocking {
+    @Test(expected = ValidationError.InvalidBaseUnitOption::class)
+    fun createIngredient_failsIfSuppliedBaseIsNotBase() = runBlocking {
         val ingredient = createIngredient("ing_1")
-        repository.createIngredientWithBaseOption(ingredient, createBaseOption("ing_1", "opt_1"))
+        val baseOption = createBaseOption("ing_1", "opt_1").copy(isBase = false)
+        repository.createIngredientWithBaseOption(ingredient, baseOption)
+    }
 
-        val updated = ingredient.copy(baseUnitId = UnitId("mass_g"))
-        repository.updateIngredient(updated)
+    @Test(expected = ValidationError.AdditionalOptionCannotBeBase::class)
+    fun createIngredient_failsIfAdditionalOptionIsBase() = runBlocking {
+        val ingredient = createIngredient("ing_1")
+        val baseOption = createBaseOption("ing_1", "opt_1")
+        val extra = createBaseOption("ing_1", "opt_2").copy(displayName = "Extra Base")
+        repository.createIngredientWithBaseOption(ingredient, baseOption, listOf(extra))
     }
 
     @Test
-    fun addStandardUnitOption_derivesCorrectFactor() = runBlocking {
+    fun updateIngredient_preservesProtectedFields() = runBlocking {
         val ingId = IngredientId("ing_1")
-        repository.createIngredientWithBaseOption(createIngredient("ing_1"), createBaseOption("ing_1", "opt_1"))
+        val original = createIngredient("ing_1")
+        repository.createIngredientWithBaseOption(original, createBaseOption("ing_1", "opt_1"))
 
-        repository.addStandardUnitOption(AddStandardUnitOptionCommand(ingId, UnitId("mass_oz")))
+        val modified = original.copy(
+            restaurantId = RestaurantId("other"),
+            baseUnitId = UnitId("other"),
+            isActive = true, // Must stay true to pass validation
+            createdAt = Instant.EPOCH,
+            name = "New Name"
+        )
+        repository.updateIngredient(modified)
 
-        val options = db.ingredientUnitOptionDao().getActiveOptions("ing_1")
-        val ozOption = options.find { it.standardUnitId == "mass_oz" }
-        assertThat(ozOption).isNotNull()
-        assertThat(ozOption?.factorToBase?.compareTo(BigDecimal("0.0625"))).isEqualTo(0)
-    }
-
-    @Test
-    fun archiveIngredient_isSoftDeleteWithTimestamp() = runBlocking {
-        val ingId = IngredientId("ing_1")
-        repository.createIngredientWithBaseOption(createIngredient("ing_1"), createBaseOption("ing_1", "opt_1"))
-
-        val archiveTime = Instant.parse("2024-01-02T00:00:00Z")
-        repository.archive(ingId, archiveTime)
-        
-        val savedIng = repository.getById(ingId)
-        assertThat(savedIng?.isActive).isFalse()
-        assertThat(savedIng?.deletedAt).isEqualTo(archiveTime)
-        assertThat(savedIng?.updatedAt).isEqualTo(archiveTime)
+        val saved = repository.getById(ingId)!!
+        assertThat(saved.name).isEqualTo("New Name")
+        assertThat(saved.restaurantId).isEqualTo(original.restaurantId)
+        assertThat(saved.baseUnitId).isEqualTo(original.baseUnitId)
+        assertThat(saved.createdAt).isEqualTo(original.createdAt)
     }
 
     private fun createIngredient(id: String) = Ingredient(

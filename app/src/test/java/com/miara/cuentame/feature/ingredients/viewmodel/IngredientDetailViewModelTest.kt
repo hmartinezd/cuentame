@@ -132,12 +132,23 @@ class IngredientDetailViewModelTest {
     @Test
     fun `options are reactive`() = runTest {
         viewModel.uiState.test {
-            assertThat(awaitItem().options).isEmpty()
+            var state = awaitItem()
+            if (state.isLoading) state = awaitItem()
+            assertThat(state.options).isEmpty()
             
             val option = IngredientUnitOption(IngredientUnitOptionId("o1"), IngredientId("ing_1"), "Case", "case", null, BigDecimal("40"), false, false, true, true, Instant.now(), Instant.now())
             optionsFlow.value = listOf(option)
             
             assertThat(awaitItem().options).hasSize(1)
+        }
+    }
+
+    @Test
+    fun `archive option emits success event`() = runTest {
+        val optId = IngredientUnitOptionId("o1")
+        viewModel.events.test {
+            viewModel.onArchiveOption(optId)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.OptionArchived::class.java)
         }
     }
 }

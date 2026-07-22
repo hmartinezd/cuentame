@@ -108,6 +108,7 @@ fun IngredientFormRoute(
         onSetDefaultCount = viewModel::onSetDefaultCount,
         onSetDefaultPurchase = viewModel::onSetDefaultPurchase,
         onSave = viewModel::onSave,
+        getStandardPreview = viewModel::getStandardPreview,
         onBack = onBack
     )
 }
@@ -129,6 +130,7 @@ fun IngredientFormScreen(
     onSetDefaultCount: (String) -> Unit,
     onSetDefaultPurchase: (String) -> Unit,
     onSave: () -> Unit,
+    getStandardPreview: (UnitOfMeasure) -> com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel?,
     onBack: () -> Unit
 ) {
     var showStandardDialog by remember { mutableStateOf(false) }
@@ -247,13 +249,7 @@ fun IngredientFormScreen(
             units = compatibleUnits,
             excludedUnitIds = uiState.unitOptions.mapNotNull { it.standardUnitId }.toSet() + (uiState.selectedBaseUnitId?.let { setOf(it) } ?: emptySet()),
             onDismiss = { showStandardDialog = false },
-            getPreview = { unit ->
-                val baseUnit = compatibleUnits.find { it.id == uiState.selectedBaseUnitId }
-                if (baseUnit != null) {
-                    val factor = com.miara.cuentame.core.domain.service.StandardUnitConverter().convert(BigDecimal.ONE, unit, baseUnit)
-                    "1 ${unit.symbol} = ${factor.stripTrailingZeros().toPlainString()} ${baseUnit.symbol}"
-                } else null
-            },
+            getPreview = getStandardPreview,
             onSelect = { 
                 onAddStandardOption(it)
                 showStandardDialog = false

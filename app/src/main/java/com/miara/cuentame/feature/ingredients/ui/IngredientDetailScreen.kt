@@ -55,6 +55,7 @@ import com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
+import com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailEvent
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailUiState
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailViewModel
@@ -80,8 +81,13 @@ fun IngredientDetailRoute(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is IngredientDetailEvent.ArchiveSuccess -> onBack()
-                is IngredientDetailEvent.OperationSuccess -> {
+                is IngredientDetailEvent.IngredientArchived -> onBack()
+                is IngredientDetailEvent.StandardOptionAdded,
+                is IngredientDetailEvent.PackageAdded,
+                is IngredientDetailEvent.PackageUpdated,
+                is IngredientDetailEvent.OptionArchived,
+                is IngredientDetailEvent.CountDefaultChanged,
+                is IngredientDetailEvent.PurchaseDefaultChanged -> {
                     showAddStandardDialog = false
                     showAddPackageDialog = false
                     packageToEdit = null
@@ -154,7 +160,7 @@ fun IngredientDetailScreen(
     onAddStandardOption: (UnitId) -> Unit,
     onAddPackageOption: (String, BigDecimal) -> Unit,
     onUpdatePackageOption: (IngredientUnitOptionId, String, BigDecimal) -> Unit,
-    getStandardPreview: (UnitOfMeasure) -> String?
+    getStandardPreview: (UnitOfMeasure) -> UnitConversionChoiceUiModel?
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -314,7 +320,7 @@ fun UnitOptionItem(
                 )
                 if (option.isBase) {
                     Text(
-                        text = stringResource(R.string.base_label),
+                        text = " (${stringResource(R.string.base_label)})",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(start = 4.dp)
@@ -333,13 +339,13 @@ fun UnitOptionItem(
         supportingContent = {
             Column {
                 val factor = if (option.isBase) "1" else option.factorToBase.stripTrailingZeros().toPlainString()
-                Text("1 ${option.shortLabel} = $factor $baseSymbol")
+                Text(stringResource(R.string.unit_conversion_format, option.shortLabel, factor, baseSymbol))
                 
                 Row(modifier = Modifier.padding(top = 4.dp)) {
                     if (option.isDefaultCount) {
                         Icon(
                             Icons.Default.Straighten, 
-                            contentDescription = stringResource(R.string.default_count_label), 
+                            contentDescription = stringResource(R.string.desc_is_default_count, option.displayName), 
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -347,7 +353,7 @@ fun UnitOptionItem(
                     if (option.isDefaultPurchase) {
                         Icon(
                             Icons.Default.ShoppingCart, 
-                            contentDescription = stringResource(R.string.default_purchase_label), 
+                            contentDescription = stringResource(R.string.desc_is_default_purchase, option.displayName), 
                             modifier = Modifier.size(16.dp).padding(start = 8.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -359,7 +365,7 @@ fun UnitOptionItem(
             if (isIngredientActive && !option.isBase && option.isActive) {
                 Box {
                     IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options, option.displayName))
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.desc_option_actions, option.displayName))
                     }
                     DropdownMenu(
                         expanded = menuExpanded,

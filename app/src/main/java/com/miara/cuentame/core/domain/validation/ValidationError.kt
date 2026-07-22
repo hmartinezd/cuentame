@@ -27,6 +27,8 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object IngredientIdAlreadyExists : ValidationError("An ingredient with this ID already exists")
     data object UnitOptionIdAlreadyExists : ValidationError("A unit option with this ID already exists")
     data object IngredientOwnershipMismatch : ValidationError("Ingredient does not belong to the current restaurant")
+    data object InvalidBaseUnitOption : ValidationError("The supplied base unit option is invalid")
+    data object AdditionalOptionCannotBeBase : ValidationError("Additional options cannot be marked as base")
 
     // Onboarding and Setup Errors
     data object SetupAlreadyCompleted : ValidationError("Setup has already been completed")

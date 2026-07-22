@@ -26,6 +26,7 @@ import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
 import com.miara.cuentame.feature.ingredients.model.EditableUnitOptionUiModel
 import com.miara.cuentame.feature.ingredients.model.IngredientFormUiState
+import com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -54,7 +55,7 @@ class IngredientFormViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getIngredientDetailUseCase: GetIngredientDetailUseCase,
     private val observeIngredientUnitOptionsUseCase: ObserveIngredientUnitOptionsUseCase,
-    observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
+    private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
     private val observeCompatibleSystemUnitsUseCase: ObserveCompatibleSystemUnitsUseCase,
     private val createIngredientUseCase: CreateIngredientUseCase,
     private val updateIngredientUseCase: UpdateIngredientUseCase,
@@ -67,7 +68,9 @@ class IngredientFormViewModel @Inject constructor(
 
     private val ingredientId: String? = savedStateHandle["ingredientId"]
     
-    private val _uiState = MutableStateFlow(IngredientFormUiState())
+    private val _uiState = MutableStateFlow(IngredientFormUiState(
+        ingredientId = ingredientId?.let { IngredientId(it) }
+    ))
     val uiState = _uiState.asStateFlow()
 
     private val _events = Channel<IngredientFormEvent>(Channel.BUFFERED)
@@ -307,5 +310,21 @@ class IngredientFormViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun getStandardPreview(unit: UnitOfMeasure): UnitConversionChoiceUiModel? {
+        val state = _uiState.value
+        val baseUnitId = state.selectedBaseUnitId ?: return null
+        
+        // This is a bit inefficient if called on every frame, but it's only in dialog
+        // We'd ideally have the base UnitOfMeasure already in state
+        val baseUnit = compatibleUnits.value.find { it.id == baseUnitId } ?: return null
+        
+        val factor = previewUnitConversionUseCase.preview(BigDecimal.ONE, unit, baseUnit)
+        return UnitConversionChoiceUiModel(
+            sourceSymbol = unit.symbol,
+            factor = factor.stripTrailingZeros().toPlainString(),
+            baseSymbol = baseUnit.symbol
+        )
     }
 }

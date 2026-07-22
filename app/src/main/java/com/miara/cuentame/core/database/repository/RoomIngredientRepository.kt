@@ -65,8 +65,6 @@ class RoomIngredientRepository @Inject constructor(
                 ?: throw ValidationError.IngredientNotFound
             
             if (existing.deletedAt != null) throw ValidationError.ArchivedReference
-            if (existing.restaurantId != ingredient.restaurantId) throw ValidationError.IngredientOwnershipMismatch
-            if (existing.baseUnitId != ingredient.baseUnitId) throw ValidationError.IngredientBaseUnitImmutable
             
             validateIngredientCore(ingredient)
             
@@ -74,15 +72,16 @@ class RoomIngredientRepository @Inject constructor(
                 val category = categoryDao.getById(ingredient.categoryId.value)
                     ?: throw ValidationError.RecordNotFound
                 if (!category.isActive || category.deletedAt != null) throw ValidationError.ArchivedReference
-                if (category.restaurantId != ingredient.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
+                if (category.restaurantId != existing.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
             }
 
-            ingredientDao.update(ingredient.copy(
+            // Milestone 4: Only name and category can be updated through this command.
+            // All other fields are preserved from 'existing'.
+            ingredientDao.update(existing.copy(
+                name = ingredient.name,
                 normalizedName = ingredient.name.normalizeName(),
-                updatedAt = timeProvider.now(),
-                createdAt = existing.createdAt, // Preserve
-                isActive = existing.isActive, // Preserve
-                deletedAt = existing.deletedAt // Preserve
+                categoryId = ingredient.categoryId,
+                updatedAt = timeProvider.now()
             ).toEntity())
         }
     }
@@ -301,7 +300,13 @@ class RoomIngredientRepository @Inject constructor(
             val optionIds = allOptions.map { it.id }.toSet()
             if (optionIds.size != allOptions.size) throw ValidationError.UnitOptionIdAlreadyExists
             
-            var baseCount = 0
+            // Strict Base Option Validation
+            if (!baseOption.isBase) throw ValidationError.InvalidBaseUnitOption
+            if (baseOption.ingredientId != ingredient.id) throw ValidationError.InvalidBaseUnitOption
+            if (baseOption.standardUnitId != ingredient.baseUnitId) throw ValidationError.InvalidBaseUnitOption
+            if (baseOption.factorToBase.compareTo(BigDecimal.ONE) != 0) throw ValidationError.InvalidBaseUnitOption
+            if (!baseOption.isActive || baseOption.deletedAt != null) throw ValidationError.InvalidBaseUnitOption
+
             var countDefaultCount = 0
             var purchaseDefaultCount = 0
             val normalizedNames = mutableSetOf<String>()
@@ -316,11 +321,9 @@ class RoomIngredientRepository @Inject constructor(
                 if (norm.isBlank()) throw ValidationError.InvalidName
                 if (!normalizedNames.add(norm)) throw ValidationError.UnitOptionNameAlreadyExists
                 
-                if (opt.isBase) {
-                    baseCount++
-                    if (opt.factorToBase.compareTo(BigDecimal.ONE) != 0) throw ValidationError.InvalidBaseUnitFactor
-                    if (opt.standardUnitId != ingredient.baseUnitId) throw ValidationError.InvalidBaseUnitFactor
-                } else {
+                if (opt != baseOption) {
+                    if (opt.isBase) throw ValidationError.AdditionalOptionCannotBeBase
+                    
                     if (opt.standardUnitId != null) {
                         if (opt.standardUnitId == ingredient.baseUnitId) throw ValidationError.StandardUnitAlreadyAdded
                         if (!standardUnitsUsed.add(opt.standardUnitId)) throw ValidationError.StandardUnitAlreadyAdded
@@ -338,7 +341,6 @@ class RoomIngredientRepository @Inject constructor(
                 if (opt.isDefaultPurchase) purchaseDefaultCount++
             }
 
-            if (baseCount != 1) throw ValidationError.MissingBaseUnitOption
             if (countDefaultCount != 1) throw ValidationError.InvalidDefaultUnitOption
             if (purchaseDefaultCount != 1) throw ValidationError.InvalidDefaultUnitOption
 

@@ -2,10 +2,8 @@ package com.miara.cuentame.feature.ingredients.model
 
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.model.inventory.UnitDimension
-import java.math.BigDecimal
 
 data class EditableUnitOptionUiModel(
     val id: String, // UI temporary ID or real ID
@@ -16,6 +14,12 @@ data class EditableUnitOptionUiModel(
     val isDefaultCount: Boolean = false,
     val isDefaultPurchase: Boolean = false,
     val isSuggested: Boolean = false
+)
+
+data class UnitConversionChoiceUiModel(
+    val sourceSymbol: String,
+    val factor: String,
+    val baseSymbol: String
 )
 
 data class IngredientFormUiState(

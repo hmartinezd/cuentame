@@ -1,6 +1,7 @@
 package com.miara.cuentame.feature.ingredients.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
+import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -78,7 +80,7 @@ class IngredientFormViewModelTest {
     private val fakeUnitRepository = object : UnitRepository {
         override fun observeAll(): Flow<List<UnitOfMeasure>> = MutableStateFlow(emptyList())
         override fun observeByDimension(dimension: UnitDimension): Flow<List<UnitOfMeasure>> = MutableStateFlow(emptyList())
-        override suspend fun getById(id: UnitId): UnitOfMeasure? = null
+        override suspend fun getById(id: UnitId): UnitOfMeasure = UnitOfMeasure(id, "Unit", "u", UnitDimension.MASS, BigDecimal.ONE, true, 0)
     }
 
     private var idCounter = 0
@@ -139,5 +141,48 @@ class IngredientFormViewModelTest {
         
         viewModel.onDimensionSelected(UnitDimension.VOLUME)
         assertThat(viewModel.uiState.value.selectedBaseUnitId).isNull()
+    }
+
+    @Test
+    fun `edit mode hides unit mutation controls`() = runTest {
+        val ingId = "ing_1"
+        val ingredient = Ingredient(IngredientId(ingId), RestaurantId("r1"), "Chicken", "chicken", null, UnitId("lb"), null, null, null, null, true, Instant.now(), Instant.now())
+        
+        val fakeRepo = object : IngredientRepository {
+            override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
+            override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(ingredient)
+            override suspend fun getById(id: IngredientId): Ingredient? = ingredient
+            override suspend fun updateIngredient(ingredient: Ingredient) {}
+            override suspend fun archive(id: IngredientId, at: Instant) {}
+            override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
+            override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
+            override suspend fun addPackageUnitOption(command: com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand) {}
+            override suspend fun updatePackageUnitOption(command: com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand) {}
+            override suspend fun setDefaultCountOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+            override suspend fun setDefaultPurchaseOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+            override suspend fun archiveUnitOption(id: IngredientUnitOptionId, at: Instant) {}
+            override suspend fun createIngredientWithBaseOption(ingredient: Ingredient, baseOption: IngredientUnitOption, additionalOptions: List<IngredientUnitOption>) {}
+        }
+
+        val vm = IngredientFormViewModel(
+            SavedStateHandle(mapOf("ingredientId" to ingId)),
+            GetIngredientDetailUseCase(fakeRepo),
+            ObserveIngredientUnitOptionsUseCase(fakeRepo),
+            ObserveIngredientCategoriesUseCase(fakeCategoryRepository),
+            ObserveCompatibleSystemUnitsUseCase(fakeUnitRepository),
+            CreateIngredientUseCase(fakeRepo),
+            UpdateIngredientUseCase(fakeRepo),
+            PreviewUnitConversionUseCase(StandardUnitConverter()),
+            fakeRestaurantRepository,
+            fakeUnitRepository,
+            idGenerator,
+            timeProvider
+        )
+        
+        assertThat(vm.uiState.value.isEditMode).isTrue()
+        
+        // Try selecting dimension
+        vm.onDimensionSelected(UnitDimension.MASS)
+        assertThat(vm.uiState.value.selectedDimension).isNull()
     }
 }

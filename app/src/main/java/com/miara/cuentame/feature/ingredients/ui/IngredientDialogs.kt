@@ -3,7 +3,6 @@ package com.miara.cuentame.feature.ingredients.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -21,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -30,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.text.DecimalParser
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
+import com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel
 import java.math.BigDecimal
 
 @Composable
@@ -37,7 +36,7 @@ fun StandardUnitDialog(
     units: List<UnitOfMeasure>,
     excludedUnitIds: Set<com.miara.cuentame.core.common.ids.UnitId>,
     onDismiss: () -> Unit,
-    getPreview: (UnitOfMeasure) -> String?,
+    getPreview: (UnitOfMeasure) -> UnitConversionChoiceUiModel?,
     onSelect: (UnitOfMeasure) -> Unit
 ) {
     val filteredUnits = units.filter { it.id !in excludedUnitIds }
@@ -60,9 +59,14 @@ fun StandardUnitDialog(
             } else {
                 Column {
                     Text(text = selectedUnit!!.name, style = MaterialTheme.typography.titleMedium)
-                    getPreview(selectedUnit!!)?.let {
+                    getPreview(selectedUnit!!)?.let { preview ->
                         Text(
-                            text = it,
+                            text = stringResource(
+                                R.string.unit_conversion_format,
+                                preview.sourceSymbol,
+                                preview.factor,
+                                preview.baseSymbol
+                            ),
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(top = 8.dp)
                         )

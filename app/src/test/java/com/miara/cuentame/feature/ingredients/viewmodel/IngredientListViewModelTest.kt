@@ -86,8 +86,8 @@ class IngredientListViewModelTest {
     }
 
     @Test
-    fun `search filters ingredients`() = runTest {
-        val ing1 = createIngredient("Chicken")
+    fun `search filters ingredients with normalization`() = runTest {
+        val ing1 = createIngredient("Chicken Breast")
         val ing2 = createIngredient("Beef")
         
         viewModel.uiState.test {
@@ -97,13 +97,40 @@ class IngredientListViewModelTest {
             ingredientsFlow.value = listOf(ing1, ing2)
             assertThat(awaitItem().ingredients).hasSize(2)
             
-            viewModel.onSearchQueryChanged("chi")
-            // No new emission yet because of debounce
+            // "  chicken   breast " should match "Chicken Breast"
+            viewModel.onSearchQueryChanged("  chicken   breast ")
             
             advanceTimeBy(301)
             val filtered = awaitItem().ingredients
             assertThat(filtered).hasSize(1)
+            assertThat(filtered.first().name).isEqualTo("Chicken Breast")
+        }
+    }
+
+    @Test
+    fun `category filter filters ingredients`() = runTest {
+        val catId = IngredientCategoryId("c1")
+        val ing1 = createIngredient("Chicken").copy(categoryId = catId)
+        val ing2 = createIngredient("Beef")
+        ingredientsFlow.value = listOf(ing1, ing2)
+
+        viewModel.uiState.test {
+            // Initial empty
+            assertThat(awaitItem().ingredients).isEmpty()
+            
+            // Advance time for initial debounce
+            advanceTimeBy(301)
+            assertThat(awaitItem().ingredients).hasSize(2)
+
+            viewModel.onCategoryFilterChanged(IngredientCategoryFilter.Category(catId))
+            val filtered = awaitItem().ingredients
+            assertThat(filtered).hasSize(1)
             assertThat(filtered.first().name).isEqualTo("Chicken")
+            
+            viewModel.onCategoryFilterChanged(IngredientCategoryFilter.Uncategorized)
+            val uncategorized = awaitItem().ingredients
+            assertThat(uncategorized).hasSize(1)
+            assertThat(uncategorized.first().name).isEqualTo("Beef")
         }
     }
 

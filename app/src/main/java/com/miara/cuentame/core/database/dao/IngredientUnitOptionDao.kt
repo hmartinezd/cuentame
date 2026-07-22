@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface IngredientUnitOptionDao {
-    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND deletedAt IS NULL ORDER BY isBase DESC, displayName ASC")
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isActive = 1 AND deletedAt IS NULL ORDER BY isBase DESC, displayName ASC")
     fun observeActiveOptionsForIngredient(ingredientId: String): Flow<List<IngredientUnitOptionEntity>>
 
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId ORDER BY isBase DESC, displayName ASC")

@@ -1,6 +1,7 @@
 package com.miara.cuentame.feature.ingredients.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -56,13 +57,17 @@ class IngredientUiTest {
         // Select Dimension: Mass
         composeTestRule.onNodeWithTag("dimension_selector").performClick()
         composeTestRule.waitForIdle()
-        val massLabel = composeTestRule.activity.getString(R.string.dim_mass)
-        composeTestRule.onAllNodesWithText(massLabel).onFirst().performClick()
+        // Wait for dimension items
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Mass", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("Mass", substring = true).onFirst().performClick()
         composeTestRule.waitForIdle()
 
         // Select Base Unit: Pound
         composeTestRule.onNodeWithTag("base_unit_selector").performClick()
         composeTestRule.waitForIdle()
+        // Wait for units to load
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodesWithText("Pound", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
@@ -72,8 +77,14 @@ class IngredientUiTest {
         // Add Ounce Standard Unit
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.standard_unit)).performClick()
         composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Ounce", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onAllNodesWithText("Ounce", substring = true).onFirst().performClick()
         composeTestRule.waitForIdle()
+        
+        // Check preview
+        composeTestRule.onNodeWithText("1 oz = 0.0625 lb", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
         composeTestRule.waitForIdle()
 
@@ -86,7 +97,7 @@ class IngredientUiTest {
         composeTestRule.waitForIdle()
 
         // Save Ingredient
-        composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
+        composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled().performClick()
         composeTestRule.waitForIdle()
         
         // 4. Verify Detail
@@ -96,7 +107,8 @@ class IngredientUiTest {
         composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).onFirst().assertIsDisplayed()
 
         // 5. Reopen and verify persistence
-        composeTestRule.onAllNodesWithText(navInventory).onFirst().performClick()
+        val backLabel = composeTestRule.activity.getString(R.string.action_back)
+        composeTestRule.onNodeWithContentDescription(backLabel).performClick()
         composeTestRule.waitForIdle()
         
         // Wait for list to load
@@ -110,9 +122,9 @@ class IngredientUiTest {
         composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("Case", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onAllNodesWithText("Case", substring = true).onFirst().assertExists()
-        composeTestRule.onAllNodesWithText("40", substring = true).onFirst().assertExists()
-        composeTestRule.onAllNodesWithText("oz", substring = true).onFirst().assertExists()
+        composeTestRule.onAllNodesWithText("Case", substring = true).onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("40", substring = true).onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("oz", substring = true).onFirst().assertIsDisplayed()
     }
 
     private fun ensureOnboarded() {

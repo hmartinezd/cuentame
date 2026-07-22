@@ -54,8 +54,13 @@ data class IngredientDetailUiState(
 )
 
 sealed interface IngredientDetailEvent {
-    data object ArchiveSuccess : IngredientDetailEvent
-    data object OperationSuccess : IngredientDetailEvent
+    data object IngredientArchived : IngredientDetailEvent
+    data object StandardOptionAdded : IngredientDetailEvent
+    data object PackageAdded : IngredientDetailEvent
+    data object PackageUpdated : IngredientDetailEvent
+    data class OptionArchived(val optionId: IngredientUnitOptionId) : IngredientDetailEvent
+    data class CountDefaultChanged(val optionId: IngredientUnitOptionId) : IngredientDetailEvent
+    data class PurchaseDefaultChanged(val optionId: IngredientUnitOptionId) : IngredientDetailEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -135,28 +140,28 @@ class IngredientDetailViewModel @Inject constructor(
         val ingredientId = id ?: return
         performAction {
             archiveIngredientUseCase(ingredientId, timeProvider.now())
-            _events.send(IngredientDetailEvent.ArchiveSuccess)
+            _events.send(IngredientDetailEvent.IngredientArchived)
         }
     }
 
     fun onAddStandardOption(command: AddStandardUnitOptionCommand) {
         performAction {
             addStandardUnitOptionUseCase(command)
-            _events.send(IngredientDetailEvent.OperationSuccess)
+            _events.send(IngredientDetailEvent.StandardOptionAdded)
         }
     }
 
     fun onAddPackageOption(command: AddPackageUnitOptionCommand) {
         performAction {
             addPackageUnitOptionUseCase(command)
-            _events.send(IngredientDetailEvent.OperationSuccess)
+            _events.send(IngredientDetailEvent.PackageAdded)
         }
     }
 
     fun onUpdatePackageOption(command: UpdatePackageUnitOptionCommand) {
         performAction {
             updatePackageUnitOptionUseCase(command)
-            _events.send(IngredientDetailEvent.OperationSuccess)
+            _events.send(IngredientDetailEvent.PackageUpdated)
         }
     }
 
@@ -164,6 +169,7 @@ class IngredientDetailViewModel @Inject constructor(
         val ingredientId = id ?: return
         performAction {
             setDefaultCountUnitUseCase(ingredientId, optionId)
+            _events.send(IngredientDetailEvent.CountDefaultChanged(optionId))
         }
     }
 
@@ -171,12 +177,14 @@ class IngredientDetailViewModel @Inject constructor(
         val ingredientId = id ?: return
         performAction {
             setDefaultPurchaseUnitUseCase(ingredientId, optionId)
+            _events.send(IngredientDetailEvent.PurchaseDefaultChanged(optionId))
         }
     }
 
     fun onArchiveOption(optionId: IngredientUnitOptionId) {
         performAction {
             archiveIngredientUnitOptionUseCase(optionId, timeProvider.now())
+            _events.send(IngredientDetailEvent.OptionArchived(optionId))
         }
     }
 
@@ -184,11 +192,15 @@ class IngredientDetailViewModel @Inject constructor(
         _error.value = null
     }
 
-    fun getStandardPreview(unit: UnitOfMeasure): String? {
+    fun getStandardPreview(unit: UnitOfMeasure): com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel? {
         val state = uiState.value
         val baseUnit = state.baseUnit ?: return null
         val factor = previewUnitConversionUseCase.preview(BigDecimal.ONE, unit, baseUnit)
-        return "1 ${unit.symbol} = ${factor.stripTrailingZeros().toPlainString()} ${baseUnit.symbol}"
+        return com.miara.cuentame.feature.ingredients.model.UnitConversionChoiceUiModel(
+            sourceSymbol = unit.symbol,
+            factor = factor.stripTrailingZeros().toPlainString(),
+            baseSymbol = baseUnit.symbol
+        )
     }
 
     private fun performAction(block: suspend () -> Unit) {

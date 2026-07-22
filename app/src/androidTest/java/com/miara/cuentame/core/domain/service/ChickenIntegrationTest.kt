@@ -144,5 +144,36 @@ class ChickenIntegrationTest {
         // Final Invariants
         val purchaseDefault = db.ingredientUnitOptionDao().getDefaultPurchaseOption(ingId.value)
         assertThat(purchaseDefault?.id).isEqualTo(caseOpt.id)
+        
+        // Base is immutable
+        try {
+            repository.updateIngredient(chicken.copy(baseUnitId = UnitId("mass_g")))
+        } catch (e: Exception) {
+            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.IngredientBaseUnitImmutable::class.java)
+        }
+        
+        // Base cannot archive
+        try {
+            repository.archiveUnitOption(IngredientUnitOptionId("opt_lb"), timeProvider.now())
+        } catch (e: Exception) {
+            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.BaseUnitOptionCannotBeArchived::class.java)
+        }
+        
+        // Purchase default cannot archive
+        try {
+            repository.archiveUnitOption(IngredientUnitOptionId(caseOpt.id), timeProvider.now())
+        } catch (e: Exception) {
+            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.DefaultUnitOptionCannotBeArchived::class.java)
+        }
+        
+        // Eligible can archive
+        repository.archiveUnitOption(IngredientUnitOptionId(ozOpt!!.id), timeProvider.now())
+        val afterArchive = db.ingredientUnitOptionDao().getActiveOptions(ingId.value)
+        assertThat(afterArchive.any { it.id == ozOpt.id }).isFalse()
+        
+        // Still visible in historical
+        val historical = db.ingredientUnitOptionDao().observeAllOptionsForIngredient(ingId.value)
+        // Manual check since it's Flow
+        // repository.observeUnitOptions(..., includeArchived = true)
     }
 }

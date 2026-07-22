@@ -151,10 +151,19 @@
     <string name="active">Active</string>
     <string name="set_default_count">Set as default count</string>
     <string name="set_default_purchase">Set as default purchase</string>
+    <string name="unit_conversion_format">1 %1$s = %2$s %3$s</string>
     <string name="base_label">Base</string>
     <string name="default_count_label">Default Count</string>
     <string name="default_purchase_label">Default Purchase</string>
     <string name="action_more_options">Actions for %1$s</string>
+
+    <string name="desc_set_default_count">Set %1$s as default count unit</string>
+    <string name="desc_set_default_purchase">Set %1$s as default purchase unit</string>
+    <string name="desc_edit_option">Edit %1$s</string>
+    <string name="desc_archive_option">Archive %1$s</string>
+    <string name="desc_option_actions">Open actions for %1$s</string>
+    <string name="desc_is_default_count">%1$s is the default count unit</string>
+    <string name="desc_is_default_purchase">%1$s is the default purchase unit</string>
     <string name="no_ingredients">No ingredients found</string>
     <string name="no_unit_options">No additional units defined</string>
     <string name="archive_ingredient_confirmation">Are you sure you want to archive %1$s? It will no longer appear in new purchases or counts.</string>
