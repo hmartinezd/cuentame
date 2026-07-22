@@ -51,11 +51,11 @@ class RoomIngredientCategoryRepository @Inject constructor(
 
     override suspend fun reorder(ids: List<IngredientCategoryId>) {
         database.withTransaction {
+            if (ids.size != ids.distinct().size) throw ValidationError.InvalidSetupState
+            
             ids.forEachIndexed { index, id ->
-                val category = categoryDao.getById(id.value)
-                if (category != null) {
-                    categoryDao.upsert(category.copy(sortOrder = index))
-                }
+                val entity = categoryDao.getById(id.value) ?: throw ValidationError.InvalidSetupState
+                categoryDao.upsert(entity.copy(sortOrder = index))
             }
         }
     }

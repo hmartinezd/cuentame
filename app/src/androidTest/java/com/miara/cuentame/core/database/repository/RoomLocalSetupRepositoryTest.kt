@@ -11,6 +11,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.repository.SetupAreaInput
+import com.miara.cuentame.core.domain.repository.SetupCategoryInput
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -51,7 +52,7 @@ class RoomLocalSetupRepositoryTest {
             currencyCode = "USD",
             localeTag = "en-US",
             areas = listOf(SetupAreaInput("Kitchen", 0)),
-            categories = emptyList()
+            categories = listOf(SetupCategoryInput("Meat", 0))
         )
 
         val result = repository.completeSetup(command)
@@ -59,6 +60,34 @@ class RoomLocalSetupRepositoryTest {
         assertThat(result).isEqualTo(LocalSetupResult.Success)
         assertThat(repository.isSetupComplete()).isTrue()
         assertThat(db.restaurantDao().getRestaurant()?.name).isEqualTo("Test Rest")
+    }
+
+    @Test
+    fun completeSetup_recoveryFromIncomplete() = runBlocking {
+        // Create restaurant only
+        val restaurantId = "rest_1"
+        db.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(
+            id = restaurantId, name = "Old Name", currencyCode = "EUR", localeTag = "es-ES",
+            createdAt = 0, updatedAt = 0, deletedAt = null
+        ))
+        
+        assertThat(repository.isSetupComplete()).isFalse()
+
+        val command = CompleteLocalSetupCommand(
+            restaurantName = "New Name",
+            currencyCode = "USD",
+            localeTag = "en-US",
+            areas = listOf(SetupAreaInput("Kitchen", 0)),
+            categories = emptyList()
+        )
+
+        val result = repository.completeSetup(command)
+        assertThat(result).isEqualTo(LocalSetupResult.Success)
+        
+        val restaurant = db.restaurantDao().getRestaurant()
+        assertThat(restaurant?.name).isEqualTo("New Name")
+        assertThat(restaurant?.id).isEqualTo(restaurantId)
+        assertThat(repository.isSetupComplete()).isTrue()
     }
 
     @Test

@@ -22,7 +22,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +55,7 @@ fun CuentameApp(
             LoadingContent()
         }
         AppStartState.RequiresOnboarding -> {
-            OnboardingFlow(onOnboardingFinished = {})
+            OnboardingFlow()
         }
         AppStartState.Ready -> {
             MainAppContent(windowSizeClass = windowSizeClass)
@@ -72,11 +71,11 @@ fun LoadingContent() {
 }
 
 @Composable
-fun OnboardingFlow(onOnboardingFinished: () -> Unit) {
+fun OnboardingFlow() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Destination.ONBOARDING.route) {
         composable(Destination.ONBOARDING.route) {
-            OnboardingRoute(onOnboardingFinished = onOnboardingFinished)
+            OnboardingRoute(onOnboardingFinished = {})
         }
     }
 }

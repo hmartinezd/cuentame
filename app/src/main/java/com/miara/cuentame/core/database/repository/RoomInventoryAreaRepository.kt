@@ -46,16 +46,23 @@ class RoomInventoryAreaRepository @Inject constructor(
     }
 
     override suspend fun archive(id: InventoryAreaId, at: Instant) {
-        inventoryAreaDao.softArchive(id.value, at.toEpochMilli())
+        database.withTransaction {
+            val count = inventoryAreaDao.getActiveCount()
+            if (count <= 1) {
+                throw ValidationError.FinalAreaCannotBeArchived
+            }
+            inventoryAreaDao.softArchive(id.value, at.toEpochMilli())
+        }
     }
 
     override suspend fun reorder(ids: List<InventoryAreaId>) {
         database.withTransaction {
+            // Check for duplicates in input
+            if (ids.size != ids.distinct().size) throw ValidationError.InvalidSetupState
+            
             ids.forEachIndexed { index, id ->
-                val area = inventoryAreaDao.getById(id.value)
-                if (area != null) {
-                    inventoryAreaDao.upsert(area.copy(sortOrder = index))
-                }
+                val entity = inventoryAreaDao.getById(id.value) ?: throw ValidationError.InvalidSetupState
+                inventoryAreaDao.upsert(entity.copy(sortOrder = index))
             }
         }
     }

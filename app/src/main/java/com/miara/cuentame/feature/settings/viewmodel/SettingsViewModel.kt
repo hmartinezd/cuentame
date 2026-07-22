@@ -2,6 +2,7 @@ package com.miara.cuentame.feature.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val preferencesRepository: AppPreferencesRepository
+    private val preferencesRepository: AppPreferencesRepository,
+    private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
     val preferences: StateFlow<AppPreferences> = preferencesRepository.observePreferences()
@@ -39,6 +41,10 @@ class SettingsViewModel @Inject constructor(
     fun setAppLocaleTag(tag: String) {
         viewModelScope.launch {
             preferencesRepository.setAppLocaleTag(tag)
+            // Sync with restaurant if it exists
+            restaurantRepository.getRestaurant()?.let {
+                restaurantRepository.save(it.copy(localeTag = tag))
+            }
         }
     }
 }

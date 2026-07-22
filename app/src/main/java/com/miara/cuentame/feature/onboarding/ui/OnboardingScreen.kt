@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -19,11 +26,18 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,9 +46,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,49 +67,72 @@ fun OnboardingRoute(
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is OnboardingEvent.NavigateToHome -> onOnboardingFinished()
                 is OnboardingEvent.ShowError -> {
-                    // TODO: Show snackbar
+                    snackbarHostState.showSnackbar(event.error.message ?: context.getString(R.string.error_generic))
                 }
             }
         }
     }
 
+    val suggestedAreaLabels = uiState.suggestedAreas.associate { it.key to stringResource(it.labelResId) }
+    val suggestedCategoryLabels = uiState.suggestedCategories.associate { it.key to stringResource(it.labelResId) }
+
     OnboardingScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onRestaurantNameChanged = viewModel::onRestaurantNameChanged,
         onCurrencySelected = viewModel::onCurrencySelected,
         onLocaleSelected = viewModel::onLocaleSelected,
         onSuggestedAreaToggled = viewModel::onSuggestedAreaToggled,
         onCustomAreaAdded = viewModel::onCustomAreaAdded,
         onCustomAreaRemoved = viewModel::onCustomAreaRemoved,
+        onCustomAreaRenamed = viewModel::onCustomAreaRenamed,
+        onAreaMovedUp = viewModel::onAreaMovedUp,
+        onAreaMovedDown = viewModel::onAreaMovedDown,
         onSuggestedCategoryToggled = viewModel::onSuggestedCategoryToggled,
         onCustomCategoryAdded = viewModel::onCustomCategoryAdded,
         onCustomCategoryRemoved = viewModel::onCustomCategoryRemoved,
+        onCustomCategoryRenamed = viewModel::onCustomCategoryRenamed,
+        onCategoryMovedUp = viewModel::onCategoryMovedUp,
+        onCategoryMovedDown = viewModel::onCategoryMovedDown,
         onNext = viewModel::onNext,
         onBack = viewModel::onBack,
-        onFinish = viewModel::onCompleteClicked
+        onEditStep = viewModel::onEditStep,
+        onFinish = { 
+            viewModel.onCompleteClicked(suggestedAreaLabels, suggestedCategoryLabels)
+        }
     )
 }
 
 @Composable
 fun OnboardingScreen(
     uiState: OnboardingUiState,
+    snackbarHostState: SnackbarHostState,
     onRestaurantNameChanged: (String) -> Unit,
     onCurrencySelected: (String) -> Unit,
     onLocaleSelected: (String) -> Unit,
     onSuggestedAreaToggled: (String) -> Unit,
     onCustomAreaAdded: (String) -> Unit,
     onCustomAreaRemoved: (String) -> Unit,
+    onCustomAreaRenamed: (String, String) -> Unit,
+    onAreaMovedUp: (String) -> Unit,
+    onAreaMovedDown: (String) -> Unit,
     onSuggestedCategoryToggled: (String) -> Unit,
     onCustomCategoryAdded: (String) -> Unit,
     onCustomCategoryRemoved: (String) -> Unit,
+    onCustomCategoryRenamed: (String, String) -> Unit,
+    onCategoryMovedUp: (String) -> Unit,
+    onCategoryMovedDown: (String) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
+    onEditStep: (OnboardingStep) -> Unit,
     onFinish: () -> Unit
 ) {
     if (uiState.isLoading) {
@@ -103,6 +143,7 @@ fun OnboardingScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             OnboardingBottomBar(
                 currentStep = uiState.currentStep,
@@ -151,16 +192,22 @@ fun OnboardingScreen(
                             custom = uiState.customAreas,
                             onToggleSuggested = onSuggestedAreaToggled,
                             onAddCustom = onCustomAreaAdded,
-                            onRemoveCustom = onCustomAreaRemoved
+                            onRemoveCustom = onCustomAreaRemoved,
+                            onRenameCustom = onCustomAreaRenamed,
+                            onMoveUp = onAreaMovedUp,
+                            onMoveDown = onAreaMovedDown
                         )
                         OnboardingStep.CATEGORIES -> CategoriesStep(
                             suggested = uiState.suggestedCategories,
                             custom = uiState.customCategories,
                             onToggleSuggested = onSuggestedCategoryToggled,
                             onAddCustom = onCustomCategoryAdded,
-                            onRemoveCustom = onCustomCategoryRemoved
+                            onRemoveCustom = onCustomCategoryRemoved,
+                            onRenameCustom = onCustomCategoryRenamed,
+                            onMoveUp = onCategoryMovedUp,
+                            onMoveDown = onCategoryMovedDown
                         )
-                        OnboardingStep.REVIEW -> ReviewStep(uiState)
+                        OnboardingStep.REVIEW -> ReviewStep(uiState, onEditStep)
                     }
                 }
             }
@@ -205,10 +252,14 @@ fun RestaurantStep(
             onValueChange = onNameChanged,
             label = { Text(stringResource(R.string.onboarding_field_name)) },
             modifier = Modifier.fillMaxWidth().testTag("onboarding_restaurant_name"),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Words,
+                imeAction = ImeAction.Next
+            )
         )
 
-        // Currency Selector (Simplified)
+        // Currency Selector
         var expanded by remember { mutableStateOf(false) }
         val currencies = listOf("USD", "EUR", "GBP", "CAD", "MXN")
         ExposedDropdownMenuBox(
@@ -241,7 +292,7 @@ fun RestaurantStep(
 
         // Language Selector
         var langExpanded by remember { mutableStateOf(false) }
-        val locales = mapOf("en-US" to "English", "es-US" to "Español")
+        val locales = mapOf("en-US" to stringResource(R.string.lang_en), "es-US" to stringResource(R.string.lang_es))
         ExposedDropdownMenuBox(
             expanded = langExpanded,
             onExpandedChange = { langExpanded = !langExpanded }
@@ -269,6 +320,9 @@ fun RestaurantStep(
                 }
             }
         }
+        
+        Text(text = stringResource(R.string.onboarding_currency_note), style = MaterialTheme.typography.bodySmall)
+        Text(text = stringResource(R.string.onboarding_language_note), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -278,7 +332,10 @@ fun AreasStep(
     custom: List<com.miara.cuentame.feature.onboarding.model.EditableNameUiModel>,
     onToggleSuggested: (String) -> Unit,
     onAddCustom: (String) -> Unit,
-    onRemoveCustom: (String) -> Unit
+    onRemoveCustom: (String) -> Unit,
+    onRenameCustom: (String, String) -> Unit,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = stringResource(R.string.onboarding_areas_title), style = MaterialTheme.typography.headlineSmall)
@@ -301,7 +358,8 @@ fun AreasStep(
                 value = customName,
                 onValueChange = { customName = it },
                 label = { Text(stringResource(R.string.onboarding_add_area)) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
             Button(onClick = { 
                 onAddCustom(customName)
@@ -313,9 +371,20 @@ fun AreasStep(
 
         custom.forEach { area ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = area.name, modifier = Modifier.weight(1f))
-                OutlinedButton(onClick = { onRemoveCustom(area.id) }) {
-                    Text(stringResource(R.string.action_remove))
+                OutlinedTextField(
+                    value = area.name,
+                    onValueChange = { onRenameCustom(area.id, it) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                IconButton(onClick = { onMoveUp(area.id) }) {
+                    Icon(Icons.Default.ArrowUpward, contentDescription = null)
+                }
+                IconButton(onClick = { onMoveDown(area.id) }) {
+                    Icon(Icons.Default.ArrowDownward, contentDescription = null)
+                }
+                IconButton(onClick = { onRemoveCustom(area.id) }) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
                 }
             }
         }
@@ -328,7 +397,10 @@ fun CategoriesStep(
     custom: List<com.miara.cuentame.feature.onboarding.model.EditableNameUiModel>,
     onToggleSuggested: (String) -> Unit,
     onAddCustom: (String) -> Unit,
-    onRemoveCustom: (String) -> Unit
+    onRemoveCustom: (String) -> Unit,
+    onRenameCustom: (String, String) -> Unit,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = stringResource(R.string.onboarding_categories_title), style = MaterialTheme.typography.headlineSmall)
@@ -351,7 +423,8 @@ fun CategoriesStep(
                 value = customName,
                 onValueChange = { customName = it },
                 label = { Text(stringResource(R.string.onboarding_add_category)) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
             )
             Button(onClick = { 
                 onAddCustom(customName)
@@ -363,9 +436,20 @@ fun CategoriesStep(
 
         custom.forEach { cat ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = cat.name, modifier = Modifier.weight(1f))
-                OutlinedButton(onClick = { onRemoveCustom(cat.id) }) {
-                    Text(stringResource(R.string.action_remove))
+                OutlinedTextField(
+                    value = cat.name,
+                    onValueChange = { onRenameCustom(cat.id, it) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                IconButton(onClick = { onMoveUp(cat.id) }) {
+                    Icon(Icons.Default.ArrowUpward, contentDescription = null)
+                }
+                IconButton(onClick = { onMoveDown(cat.id) }) {
+                    Icon(Icons.Default.ArrowDownward, contentDescription = null)
+                }
+                IconButton(onClick = { onRemoveCustom(cat.id) }) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
                 }
             }
         }
@@ -375,23 +459,67 @@ fun CategoriesStep(
 }
 
 @Composable
-fun ReviewStep(state: OnboardingUiState) {
+fun ReviewStep(state: OnboardingUiState, onEditStep: (OnboardingStep) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = stringResource(R.string.onboarding_review_title), style = MaterialTheme.typography.headlineSmall)
         
-        ReviewItem(label = stringResource(R.string.onboarding_field_name), value = state.restaurantName)
-        ReviewItem(label = stringResource(R.string.onboarding_field_currency), value = state.currencyCode)
-        ReviewItem(label = stringResource(R.string.onboarding_field_language), value = state.localeTag)
+        val locales = mapOf("en-US" to stringResource(R.string.lang_en), "es-US" to stringResource(R.string.lang_es))
         
-        val areaCount = state.suggestedAreas.count { it.isSelected } + state.customAreas.size
-        ReviewItem(label = stringResource(R.string.settings_areas), value = "$areaCount areas")
+        ReviewSection(
+            label = stringResource(R.string.onboarding_restaurant_title),
+            onEdit = { onEditStep(OnboardingStep.RESTAURANT) }
+        ) {
+            ReviewItem(label = stringResource(R.string.onboarding_field_name), value = state.restaurantName)
+            ReviewItem(label = stringResource(R.string.onboarding_field_currency), value = state.currencyCode)
+            ReviewItem(label = stringResource(R.string.onboarding_field_language), value = locales[state.localeTag] ?: state.localeTag)
+        }
+
+        ReviewSection(
+            label = stringResource(R.string.settings_areas),
+            onEdit = { onEditStep(OnboardingStep.AREAS) }
+        ) {
+            val areaNames = state.suggestedAreas.filter { it.isSelected }.map { stringResource(it.labelResId) } +
+                    state.customAreas.map { it.name }
+            Text(text = areaNames.joinToString(", "))
+        }
+
+        ReviewSection(
+            label = stringResource(R.string.settings_categories),
+            onEdit = { onEditStep(OnboardingStep.CATEGORIES) }
+        ) {
+            val catNames = state.suggestedCategories.filter { it.isSelected }.map { stringResource(it.labelResId) } +
+                    state.customCategories.map { it.name }
+            if (catNames.isEmpty()) {
+                Text(text = stringResource(R.string.state_empty_desc))
+            } else {
+                Text(text = catNames.joinToString(", "))
+            }
+        }
+    }
+}
+
+@Composable
+fun ReviewSection(label: String, onEdit: () -> Unit, content: @Composable () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
+            }
+        }
+        content()
+        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
 }
 
 @Composable
 fun ReviewItem(label: String, value: String) {
-    Column {
-        Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(text = label, style = MaterialTheme.typography.labelMedium)
         Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
 }

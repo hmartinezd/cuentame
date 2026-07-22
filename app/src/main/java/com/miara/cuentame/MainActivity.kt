@@ -1,15 +1,16 @@
 package com.miara.cuentame
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.core.view.WindowCompat
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.app.ui.AppViewModel
 import com.miara.cuentame.app.ui.CuentameApp
@@ -18,7 +19,7 @@ import com.miara.cuentame.core.preferences.model.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     
     private val viewModel: AppViewModel by viewModels()
 
@@ -30,6 +31,11 @@ class MainActivity : ComponentActivity() {
             val windowSizeClass = calculateWindowSizeClass(this)
             val preferences by viewModel.preferences.collectAsStateWithLifecycle()
             
+            LaunchedEffect(preferences.appLocaleTag) {
+                val appLocales = LocaleListCompat.forLanguageTags(preferences.appLocaleTag)
+                AppCompatDelegate.setApplicationLocales(appLocales)
+            }
+
             CuentameTheme(
                 darkTheme = when (preferences.themeMode) {
                     ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -43,3 +49,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+

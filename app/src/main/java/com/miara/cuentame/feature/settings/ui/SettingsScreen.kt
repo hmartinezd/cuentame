@@ -7,27 +7,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,8 +53,10 @@ fun SettingsRoute(
     SettingsScreen(
         themeMode = preferences.themeMode,
         dynamicColorEnabled = preferences.dynamicColorEnabled,
+        appLocaleTag = preferences.appLocaleTag,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
+        onLocaleChanged = viewModel::setAppLocaleTag,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant
@@ -59,12 +67,17 @@ fun SettingsRoute(
 fun SettingsScreen(
     themeMode: ThemeMode,
     dynamicColorEnabled: Boolean,
+    appLocaleTag: String,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
+    onLocaleChanged: (String) -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit
 ) {
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -78,7 +91,7 @@ fun SettingsScreen(
         )
         SettingsItem(
             title = stringResource(R.string.settings_areas),
-            icon = Icons.Default.List,
+            icon = Icons.AutoMirrored.Filled.List,
             onClick = onNavigateToAreas
         )
         SettingsItem(
@@ -92,17 +105,16 @@ fun SettingsScreen(
         
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_theme)) },
-            trailingContent = {
-                // Simplified theme picker for foundation
-                Text(themeMode.name, modifier = Modifier.clickable { 
-                    val next = when(themeMode) {
-                        ThemeMode.SYSTEM -> ThemeMode.LIGHT
-                        ThemeMode.LIGHT -> ThemeMode.DARK
-                        ThemeMode.DARK -> ThemeMode.SYSTEM
+            supportingContent = {
+                Text(
+                    when (themeMode) {
+                        ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                        ThemeMode.DARK -> stringResource(R.string.theme_dark)
                     }
-                    onThemeChanged(next)
-                })
-            }
+                )
+            },
+            modifier = Modifier.clickable { showThemeDialog = true }
         )
 
         ListItem(
@@ -113,11 +125,127 @@ fun SettingsScreen(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SettingsHeader(stringResource(R.string.settings_language))
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_language)) },
+            supportingContent = {
+                Text(
+                    when (appLocaleTag) {
+                        "es-US" -> stringResource(R.string.lang_es)
+                        else -> stringResource(R.string.lang_en)
+                    }
+                )
+            },
+            modifier = Modifier.clickable { showLanguageDialog = true }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         SettingsHeader(stringResource(R.string.settings_about))
         ListItem(
             headlineContent = { Text(stringResource(R.string.app_name)) },
             supportingContent = { Text(stringResource(R.string.about_desc)) }
         )
+    }
+
+    if (showThemeDialog) {
+        ThemeDialog(
+            currentMode = themeMode,
+            onDismiss = { showThemeDialog = false },
+            onSelect = {
+                onThemeChanged(it)
+                showThemeDialog = false
+            }
+        )
+    }
+
+    if (showLanguageDialog) {
+        LanguageDialog(
+            currentTag = appLocaleTag,
+            onDismiss = { showLanguageDialog = false },
+            onSelect = {
+                onLocaleChanged(it)
+                showLanguageDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ThemeDialog(
+    currentMode: ThemeMode,
+    onDismiss: () -> Unit,
+    onSelect: (ThemeMode) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_theme)) },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                ThemeOption(ThemeMode.SYSTEM, stringResource(R.string.theme_system), currentMode == ThemeMode.SYSTEM, onSelect)
+                ThemeOption(ThemeMode.LIGHT, stringResource(R.string.theme_light), currentMode == ThemeMode.LIGHT, onSelect)
+                ThemeOption(ThemeMode.DARK, stringResource(R.string.theme_dark), currentMode == ThemeMode.DARK, onSelect)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+fun ThemeOption(mode: ThemeMode, label: String, selected: Boolean, onSelect: (ThemeMode) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = { onSelect(mode) },
+                role = Role.RadioButton
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 16.dp))
+    }
+}
+
+@Composable
+fun LanguageDialog(
+    currentTag: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_language)) },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                LanguageOption("en-US", stringResource(R.string.lang_en), currentTag == "en-US", onSelect)
+                LanguageOption("es-US", stringResource(R.string.lang_es), currentTag == "es-US", onSelect)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+fun LanguageOption(tag: String, label: String, selected: Boolean, onSelect: (String) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = { onSelect(tag) },
+                role = Role.RadioButton
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 16.dp))
     }
 }
 

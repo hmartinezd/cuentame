@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -18,7 +19,8 @@ import javax.inject.Inject
 data class RestaurantSettingsUiState(
     val restaurant: Restaurant? = null,
     val isLoading: Boolean = true,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val error: Throwable? = null
 )
 
 @HiltViewModel
@@ -28,28 +30,50 @@ class RestaurantSettingsViewModel @Inject constructor(
     private val preferencesRepository: AppPreferencesRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<RestaurantSettingsUiState> = observeRestaurantProfileUseCase()
-        .map { RestaurantSettingsUiState(restaurant = it, isLoading = false) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = RestaurantSettingsUiState()
-        )
+    private val _isSaving = MutableStateFlow(false)
+    private val _error = MutableStateFlow<Throwable?>(null)
 
-    fun onUpdateRestaurant(name: String, currency: String, locale: String) {
+    val uiState: StateFlow<RestaurantSettingsUiState> = combine(
+        observeRestaurantProfileUseCase(),
+        _isSaving,
+        _error
+    ) { restaurant, isSaving, error ->
+        RestaurantSettingsUiState(
+            restaurant = restaurant,
+            isLoading = restaurant == null,
+            isSaving = isSaving,
+            error = error
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = RestaurantSettingsUiState()
+    )
+
+    fun onUpdateRestaurant(name: String, currency: String, locale: String, onSuccess: () -> Unit) {
         val current = uiState.value.restaurant ?: return
-        _isSaving.value = true // Need to add internal state for saving
+        _isSaving.value = true
+        _error.value = null
+        
         viewModelScope.launch {
-            val updated = current.copy(
-                name = name,
-                currencyCode = currency,
-                localeTag = locale
-            )
-            updateRestaurantProfileUseCase(updated)
-            preferencesRepository.setAppLocaleTag(locale)
-            _isSaving.value = false
+            try {
+                val updated = current.copy(
+                    name = name,
+                    currencyCode = currency,
+                    localeTag = locale
+                )
+                updateRestaurantProfileUseCase(updated)
+                preferencesRepository.setAppLocaleTag(locale)
+                _isSaving.value = false
+                onSuccess()
+            } catch (e: Exception) {
+                _isSaving.value = false
+                _error.value = e
+            }
         }
     }
-    
-    private val _isSaving = MutableStateFlow(false)
+
+    fun clearError() {
+        _error.value = null
+    }
 }

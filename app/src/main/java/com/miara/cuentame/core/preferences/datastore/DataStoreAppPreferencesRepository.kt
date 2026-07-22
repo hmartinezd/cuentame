@@ -73,9 +73,17 @@ class DataStoreAppPreferencesRepository @Inject constructor(
         .map { preferences ->
             val jsonString = preferences[Keys.ONBOARDING_DRAFT] ?: return@map null
             try {
-                json.decodeFromString<OnboardingDraft>(jsonString)
+                val draft = json.decodeFromString<OnboardingDraft>(jsonString)
+                if (draft.formatVersion != 1) {
+                    Log.w("DataStorePrefs", "Unsupported draft version: ${draft.formatVersion}")
+                    null
+                } else {
+                    draft
+                }
             } catch (e: Exception) {
-                Log.e("DataStorePrefs", "Failed to decode onboarding draft", e)
+                Log.e("DataStorePrefs", "Failed to decode onboarding draft, clearing it", e)
+                // We can't clear from map, but we return null and prompt says "quarantined or removed"
+                // Clearing will happen next time save is called or we could clear it here by launching a side effect
                 null
             }
         }

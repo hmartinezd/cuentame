@@ -11,6 +11,7 @@ import com.miara.cuentame.core.domain.service.InventoryBalanceCalculator
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
+import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -59,4 +60,8 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideCountComparisonCalculator(): CountComparisonCalculator = CountComparisonCalculator()
+
+    @Provides
+    @Singleton
+    fun provideLocalSetupValidator(): LocalSetupValidator = LocalSetupValidator()
 }

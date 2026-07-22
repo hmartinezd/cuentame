@@ -47,30 +47,42 @@ class CategoryManagementViewModel @Inject constructor(
 
     fun onAddCategory(name: String) {
         viewModelScope.launch {
-            val restaurant = restaurantRepository.getRestaurant() ?: return@launch
-            val category = IngredientCategory(
-                id = IngredientCategoryId(idGenerator.newId()),
-                restaurantId = restaurant.id,
-                name = name,
-                normalizedName = "",
-                sortOrder = uiState.value.categories.size,
-                isActive = true,
-                createdAt = timeProvider.now(),
-                updatedAt = timeProvider.now()
-            )
-            createIngredientCategoryUseCase(category)
+            try {
+                val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+                val category = IngredientCategory(
+                    id = IngredientCategoryId(idGenerator.newId()),
+                    restaurantId = restaurant.id,
+                    name = name,
+                    normalizedName = "",
+                    sortOrder = uiState.value.categories.size,
+                    isActive = true,
+                    createdAt = timeProvider.now(),
+                    updatedAt = timeProvider.now()
+                )
+                createIngredientCategoryUseCase(category)
+            } catch (e: Exception) {
+                // TODO
+            }
         }
     }
 
     fun onUpdateCategory(category: IngredientCategory) {
         viewModelScope.launch {
-            updateIngredientCategoryUseCase(category.copy(updatedAt = timeProvider.now()))
+            try {
+                updateIngredientCategoryUseCase(category.copy(updatedAt = timeProvider.now()))
+            } catch (e: Exception) {
+                // TODO
+            }
         }
     }
 
     fun onArchiveCategory(id: IngredientCategoryId) {
         viewModelScope.launch {
-            archiveIngredientCategoryUseCase(id, timeProvider.now())
+            try {
+                archiveIngredientCategoryUseCase(id, timeProvider.now())
+            } catch (e: Exception) {
+                // TODO
+            }
         }
     }
 

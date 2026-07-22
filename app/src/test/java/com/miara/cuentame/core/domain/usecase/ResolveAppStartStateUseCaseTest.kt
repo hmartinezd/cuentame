@@ -17,7 +17,7 @@ import org.junit.Test
 class ResolveAppStartStateUseCaseTest {
 
     private val preferencesFlow = MutableStateFlow(AppPreferences.DEFAULT)
-    private var isDbComplete = false
+    private val dbCompleteFlow = MutableStateFlow(false)
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = preferencesFlow
@@ -33,7 +33,8 @@ class ResolveAppStartStateUseCaseTest {
     }
 
     private val fakeSetupRepository = object : LocalSetupRepository {
-        override suspend fun isSetupComplete(): Boolean = isDbComplete
+        override suspend fun isSetupComplete(): Boolean = dbCompleteFlow.value
+        override fun observeIsSetupComplete(): Flow<Boolean> = dbCompleteFlow
         override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
     }
 
@@ -41,7 +42,7 @@ class ResolveAppStartStateUseCaseTest {
 
     @Test
     fun `both incomplete returns RequiresOnboarding`() = runTest {
-        isDbComplete = false
+        dbCompleteFlow.value = false
         preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = false)
 
         useCase().test {
@@ -51,7 +52,7 @@ class ResolveAppStartStateUseCaseTest {
 
     @Test
     fun `both complete returns Ready`() = runTest {
-        isDbComplete = true
+        dbCompleteFlow.value = true
         preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = true)
 
         useCase().test {
@@ -61,7 +62,7 @@ class ResolveAppStartStateUseCaseTest {
 
     @Test
     fun `db complete but pref incomplete repairs pref and returns Ready`() = runTest {
-        isDbComplete = true
+        dbCompleteFlow.value = true
         preferencesFlow.value = AppPreferences.DEFAULT.copy(onboardingCompleted = false)
 
         useCase().test {

@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.domain.repository
 
+import kotlinx.coroutines.flow.Flow
+
 sealed interface LocalSetupResult {
     data object Success : LocalSetupResult
     data object AlreadyCompleted : LocalSetupResult
@@ -26,5 +28,7 @@ data class CompleteLocalSetupCommand(
 
 interface LocalSetupRepository {
     suspend fun isSetupComplete(): Boolean
+    fun observeIsSetupComplete(): Flow<Boolean>
     suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult
 }
+

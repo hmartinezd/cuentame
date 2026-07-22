@@ -9,7 +9,6 @@ import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -20,7 +19,6 @@ class AppViewModel @Inject constructor(
 ) : ViewModel() {
 
     val startState: StateFlow<AppStartState> = resolveAppStartStateUseCase()
-        .onEach { println("AppStartState: $it") }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

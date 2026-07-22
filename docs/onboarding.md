@@ -19,14 +19,16 @@ Onboarding progress is saved automatically to Preferences DataStore as a JSON-se
 ## Completion Integrity
 The `CompleteOnboardingUseCase` orchestrates the final transition:
 1.  **Atomic Transaction:** `LocalSetupRepository.completeSetup` inserts the restaurant, areas, and categories in a single Room transaction.
-2.  **Idempotency:** The setup repository detects if a restaurant already exists and prevents duplicate setup.
-3.  **Crash Recovery:** `ResolveAppStartStateUseCase` checks both Room and DataStore. If Room is setup but DataStore is not (due to a crash after Room commit), it repairs the DataStore flag and allows the user to proceed to Home.
+2.  **Recovery:** If a restaurant exists but setup is incomplete (no areas), it recovers by updating the existing restaurant and adding new areas/categories.
+3.  **Idempotency:** The setup repository detects if a restaurant already exists with complete setup and returns `AlreadyCompleted`.
+4.  **Crash Recovery:** `ResolveAppStartStateUseCase` checks both Room and DataStore. If Room is setup but DataStore is not, it repairs the DataStore flag.
 
 ## Startup Resolution
 `AppStartState` drives the root UI:
 *   `Loading`: Initial state while inspecting data sources.
 *   `RequiresOnboarding`: Shown if no active restaurant or areas exist.
 *   `Ready`: Shown when configuration is complete.
+The transition is reactive; when setup completes, the root state automatically switches to `Ready`.
 
 ## Settings Management
 After onboarding, users can manage their configuration in the Settings hub:

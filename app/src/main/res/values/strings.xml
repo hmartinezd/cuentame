@@ -82,6 +82,9 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
 
+    <string name="lang_en">English</string>
+    <string name="lang_es">Español</string>
+
     <string name="action_next">Continue</string>
     <string name="action_back">Back</string>
     <string name="action_edit">Edit</string>
@@ -97,10 +100,21 @@
     <string name="error_name_empty">Name cannot be empty</string>
     <string name="error_duplicate_name">This name is already in use</string>
     <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_final_area">The last active area cannot be archived</string>
+    <string name="error_invalid_currency">Invalid currency code</string>
+    <string name="error_unsupported_locale">Unsupported language</string>
+    <string name="error_no_areas">At least one area is required</string>
+    <string name="error_draft_corrupted">Setup draft was corrupted and has been reset</string>
 
     <!-- States -->
     <string name="state_loading_desc">Loading…</string>
     <string name="state_empty_desc">Nothing to show yet.</string>
     <string name="state_error_desc">Something went wrong.</string>
     <string name="action_retry_desc">Retry</string>
+
+    <!-- Accessibility -->
+    <string name="move_up">Move %1$s up</string>
+    <string name="move_down">Move %1$s down</string>
+    <string name="archive_item">Archive %1$s</string>
+    <string name="rename_item">Rename %1$s</string>
 </resources>

@@ -15,6 +15,9 @@ import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.validation.ValidationError
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class RoomLocalSetupRepository @Inject constructor(
@@ -33,28 +36,53 @@ class RoomLocalSetupRepository @Inject constructor(
         return areaDao.getActiveCount() > 0
     }
 
+    override fun observeIsSetupComplete(): Flow<Boolean> {
+        return combine(
+            restaurantDao.observeRestaurant(),
+            areaDao.observeActiveAreas()
+        ) { restaurant, areas ->
+            restaurant != null && areas.isNotEmpty()
+        }
+    }
+
     override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult {
         return try {
-            val existing = restaurantDao.getRestaurant()
-            if (existing != null) return LocalSetupResult.AlreadyCompleted
-
             validateCommand(command)
 
             database.withTransaction {
+                val existing = restaurantDao.getRestaurant()
                 val now = timeProvider.now().toEpochMilli()
-                val restaurantId = idGenerator.newId()
                 
-                restaurantDao.insert(
-                    RestaurantEntity(
-                        id = restaurantId,
-                        name = command.restaurantName,
-                        currencyCode = command.currencyCode,
-                        localeTag = command.localeTag,
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null
+                val restaurantId = if (existing != null) {
+                    // Check if setup is already complete
+                    if (areaDao.getActiveCount() > 0) {
+                        return@withTransaction LocalSetupResult.AlreadyCompleted
+                    }
+                    // Recovery: update existing restaurant
+                    restaurantDao.update(
+                        existing.copy(
+                            name = command.restaurantName,
+                            currencyCode = command.currencyCode,
+                            localeTag = command.localeTag,
+                            updatedAt = now
+                        )
                     )
-                )
+                    existing.id
+                } else {
+                    val newId = idGenerator.newId()
+                    restaurantDao.insert(
+                        RestaurantEntity(
+                            id = newId,
+                            name = command.restaurantName,
+                            currencyCode = command.currencyCode,
+                            localeTag = command.localeTag,
+                            createdAt = now,
+                            updatedAt = now,
+                            deletedAt = null
+                        )
+                    )
+                    newId
+                }
 
                 command.areas.forEach { areaInput ->
                     areaDao.upsert(
@@ -87,8 +115,8 @@ class RoomLocalSetupRepository @Inject constructor(
                         )
                     )
                 }
+                LocalSetupResult.Success
             }
-            LocalSetupResult.Success
         } catch (e: Exception) {
             LocalSetupResult.Failure(e)
         }

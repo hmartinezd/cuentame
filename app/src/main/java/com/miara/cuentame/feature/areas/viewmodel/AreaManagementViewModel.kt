@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.usecase.ArchiveInventoryAreaUseCase
@@ -23,7 +22,8 @@ import javax.inject.Inject
 
 data class AreaManagementUiState(
     val areas: List<InventoryArea> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val error: Throwable? = null
 )
 
 @HiltViewModel
@@ -48,32 +48,41 @@ class AreaManagementViewModel @Inject constructor(
 
     fun onAddArea(name: String) {
         viewModelScope.launch {
-            val restaurant = restaurantRepository.getRestaurant() ?: return@launch
-            val area = InventoryArea(
-                id = InventoryAreaId(idGenerator.newId()),
-                restaurantId = restaurant.id,
-                name = name,
-                normalizedName = "", // Repository handles normalization
-                sortOrder = uiState.value.areas.size,
-                isActive = true,
-                createdAt = timeProvider.now(),
-                updatedAt = timeProvider.now()
-            )
-            createInventoryAreaUseCase(area)
+            try {
+                val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+                val area = InventoryArea(
+                    id = InventoryAreaId(idGenerator.newId()),
+                    restaurantId = restaurant.id,
+                    name = name,
+                    normalizedName = "", // Repository handles normalization
+                    sortOrder = uiState.value.areas.size,
+                    isActive = true,
+                    createdAt = timeProvider.now(),
+                    updatedAt = timeProvider.now()
+                )
+                createInventoryAreaUseCase(area)
+            } catch (e: Exception) {
+                // TODO: handle error in state
+            }
         }
     }
 
     fun onUpdateArea(area: InventoryArea) {
         viewModelScope.launch {
-            updateInventoryAreaUseCase(area.copy(updatedAt = timeProvider.now()))
+            try {
+                updateInventoryAreaUseCase(area.copy(updatedAt = timeProvider.now()))
+            } catch (e: Exception) {
+                // TODO
+            }
         }
     }
 
     fun onArchiveArea(id: InventoryAreaId) {
         viewModelScope.launch {
-            // Check if it's the last one
-            if (uiState.value.areas.size > 1) {
+            try {
                 archiveInventoryAreaUseCase(id, timeProvider.now())
+            } catch (e: Exception) {
+                // TODO
             }
         }
     }

@@ -10,8 +10,8 @@
     <string name="nav_settings">Ajustes</string>
 
     <!-- Placeholders -->
-    <string name="home_title">Tablero</string>
-    <string name="home_description">Bienvenido a Cuéntame Inventario. El resumen del estado de su restaurante aparecerá aquí.</string>
+    <string name="home_title">Panel de Control</string>
+    <string name="home_description">Bienvenido a Cuéntame Inventario. Aquí aparecerá el resumen del estado de su restaurante.</string>
     <string name="inventory_title">Ingredientes</string>
     <string name="inventory_description">Gestione sus ingredientes, unidades y empaques.</string>
     <string name="count_title">Conteo Físico</string>
@@ -19,7 +19,7 @@
     <string name="activity_title">Movimientos</string>
     <string name="activity_description">Rastree compras, mermas y ajustes.</string>
     <string name="reports_title">Analítica</string>
-    <string name="reports_description">Vea el valor del inventario y reportes de uso.</string>
+    <string name="reports_description">Vea informes de valor de inventario y uso.</string>
 
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">Bienvenido a Cuéntame</string>
@@ -82,6 +82,9 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
 
+    <string name="lang_en">Inglés</string>
+    <string name="lang_es">Español</string>
+
     <string name="action_next">Continuar</string>
     <string name="action_back">Volver</string>
     <string name="action_edit">Editar</string>
@@ -97,10 +100,21 @@
     <string name="error_name_empty">El nombre no puede estar vacío</string>
     <string name="error_duplicate_name">Este nombre ya está en uso</string>
     <string name="error_generic">Algo salió mal. Por favor, inténtelo de nuevo.</string>
+    <string name="error_final_area">No se puede archivar la última área activa</string>
+    <string name="error_invalid_currency">Código de moneda inválido</string>
+    <string name="error_unsupported_locale">Idioma no soportado</string>
+    <string name="error_no_areas">Se requiere al menos un área</string>
+    <string name="error_draft_corrupted">El borrador de configuración estaba corrupto y ha sido reiniciado</string>
 
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
     <string name="state_empty_desc">Nada que mostrar todavía.</string>
     <string name="state_error_desc">Algo salió mal.</string>
     <string name="action_retry_desc">Reintentar</string>
+
+    <!-- Accessibility -->
+    <string name="move_up">Mover %1$s arriba</string>
+    <string name="move_down">Mover %1$s abajo</string>
+    <string name="archive_item">Archivar %1$s</string>
+    <string name="rename_item">Renombrar %1$s</string>
 </resources>

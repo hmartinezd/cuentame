@@ -13,14 +13,20 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,9 +45,13 @@ fun AreaManagementRoute(
     viewModel: AreaManagementViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     AreaManagementScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onAddArea = viewModel::onAddArea,
+        onUpdateArea = viewModel::onUpdateArea,
         onArchiveArea = { viewModel.onArchiveArea(it.id) },
         onMoveUp = viewModel::onMoveUp,
         onMoveDown = viewModel::onMoveDown
@@ -51,47 +61,106 @@ fun AreaManagementRoute(
 @Composable
 fun AreaManagementScreen(
     uiState: com.miara.cuentame.feature.areas.viewmodel.AreaManagementUiState,
+    snackbarHostState: SnackbarHostState,
     onAddArea: (String) -> Unit,
+    onUpdateArea: (com.miara.cuentame.core.model.inventory.InventoryArea) -> Unit,
     onArchiveArea: (com.miara.cuentame.core.model.inventory.InventoryArea) -> Unit,
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(text = stringResource(R.string.settings_areas), style = MaterialTheme.typography.headlineSmall)
-        
-        var newAreaName by remember { mutableStateOf("") }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = newAreaName,
-                onValueChange = { newAreaName = it },
-                label = { Text(stringResource(R.string.onboarding_add_area)) },
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = { 
-                onAddArea(newAreaName)
-                newAreaName = ""
-            }) {
-                Icon(Icons.Default.Add, contentDescription = null)
-            }
-        }
+    var areaToArchive by remember { mutableStateOf<com.miara.cuentame.core.model.inventory.InventoryArea?>(null) }
+    var areaToEdit by remember { mutableStateOf<com.miara.cuentame.core.model.inventory.InventoryArea?>(null) }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            itemsIndexed(uiState.areas) { index, area ->
-                AreaItem(
-                    area = area,
-                    canMoveUp = index > 0,
-                    canMoveDown = index < uiState.areas.size - 1,
-                    onMoveUp = { onMoveUp(index) },
-                    onMoveDown = { onMoveDown(index) },
-                    onArchive = { onArchiveArea(area) }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Text(text = stringResource(R.string.settings_areas), style = MaterialTheme.typography.headlineSmall)
+            
+            var newAreaName by remember { mutableStateOf("") }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = newAreaName,
+                    onValueChange = { newAreaName = it },
+                    label = { Text(stringResource(R.string.onboarding_add_area)) },
+                    modifier = Modifier.weight(1f)
                 )
-                HorizontalDivider()
+                IconButton(onClick = { 
+                    onAddArea(newAreaName)
+                    newAreaName = ""
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                }
+            }
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(uiState.areas) { index, area ->
+                    AreaItem(
+                        area = area,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < uiState.areas.size - 1,
+                        onMoveUp = { onMoveUp(index) },
+                        onMoveDown = { onMoveDown(index) },
+                        onArchive = { areaToArchive = area },
+                        onEdit = { areaToEdit = area }
+                    )
+                    HorizontalDivider()
+                }
             }
         }
+    }
+
+    areaToArchive?.let { area ->
+        AlertDialog(
+            onDismissRequest = { areaToArchive = null },
+            title = { Text(stringResource(R.string.action_archive)) },
+            text = { Text("Are you sure you want to archive ${area.name}?") },
+            confirmButton = {
+                TextButton(onClick = { 
+                    onArchiveArea(area)
+                    areaToArchive = null
+                }) {
+                    Text(stringResource(R.string.action_archive))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { areaToArchive = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
+
+    areaToEdit?.let { area ->
+        var editName by remember { mutableStateOf(area.name) }
+        AlertDialog(
+            onDismissRequest = { areaToEdit = null },
+            title = { Text(stringResource(R.string.action_edit)) },
+            text = {
+                OutlinedTextField(
+                    value = editName,
+                    onValueChange = { editName = it },
+                    label = { Text(stringResource(R.string.onboarding_field_name)) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { 
+                    onUpdateArea(area.copy(name = editName))
+                    areaToEdit = null
+                }) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { areaToEdit = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -102,7 +171,8 @@ fun AreaItem(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    onEdit: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -110,14 +180,17 @@ fun AreaItem(
     ) {
         Text(text = area.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.rename_item, area.name))
+        }
         IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-            Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up")
+            Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.move_up, area.name))
         }
         IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-            Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down")
+            Icon(Icons.Default.ArrowDownward, contentDescription = stringResource(R.string.move_down, area.name))
         }
         IconButton(onClick = onArchive) {
-            Icon(Icons.Default.Archive, contentDescription = "Archive")
+            Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive_item, area.name))
         }
     }
 }

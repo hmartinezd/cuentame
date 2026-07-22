@@ -10,8 +10,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Before
@@ -19,18 +24,20 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class DataStoreAppPreferencesRepositoryTest {
 
     private lateinit var dataStore: DataStore<Preferences>
     private lateinit var repository: DataStoreAppPreferencesRepository
     private val context = ApplicationProvider.getApplicationContext<Context>()
-    private val testFile = File(context.filesDir, "test_datastore.preferences_pb")
+    private val testScope = TestScope(UnconfinedTestDispatcher() + Job())
 
     @Before
     fun setup() {
         val testDbName = "test_datastore_${System.currentTimeMillis()}"
         dataStore = PreferenceDataStoreFactory.create(
+            scope = testScope,
             produceFile = { context.preferencesDataStoreFile(testDbName) }
         )
         repository = DataStoreAppPreferencesRepository(dataStore, Json)
@@ -38,7 +45,8 @@ class DataStoreAppPreferencesRepositoryTest {
 
     @After
     fun tearDown() {
-        testFile.delete()
+        testScope.cancel()
+        File(context.filesDir, "datastore").deleteRecursively()
     }
 
     @Test
