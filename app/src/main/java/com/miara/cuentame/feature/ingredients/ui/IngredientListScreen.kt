@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -106,7 +107,7 @@ fun IngredientListScreen(
                     Text(text = stringResource(R.string.no_ingredients))
                 }
             } else {
-                LazyColumn {
+                LazyColumn(modifier = Modifier.testTag("ingredient_list")) {
                     items(uiState.ingredients) { ingredient ->
                         IngredientItem(
                             ingredient = ingredient,
@@ -232,6 +233,8 @@ fun IngredientItem(
                 )
             }
         },
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier
+            .testTag("ingredient_item_${ingredient.name}")
+            .clickable(onClick = onClick)
     )
 }

@@ -7,6 +7,7 @@ import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -26,6 +27,7 @@ import com.miara.cuentame.core.model.inventory.UnitOfMeasure
 import com.miara.cuentame.feature.ingredients.model.EditableUnitOptionUiModel
 import com.miara.cuentame.feature.ingredients.model.IngredientFormUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +35,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -50,7 +54,7 @@ class IngredientFormViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getIngredientDetailUseCase: GetIngredientDetailUseCase,
     private val observeIngredientUnitOptionsUseCase: ObserveIngredientUnitOptionsUseCase,
-    private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
+    observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
     private val observeCompatibleSystemUnitsUseCase: ObserveCompatibleSystemUnitsUseCase,
     private val createIngredientUseCase: CreateIngredientUseCase,
     private val updateIngredientUseCase: UpdateIngredientUseCase,
@@ -72,11 +76,12 @@ class IngredientFormViewModel @Inject constructor(
     val categories = observeIngredientCategoriesUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val compatibleUnits: StateFlow<List<UnitOfMeasure>> = _uiState
-        .combine(MutableStateFlow<List<UnitOfMeasure>>(emptyList())) { state, _ ->
+        .flatMapLatest { state ->
             state.selectedDimension?.let { dim ->
-                observeCompatibleSystemUnitsUseCase(dim).first()
-            } ?: emptyList()
+                observeCompatibleSystemUnitsUseCase(dim)
+            } ?: flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -105,7 +110,7 @@ class IngredientFormViewModel @Inject constructor(
                                     id = opt.id.value,
                                     name = opt.displayName,
                                     standardUnitId = opt.standardUnitId,
-                                    factorToBase = opt.factorToBase.toPlainString(),
+                                    factorToBase = opt.factorToBase.stripTrailingZeros().toPlainString(),
                                     isBase = opt.isBase,
                                     isDefaultCount = opt.isDefaultCount,
                                     isDefaultPurchase = opt.isDefaultPurchase
@@ -113,8 +118,6 @@ class IngredientFormViewModel @Inject constructor(
                             }
                         )
                     }
-                } else {
-                    // Handle not found
                 }
             } else {
                 _uiState.update { it.copy(isLoading = false) }
@@ -131,6 +134,7 @@ class IngredientFormViewModel @Inject constructor(
     }
 
     fun onDimensionSelected(dimension: UnitDimension) {
+        if (_uiState.value.isEditMode) return
         if (_uiState.value.selectedDimension == dimension) return
         
         _uiState.update { 
@@ -143,6 +147,7 @@ class IngredientFormViewModel @Inject constructor(
     }
 
     fun onBaseUnitSelected(unit: UnitOfMeasure) {
+        if (_uiState.value.isEditMode) return
         _uiState.update { 
             it.copy(
                 selectedBaseUnitId = unit.id,
@@ -162,6 +167,7 @@ class IngredientFormViewModel @Inject constructor(
     }
 
     fun onAddStandardOption(unit: UnitOfMeasure) {
+        if (_uiState.value.isEditMode) return
         val state = _uiState.value
         val baseUnitId = state.selectedBaseUnitId ?: return
         
@@ -173,7 +179,7 @@ class IngredientFormViewModel @Inject constructor(
                 id = idGenerator.newId(),
                 name = unit.symbol,
                 standardUnitId = unit.id,
-                factorToBase = factor.toPlainString(),
+                factorToBase = factor.stripTrailingZeros().toPlainString(),
                 isBase = false
             )
             _uiState.update { it.copy(unitOptions = it.unitOptions + newOption) }
@@ -181,28 +187,32 @@ class IngredientFormViewModel @Inject constructor(
     }
 
     fun onAddPackageOption(name: String, quantity: BigDecimal) {
+        if (_uiState.value.isEditMode) return
         val newOption = EditableUnitOptionUiModel(
             id = idGenerator.newId(),
             name = name,
-            factorToBase = quantity.toPlainString(),
+            factorToBase = quantity.stripTrailingZeros().toPlainString(),
             isBase = false
         )
         _uiState.update { it.copy(unitOptions = it.unitOptions + newOption) }
     }
 
     fun onRemoveOption(id: String) {
+        if (_uiState.value.isEditMode) return
         _uiState.update { state ->
             state.copy(unitOptions = state.unitOptions.filter { it.id != id || it.isBase })
         }
     }
 
     fun onSetDefaultCount(id: String) {
+        if (_uiState.value.isEditMode) return
         _uiState.update { state ->
             state.copy(unitOptions = state.unitOptions.map { it.copy(isDefaultCount = it.id == id) })
         }
     }
 
     fun onSetDefaultPurchase(id: String) {
+        if (_uiState.value.isEditMode) return
         _uiState.update { state ->
             state.copy(unitOptions = state.unitOptions.map { it.copy(isDefaultPurchase = it.id == id) })
         }
@@ -231,7 +241,7 @@ class IngredientFormViewModel @Inject constructor(
         }
     }
 
-    private suspend fun createIngredient(restaurantId: com.miara.cuentame.core.common.ids.RestaurantId, state: IngredientFormUiState): IngredientId {
+    private suspend fun createIngredient(restaurantId: RestaurantId, state: IngredientFormUiState): IngredientId {
         val ingredientId = IngredientId(idGenerator.newId())
         val now = timeProvider.now()
         
@@ -290,8 +300,7 @@ class IngredientFormViewModel @Inject constructor(
         
         val updated = existing.copy(
             name = state.name,
-            categoryId = state.selectedCategoryId,
-            updatedAt = timeProvider.now()
+            categoryId = state.selectedCategoryId
         )
         updateIngredientUseCase(updated)
     }

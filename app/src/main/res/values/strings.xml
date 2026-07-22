@@ -151,6 +151,10 @@
     <string name="active">Active</string>
     <string name="set_default_count">Set as default count</string>
     <string name="set_default_purchase">Set as default purchase</string>
+    <string name="base_label">Base</string>
+    <string name="default_count_label">Default Count</string>
+    <string name="default_purchase_label">Default Purchase</string>
+    <string name="action_more_options">Actions for %1$s</string>
     <string name="no_ingredients">No ingredients found</string>
     <string name="no_unit_options">No additional units defined</string>
     <string name="archive_ingredient_confirmation">Are you sure you want to archive %1$s? It will no longer appear in new purchases or counts.</string>

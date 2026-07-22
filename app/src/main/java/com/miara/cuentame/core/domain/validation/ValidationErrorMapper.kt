@@ -28,6 +28,9 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.MultipleBaseUnitOptions -> R.string.error_generic
             ValidationError.InvalidBaseUnitFactor -> R.string.error_generic
             ValidationError.IncompatibleUnitDimensions -> R.string.error_dimension_mismatch
+            ValidationError.IngredientIdAlreadyExists -> R.string.error_generic // UI usually generates these
+            ValidationError.UnitOptionIdAlreadyExists -> R.string.error_generic
+            ValidationError.IngredientOwnershipMismatch -> R.string.error_generic
             ValidationError.RecordNotFound -> R.string.error_generic
             else -> R.string.error_generic
         }

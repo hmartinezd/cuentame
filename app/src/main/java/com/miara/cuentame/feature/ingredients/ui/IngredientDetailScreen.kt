@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Straighten
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -55,6 +54,7 @@ import com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand
 import com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
+import com.miara.cuentame.core.model.inventory.UnitOfMeasure
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailEvent
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailUiState
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientDetailViewModel
@@ -71,10 +71,22 @@ fun IngredientDetailRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    var showArchiveConfirm by remember { mutableStateOf(false) }
+    var showAddStandardDialog by remember { mutableStateOf(false) }
+    var showAddPackageDialog by remember { mutableStateOf(false) }
+    var packageToEdit by remember { mutableStateOf<IngredientUnitOption?>(null) }
+    var optionToArchive by remember { mutableStateOf<IngredientUnitOption?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is IngredientDetailEvent.ArchiveSuccess -> onBack()
+                is IngredientDetailEvent.OperationSuccess -> {
+                    showAddStandardDialog = false
+                    showAddPackageDialog = false
+                    packageToEdit = null
+                    optionToArchive = null
+                }
             }
         }
     }
@@ -89,6 +101,16 @@ fun IngredientDetailRoute(
     IngredientDetailScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
+        showArchiveConfirm = showArchiveConfirm,
+        showAddStandardDialog = showAddStandardDialog,
+        showAddPackageDialog = showAddPackageDialog,
+        packageToEdit = packageToEdit,
+        optionToArchive = optionToArchive,
+        onSetShowArchiveConfirm = { showArchiveConfirm = it },
+        onSetShowAddStandardDialog = { showAddStandardDialog = it },
+        onSetShowAddPackageDialog = { showAddPackageDialog = it },
+        onSetPackageToEdit = { packageToEdit = it },
+        onSetOptionToArchive = { optionToArchive = it },
         onBack = onBack,
         onEditClick = { onEditClick(ingredientId) },
         onArchiveIngredient = viewModel::onArchiveIngredient,
@@ -103,7 +125,8 @@ fun IngredientDetailRoute(
         },
         onUpdatePackageOption = { optionId, name, qty ->
             viewModel.onUpdatePackageOption(UpdatePackageUnitOptionCommand(optionId, name, qty))
-        }
+        },
+        getStandardPreview = viewModel::getStandardPreview
     )
 }
 
@@ -112,6 +135,16 @@ fun IngredientDetailRoute(
 fun IngredientDetailScreen(
     uiState: IngredientDetailUiState,
     snackbarHostState: SnackbarHostState,
+    showArchiveConfirm: Boolean,
+    showAddStandardDialog: Boolean,
+    showAddPackageDialog: Boolean,
+    packageToEdit: IngredientUnitOption?,
+    optionToArchive: IngredientUnitOption?,
+    onSetShowArchiveConfirm: (Boolean) -> Unit,
+    onSetShowAddStandardDialog: (Boolean) -> Unit,
+    onSetShowAddPackageDialog: (Boolean) -> Unit,
+    onSetPackageToEdit: (IngredientUnitOption?) -> Unit,
+    onSetOptionToArchive: (IngredientUnitOption?) -> Unit,
     onBack: () -> Unit,
     onEditClick: () -> Unit,
     onArchiveIngredient: () -> Unit,
@@ -120,13 +153,9 @@ fun IngredientDetailScreen(
     onArchiveOption: (IngredientUnitOptionId) -> Unit,
     onAddStandardOption: (UnitId) -> Unit,
     onAddPackageOption: (String, BigDecimal) -> Unit,
-    onUpdatePackageOption: (IngredientUnitOptionId, String, BigDecimal) -> Unit
+    onUpdatePackageOption: (IngredientUnitOptionId, String, BigDecimal) -> Unit,
+    getStandardPreview: (UnitOfMeasure) -> String?
 ) {
-    var showArchiveConfirm by remember { mutableStateOf(false) }
-    var showAddStandardDialog by remember { mutableStateOf(false) }
-    var showAddPackageDialog by remember { mutableStateOf(false) }
-    var packageToEdit by remember { mutableStateOf<IngredientUnitOption?>(null) }
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -142,7 +171,7 @@ fun IngredientDetailScreen(
                         IconButton(onClick = onEditClick) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
                         }
-                        IconButton(onClick = { showArchiveConfirm = true }) {
+                        IconButton(onClick = { onSetShowArchiveConfirm(true) }) {
                             Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive_ingredient))
                         }
                     }
@@ -166,17 +195,22 @@ fun IngredientDetailScreen(
                     .padding(16.dp)
             ) {
                 val ingredient = uiState.ingredient
-                val baseUnit = uiState.compatibleUnits.find { it.id == ingredient.baseUnitId }
-                val baseSymbol = baseUnit?.symbol ?: ingredient.baseUnitId.value
+                val baseSymbol = uiState.baseUnit?.symbol ?: ingredient.baseUnitId.value
 
                 Text(
                     text = if (ingredient.isActive) stringResource(R.string.active) else stringResource(R.string.archived_label),
                     style = MaterialTheme.typography.labelLarge,
                     color = if (ingredient.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
+                
+                Text(
+                    text = uiState.category?.name ?: stringResource(R.string.uncategorized),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -186,8 +220,8 @@ fun IngredientDetailScreen(
                     )
                     if (ingredient.isActive) {
                         Row {
-                            TextButton(onClick = { showAddStandardDialog = true }) { Text(stringResource(R.string.standard_unit)) }
-                            TextButton(onClick = { showAddPackageDialog = true }) { Text(stringResource(R.string.package_option)) }
+                            TextButton(onClick = { onSetShowAddStandardDialog(true) }) { Text(stringResource(R.string.standard_unit)) }
+                            TextButton(onClick = { onSetShowAddPackageDialog(true) }) { Text(stringResource(R.string.package_option)) }
                         }
                     }
                 }
@@ -200,8 +234,8 @@ fun IngredientDetailScreen(
                             isIngredientActive = ingredient.isActive,
                             onSetDefaultCount = { onSetDefaultCount(option.id) },
                             onSetDefaultPurchase = { onSetDefaultPurchase(option.id) },
-                            onEditPackage = { packageToEdit = option },
-                            onArchive = { onArchiveOption(option.id) }
+                            onEditPackage = { onSetPackageToEdit(option) },
+                            onArchive = { onSetOptionToArchive(option) }
                         )
                         HorizontalDivider()
                     }
@@ -211,49 +245,30 @@ fun IngredientDetailScreen(
     }
 
     if (showArchiveConfirm) {
-        AlertDialog(
-            onDismissRequest = { showArchiveConfirm = false },
-            title = { Text(stringResource(R.string.archive_ingredient)) },
-            text = { Text(stringResource(R.string.archive_ingredient_confirmation, uiState.ingredient?.name ?: "")) },
-            confirmButton = {
-                TextButton(onClick = { 
-                    onArchiveIngredient()
-                    showArchiveConfirm = false
-                }) {
-                    if (uiState.isPerformingAction) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    } else {
-                        Text(stringResource(R.string.archive_confirm_action))
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showArchiveConfirm = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
+        ArchiveConfirmDialog(
+            title = stringResource(R.string.archive_ingredient),
+            message = stringResource(R.string.archive_ingredient_confirmation, uiState.ingredient?.name ?: ""),
+            isSaving = uiState.isPerformingAction,
+            onDismiss = { onSetShowArchiveConfirm(false) },
+            onConfirm = onArchiveIngredient
         )
     }
 
     if (showAddStandardDialog) {
         StandardUnitDialog(
             units = uiState.compatibleUnits,
-            excludedUnitIds = uiState.options.mapNotNull { it.standardUnitId }.toSet(),
-            onDismiss = { showAddStandardDialog = false },
-            onSelect = { 
-                onAddStandardOption(it.id)
-                showAddStandardDialog = false
-            }
+            excludedUnitIds = uiState.options.mapNotNull { it.standardUnitId }.toSet() + (uiState.ingredient?.baseUnitId?.let { setOf(it) } ?: emptySet()),
+            onDismiss = { onSetShowAddStandardDialog(false) },
+            getPreview = getStandardPreview,
+            onSelect = { onAddStandardOption(it.id) }
         )
     }
 
     if (showAddPackageDialog) {
         AddPackageDialog(
-            onDismiss = { showAddPackageDialog = false },
-            onConfirm = { name, qty ->
-                onAddPackageOption(name, qty)
-                showAddPackageDialog = false
-            }
+            isSaving = uiState.isPerformingAction,
+            onDismiss = { onSetShowAddPackageDialog(false) },
+            onConfirm = onAddPackageOption
         )
     }
 
@@ -261,11 +276,19 @@ fun IngredientDetailScreen(
         AddPackageDialog(
             initialName = option.displayName,
             initialQty = option.factorToBase,
-            onDismiss = { packageToEdit = null },
-            onConfirm = { name, qty ->
-                onUpdatePackageOption(option.id, name, qty)
-                packageToEdit = null
-            }
+            isSaving = uiState.isPerformingAction,
+            onDismiss = { onSetPackageToEdit(null) },
+            onConfirm = { name, qty -> onUpdatePackageOption(option.id, name, qty) }
+        )
+    }
+
+    optionToArchive?.let { option ->
+        ArchiveConfirmDialog(
+            title = stringResource(R.string.action_archive),
+            message = stringResource(R.string.archive_item, option.displayName),
+            isSaving = uiState.isPerformingAction,
+            onDismiss = { onSetOptionToArchive(null) },
+            onConfirm = { onArchiveOption(option.id) }
         )
     }
 }
@@ -285,12 +308,23 @@ fun UnitOptionItem(
     ListItem(
         headlineContent = { 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(option.displayName)
+                Text(
+                    text = option.displayName,
+                    color = if (option.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (option.isBase) {
                     Text(
-                        text = " (Base)",
+                        text = stringResource(R.string.base_label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+                if (!option.isActive) {
+                    Text(
+                        text = " (${stringResource(R.string.archived_label)})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
@@ -298,16 +332,14 @@ fun UnitOptionItem(
         },
         supportingContent = {
             Column {
-                if (option.isBase) {
-                    Text("1 ${option.shortLabel} = 1 $baseSymbol")
-                } else {
-                    Text("1 ${option.shortLabel} = ${option.factorToBase.stripTrailingZeros().toPlainString()} $baseSymbol")
-                }
+                val factor = if (option.isBase) "1" else option.factorToBase.stripTrailingZeros().toPlainString()
+                Text("1 ${option.shortLabel} = $factor $baseSymbol")
+                
                 Row(modifier = Modifier.padding(top = 4.dp)) {
                     if (option.isDefaultCount) {
                         Icon(
                             Icons.Default.Straighten, 
-                            contentDescription = "Default Count", 
+                            contentDescription = stringResource(R.string.default_count_label), 
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -315,7 +347,7 @@ fun UnitOptionItem(
                     if (option.isDefaultPurchase) {
                         Icon(
                             Icons.Default.ShoppingCart, 
-                            contentDescription = "Default Purchase", 
+                            contentDescription = stringResource(R.string.default_purchase_label), 
                             modifier = Modifier.size(16.dp).padding(start = 8.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -324,10 +356,10 @@ fun UnitOptionItem(
             }
         },
         trailingContent = {
-            if (isIngredientActive && !option.isBase) {
+            if (isIngredientActive && !option.isBase && option.isActive) {
                 Box {
                     IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Option Actions")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options, option.displayName))
                     }
                     DropdownMenu(
                         expanded = menuExpanded,

@@ -2,6 +2,7 @@ package com.miara.cuentame.core.domain.repository
 
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
@@ -31,13 +32,13 @@ data class UpdatePackageUnitOptionCommand(
 )
 
 interface IngredientRepository {
-    fun observeIngredients(includeArchived: Boolean): Flow<List<Ingredient>>
+    fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>>
     fun observeIngredient(id: IngredientId): Flow<Ingredient?>
     suspend fun getById(id: IngredientId): Ingredient?
     suspend fun updateIngredient(ingredient: Ingredient)
     suspend fun archive(id: IngredientId, at: Instant)
 
-    fun observeUnitOptions(ingredientId: IngredientId): Flow<List<IngredientUnitOption>>
+    fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean = false): Flow<List<IngredientUnitOption>>
     suspend fun addStandardUnitOption(command: AddStandardUnitOptionCommand)
     suspend fun addPackageUnitOption(command: AddPackageUnitOptionCommand)
     suspend fun updatePackageUnitOption(command: UpdatePackageUnitOptionCommand)

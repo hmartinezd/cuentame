@@ -151,6 +151,10 @@
     <string name="active">Activo</string>
     <string name="set_default_count">Marcar como defecto para conteo</string>
     <string name="set_default_purchase">Marcar como defecto para compra</string>
+    <string name="base_label">Base</string>
+    <string name="default_count_label">Defecto para conteo</string>
+    <string name="default_purchase_label">Defecto para compra</string>
+    <string name="action_more_options">Acciones para %1$s</string>
     <string name="no_ingredients">No se encontraron ingredientes</string>
     <string name="no_unit_options">No hay unidades adicionales definidas</string>
     <string name="archive_ingredient_confirmation">¿Está seguro de que desea archivar %1$s? Ya no aparecerá en nuevas compras o conteos.</string>

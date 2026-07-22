@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -168,7 +171,11 @@ fun IngredientFormScreen(
                     label = { Text(stringResource(R.string.ingredient_name)) },
                     modifier = Modifier.fillMaxWidth(),
                     isError = uiState.fieldErrors.containsKey("name"),
-                    supportingText = uiState.fieldErrors["name"]?.let { { Text(stringResource(it)) } }
+                    supportingText = uiState.fieldErrors["name"]?.let { { Text(stringResource(it)) } },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next
+                    )
                 )
 
                 CategorySelector(
@@ -191,8 +198,11 @@ fun IngredientFormScreen(
                         )
                     }
                 } else {
+                    val baseUnit = compatibleUnits.find { it.id == uiState.selectedBaseUnitId }
+                    val baseLabel = if (baseUnit != null) "${baseUnit.name} (${baseUnit.symbol})" else uiState.selectedBaseUnitId?.value ?: ""
+                    
                     Text(
-                        text = "${stringResource(R.string.base_unit)}: ${uiState.selectedBaseUnitId?.value}",
+                        text = "${stringResource(R.string.base_unit)}: $baseLabel",
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
@@ -203,9 +213,12 @@ fun IngredientFormScreen(
                 }
 
                 if (uiState.selectedBaseUnitId != null) {
+                    val baseUnit = compatibleUnits.find { it.id == uiState.selectedBaseUnitId }
+                    val baseSymbol = baseUnit?.symbol ?: uiState.selectedBaseUnitId.value
+
                     UnitOptionsSection(
                         options = uiState.unitOptions,
-                        baseUnitId = uiState.selectedBaseUnitId,
+                        baseSymbol = baseSymbol,
                         isEditMode = uiState.isEditMode,
                         onAddStandard = { showStandardDialog = true },
                         onAddPackage = { showPackageDialog = true },
@@ -232,8 +245,15 @@ fun IngredientFormScreen(
     if (showStandardDialog) {
         StandardUnitDialog(
             units = compatibleUnits,
-            excludedUnitIds = uiState.unitOptions.mapNotNull { it.standardUnitId }.toSet(),
+            excludedUnitIds = uiState.unitOptions.mapNotNull { it.standardUnitId }.toSet() + (uiState.selectedBaseUnitId?.let { setOf(it) } ?: emptySet()),
             onDismiss = { showStandardDialog = false },
+            getPreview = { unit ->
+                val baseUnit = compatibleUnits.find { it.id == uiState.selectedBaseUnitId }
+                if (baseUnit != null) {
+                    val factor = com.miara.cuentame.core.domain.service.StandardUnitConverter().convert(BigDecimal.ONE, unit, baseUnit)
+                    "1 ${unit.symbol} = ${factor.stripTrailingZeros().toPlainString()} ${baseUnit.symbol}"
+                } else null
+            },
             onSelect = { 
                 onAddStandardOption(it)
                 showStandardDialog = false
@@ -264,7 +284,8 @@ fun CategorySelector(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.testTag("category_selector")
     ) {
         OutlinedTextField(
             value = selectedName,
@@ -309,7 +330,8 @@ fun DimensionSelector(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.testTag("dimension_selector")
     ) {
         OutlinedTextField(
             value = selected?.let { 
@@ -360,7 +382,8 @@ fun BaseUnitSelector(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.testTag("base_unit_selector")
     ) {
         OutlinedTextField(
             value = selectedUnit?.name ?: "",
@@ -390,7 +413,7 @@ fun BaseUnitSelector(
 @Composable
 fun UnitOptionsSection(
     options: List<EditableUnitOptionUiModel>,
-    baseUnitId: UnitId?,
+    baseSymbol: String,
     isEditMode: Boolean,
     onAddStandard: () -> Unit,
     onAddPackage: () -> Unit,
@@ -420,7 +443,7 @@ fun UnitOptionsSection(
                         Text(option.name)
                         if (option.isBase) {
                             Text(
-                                text = " (Base)",
+                                text = " (${stringResource(R.string.base_label)})",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.padding(start = 4.dp)
@@ -429,18 +452,18 @@ fun UnitOptionsSection(
                     }
                 },
                 supportingContent = { 
-                    Text("1 ${option.name} = ${option.factorToBase} ${baseUnitId?.value}") 
+                    Text("1 ${option.name} = ${option.factorToBase} $baseSymbol") 
                 },
                 trailingContent = {
                     Row {
-                        IconButton(onClick = { onSetDefaultCount(option.id) }) {
+                        IconButton(onClick = { onSetDefaultCount(option.id) }, enabled = !isEditMode) {
                             Icon(
                                 Icons.Default.Straighten, 
                                 contentDescription = stringResource(R.string.set_default_count),
                                 tint = if (option.isDefaultCount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = { onSetDefaultPurchase(option.id) }) {
+                        IconButton(onClick = { onSetDefaultPurchase(option.id) }, enabled = !isEditMode) {
                             Icon(
                                 Icons.Default.ShoppingCart, 
                                 contentDescription = stringResource(R.string.set_default_purchase),

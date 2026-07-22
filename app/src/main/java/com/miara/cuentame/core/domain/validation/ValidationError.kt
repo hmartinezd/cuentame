@@ -24,6 +24,9 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object InvalidStandardUnitFactor : ValidationError("The standard unit factor must match the system conversion")
     data object InvalidPackageQuantity : ValidationError("Quantity must be greater than zero")
     data object InvalidCurrencyCode : ValidationError("Invalid ISO currency code")
+    data object IngredientIdAlreadyExists : ValidationError("An ingredient with this ID already exists")
+    data object UnitOptionIdAlreadyExists : ValidationError("A unit option with this ID already exists")
+    data object IngredientOwnershipMismatch : ValidationError("Ingredient does not belong to the current restaurant")
 
     // Onboarding and Setup Errors
     data object SetupAlreadyCompleted : ValidationError("Setup has already been completed")

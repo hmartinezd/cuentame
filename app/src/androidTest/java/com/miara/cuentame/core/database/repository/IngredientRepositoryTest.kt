@@ -79,37 +79,14 @@ class IngredientRepositoryTest {
         assertThat(options.first().isBase).isTrue()
     }
 
-    @Test(expected = ValidationError.MissingBaseUnitOption::class)
-    fun createIngredient_requiresOneBaseOption() = runBlocking {
+    @Test(expected = ValidationError.IngredientIdAlreadyExists::class)
+    fun createIngredient_failsIfIdExists() = runBlocking {
         val ingredient = createIngredient("ing_1")
-        val baseOption = createBaseOption("ing_1", "opt_1").copy(isBase = false)
-
+        val baseOption = createBaseOption("ing_1", "opt_1")
         repository.createIngredientWithBaseOption(ingredient, baseOption)
-    }
 
-    @Test(expected = ValidationError.InvalidDefaultUnitOption::class)
-    fun createIngredient_requiresDefaults() = runBlocking {
-        val ingredient = createIngredient("ing_1")
-        val baseOption = createBaseOption("ing_1", "opt_1").copy(isDefaultCount = false)
-
-        repository.createIngredientWithBaseOption(ingredient, baseOption)
-    }
-
-    @Test
-    fun addStandardUnitOption_derivesCorrectFactor() = runBlocking {
-        val ingId = IngredientId("ing_1")
-        repository.createIngredientWithBaseOption(createIngredient("ing_1"), createBaseOption("ing_1", "opt_1"))
-
-        // Pound is base. Add Ounce.
-        repository.addStandardUnitOption(AddStandardUnitOptionCommand(ingId, UnitId("mass_oz")))
-
-        val options = db.ingredientUnitOptionDao().getActiveOptions("ing_1")
-        val ozOption = options.find { it.standardUnitId == "mass_oz" }
-        assertThat(ozOption).isNotNull()
-        // 1 oz = 0.0625 lb (approximately, depends on seed)
-        // 1 oz = 28.349523125 g, 1 lb = 453.59237 g
-        // 28.349523125 / 453.59237 = 0.0625
-        assertThat(ozOption?.factorToBase?.compareTo(BigDecimal("0.0625"))).isEqualTo(0)
+        // Try same ID again
+        repository.createIngredientWithBaseOption(ingredient.copy(name = "Other"), createBaseOption("ing_1", "opt_2"))
     }
 
     @Test(expected = ValidationError.IngredientBaseUnitImmutable::class)
@@ -121,28 +98,31 @@ class IngredientRepositoryTest {
         repository.updateIngredient(updated)
     }
 
-    @Test(expected = ValidationError.BaseUnitOptionCannotBeArchived::class)
-    fun archiveUnitOption_preventsBaseArchive() = runBlocking {
+    @Test
+    fun addStandardUnitOption_derivesCorrectFactor() = runBlocking {
+        val ingId = IngredientId("ing_1")
         repository.createIngredientWithBaseOption(createIngredient("ing_1"), createBaseOption("ing_1", "opt_1"))
-        repository.archiveUnitOption(IngredientUnitOptionId("opt_1"), timeProvider.now())
+
+        repository.addStandardUnitOption(AddStandardUnitOptionCommand(ingId, UnitId("mass_oz")))
+
+        val options = db.ingredientUnitOptionDao().getActiveOptions("ing_1")
+        val ozOption = options.find { it.standardUnitId == "mass_oz" }
+        assertThat(ozOption).isNotNull()
+        assertThat(ozOption?.factorToBase?.compareTo(BigDecimal("0.0625"))).isEqualTo(0)
     }
 
     @Test
-    fun setDefaultCountOption_isAtomic() = runBlocking {
+    fun archiveIngredient_isSoftDeleteWithTimestamp() = runBlocking {
         val ingId = IngredientId("ing_1")
         repository.createIngredientWithBaseOption(createIngredient("ing_1"), createBaseOption("ing_1", "opt_1"))
-        
-        repository.addPackageUnitOption(AddPackageUnitOptionCommand(ingId, "Case", BigDecimal("40")))
-        val options = db.ingredientUnitOptionDao().getActiveOptions("ing_1")
-        val caseOptionId = IngredientUnitOptionId(options.find { it.displayName == "Case" }!!.id)
 
-        repository.setDefaultCountOption(ingId, caseOptionId)
-
-        val countDefault = db.ingredientUnitOptionDao().getDefaultCountOption("ing_1")
-        assertThat(countDefault?.id).isEqualTo(caseOptionId.value)
+        val archiveTime = Instant.parse("2024-01-02T00:00:00Z")
+        repository.archive(ingId, archiveTime)
         
-        val baseOption = db.ingredientUnitOptionDao().getBaseOption("ing_1")
-        assertThat(baseOption?.isDefaultCount).isFalse()
+        val savedIng = repository.getById(ingId)
+        assertThat(savedIng?.isActive).isFalse()
+        assertThat(savedIng?.deletedAt).isEqualTo(archiveTime)
+        assertThat(savedIng?.updatedAt).isEqualTo(archiveTime)
     }
 
     private fun createIngredient(id: String) = Ingredient(

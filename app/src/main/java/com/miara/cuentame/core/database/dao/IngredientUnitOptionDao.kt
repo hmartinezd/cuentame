@@ -1,15 +1,21 @@
 package com.miara.cuentame.core.database.dao
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import androidx.room.Upsert
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface IngredientUnitOptionDao {
-    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND deletedAt IS NULL")
-    fun observeOptionsForIngredient(ingredientId: String): Flow<List<IngredientUnitOptionEntity>>
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND deletedAt IS NULL ORDER BY isBase DESC, displayName ASC")
+    fun observeActiveOptionsForIngredient(ingredientId: String): Flow<List<IngredientUnitOptionEntity>>
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId ORDER BY isBase DESC, displayName ASC")
+    fun observeAllOptionsForIngredient(ingredientId: String): Flow<List<IngredientUnitOptionEntity>>
 
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isBase = 1 AND deletedAt IS NULL LIMIT 1")
     suspend fun getBaseOption(ingredientId: String): IngredientUnitOptionEntity?
@@ -29,10 +35,16 @@ interface IngredientUnitOptionDao {
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isDefaultPurchase = 1 AND isActive = 1 AND deletedAt IS NULL LIMIT 1")
     suspend fun getDefaultPurchaseOption(ingredientId: String): IngredientUnitOptionEntity?
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(option: IngredientUnitOptionEntity)
+
+    @Update
+    suspend fun update(option: IngredientUnitOptionEntity)
+
     @Upsert
     suspend fun upsert(option: IngredientUnitOptionEntity)
 
-    @Query("UPDATE ingredient_unit_options SET isActive = 0, deletedAt = :at WHERE id = :id")
+    @Query("UPDATE ingredient_unit_options SET isActive = 0, deletedAt = :at, updatedAt = :at WHERE id = :id")
     suspend fun softArchive(id: String, at: Long)
 
     @Query("SELECT COUNT(*) FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isBase = 1 AND deletedAt IS NULL")

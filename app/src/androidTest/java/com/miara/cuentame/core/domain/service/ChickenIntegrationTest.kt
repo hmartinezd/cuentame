@@ -13,10 +13,10 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.factory.TestFactories
-import com.miara.cuentame.core.database.repository.RoomIngredientRepository
 import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.database.repository.RoomIngredientRepository
 import com.miara.cuentame.core.database.seed.UnitSeeds
+import com.miara.cuentame.core.database.factory.TestFactories
 import com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand
 import com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand
 import com.miara.cuentame.core.model.ingredient.Ingredient
@@ -120,6 +120,10 @@ class ChickenIntegrationTest {
         repository.addPackageUnitOption(AddPackageUnitOptionCommand(ingId, "Case", BigDecimal("40"), isDefaultPurchase = true))
 
         // Assertions
+        val savedIng = repository.getById(ingId)
+        assertThat(savedIng).isNotNull()
+        assertThat(savedIng?.baseUnitId).isEqualTo(baseUnitId)
+
         val options = db.ingredientUnitOptionDao().getActiveOptions(ingId.value)
         assertThat(options).hasSize(3)
         
@@ -136,5 +140,9 @@ class ChickenIntegrationTest {
         // Usage check
         val twoCasesInBase = BigDecimal("2").multiply(caseOpt!!.factorToBase)
         assertThat(twoCasesInBase.compareTo(BigDecimal("80"))).isEqualTo(0)
+        
+        // Final Invariants
+        val purchaseDefault = db.ingredientUnitOptionDao().getDefaultPurchaseOption(ingId.value)
+        assertThat(purchaseDefault?.id).isEqualTo(caseOpt.id)
     }
 }

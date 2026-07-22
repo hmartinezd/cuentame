@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,25 +37,54 @@ fun StandardUnitDialog(
     units: List<UnitOfMeasure>,
     excludedUnitIds: Set<com.miara.cuentame.core.common.ids.UnitId>,
     onDismiss: () -> Unit,
+    getPreview: (UnitOfMeasure) -> String?,
     onSelect: (UnitOfMeasure) -> Unit
 ) {
     val filteredUnits = units.filter { it.id !in excludedUnitIds }
+    var selectedUnit by remember { mutableStateOf<UnitOfMeasure?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.standard_unit)) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                filteredUnits.forEach { unit ->
-                    ListItem(
-                        headlineContent = { Text(unit.name) },
-                        trailingContent = { Text(unit.symbol) },
-                        modifier = Modifier.clickable { onSelect(unit) }
-                    )
+            if (selectedUnit == null) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    filteredUnits.forEach { unit ->
+                        ListItem(
+                            headlineContent = { Text(unit.name) },
+                            trailingContent = { Text(unit.symbol) },
+                            modifier = Modifier.clickable { selectedUnit = unit }
+                        )
+                    }
+                }
+            } else {
+                Column {
+                    Text(text = selectedUnit!!.name, style = MaterialTheme.typography.titleMedium)
+                    getPreview(selectedUnit!!)?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                 }
             }
         },
-        confirmButton = {}
+        confirmButton = {
+            if (selectedUnit != null) {
+                Button(
+                    onClick = { onSelect(selectedUnit!!) },
+                    modifier = Modifier.testTag("standard_unit_dialog_confirm")
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { if (selectedUnit != null) selectedUnit = null else onDismiss() }) {
+                Text(stringResource(if (selectedUnit != null) R.string.action_back else android.R.string.cancel))
+            }
+        }
     )
 }
 
@@ -62,27 +92,30 @@ fun StandardUnitDialog(
 fun AddPackageDialog(
     initialName: String = "",
     initialQty: BigDecimal? = null,
+    isSaving: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String, BigDecimal) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
-    var qtyText by remember { mutableStateOf(initialQty?.toPlainString() ?: "") }
+    var qtyText by remember { mutableStateOf(initialQty?.stripTrailingZeros()?.toPlainString() ?: "") }
     
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(stringResource(R.string.package_option)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.package_name)) }
+                    label = { Text(stringResource(R.string.package_name)) },
+                    enabled = !isSaving
                 )
                 OutlinedTextField(
                     value = qtyText,
                     onValueChange = { qtyText = it },
                     label = { Text(stringResource(R.string.contains_quantity)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    enabled = !isSaving
                 )
             }
         },
@@ -92,13 +125,44 @@ fun AddPackageDialog(
                     DecimalParser.parse(qtyText)?.let { onConfirm(name, it) }
                 },
                 modifier = Modifier.testTag("package_dialog_confirm"),
-                enabled = name.isNotBlank() && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true
+                enabled = !isSaving && name.isNotBlank() && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true
             ) {
                 Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = onDismiss, enabled = !isSaving) { 
+                Text(stringResource(android.R.string.cancel)) 
+            }
+        }
+    )
+}
+
+@Composable
+fun ArchiveConfirmDialog(
+    title: String,
+    message: String,
+    isSaving: Boolean = false,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !isSaving,
+                modifier = Modifier.testTag("archive_confirm_button")
+            ) {
+                Text(stringResource(R.string.archive_confirm_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text(stringResource(android.R.string.cancel))
+            }
         }
     )
 }

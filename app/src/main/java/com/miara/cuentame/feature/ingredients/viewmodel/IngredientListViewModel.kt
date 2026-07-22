@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.text.normalizeName
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientsUseCase
 import com.miara.cuentame.core.model.ingredient.Ingredient
@@ -16,9 +17,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
 sealed interface IngredientCategoryFilter {
@@ -41,15 +43,21 @@ data class IngredientListUiState(
 @HiltViewModel
 class IngredientListViewModel @Inject constructor(
     private val observeIngredientsUseCase: ObserveIngredientsUseCase,
-    observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase
+    private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
+    private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     private val _categoryFilter = MutableStateFlow<IngredientCategoryFilter>(IngredientCategoryFilter.All)
     private val _showArchived = MutableStateFlow(false)
 
+    private val restaurantIdFlow = restaurantRepository.observeRestaurant()
+        .filterNotNull()
+        .map { it.id }
+
     val uiState: StateFlow<IngredientListUiState> = combine(
-        _showArchived.flatMapLatest { observeIngredientsUseCase(it) },
+        combine(restaurantIdFlow, _showArchived) { rid, archived -> rid to archived }
+            .flatMapLatest { (rid, archived) -> observeIngredientsUseCase(rid, archived) },
         observeIngredientCategoriesUseCase(),
         _searchQuery.debounce(300),
         _categoryFilter,
