@@ -248,6 +248,7 @@ fun IngredientFormScreen(
         StandardUnitDialog(
             units = compatibleUnits,
             excludedUnitIds = uiState.unitOptions.mapNotNull { it.standardUnitId }.toSet() + (uiState.selectedBaseUnitId?.let { setOf(it) } ?: emptySet()),
+            isSaving = false,
             onDismiss = { showStandardDialog = false },
             getPreview = getStandardPreview,
             onSelect = { 
@@ -448,27 +449,46 @@ fun UnitOptionsSection(
                     }
                 },
                 supportingContent = { 
-                    Text("1 ${option.name} = ${option.factorToBase} $baseSymbol") 
+                    Text(stringResource(R.string.unit_conversion_format, option.name, option.factorToBase, baseSymbol)) 
                 },
                 trailingContent = {
                     Row {
-                        IconButton(onClick = { onSetDefaultCount(option.id) }, enabled = !isEditMode) {
-                            Icon(
-                                Icons.Default.Straighten, 
-                                contentDescription = stringResource(R.string.set_default_count),
-                                tint = if (option.isDefaultCount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = { onSetDefaultPurchase(option.id) }, enabled = !isEditMode) {
-                            Icon(
-                                Icons.Default.ShoppingCart, 
-                                contentDescription = stringResource(R.string.set_default_purchase),
-                                tint = if (option.isDefaultPurchase) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (!option.isBase && !isEditMode) {
-                            IconButton(onClick = { onRemove(option.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove_item, option.name))
+                        if (isEditMode) {
+                            if (option.isDefaultCount) {
+                                Icon(
+                                    Icons.Default.Straighten, 
+                                    contentDescription = stringResource(R.string.default_count_label),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp).padding(horizontal = 4.dp)
+                                )
+                            }
+                            if (option.isDefaultPurchase) {
+                                Icon(
+                                    Icons.Default.ShoppingCart, 
+                                    contentDescription = stringResource(R.string.default_purchase_label),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp).padding(horizontal = 4.dp)
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { onSetDefaultCount(option.id) }) {
+                                Icon(
+                                    Icons.Default.Straighten, 
+                                    contentDescription = stringResource(R.string.set_default_count),
+                                    tint = if (option.isDefaultCount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { onSetDefaultPurchase(option.id) }) {
+                                Icon(
+                                    Icons.Default.ShoppingCart, 
+                                    contentDescription = stringResource(R.string.set_default_purchase),
+                                    tint = if (option.isDefaultPurchase) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (!option.isBase) {
+                                IconButton(onClick = { onRemove(option.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove_item, option.name))
+                                }
                             }
                         }
                     }

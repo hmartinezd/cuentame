@@ -35,6 +35,7 @@ import java.math.BigDecimal
 fun StandardUnitDialog(
     units: List<UnitOfMeasure>,
     excludedUnitIds: Set<com.miara.cuentame.core.common.ids.UnitId>,
+    isSaving: Boolean = false,
     onDismiss: () -> Unit,
     getPreview: (UnitOfMeasure) -> UnitConversionChoiceUiModel?,
     onSelect: (UnitOfMeasure) -> Unit
@@ -43,7 +44,7 @@ fun StandardUnitDialog(
     var selectedUnit by remember { mutableStateOf<UnitOfMeasure?>(null) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(stringResource(R.string.standard_unit)) },
         text = {
             if (selectedUnit == null) {
@@ -52,7 +53,7 @@ fun StandardUnitDialog(
                         ListItem(
                             headlineContent = { Text(unit.name) },
                             trailingContent = { Text(unit.symbol) },
-                            modifier = Modifier.clickable { selectedUnit = unit }
+                            modifier = Modifier.clickable(enabled = !isSaving) { selectedUnit = unit }
                         )
                     }
                 }
@@ -78,14 +79,18 @@ fun StandardUnitDialog(
             if (selectedUnit != null) {
                 Button(
                     onClick = { onSelect(selectedUnit!!) },
-                    modifier = Modifier.testTag("standard_unit_dialog_confirm")
+                    modifier = Modifier.testTag("standard_unit_dialog_confirm"),
+                    enabled = !isSaving
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = { if (selectedUnit != null) selectedUnit = null else onDismiss() }) {
+            TextButton(
+                onClick = { if (selectedUnit != null) selectedUnit = null else onDismiss() },
+                enabled = !isSaving
+            ) {
                 Text(stringResource(if (selectedUnit != null) R.string.action_back else android.R.string.cancel))
             }
         }

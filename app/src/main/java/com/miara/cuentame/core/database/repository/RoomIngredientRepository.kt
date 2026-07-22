@@ -19,6 +19,7 @@ import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand
 import com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand
 import com.miara.cuentame.core.domain.repository.IngredientRepository
+import com.miara.cuentame.core.domain.repository.UpdateIngredientCommand
 import com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.validation.ValidationError
@@ -59,28 +60,32 @@ class RoomIngredientRepository @Inject constructor(
         return ingredientDao.getById(id.value)?.toDomain()
     }
 
-    override suspend fun updateIngredient(ingredient: Ingredient) {
+    override suspend fun updateIngredient(command: UpdateIngredientCommand) {
         database.withTransaction {
-            val existing = ingredientDao.getById(ingredient.id.value)?.toDomain()
+            val existing = ingredientDao.getById(command.ingredientId.value)?.toDomain()
                 ?: throw ValidationError.IngredientNotFound
             
-            if (existing.deletedAt != null) throw ValidationError.ArchivedReference
+            if (existing.deletedAt != null || !existing.isActive) throw ValidationError.ArchivedReference
             
-            validateIngredientCore(ingredient)
+            val normalizedName = command.name.normalizeName()
+            if (normalizedName.isBlank()) throw ValidationError.InvalidName
             
-            if (ingredient.categoryId != null) {
-                val category = categoryDao.getById(ingredient.categoryId.value)
+            val duplicate = ingredientDao.findByNormalizedName(existing.restaurantId.value, normalizedName)
+            if (duplicate != null && duplicate.id != command.ingredientId.value) {
+                throw ValidationError.DuplicateActiveName
+            }
+            
+            if (command.categoryId != null) {
+                val category = categoryDao.getById(command.categoryId.value)
                     ?: throw ValidationError.RecordNotFound
                 if (!category.isActive || category.deletedAt != null) throw ValidationError.ArchivedReference
                 if (category.restaurantId != existing.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
             }
 
-            // Milestone 4: Only name and category can be updated through this command.
-            // All other fields are preserved from 'existing'.
             ingredientDao.update(existing.copy(
-                name = ingredient.name,
-                normalizedName = ingredient.name.normalizeName(),
-                categoryId = ingredient.categoryId,
+                name = command.name,
+                normalizedName = normalizedName,
+                categoryId = command.categoryId,
                 updatedAt = timeProvider.now()
             ).toEntity())
         }

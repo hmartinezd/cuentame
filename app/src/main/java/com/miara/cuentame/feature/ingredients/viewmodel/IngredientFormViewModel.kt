@@ -3,12 +3,14 @@ package com.miara.cuentame.feature.ingredients.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
+import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.UnitRepository
@@ -19,6 +21,7 @@ import com.miara.cuentame.core.domain.usecase.ObserveIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
 import com.miara.cuentame.core.domain.usecase.PreviewUnitConversionUseCase
 import com.miara.cuentame.core.domain.usecase.UpdateIngredientUseCase
+import com.miara.cuentame.core.domain.repository.UpdateIngredientCommand
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
@@ -225,18 +228,48 @@ class IngredientFormViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isSubmitting) return
         
-        _uiState.update { it.copy(isSubmitting = true, error = null) }
+        val errors = mutableMapOf<String, Int>()
+        if (state.name.isBlank()) errors["name"] = R.string.error_name_empty
+        
+        if (state.ingredientId == null) {
+            if (state.selectedDimension == null) errors["dimension"] = R.string.error_generic // Should specify
+            if (state.selectedBaseUnitId == null) errors["baseUnit"] = R.string.error_generic // Should specify
+        }
+
+        val baseOption = state.unitOptions.find { it.isBase }
+        if (baseOption == null) errors["options"] = R.string.error_generic
+        
+        val countDefaults = state.unitOptions.count { it.isDefaultCount }
+        if (countDefaults != 1) errors["options"] = R.string.error_generic
+        
+        val purchaseDefaults = state.unitOptions.count { it.isDefaultPurchase }
+        if (purchaseDefaults != 1) errors["options"] = R.string.error_generic
+
+        // Names unique
+        val names = state.unitOptions.map { it.name.normalizeName() }
+        if (names.size != names.distinct().size) errors["options"] = R.string.error_duplicate_unit_option
+
+        if (errors.isNotEmpty()) {
+            _uiState.update { it.copy(fieldErrors = errors) }
+            return
+        }
+
+        _uiState.update { it.copy(isSubmitting = true, error = null, fieldErrors = emptyMap()) }
         
         viewModelScope.launch {
             try {
+                // Read fresh state inside launch if needed, but here we just validated a snapshot.
+                // Re-validating or using the snapshot is usually fine if we don't expect 
+                // rapid changes during the tiny gap between validation and launch.
+                val currentState = _uiState.value
                 val restaurant = restaurantRepository.getRestaurant() ?: throw IllegalStateException("No restaurant")
                 
-                if (state.ingredientId == null) {
-                    val newId = createIngredient(restaurant.id, state)
+                if (currentState.ingredientId == null) {
+                    val newId = createIngredient(restaurant.id, currentState)
                     _events.send(IngredientFormEvent.Created(newId))
                 } else {
-                    updateIngredient(state)
-                    _events.send(IngredientFormEvent.Updated(state.ingredientId))
+                    updateIngredient(currentState)
+                    _events.send(IngredientFormEvent.Updated(currentState.ingredientId))
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSubmitting = false, error = e) }
@@ -299,13 +332,13 @@ class IngredientFormViewModel @Inject constructor(
 
     private suspend fun updateIngredient(state: IngredientFormUiState) {
         val ingredientId = state.ingredientId!!
-        val existing = getIngredientDetailUseCase(ingredientId) ?: throw ValidationError.IngredientNotFound
-        
-        val updated = existing.copy(
-            name = state.name,
-            categoryId = state.selectedCategoryId
+        updateIngredientUseCase(
+            UpdateIngredientCommand(
+                ingredientId = ingredientId,
+                name = state.name,
+                categoryId = state.selectedCategoryId
+            )
         )
-        updateIngredientUseCase(updated)
     }
 
     fun clearError() {

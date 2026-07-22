@@ -3,6 +3,7 @@ package com.miara.cuentame.core.domain.usecase
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.IngredientRepository
+import com.miara.cuentame.core.domain.repository.UpdateIngredientCommand
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import kotlinx.coroutines.flow.Flow
@@ -35,7 +36,7 @@ class CreateIngredientUseCase @Inject constructor(
 class UpdateIngredientUseCase @Inject constructor(
     private val repository: IngredientRepository
 ) {
-    suspend operator fun invoke(ingredient: Ingredient) = repository.updateIngredient(ingredient)
+    suspend operator fun invoke(command: UpdateIngredientCommand) = repository.updateIngredient(command)
 }
 
 class ArchiveIngredientUseCase @Inject constructor(

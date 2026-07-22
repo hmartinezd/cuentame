@@ -19,9 +19,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -42,7 +44,7 @@ class IngredientListViewModelTest {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = ingredientsFlow
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(null)
         override suspend fun getById(id: IngredientId): Ingredient? = null
-        override suspend fun updateIngredient(ingredient: Ingredient) {}
+        override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
         override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
@@ -89,21 +91,42 @@ class IngredientListViewModelTest {
     fun `search filters ingredients with normalization`() = runTest {
         val ing1 = createIngredient("Chicken Breast")
         val ing2 = createIngredient("Beef")
+        ingredientsFlow.value = listOf(ing1, ing2)
         
         viewModel.uiState.test {
-            // Initial empty emission
-            assertThat(awaitItem().ingredients).isEmpty()
+            // Skip initial loading if present
+            var item = awaitItem()
+            if (item.isLoading) {
+                advanceTimeBy(301)
+                item = awaitItem()
+            }
+            assertThat(item.ingredients).hasSize(2)
             
-            ingredientsFlow.value = listOf(ing1, ing2)
-            assertThat(awaitItem().ingredients).hasSize(2)
-            
-            // "  chicken   breast " should match "Chicken Breast"
             viewModel.onSearchQueryChanged("  chicken   breast ")
-            
             advanceTimeBy(301)
             val filtered = awaitItem().ingredients
             assertThat(filtered).hasSize(1)
             assertThat(filtered.first().name).isEqualTo("Chicken Breast")
+        }
+    }
+
+    @Test
+    fun `search filters ingredients case-insensitive`() = runTest {
+        val ing1 = createIngredient("Chicken")
+        ingredientsFlow.value = listOf(ing1)
+        
+        viewModel.uiState.test {
+            // Skip initial loading
+            var item = awaitItem()
+            if (item.isLoading) {
+                advanceTimeBy(301)
+                item = awaitItem()
+            }
+            assertThat(item.ingredients).hasSize(1)
+            
+            viewModel.onSearchQueryChanged("CHICKEN")
+            advanceTimeBy(301)
+            assertThat(awaitItem().ingredients).hasSize(1)
         }
     }
 
@@ -115,12 +138,13 @@ class IngredientListViewModelTest {
         ingredientsFlow.value = listOf(ing1, ing2)
 
         viewModel.uiState.test {
-            // Initial empty
-            assertThat(awaitItem().ingredients).isEmpty()
-            
-            // Advance time for initial debounce
-            advanceTimeBy(301)
-            assertThat(awaitItem().ingredients).hasSize(2)
+            // Skip initial loading
+            var item = awaitItem()
+            if (item.isLoading) {
+                advanceTimeBy(301)
+                item = awaitItem()
+            }
+            assertThat(item.ingredients).hasSize(2)
 
             viewModel.onCategoryFilterChanged(IngredientCategoryFilter.Category(catId))
             val filtered = awaitItem().ingredients
@@ -132,6 +156,37 @@ class IngredientListViewModelTest {
             assertThat(uncategorized).hasSize(1)
             assertThat(uncategorized.first().name).isEqualTo("Beef")
         }
+    }
+
+    @Test
+    fun `archived toggle updates includeArchived flag`() = runTest {
+        var observedIncludeArchived = false
+        val customRepo = object : IngredientRepository by fakeIngredientRepository {
+            override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> {
+                observedIncludeArchived = includeArchived
+                return ingredientsFlow
+            }
+        }
+        
+        val vm = IngredientListViewModel(
+            ObserveIngredientsUseCase(customRepo),
+            ObserveIngredientCategoriesUseCase(fakeCategoryRepository),
+            fakeRestaurantRepository
+        )
+        
+        // Trigger collection to activate flatMapLatest
+        val job = launch { vm.uiState.collect {} }
+        runCurrent()
+        
+        vm.onShowArchivedToggled(true)
+        runCurrent()
+        assertThat(observedIncludeArchived).isTrue()
+        
+        vm.onShowArchivedToggled(false)
+        runCurrent()
+        assertThat(observedIncludeArchived).isFalse()
+        
+        job.cancel()
     }
 
     private fun createIngredient(name: String) = Ingredient(

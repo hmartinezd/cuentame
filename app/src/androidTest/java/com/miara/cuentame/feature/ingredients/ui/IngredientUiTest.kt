@@ -1,7 +1,9 @@
 package com.miara.cuentame.feature.ingredients.ui
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -57,11 +59,11 @@ class IngredientUiTest {
         // Select Dimension: Mass
         composeTestRule.onNodeWithTag("dimension_selector").performClick()
         composeTestRule.waitForIdle()
-        // Wait for dimension items
+        val massLabel = composeTestRule.activity.getString(R.string.dim_mass)
         composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithText("Mass", substring = true).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithText(massLabel, substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onAllNodesWithText("Mass", substring = true).onFirst().performClick()
+        composeTestRule.onAllNodesWithText(massLabel, substring = true).onFirst().performClick()
         composeTestRule.waitForIdle()
 
         // Select Base Unit: Pound
@@ -125,6 +127,25 @@ class IngredientUiTest {
         composeTestRule.onAllNodesWithText("Case", substring = true).onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("40", substring = true).onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("oz", substring = true).onFirst().assertIsDisplayed()
+
+        // 6. Test Read-only Edit
+        composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.action_edit)).performClick()
+        composeTestRule.waitForIdle()
+
+        // Verify units are read-only (no add standard unit button)
+        composeTestRule.onAllNodesWithText(composeTestRule.activity.getString(R.string.standard_unit))
+            .assertCountEquals(0)
+        
+        // Verify delete buttons are absent
+        composeTestRule.onAllNodes(hasContentDescription("Remove", substring = true))
+            .assertCountEquals(0)
+
+        // Save (no changes)
+        composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
+        composeTestRule.waitForIdle()
+        
+        // Back to detail
+        composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).onFirst().assertIsDisplayed()
     }
 
     private fun ensureOnboarded() {

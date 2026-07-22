@@ -54,7 +54,7 @@ class IngredientDetailViewModelTest {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = ingredientFlow
         override suspend fun getById(id: IngredientId): Ingredient? = ingredientFlow.value
-        override suspend fun updateIngredient(ingredient: Ingredient) {}
+        override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = optionsFlow
         override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
@@ -120,7 +120,6 @@ class IngredientDetailViewModelTest {
     @Test
     fun `initial state loads ingredient`() = runTest {
         viewModel.uiState.test {
-            // Skip initial loading state if it emits immediately
             var state = awaitItem()
             if (state.isLoading) state = awaitItem()
             
@@ -144,11 +143,50 @@ class IngredientDetailViewModelTest {
     }
 
     @Test
+    fun `add standard option emits success event`() = runTest {
+        val command = com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand(IngredientId("ing_1"), UnitId("oz"))
+        viewModel.events.test {
+            viewModel.onAddStandardOption(command)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.StandardOptionAdded::class.java)
+        }
+    }
+
+    @Test
+    fun `add package option emits success event`() = runTest {
+        val command = com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand(IngredientId("ing_1"), "Case", BigDecimal("40"))
+        viewModel.events.test {
+            viewModel.onAddPackageOption(command)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.PackageAdded::class.java)
+        }
+    }
+
+    @Test
+    fun `update package option emits success event`() = runTest {
+        val command = com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand(IngredientUnitOptionId("o1"), "New Case", BigDecimal("50"))
+        viewModel.events.test {
+            viewModel.onUpdatePackageOption(command)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.PackageUpdated::class.java)
+        }
+    }
+
+    @Test
     fun `archive option emits success event`() = runTest {
         val optId = IngredientUnitOptionId("o1")
         viewModel.events.test {
             viewModel.onArchiveOption(optId)
             assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.OptionArchived::class.java)
+        }
+    }
+
+    @Test
+    fun `default change emits success event`() = runTest {
+        val optId = IngredientUnitOptionId("o1")
+        viewModel.events.test {
+            viewModel.onSetDefaultCount(optId)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.CountDefaultChanged::class.java)
+            
+            viewModel.onSetDefaultPurchase(optId)
+            assertThat(awaitItem()).isInstanceOf(IngredientDetailEvent.PurchaseDefaultChanged::class.java)
         }
     }
 }

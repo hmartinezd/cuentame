@@ -82,16 +82,13 @@ fun IngredientDetailRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is IngredientDetailEvent.IngredientArchived -> onBack()
-                is IngredientDetailEvent.StandardOptionAdded,
-                is IngredientDetailEvent.PackageAdded,
-                is IngredientDetailEvent.PackageUpdated,
-                is IngredientDetailEvent.OptionArchived,
+                is IngredientDetailEvent.StandardOptionAdded -> showAddStandardDialog = false
+                is IngredientDetailEvent.PackageAdded -> showAddPackageDialog = false
+                is IngredientDetailEvent.PackageUpdated -> packageToEdit = null
+                is IngredientDetailEvent.OptionArchived -> optionToArchive = null
                 is IngredientDetailEvent.CountDefaultChanged,
                 is IngredientDetailEvent.PurchaseDefaultChanged -> {
-                    showAddStandardDialog = false
-                    showAddPackageDialog = false
-                    packageToEdit = null
-                    optionToArchive = null
+                    // Defaults changed success - no dialog to close typically or already handled
                 }
             }
         }
@@ -264,6 +261,7 @@ fun IngredientDetailScreen(
         StandardUnitDialog(
             units = uiState.compatibleUnits,
             excludedUnitIds = uiState.options.mapNotNull { it.standardUnitId }.toSet() + (uiState.ingredient?.baseUnitId?.let { setOf(it) } ?: emptySet()),
+            isSaving = uiState.isPerformingAction,
             onDismiss = { onSetShowAddStandardDialog(false) },
             getPreview = getStandardPreview,
             onSelect = { onAddStandardOption(it.id) }

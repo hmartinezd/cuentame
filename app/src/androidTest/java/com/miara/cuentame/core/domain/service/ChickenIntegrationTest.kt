@@ -22,8 +22,10 @@ import com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -145,25 +147,18 @@ class ChickenIntegrationTest {
         val purchaseDefault = db.ingredientUnitOptionDao().getDefaultPurchaseOption(ingId.value)
         assertThat(purchaseDefault?.id).isEqualTo(caseOpt.id)
         
-        // Base is immutable
-        try {
-            repository.updateIngredient(chicken.copy(baseUnitId = UnitId("mass_g")))
-        } catch (e: Exception) {
-            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.IngredientBaseUnitImmutable::class.java)
-        }
-        
         // Base cannot archive
-        try {
-            repository.archiveUnitOption(IngredientUnitOptionId("opt_lb"), timeProvider.now())
-        } catch (e: Exception) {
-            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.BaseUnitOptionCannotBeArchived::class.java)
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.BaseUnitOptionCannotBeArchived::class.java) {
+            runBlocking {
+                repository.archiveUnitOption(IngredientUnitOptionId("opt_lb"), timeProvider.now())
+            }
         }
         
         // Purchase default cannot archive
-        try {
-            repository.archiveUnitOption(IngredientUnitOptionId(caseOpt.id), timeProvider.now())
-        } catch (e: Exception) {
-            assertThat(e).isInstanceOf(com.miara.cuentame.core.domain.validation.ValidationError.DefaultUnitOptionCannotBeArchived::class.java)
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.DefaultUnitOptionCannotBeArchived::class.java) {
+            runBlocking {
+                repository.archiveUnitOption(IngredientUnitOptionId(caseOpt.id), timeProvider.now())
+            }
         }
         
         // Eligible can archive
@@ -172,8 +167,11 @@ class ChickenIntegrationTest {
         assertThat(afterArchive.any { it.id == ozOpt.id }).isFalse()
         
         // Still visible in historical
-        val historical = db.ingredientUnitOptionDao().observeAllOptionsForIngredient(ingId.value)
-        // Manual check since it's Flow
-        // repository.observeUnitOptions(..., includeArchived = true)
+        val historicalOptions = repository.observeUnitOptions(ingId, includeArchived = true).first()
+        val archivedOz = historicalOptions.find { it.id.value == ozOpt.id }
+        assertThat(archivedOz).isNotNull()
+        assertThat(archivedOz?.isActive).isFalse()
+        assertThat(archivedOz?.deletedAt).isNotNull()
+        assertThat(archivedOz?.factorToBase?.compareTo(BigDecimal("0.0625"))).isEqualTo(0)
     }
 }

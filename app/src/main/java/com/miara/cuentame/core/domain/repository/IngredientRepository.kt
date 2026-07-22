@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.domain.repository
 
+import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -9,6 +10,12 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
 import java.time.Instant
+
+data class UpdateIngredientCommand(
+    val ingredientId: IngredientId,
+    val name: String,
+    val categoryId: IngredientCategoryId?
+)
 
 data class AddStandardUnitOptionCommand(
     val ingredientId: IngredientId,
@@ -35,7 +42,7 @@ interface IngredientRepository {
     fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>>
     fun observeIngredient(id: IngredientId): Flow<Ingredient?>
     suspend fun getById(id: IngredientId): Ingredient?
-    suspend fun updateIngredient(ingredient: Ingredient)
+    suspend fun updateIngredient(command: UpdateIngredientCommand)
     suspend fun archive(id: IngredientId, at: Instant)
 
     fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean = false): Flow<List<IngredientUnitOption>>

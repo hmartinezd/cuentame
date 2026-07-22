@@ -50,7 +50,7 @@ class IngredientFormViewModelTest {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(null)
         override suspend fun getById(id: IngredientId): Ingredient? = null
-        override suspend fun updateIngredient(ingredient: Ingredient) {}
+        override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
         override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
@@ -128,7 +128,27 @@ class IngredientFormViewModelTest {
 
     @Test
     fun `initial state is not loading`() = runTest {
+        runCurrent()
         assertThat(viewModel.uiState.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `onSave fails with blank name`() = runTest {
+        viewModel.onNameChanged("")
+        viewModel.onSave()
+        
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("name")
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+    }
+
+    @Test
+    fun `onSave fails without dimension and base unit in create mode`() = runTest {
+        viewModel.onNameChanged("Chicken")
+        viewModel.onSave()
+        
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("dimension")
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("baseUnit")
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
     }
 
     @Test
@@ -152,7 +172,7 @@ class IngredientFormViewModelTest {
             override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
             override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(ingredient)
             override suspend fun getById(id: IngredientId): Ingredient? = ingredient
-            override suspend fun updateIngredient(ingredient: Ingredient) {}
+            override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
             override suspend fun archive(id: IngredientId, at: Instant) {}
             override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
             override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
@@ -179,10 +199,12 @@ class IngredientFormViewModelTest {
             timeProvider
         )
         
+        runCurrent()
         assertThat(vm.uiState.value.isEditMode).isTrue()
+        assertThat(vm.uiState.value.selectedDimension).isEqualTo(UnitDimension.MASS)
         
-        // Try selecting dimension
-        vm.onDimensionSelected(UnitDimension.MASS)
-        assertThat(vm.uiState.value.selectedDimension).isNull()
+        // Try selecting another dimension - should be ignored in edit mode
+        vm.onDimensionSelected(UnitDimension.VOLUME)
+        assertThat(vm.uiState.value.selectedDimension).isEqualTo(UnitDimension.MASS)
     }
 }

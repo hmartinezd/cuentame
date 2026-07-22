@@ -16,6 +16,7 @@ import com.miara.cuentame.core.database.factory.TestFactories
 import com.miara.cuentame.core.database.seed.UnitSeeds
 import com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand
 import com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand
+import com.miara.cuentame.core.domain.repository.UpdateIngredientCommand
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
@@ -110,20 +111,49 @@ class IngredientRepositoryTest {
         val original = createIngredient("ing_1")
         repository.createIngredientWithBaseOption(original, createBaseOption("ing_1", "opt_1"))
 
-        val modified = original.copy(
-            restaurantId = RestaurantId("other"),
-            baseUnitId = UnitId("other"),
-            isActive = true, // Must stay true to pass validation
-            createdAt = Instant.EPOCH,
-            name = "New Name"
-        )
-        repository.updateIngredient(modified)
+        repository.updateIngredient(UpdateIngredientCommand(ingId, "New Name", null))
 
         val saved = repository.getById(ingId)!!
         assertThat(saved.name).isEqualTo("New Name")
         assertThat(saved.restaurantId).isEqualTo(original.restaurantId)
         assertThat(saved.baseUnitId).isEqualTo(original.baseUnitId)
+        assertThat(saved.isActive).isTrue()
         assertThat(saved.createdAt).isEqualTo(original.createdAt)
+    }
+
+    @Test(expected = ValidationError.DuplicateActiveName::class)
+    fun updateIngredient_failsOnDuplicateNameInSameRestaurant() = runBlocking {
+        repository.createIngredientWithBaseOption(
+            createIngredient("ing_1").copy(name = "Chicken", normalizedName = "chicken"),
+            createBaseOption("ing_1", "opt_1")
+        )
+        repository.createIngredientWithBaseOption(
+            createIngredient("ing_2").copy(name = "Beef", normalizedName = "beef"),
+            createBaseOption("ing_2", "opt_2")
+        )
+
+        // Attempt to rename Beef to Chicken
+        repository.updateIngredient(UpdateIngredientCommand(IngredientId("ing_2"), "Chicken", null))
+    }
+
+    @Test(expected = ValidationError.DuplicateActiveName::class)
+    fun updateIngredient_fakeRestaurantIdCannotBypassDuplicateValidation() = runBlocking {
+        // Restaurant A has "Chicken"
+        repository.createIngredientWithBaseOption(
+            createIngredient("ing_1").copy(name = "Chicken", normalizedName = "chicken"),
+            createBaseOption("ing_1", "opt_1")
+        )
+        
+        // Restaurant A also has "Beef"
+        repository.createIngredientWithBaseOption(
+            createIngredient("ing_2").copy(name = "Beef", normalizedName = "beef"),
+            createBaseOption("ing_2", "opt_2")
+        )
+
+        // Caller attempts to rename Beef to Chicken (which exists in Restaurant A)
+        // Even if they could somehow supply a different restaurant ID (which UpdateIngredientCommand doesn't allow, but the repository logic protects),
+        // it must fail because the stored ingredient belongs to Restaurant A.
+        repository.updateIngredient(UpdateIngredientCommand(IngredientId("ing_2"), "Chicken", null))
     }
 
     private fun createIngredient(id: String) = Ingredient(
