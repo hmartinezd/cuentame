@@ -42,7 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
+import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
@@ -66,7 +68,7 @@ fun PurchaseDetailRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is PurchaseDetailEvent.Voided -> {
-                    // Stay on screen, it should update to VOIDED via Flow
+                    // Reactive update will happen via StateFlow
                 }
             }
         }
@@ -171,7 +173,7 @@ fun PurchaseDetailScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleLarge)
                             Text(
-                                text = total.toPlainString(),
+                                text = Formatters.formatCurrency(total, uiState.currencyCode),
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -217,7 +219,7 @@ fun PurchaseDetailScreen(
             title = stringResource(R.string.void_purchase),
             message = stringResource(R.string.voiding_warning),
             isSaving = uiState.isVoiding,
-            onDismiss = { showVoidConfirm = false },
+            onDismiss = { if (!uiState.isVoiding) showVoidConfirm = false },
             onConfirm = {
                 onVoid()
             }
@@ -255,14 +257,14 @@ fun StatusChip(status: DocumentStatus) {
 
 @Composable
 fun ReadOnlyPurchaseLineItem(
-    line: com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails,
+    line: PurchaseLineWithDetails,
     currencyCode: String
 ) {
     ListItem(
         headlineContent = { Text(line.ingredientName ?: stringResource(R.string.uncategorized)) },
         supportingContent = {
             Column {
-                Text("${line.line.quantityEntered} ${line.unitOptionName ?: ""} (${line.line.quantityBase} ${line.baseUnitSymbol ?: ""})")
+                Text("${Formatters.formatQuantity(line.line.quantityEntered, line.unitOptionName)} (${Formatters.formatQuantity(line.line.quantityBase, line.baseUnitSymbol)})")
                 Text(
                     text = "${stringResource(R.string.receiving_area)}: ${line.areaName ?: ""}",
                     style = MaterialTheme.typography.bodySmall
@@ -272,15 +274,11 @@ fun ReadOnlyPurchaseLineItem(
         trailingContent = {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "$currencyCode ${line.line.lineTotal.toPlainString()}",
+                    text = Formatters.formatCurrency(line.line.lineTotal, currencyCode),
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = stringResource(R.string.cost_per_base_unit, line.baseUnitSymbol ?: ""),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    text = line.line.unitCostBase.toPlainString(),
+                    text = "${Formatters.formatCurrency(line.line.unitCostBase, currencyCode)} per ${line.baseUnitSymbol ?: ""}",
                     style = MaterialTheme.typography.labelSmall
                 )
             }

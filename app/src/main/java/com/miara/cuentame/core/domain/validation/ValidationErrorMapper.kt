@@ -44,11 +44,12 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.PurchaseHasNoLines -> R.string.error_purchase_no_lines
             ValidationError.MalformedPurchaseMovementHistory -> R.string.error_malformed_history
             ValidationError.InvalidPurchaseStatusTransition -> R.string.error_invalid_status_transition
-            ValidationError.InvalidPurchaseArea -> R.string.error_generic
-            ValidationError.InvalidPurchaseIngredient -> R.string.error_generic
-            ValidationError.InvalidPurchaseUnitOption -> R.string.error_generic
-            ValidationError.InvalidPurchaseQuantity -> R.string.error_invalid_package_qty
-            ValidationError.InvalidPurchaseLineTotal -> R.string.error_generic
+            
+            ValidationError.InvalidPurchaseArea -> R.string.error_area_required
+            ValidationError.InvalidPurchaseIngredient -> R.string.error_ingredient_required
+            ValidationError.InvalidPurchaseUnitOption -> R.string.error_unit_required
+            ValidationError.InvalidPurchaseQuantity -> R.string.error_quantity_positive
+            ValidationError.InvalidPurchaseLineTotal -> R.string.error_total_negative
 
             else -> R.string.error_generic
         }

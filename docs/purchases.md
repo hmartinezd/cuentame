@@ -1,43 +1,37 @@
-# Purchases and Suppliers - Milestone 5
+# Purchases and Supplier Management
 
-## Overview
+## Domain Rules
 
-Milestone 5 implements the full purchase lifecycle and supplier management. It ensures that every purchase is tracked through a safe state machine and impacts inventory correctly.
+### Purchase Lifecycle
+- **DRAFT:** Mutable. Can add/remove/edit lines. No inventory impact.
+- **POSTED:** Immutable. Creates positive `PURCHASE` inventory movements. Triggers balance and average cost projection updates.
+- **VOIDED:** Immutable. Creates exact negative `REVERSAL` movements for every original purchase movement. Restores previous balance and average cost.
 
-## Lifecycle
+### Ownership and Integrity
+- All purchases must belong to the active restaurant.
+- Suppliers, Ingredients, Areas, and Unit Options must belong to the same restaurant as the receipt.
+- Posting revalidates all references; archived records cannot be used for new postings.
+- Purchase lines cannot be moved between receipts.
 
-1.  **DRAFT:** The initial state of a purchase receipt. It is fully mutable (header and lines). Drafts are persisted in Room.
-2.  **POSTED:** The authoritative state. Posting creates positive `PURCHASE` inventory movements and updates balance and weighted-average-cost projections. Posted receipts are immutable.
-3.  **VOIDED:** Reverses the impact of a posted receipt. Creates exact `REVERSAL` movements and rebuilds projections. Voided receipts remain in history but have no inventory impact.
+### Calculations
+- Use `PurchaseLineCalculator` with `BigDecimal` and `MathContext.DECIMAL128`.
+- `quantityBase = quantityEntered × optionFactorToBase`.
+- `unitCostBase = lineTotal ÷ quantityBase`.
 
-## Rules and Invariants
+### History Validation
+- **POSTED:** Exactly one `PURCHASE` movement per receipt line. Matches line values numerically.
+- **VOIDED:** Exactly one `PURCHASE` and one `REVERSAL` per line. Reversal must target the correct movement and have opposite quantities.
 
-*   **Restaurant Scoping:** All operations are strictly validated against the active restaurant ID.
-*   **Precise Calculations:** All quantities and costs use `BigDecimal` with `MathContext.DECIMAL128`.
-*   **Atomicity:** Posting and Voiding are wrapped in atomic Room transactions. Projections are rebuilt as part of the same transaction.
-*   **Idempotency:** Repeated post or void commands detect existing valid history and return success without creating duplicate records.
-*   **Malformed History Detection:** Before any state transition, the complete movement history for the receipt is validated. Inconsistencies (missing or extra movements) prevent the operation.
-*   **Reference Integrity:** Drafts cannot be posted if they contain references to Master Data (Ingredients, Areas, Units, Suppliers) that have been archived since the draft was created.
+## Technical Design
 
-## Supplier Management
+### authorative Reference Validator
+`PurchaseReferenceValidator` is used by both `saveLine` and `post` to ensure consistency in ownership and active-reference checks.
 
-*   Suppliers are managed at the restaurant level.
-*   Active supplier names must be unique within a restaurant (normalized).
-*   Archiving is a soft-delete operation.
+### Movement History Validator
+`PurchaseMovementHistoryValidator` ensures the integrity of inventory movements before allowing status transitions or idempotent retries.
 
-## Inventory Impact
+### Idempotency
+`post()` and `void()` are idempotent. If a receipt is already in the target state, the validator checks the movement history. If it is valid, the operation returns success without duplicating records.
 
-*   **Balance:** Each purchase line adds quantity to the specified area.
-*   **Weighted Average Cost:**
-    ```text
-    newAverage = ((currentQuantity × currentAverageCost) + (purchaseQuantity × purchaseUnitCost)) / (currentQuantity + purchaseQuantity)
-    ```
-    *   If current quantity is ≤ 0, the new purchase established the average cost.
-    *   Negative movements (Waste, Reversals) do not alter the established average cost.
-
-## Testing Strategy
-
-*   **JVM Unit Tests:** Logic for ViewModels, Calculators, and Normalization.
-*   **Room Integration Tests:** Transaction integrity, Idempotency, and Projection rebuilding.
-*   **Compose UI Tests:** E2E flows for Supplier CRUD and Purchase lifecycle.
-*   **Integration Fixture:** `PurchaseIntegrationTest` verifies a complete multi-receipt scenario with chronological rebuilding and voids.
+### UI Operation Lifecycle
+Confirmation dialogs in `PurchaseDraftScreen` and `PurchaseDetailScreen` use dedicated operation states (`isPosting`, `isVoiding`, `isDeletingDraft`, `deletingLineId`). They remain open during asynchronous calls to prevent duplicate actions and only close upon confirmed success.

@@ -104,6 +104,20 @@ class SupplierRepositoryTest {
     }
 
     @Test
+    fun createSupplier_failsOnOwnershipMismatch() {
+        runBlocking {
+            val wrongRestId = RestaurantId("wrong_rest")
+            val command = CreateSupplierCommand(wrongRestId, "Cross Restaurant Supplier")
+            
+            assertThrows(ValidationError.SupplierOwnershipMismatch::class.java) {
+                runBlocking {
+                    repository.createSupplier(command)
+                }
+            }
+        }
+    }
+
+    @Test
     fun archiveSupplier_removesFromActiveList() {
         runBlocking {
             val restId = RestaurantId("rest_1")

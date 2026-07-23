@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
@@ -24,9 +25,11 @@ import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.restaurant.Restaurant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,10 +60,14 @@ class PurchaseRepositoryTest {
             db.ingredientCostProjectionDao(), WeightedAverageCostCalculator(), timeProvider
         )
 
+        val referenceValidator = PurchaseReferenceValidator(
+            db.purchaseDao(), db.supplierDao(), db.ingredientDao(), db.inventoryAreaDao(), db.ingredientUnitOptionDao()
+        )
+
         repository = RoomPurchaseRepository(
             db, db.purchaseDao(), db.supplierDao(), db.ingredientDao(),
             db.ingredientUnitOptionDao(), db.inventoryAreaDao(), db.inventoryMovementDao(),
-            db.restaurantDao(), projectionRebuilder, PurchaseLineCalculator(),
+            db.restaurantDao(), projectionRebuilder, referenceValidator, PurchaseLineCalculator(),
             PurchaseMovementHistoryValidator(), idGenerator, timeProvider
         )
         
@@ -75,7 +82,7 @@ class PurchaseRepositoryTest {
                 Ingredient(ingId, RestaurantId("rest_1"), "Chicken", "chicken", null, UnitId("mass_lb"), null, null, null, null, true, timeProvider.now(), timeProvider.now()).toEntity()
             )
             db.ingredientUnitOptionDao().insert(
-                IngredientUnitOption(com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
+                IngredientUnitOption(IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
             )
         }
     }
@@ -108,7 +115,7 @@ class PurchaseRepositoryTest {
                 lineId = null,
                 ingredientId = IngredientId("ing_1"),
                 areaId = InventoryAreaId("area_1"),
-                ingredientUnitOptionId = com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
                 quantityEntered = BigDecimal("10"),
                 lineTotal = BigDecimal("20"),
                 notes = null
@@ -124,6 +131,143 @@ class PurchaseRepositoryTest {
     }
 
     @Test
+    fun post_failsOnIngredientOwnershipMismatch() {
+        runBlocking {
+            val rest2 = RestaurantId("rest_2")
+            db.restaurantDao().insert(Restaurant(rest2, "Rest 2", "USD", "en-US", timeProvider.now(), timeProvider.now()).toEntity())
+            val ing2 = IngredientId("ing_2")
+            db.ingredientDao().insert(
+                Ingredient(ing2, rest2, "Wrong Chick", "wrong chicken", null, UnitId("mass_lb"), null, null, null, null, true, timeProvider.now(), timeProvider.now()).toEntity()
+            )
+            db.ingredientUnitOptionDao().insert(
+                IngredientUnitOption(IngredientUnitOptionId("opt_2"), ing2, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
+            )
+
+            val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
+            
+            db.purchaseDao().insertLine(com.miara.cuentame.core.database.entity.PurchaseLineEntity(
+                "bad_line", receiptId.value, ing2.value, "area_1", "opt_2", "1", "1", "1", "1", null, 0, 0
+            ))
+
+            assertThrows(ValidationError.IngredientOwnershipMismatch::class.java) {
+                runBlocking {
+                    repository.post(receiptId)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun post_failsOnArchivedIngredient() {
+        runBlocking {
+            val ingId = IngredientId("ing_archived")
+            db.ingredientDao().insert(
+                Ingredient(ingId, RestaurantId("rest_1"), "Old Chicken", "old chicken", null, UnitId("mass_lb"), null, null, null, null, false, timeProvider.now(), timeProvider.now()).toEntity()
+            )
+            db.ingredientUnitOptionDao().insert(
+                IngredientUnitOption(IngredientUnitOptionId("opt_archived"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
+            )
+
+            val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
+            
+            db.purchaseDao().insertLine(com.miara.cuentame.core.database.entity.PurchaseLineEntity(
+                "archived_line", receiptId.value, ingId.value, "area_1", "opt_archived", "1", "1", "1", "1", null, 0, 0
+            ))
+
+            assertThrows(ValidationError.ArchivedReference::class.java) {
+                runBlocking {
+                    repository.post(receiptId)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun post_failsOnMalformedHistory() {
+        runBlocking {
+            val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
+            repository.saveLine(SavePurchaseLineCommand(
+                receiptId = receiptId,
+                lineId = null,
+                ingredientId = IngredientId("ing_1"),
+                areaId = InventoryAreaId("area_1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
+                quantityEntered = BigDecimal("10"),
+                lineTotal = BigDecimal("20"),
+                notes = null
+            ))
+
+            // Inject a movement manually while still DRAFT
+            db.inventoryMovementDao().insert(com.miara.cuentame.core.database.entity.InventoryMovementEntity(
+                "mov_1", "rest_1", "ing_1", "area_1", com.miara.cuentame.core.model.inventory.InventoryMovementType.PURCHASE.name,
+                "10", "2", "20", timeProvider.now().toEpochMilli(), com.miara.cuentame.core.model.inventory.SourceDocumentType.PURCHASE_RECEIPT.name,
+                receiptId.value, "purchase-post:${receiptId.value}:some_line", "some_line", null, 0
+            ))
+
+            assertThrows(ValidationError.MalformedPurchaseMovementHistory::class.java) {
+                runBlocking {
+                    repository.post(receiptId)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun post_retry_isIdempotent() {
+        runBlocking {
+            val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
+            repository.saveLine(SavePurchaseLineCommand(
+                receiptId = receiptId,
+                lineId = null,
+                ingredientId = IngredientId("ing_1"),
+                areaId = InventoryAreaId("area_1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
+                quantityEntered = BigDecimal("10"),
+                lineTotal = BigDecimal("20"),
+                notes = null
+            ))
+
+            // First post
+            repository.post(receiptId)
+            val movementsAfterFirst = db.inventoryMovementDao().getBySourceDocument(com.miara.cuentame.core.model.inventory.SourceDocumentType.PURCHASE_RECEIPT.name, receiptId.value)
+            assertThat(movementsAfterFirst).hasSize(1)
+
+            // Second post (retry)
+            repository.post(receiptId)
+            val movementsAfterSecond = db.inventoryMovementDao().getBySourceDocument(com.miara.cuentame.core.model.inventory.SourceDocumentType.PURCHASE_RECEIPT.name, receiptId.value)
+            assertThat(movementsAfterSecond).hasSize(1) // No duplicate
+        }
+    }
+
+    @Test
+    fun void_failsIfAlreadyVoided_ButStillReturnsSuccessIdempotently() {
+        runBlocking {
+            val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
+            repository.saveLine(SavePurchaseLineCommand(
+                receiptId = receiptId,
+                lineId = null,
+                ingredientId = IngredientId("ing_1"),
+                areaId = InventoryAreaId("area_1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
+                quantityEntered = BigDecimal("10"),
+                lineTotal = BigDecimal("20"),
+                notes = null
+            ))
+
+            repository.post(receiptId)
+            repository.void(receiptId)
+            
+            val movementsAfterFirstVoid = db.inventoryMovementDao().getBySourceDocument(com.miara.cuentame.core.model.inventory.SourceDocumentType.PURCHASE_RECEIPT.name, receiptId.value)
+            assertThat(movementsAfterFirstVoid).hasSize(2) // 1 PURCHASE + 1 REVERSAL
+
+            // Second void (retry)
+            repository.void(receiptId)
+            val movementsAfterSecondVoid = db.inventoryMovementDao().getBySourceDocument(com.miara.cuentame.core.model.inventory.SourceDocumentType.PURCHASE_RECEIPT.name, receiptId.value)
+            assertThat(movementsAfterSecondVoid).hasSize(2) // No duplicate reversal
+        }
+    }
+
+    @Test
     fun postPurchase_createsMovementsAndUpdatesProjections() {
         runBlocking {
             val receiptId = repository.createDraft(CreatePurchaseDraftCommand(RestaurantId("rest_1"), null, null, timeProvider.now(), null))
@@ -132,7 +276,7 @@ class PurchaseRepositoryTest {
                 lineId = null,
                 ingredientId = IngredientId("ing_1"),
                 areaId = InventoryAreaId("area_1"),
-                ingredientUnitOptionId = com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
                 quantityEntered = BigDecimal("10"),
                 lineTotal = BigDecimal("20"),
                 notes = null
@@ -161,7 +305,7 @@ class PurchaseRepositoryTest {
                 lineId = null,
                 ingredientId = IngredientId("ing_1"),
                 areaId = InventoryAreaId("area_1"),
-                ingredientUnitOptionId = com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
                 quantityEntered = BigDecimal("10"),
                 lineTotal = BigDecimal("20"),
                 notes = null

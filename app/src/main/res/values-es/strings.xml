@@ -245,4 +245,13 @@
     <string name="error_purchase_no_lines">La compra debe tener al menos una línea</string>
     <string name="error_malformed_history">Se detectó un historial de movimientos malformado</string>
     <string name="error_invalid_status_transition">Transición de estado no válida</string>
+    <string name="error_ingredient_required">Ingrediente requerido</string>
+    <string name="error_area_required">Área de recepción requerida</string>
+    <string name="error_unit_required">Unidad de compra requerida</string>
+    <string name="error_quantity_positive">La cantidad debe ser mayor a cero</string>
+    <string name="error_total_negative">El total de la línea no puede ser negativo</string>
+    <string name="error_invalid_decimal">Número decimal no válido</string>
+    <string name="purchase_lines">Líneas de compra</string>
+    <string name="new_purchase">Nueva compra</string>
+    <string name="draft_purchase">Borrador de compra</string>
 </resources>

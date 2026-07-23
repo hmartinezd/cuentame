@@ -56,10 +56,10 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.SupplierId
+import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.core.model.supplier.Supplier
 import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftUiState
@@ -88,6 +88,7 @@ fun PurchaseDraftRoute(
                 is PurchaseDraftEvent.Created -> onNavigateToDraft(event.receiptId)
                 is PurchaseDraftEvent.Posted -> onPostSuccess(purchaseId!!)
                 is PurchaseDraftEvent.Deleted -> onBack()
+                is PurchaseDraftEvent.LineDeleted -> { /* Handled by Flow */ }
             }
         }
     }
@@ -135,8 +136,8 @@ fun PurchaseDraftScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        if (uiState.receiptId == null) stringResource(R.string.add_purchase)
-                        else stringResource(R.string.status_draft)
+                        if (uiState.receiptId == null) stringResource(R.string.new_purchase)
+                        else stringResource(R.string.draft_purchase)
                     )
                 },
                 navigationIcon = {
@@ -146,7 +147,7 @@ fun PurchaseDraftScreen(
                 },
                 actions = {
                     if (uiState.receiptId != null) {
-                        IconButton(onClick = { showDeleteDraftConfirm = true }) {
+                        IconButton(onClick = { showDeleteDraftConfirm = true }, enabled = !uiState.isDeletingDraft && !uiState.isPosting) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                         }
                     }
@@ -155,7 +156,7 @@ fun PurchaseDraftScreen(
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else {
@@ -178,34 +179,30 @@ fun PurchaseDraftScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = stringResource(R.string.unit_options), style = MaterialTheme.typography.titleLarge)
-                        IconButton(onClick = onAddLine) {
+                        Text(text = stringResource(R.string.purchase_lines), style = MaterialTheme.typography.titleLarge)
+                        IconButton(onClick = onAddLine, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
                             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_line))
                         }
                     }
 
-                    if (uiState.details?.lines?.isEmpty() == true) {
-                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.state_empty_desc))
-                        }
-                    } else {
-                        if (uiState.details?.lines?.isEmpty() == true) {
+                    val lines = uiState.details?.lines ?: emptyList()
+                    if (lines.isEmpty()) {
                         Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             Text(stringResource(R.string.state_empty_desc))
                         }
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(uiState.details?.lines ?: emptyList()) { lineWithDetails ->
+                            items(lines) { lineWithDetails ->
                                 PurchaseLineItem(
                                     lineWithDetails = lineWithDetails,
                                     currencyCode = uiState.currencyCode,
                                     onEdit = { onEditLine(lineWithDetails.line.id) },
-                                    onDelete = { lineToDelete = lineWithDetails }
+                                    onDelete = { lineToDelete = lineWithDetails },
+                                    enabled = !uiState.isPosting && !uiState.isDeletingDraft && uiState.deletingLineId == null
                                 )
                                 HorizontalDivider()
                             }
                         }
-                    }
                     }
 
                     Row(
@@ -218,18 +215,23 @@ fun PurchaseDraftScreen(
                                 text = "${stringResource(R.string.receipt_total)}:",
                                 style = MaterialTheme.typography.labelLarge
                             )
+                            val total = uiState.details?.lines?.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) } ?: java.math.BigDecimal.ZERO
                             Text(
-                                text = uiState.details?.lines?.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }?.toPlainString() ?: "0.00",
+                                text = Formatters.formatCurrency(total, uiState.currencyCode),
                                 style = MaterialTheme.typography.headlineSmall,
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = stringResource(R.string.purchase_items_count, lines.size),
+                                style = MaterialTheme.typography.labelSmall
                             )
                         }
                         Button(
                             onClick = { showPostConfirm = true },
-                            enabled = !uiState.isPosting && (uiState.details?.lines?.isNotEmpty() == true)
+                            enabled = !uiState.isPosting && !uiState.isDeletingDraft && lines.isNotEmpty()
                         ) {
                             if (uiState.isPosting) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp))
+                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
                             }
                             Text(stringResource(R.string.post_purchase))
                         }
@@ -243,11 +245,10 @@ fun PurchaseDraftScreen(
         ArchiveConfirmDialog(
             title = stringResource(R.string.delete_draft),
             message = stringResource(R.string.delete_draft_confirm),
-            isSaving = uiState.isSaving,
-            onDismiss = { showDeleteDraftConfirm = false },
+            isSaving = uiState.isDeletingDraft,
+            onDismiss = { if (!uiState.isDeletingDraft) showDeleteDraftConfirm = false },
             onConfirm = {
                 onDeleteDraft()
-                // Dialog will close via event or state change
             }
         )
     }
@@ -257,10 +258,9 @@ fun PurchaseDraftScreen(
             title = stringResource(R.string.post_purchase),
             message = stringResource(R.string.posting_warning),
             isSaving = uiState.isPosting,
-            onDismiss = { showPostConfirm = false },
+            onDismiss = { if (!uiState.isPosting) showPostConfirm = false },
             onConfirm = {
                 onPost()
-                // Dialog will close via event or state change
             }
         )
     }
@@ -269,18 +269,24 @@ fun PurchaseDraftScreen(
         ArchiveConfirmDialog(
             title = stringResource(R.string.delete_line),
             message = stringResource(R.string.delete_line_desc, line.ingredientName ?: ""),
-            onDismiss = { lineToDelete = null },
+            isSaving = uiState.deletingLineId == line.line.id,
+            onDismiss = { if (uiState.deletingLineId == null) lineToDelete = null },
             onConfirm = {
                 onDeleteLine(line.line.id)
-                lineToDelete = null
             }
         )
     }
     
-    // Success effects to close dialogs
+    // Close dialogs on success
     LaunchedEffect(uiState.details?.receipt?.status) {
         if (uiState.details?.receipt?.status == DocumentStatus.POSTED) {
             showPostConfirm = false
+        }
+    }
+    
+    LaunchedEffect(uiState.deletingLineId) {
+        if (uiState.deletingLineId == null) {
+            lineToDelete = null
         }
     }
 }
@@ -304,7 +310,7 @@ fun PurchaseHeaderSection(
         var supplierExpanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = supplierExpanded,
-            onExpandedChange = { supplierExpanded = !supplierExpanded }
+            onExpandedChange = { if (!uiState.isSaving && !uiState.isPosting) supplierExpanded = !supplierExpanded }
         ) {
             val selectedSupplierName = uiState.suppliers.find { it.id == supplierId }?.name ?: stringResource(R.string.no_supplier)
             OutlinedTextField(
@@ -313,7 +319,8 @@ fun PurchaseHeaderSection(
                 readOnly = true,
                 label = { Text(stringResource(R.string.suppliers)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = supplierExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                enabled = !uiState.isSaving && !uiState.isPosting
             )
             ExposedDropdownMenu(
                 expanded = supplierExpanded,
@@ -336,10 +343,11 @@ fun PurchaseHeaderSection(
             value = invoiceNumber,
             onValueChange = { invoiceNumber = it },
             label = { Text(stringResource(R.string.invoice_number)) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !uiState.isSaving && !uiState.isPosting
         )
 
-        Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
+        Box(modifier = Modifier.fillMaxWidth().clickable(enabled = !uiState.isSaving && !uiState.isPosting) { showDatePicker = true }) {
              OutlinedTextField(
                 value = dateFormatter.format(purchaseDate),
                 onValueChange = {},
@@ -359,15 +367,16 @@ fun PurchaseHeaderSection(
             value = notes,
             onValueChange = { notes = it },
             label = { Text(stringResource(R.string.notes)) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !uiState.isSaving && !uiState.isPosting
         )
 
         Button(
             onClick = { onSave(supplierId, invoiceNumber, purchaseDate, notes) },
             modifier = Modifier.align(Alignment.End),
-            enabled = !uiState.isSaving
+            enabled = !uiState.isSaving && !uiState.isPosting
         ) {
-            if (uiState.isSaving && uiState.receiptId != null) {
+            if (uiState.isSaving) {
                 CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
             }
             Text(stringResource(R.string.action_save))
@@ -398,15 +407,16 @@ fun PurchaseLineItem(
     lineWithDetails: PurchaseLineWithDetails,
     currencyCode: String,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    enabled: Boolean
 ) {
     ListItem(
         headlineContent = { Text(lineWithDetails.ingredientName ?: stringResource(R.string.uncategorized), fontWeight = FontWeight.Bold) },
         supportingContent = {
             Column {
-                Text("${lineWithDetails.line.quantityEntered} ${lineWithDetails.unitOptionName ?: ""}")
+                Text(Formatters.formatQuantity(lineWithDetails.line.quantityEntered, lineWithDetails.unitOptionName))
                 Text(
-                    text = "${lineWithDetails.line.quantityBase} ${lineWithDetails.baseUnitSymbol ?: ""}",
+                    text = Formatters.formatQuantity(lineWithDetails.line.quantityBase, lineWithDetails.baseUnitSymbol),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
@@ -419,22 +429,18 @@ fun PurchaseLineItem(
             Row {
                 Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 16.dp)) {
                     Text(
-                        text = "$currencyCode ${lineWithDetails.line.lineTotal.toPlainString()}",
+                        text = Formatters.formatCurrency(lineWithDetails.line.lineTotal, currencyCode),
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = stringResource(R.string.cost_per_base_unit, lineWithDetails.baseUnitSymbol ?: ""),
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Text(
-                        text = lineWithDetails.line.unitCostBase.toPlainString(),
+                        text = "${Formatters.formatCurrency(lineWithDetails.line.unitCostBase, currencyCode)} per ${lineWithDetails.baseUnitSymbol ?: ""}",
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
-                IconButton(onClick = onEdit) {
+                IconButton(onClick = onEdit, enabled = enabled) {
                     Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.purchase_line_desc, lineWithDetails.ingredientName ?: ""))
                 }
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = onDelete, enabled = enabled) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_line_desc, lineWithDetails.ingredientName ?: ""))
                 }
             }

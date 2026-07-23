@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
@@ -15,6 +16,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.factory.TestFactories
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
+import com.miara.cuentame.core.database.repository.PurchaseReferenceValidator
 import com.miara.cuentame.core.database.repository.RoomInventoryProjectionRebuilder
 import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.database.seed.UnitSeeds
@@ -59,10 +61,14 @@ class PurchaseIntegrationTest {
             db.ingredientCostProjectionDao(), WeightedAverageCostCalculator(), timeProvider
         )
 
+        val referenceValidator = PurchaseReferenceValidator(
+            db.purchaseDao(), db.supplierDao(), db.ingredientDao(), db.inventoryAreaDao(), db.ingredientUnitOptionDao()
+        )
+
         repository = RoomPurchaseRepository(
             db, db.purchaseDao(), db.supplierDao(), db.ingredientDao(),
             db.ingredientUnitOptionDao(), db.inventoryAreaDao(), db.inventoryMovementDao(),
-            db.restaurantDao(), projectionRebuilder, PurchaseLineCalculator(),
+            db.restaurantDao(), projectionRebuilder, referenceValidator, PurchaseLineCalculator(),
             PurchaseMovementHistoryValidator(), idGenerator, timeProvider
         )
         
@@ -77,10 +83,10 @@ class PurchaseIntegrationTest {
                 Ingredient(ingId, RestaurantId("rest_1"), "Chicken Breast", "chicken breast", null, UnitId("mass_lb"), null, null, null, null, true, timeProvider.now(), timeProvider.now()).toEntity()
             )
             db.ingredientUnitOptionDao().insert(
-                IngredientUnitOption(com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
+                IngredientUnitOption(IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, timeProvider.now(), timeProvider.now()).toEntity()
             )
             db.ingredientUnitOptionDao().insert(
-                IngredientUnitOption(com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_case"), ingId, "Case", "case", null, BigDecimal("40"), false, false, true, true, timeProvider.now(), timeProvider.now()).toEntity()
+                IngredientUnitOption(IngredientUnitOptionId("opt_case"), ingId, "Case", "case", null, BigDecimal("40"), false, false, true, true, timeProvider.now(), timeProvider.now()).toEntity()
             )
         }
     }
@@ -104,7 +110,7 @@ class PurchaseIntegrationTest {
                 lineId = null,
                 ingredientId = ingId,
                 areaId = areaId,
-                ingredientUnitOptionId = com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_case"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_case"),
                 quantityEntered = BigDecimal("2"),
                 lineTotal = BigDecimal("160"),
                 notes = null
@@ -126,7 +132,7 @@ class PurchaseIntegrationTest {
                 lineId = null,
                 ingredientId = ingId,
                 areaId = areaId,
-                ingredientUnitOptionId = com.miara.cuentame.core.common.ids.IngredientUnitOptionId("opt_lb"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt_lb"),
                 quantityEntered = BigDecimal("20"),
                 lineTotal = BigDecimal("60"),
                 notes = null

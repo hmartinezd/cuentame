@@ -13,6 +13,7 @@ import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
+import com.miara.cuentame.core.database.repository.PurchaseReferenceValidator
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import dagger.Module
 import dagger.Provides
@@ -74,4 +75,15 @@ object CommonModule {
     @Provides
     @Singleton
     fun providePurchaseMovementHistoryValidator(): PurchaseMovementHistoryValidator = PurchaseMovementHistoryValidator()
+
+    @Provides
+    fun providePurchaseReferenceValidator(
+        purchaseDao: com.miara.cuentame.core.database.dao.PurchaseDao,
+        supplierDao: com.miara.cuentame.core.database.dao.SupplierDao,
+        ingredientDao: com.miara.cuentame.core.database.dao.IngredientDao,
+        areaDao: com.miara.cuentame.core.database.dao.InventoryAreaDao,
+        unitOptionDao: com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
+    ): PurchaseReferenceValidator = PurchaseReferenceValidator(
+        purchaseDao, supplierDao, ingredientDao, areaDao, unitOptionDao
+    )
 }

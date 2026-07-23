@@ -245,4 +245,13 @@
     <string name="error_purchase_no_lines">Purchase must have at least one line</string>
     <string name="error_malformed_history">Malformed movement history detected</string>
     <string name="error_invalid_status_transition">Invalid status transition</string>
+    <string name="error_ingredient_required">Ingredient required</string>
+    <string name="error_area_required">Receiving area required</string>
+    <string name="error_unit_required">Purchase unit required</string>
+    <string name="error_quantity_positive">Quantity must be greater than zero</string>
+    <string name="error_total_negative">Line total cannot be negative</string>
+    <string name="error_invalid_decimal">Invalid decimal number</string>
+    <string name="purchase_lines">Purchase lines</string>
+    <string name="new_purchase">New purchase</string>
+    <string name="draft_purchase">Draft purchase</string>
 </resources>

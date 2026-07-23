@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.SupplierId
-import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -14,12 +13,10 @@ import com.miara.cuentame.core.domain.repository.UpdatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.CreatePurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.DeletePurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.DeletePurchaseLineUseCase
-import com.miara.cuentame.core.domain.usecase.GetPurchaseReceiptUseCase
 import com.miara.cuentame.core.domain.usecase.ObservePurchaseDetailsUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveSuppliersUseCase
 import com.miara.cuentame.core.domain.usecase.PostPurchaseUseCase
 import com.miara.cuentame.core.domain.usecase.UpdatePurchaseDraftUseCase
-import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.supplier.Supplier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,14 +24,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import javax.inject.Inject
@@ -43,6 +37,8 @@ data class PurchaseDraftUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isPosting: Boolean = false,
+    val isDeletingDraft: Boolean = false,
+    val deletingLineId: PurchaseLineId? = null,
     val currencyCode: String = "",
     val receiptId: PurchaseReceiptId? = null,
     val details: PurchaseDetails? = null,
@@ -54,29 +50,30 @@ sealed interface PurchaseDraftEvent {
     data class Created(val receiptId: PurchaseReceiptId) : PurchaseDraftEvent
     data object Posted : PurchaseDraftEvent
     data object Deleted : PurchaseDraftEvent
+    data class LineDeleted(val lineId: PurchaseLineId) : PurchaseDraftEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PurchaseDraftViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val observePurchaseDetailsUseCase: ObservePurchaseDetailsUseCase,
-    private val getPurchaseReceiptUseCase: GetPurchaseReceiptUseCase,
     private val createPurchaseDraftUseCase: CreatePurchaseDraftUseCase,
     private val updatePurchaseDraftUseCase: UpdatePurchaseDraftUseCase,
     private val deletePurchaseDraftUseCase: DeletePurchaseDraftUseCase,
-    private val deletePurchaseLineUseCase: DeletePurchaseLineUseCase,
     private val postPurchaseUseCase: PostPurchaseUseCase,
+    private val deletePurchaseLineUseCase: DeletePurchaseLineUseCase,
+    private val observePurchaseDetailsUseCase: ObservePurchaseDetailsUseCase,
     private val observeSuppliersUseCase: ObserveSuppliersUseCase,
-    private val restaurantRepository: RestaurantRepository,
-    private val timeProvider: TimeProvider
+    private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
-    private val receiptIdString: String? = savedStateHandle["purchaseId"]
-    private val receiptId = receiptIdString?.let { PurchaseReceiptId(it) }
+    private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
+    private val receiptId = purchaseIdStr?.let { PurchaseReceiptId(it) }
 
     private val _isSaving = MutableStateFlow(false)
     private val _isPosting = MutableStateFlow(false)
+    private val _isDeletingDraft = MutableStateFlow(false)
+    private val _deletingLineId = MutableStateFlow<PurchaseLineId?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
 
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
@@ -96,13 +93,32 @@ class PurchaseDraftViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<PurchaseDraftUiState> = combine(
-        combine(detailsFlow, suppliers, restaurantFlow) { d, s, r -> Triple(d, s, r) },
-        combine(_isSaving, _isPosting, _error) { s, p, e -> Triple(s, p, e) }
-    ) { (details, suppliers, restaurant), (saving, posting, error) ->
+        detailsFlow,
+        suppliers,
+        restaurantFlow,
+        _isSaving,
+        _isPosting,
+        _isDeletingDraft,
+        _deletingLineId,
+        _error
+    ) { args: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        val details = args[0] as PurchaseDetails?
+        @Suppress("UNCHECKED_CAST")
+        val suppliers = args[1] as List<Supplier>
+        val restaurant = args[2] as com.miara.cuentame.core.model.restaurant.Restaurant
+        val saving = args[3] as Boolean
+        val posting = args[4] as Boolean
+        val deletingDraft = args[5] as Boolean
+        val deletingLineId = args[6] as PurchaseLineId?
+        val error = args[7] as Throwable?
+
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
             isSaving = saving,
             isPosting = posting,
+            isDeletingDraft = deletingDraft,
+            deletingLineId = deletingLineId,
             currencyCode = restaurant.currencyCode,
             receiptId = receiptId,
             details = details,
@@ -159,26 +175,15 @@ class PurchaseDraftViewModel @Inject constructor(
         }
     }
 
-    fun onDeleteLine(lineId: PurchaseLineId) {
-        val rid = receiptId ?: return
-        viewModelScope.launch {
-            try {
-                deletePurchaseLineUseCase(rid, lineId)
-            } catch (e: Exception) {
-                _error.value = e
-            }
-        }
-    }
-
     fun onPost() {
-        val rid = receiptId ?: return
+        val currentReceiptId = receiptId ?: return
         if (_isPosting.value) return
         _isPosting.value = true
         _error.value = null
 
         viewModelScope.launch {
             try {
-                postPurchaseUseCase(rid)
+                postPurchaseUseCase(currentReceiptId)
                 _events.send(PurchaseDraftEvent.Posted)
             } catch (e: Exception) {
                 _error.value = e
@@ -189,13 +194,37 @@ class PurchaseDraftViewModel @Inject constructor(
     }
 
     fun onDeleteDraft() {
-        val rid = receiptId ?: return
+        val currentReceiptId = receiptId ?: return
+        if (_isDeletingDraft.value) return
+        _isDeletingDraft.value = true
+        _error.value = null
+
         viewModelScope.launch {
             try {
-                deletePurchaseDraftUseCase(rid)
+                deletePurchaseDraftUseCase(currentReceiptId)
                 _events.send(PurchaseDraftEvent.Deleted)
             } catch (e: Exception) {
                 _error.value = e
+            } finally {
+                _isDeletingDraft.value = false
+            }
+        }
+    }
+
+    fun onDeleteLine(lineId: PurchaseLineId) {
+        val currentReceiptId = receiptId ?: return
+        if (_deletingLineId.value != null) return
+        _deletingLineId.value = lineId
+        _error.value = null
+
+        viewModelScope.launch {
+            try {
+                deletePurchaseLineUseCase(currentReceiptId, lineId)
+                _events.send(PurchaseDraftEvent.LineDeleted(lineId))
+            } catch (e: Exception) {
+                _error.value = e
+            } finally {
+                _deletingLineId.value = null
             }
         }
     }

@@ -11,12 +11,14 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.text.DecimalParser
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
-import com.miara.cuentame.core.domain.usecase.ObserveIngredientsUseCase
-import com.miara.cuentame.core.domain.usecase.ObserveInventoryAreasUseCase
-import com.miara.cuentame.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
-import com.miara.cuentame.core.domain.usecase.SavePurchaseLineUseCase
+import com.miara.cuentame.core.domain.repository.UnitRepository
 import com.miara.cuentame.core.domain.usecase.GetIngredientDetailUseCase
 import com.miara.cuentame.core.domain.usecase.GetPurchaseLineUseCase
+import com.miara.cuentame.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
+import com.miara.cuentame.core.domain.usecase.ObserveIngredientsUseCase
+import com.miara.cuentame.core.domain.usecase.ObserveInventoryAreasUseCase
+import com.miara.cuentame.core.domain.usecase.PreviewPurchaseLineUseCase
+import com.miara.cuentame.core.domain.usecase.SavePurchaseLineUseCase
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
@@ -38,10 +40,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
-import java.math.MathContext
 import javax.inject.Inject
 
+sealed interface PurchaseLineScreenState {
+    data object Loading : PurchaseLineScreenState
+    data object Ready : PurchaseLineScreenState
+    data object NotFound : PurchaseLineScreenState
+    data object InvalidRoute : PurchaseLineScreenState
+    data class Error(val throwable: Throwable) : PurchaseLineScreenState
+}
+
 data class PurchaseLineUiState(
+    val screenState: PurchaseLineScreenState = PurchaseLineScreenState.Loading,
     val isSaving: Boolean = false,
     val lineId: PurchaseLineId? = null,
     val ingredients: List<Ingredient> = emptyList(),
@@ -74,8 +84,9 @@ class PurchaseLineViewModel @Inject constructor(
     private val observeInventoryAreasUseCase: ObserveInventoryAreasUseCase,
     private val observeIngredientUnitOptionsUseCase: ObserveIngredientUnitOptionsUseCase,
     private val getIngredientDetailUseCase: GetIngredientDetailUseCase,
+    private val previewPurchaseLineUseCase: PreviewPurchaseLineUseCase,
     private val restaurantRepository: RestaurantRepository,
-    private val unitRepository: com.miara.cuentame.core.domain.repository.UnitRepository
+    private val unitRepository: UnitRepository
 ) : ViewModel() {
 
     private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
@@ -107,7 +118,7 @@ class PurchaseLineViewModel @Inject constructor(
 
     init {
         if (receiptId == null) {
-             _uiState.update { it.copy(error = Exception("Invalid purchase ID")) }
+             _uiState.update { it.copy(screenState = PurchaseLineScreenState.InvalidRoute) }
         } else {
             loadInitialData()
         }
@@ -116,24 +127,36 @@ class PurchaseLineViewModel @Inject constructor(
     private fun loadInitialData() {
         viewModelScope.launch {
             if (lineId != null && receiptId != null) {
-                val line = getPurchaseLineUseCase(receiptId, lineId)
-                if (line != null) {
-                    _uiState.update {
-                        it.copy(
-                            selectedIngredientId = line.ingredientId,
-                            selectedAreaId = line.areaId,
-                            selectedUnitOptionId = line.ingredientUnitOptionId,
-                            quantityText = line.quantityEntered.toPlainString(),
-                            totalText = line.lineTotal.toPlainString(),
-                            notes = line.notes ?: ""
-                        )
+                try {
+                    val line = getPurchaseLineUseCase(receiptId, lineId)
+                    if (line != null) {
+                        _uiState.update {
+                            it.copy(
+                                selectedIngredientId = line.ingredientId,
+                                selectedAreaId = line.areaId,
+                                selectedUnitOptionId = line.ingredientUnitOptionId,
+                                quantityText = line.quantityEntered.toPlainString(),
+                                totalText = line.lineTotal.toPlainString(),
+                                notes = line.notes ?: ""
+                            )
+                        }
+                        _selectedIngredientId.value = line.ingredientId
+                        val ingredient = getIngredientDetailUseCase(line.ingredientId)
+                        val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
+                        _uiState.update { 
+                            it.copy(
+                                baseUnitSymbol = baseUnit?.symbol ?: "",
+                                screenState = PurchaseLineScreenState.Ready
+                            ) 
+                        }
+                    } else {
+                        _uiState.update { it.copy(screenState = PurchaseLineScreenState.NotFound) }
                     }
-                    _selectedIngredientId.value = line.ingredientId
-                    // Trigger manual update of base unit symbol
-                    val ingredient = getIngredientDetailUseCase(line.ingredientId)
-                    val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
-                    _uiState.update { it.copy(baseUnitSymbol = baseUnit?.symbol ?: "") }
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(screenState = PurchaseLineScreenState.Error(e)) }
                 }
+            } else {
+                _uiState.update { it.copy(screenState = PurchaseLineScreenState.Ready) }
             }
         }
 
@@ -145,6 +168,7 @@ class PurchaseLineViewModel @Inject constructor(
     }
 
     fun onIngredientSelected(ingredientId: IngredientId) {
+        if (_selectedIngredientId.value == ingredientId) return
         _selectedIngredientId.value = ingredientId
         _uiState.update { it.copy(selectedIngredientId = ingredientId, selectedUnitOptionId = null) }
         viewModelScope.launch {
@@ -152,7 +176,6 @@ class PurchaseLineViewModel @Inject constructor(
             val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
             _uiState.update { it.copy(baseUnitSymbol = baseUnit?.symbol ?: "") }
             
-            // Set default option when options load
             val options = observeIngredientUnitOptionsUseCase(ingredientId, includeArchived = false).first()
             val activeOptions = options.filter { it.isActive }
             val defaultPurchase = activeOptions.find { it.isDefaultPurchase } ?: activeOptions.find { it.isBase }
@@ -190,10 +213,13 @@ class PurchaseLineViewModel @Inject constructor(
         val total = DecimalParser.parse(state.totalText) ?: BigDecimal.ZERO
         val option = state.unitOptions.find { it.id == state.selectedUnitOptionId }
 
-        if (option != null && qty > BigDecimal.ZERO) {
-            val qtyBase = qty.multiply(option.factorToBase, MathContext.DECIMAL128)
-            val costBase = total.divide(qtyBase, MathContext.DECIMAL128)
-            _uiState.update { it.copy(baseQuantityPreview = qtyBase, unitCostPreview = costBase) }
+        if (option != null && qty > BigDecimal.ZERO && total >= BigDecimal.ZERO) {
+            try {
+                val calculation = previewPurchaseLineUseCase(qty, total, option.factorToBase)
+                _uiState.update { it.copy(baseQuantityPreview = calculation.quantityBase, unitCostPreview = calculation.unitCostBase) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(baseQuantityPreview = null, unitCostPreview = null) }
+            }
         } else {
             _uiState.update { it.copy(baseQuantityPreview = null, unitCostPreview = null) }
         }
@@ -207,11 +233,14 @@ class PurchaseLineViewModel @Inject constructor(
         val qty = DecimalParser.parse(state.quantityText)
         val total = DecimalParser.parse(state.totalText)
 
-        if (state.selectedIngredientId == null) errors["ingredient"] = com.miara.cuentame.R.string.error_generic
-        if (state.selectedAreaId == null) errors["area"] = com.miara.cuentame.R.string.error_generic
-        if (state.selectedUnitOptionId == null) errors["unit"] = com.miara.cuentame.R.string.error_generic
-        if (qty == null || qty <= BigDecimal.ZERO) errors["quantity"] = com.miara.cuentame.R.string.error_invalid_package_qty
-        if (total == null || total < BigDecimal.ZERO) errors["total"] = com.miara.cuentame.R.string.error_generic
+        if (state.selectedIngredientId == null) errors["ingredient"] = com.miara.cuentame.R.string.error_ingredient_required
+        if (state.selectedAreaId == null) errors["area"] = com.miara.cuentame.R.string.error_area_required
+        if (state.selectedUnitOptionId == null) errors["unit"] = com.miara.cuentame.R.string.error_unit_required
+        if (qty == null) errors["quantity"] = com.miara.cuentame.R.string.error_invalid_decimal
+        else if (qty <= BigDecimal.ZERO) errors["quantity"] = com.miara.cuentame.R.string.error_quantity_positive
+        
+        if (total == null) errors["total"] = com.miara.cuentame.R.string.error_invalid_decimal
+        else if (total < BigDecimal.ZERO) errors["total"] = com.miara.cuentame.R.string.error_total_negative
 
         if (errors.isNotEmpty()) {
             _uiState.update { it.copy(fieldErrors = errors) }

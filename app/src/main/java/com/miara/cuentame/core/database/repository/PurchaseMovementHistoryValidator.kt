@@ -14,6 +14,9 @@ class PurchaseMovementHistoryValidator {
         receipt: PurchaseReceiptEntity,
         movements: List<InventoryMovementEntity>
     ) {
+        if (receipt.postedAt != null || receipt.voidedAt != null) {
+            throw ValidationError.MalformedPurchaseMovementHistory
+        }
         if (movements.isNotEmpty()) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
@@ -24,6 +27,9 @@ class PurchaseMovementHistoryValidator {
         lines: List<PurchaseLineEntity>,
         movements: List<InventoryMovementEntity>
     ) {
+        if (receipt.postedAt == null || receipt.voidedAt != null) {
+            throw ValidationError.MalformedPurchaseMovementHistory
+        }
         if (lines.isEmpty()) throw ValidationError.PurchaseHasNoLines
         
         // Exact one-to-one mapping
@@ -53,6 +59,9 @@ class PurchaseMovementHistoryValidator {
         lines: List<PurchaseLineEntity>,
         movements: List<InventoryMovementEntity>
     ) {
+        if (receipt.postedAt == null || receipt.voidedAt == null) {
+            throw ValidationError.MalformedPurchaseMovementHistory
+        }
         val purchases = movements.filter { it.movementType == InventoryMovementType.PURCHASE.name }
         val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
 
@@ -77,14 +86,17 @@ class PurchaseMovementHistoryValidator {
         line: PurchaseLineEntity,
         movement: InventoryMovementEntity
     ) {
+        if (movement.movementType != InventoryMovementType.PURCHASE.name) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.restaurantId != receipt.restaurantId) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.ingredientId != line.ingredientId) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.areaId != line.areaId) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.sourceDocumentType != SourceDocumentType.PURCHASE_RECEIPT.name) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.sourceDocumentId != receipt.id) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.sourceOperationId != "purchase-post:${receipt.id}:${line.id}") throw ValidationError.MalformedPurchaseMovementHistory
+        if (movement.reversalOfMovementId != null) throw ValidationError.MalformedPurchaseMovementHistory
         
-        if (BigDecimal(movement.quantityBaseSigned).compareTo(BigDecimal(line.quantityBase)) != 0) {
+        val qty = BigDecimal(movement.quantityBaseSigned)
+        if (qty <= BigDecimal.ZERO || qty.compareTo(BigDecimal(line.quantityBase)) != 0) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
         if (movement.unitCostBaseSnapshot == null || BigDecimal(movement.unitCostBaseSnapshot).compareTo(BigDecimal(line.unitCostBase)) != 0) {
@@ -101,6 +113,7 @@ class PurchaseMovementHistoryValidator {
         original: InventoryMovementEntity,
         reversal: InventoryMovementEntity
     ) {
+        if (reversal.movementType != InventoryMovementType.REVERSAL.name) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.restaurantId != original.restaurantId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.ingredientId != original.ingredientId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.areaId != original.areaId) throw ValidationError.MalformedPurchaseMovementHistory
@@ -108,6 +121,7 @@ class PurchaseMovementHistoryValidator {
         if (reversal.sourceDocumentId != receipt.id) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedPurchaseMovementHistory
+        if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedPurchaseMovementHistory
         
         if (BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0) {
             throw ValidationError.MalformedPurchaseMovementHistory
@@ -115,10 +129,19 @@ class PurchaseMovementHistoryValidator {
         if (reversal.unitCostBaseSnapshot != original.unitCostBaseSnapshot) {
              throw ValidationError.MalformedPurchaseMovementHistory
         }
-        if (reversal.totalValueSnapshot != null && original.totalValueSnapshot != null) {
-            if (BigDecimal(reversal.totalValueSnapshot).compareTo(BigDecimal(original.totalValueSnapshot).negate()) != 0) {
+        
+        val originalTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
+        val reversalTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
+        
+        if (originalTotal == null && reversalTotal != null) throw ValidationError.MalformedPurchaseMovementHistory
+        if (originalTotal != null && reversalTotal == null) throw ValidationError.MalformedPurchaseMovementHistory
+        if (originalTotal != null && reversalTotal != null) {
+            if (reversalTotal.compareTo(originalTotal.negate()) != 0) {
                 throw ValidationError.MalformedPurchaseMovementHistory
             }
         }
+        
+        if (reversal.effectiveAt != receipt.voidedAt) throw ValidationError.MalformedPurchaseMovementHistory
+        if (reversal.createdAt != receipt.voidedAt) throw ValidationError.MalformedPurchaseMovementHistory
     }
 }
