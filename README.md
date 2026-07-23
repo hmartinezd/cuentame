@@ -15,8 +15,8 @@ A local-first restaurant inventory application built with modern Android practic
 - **Success-Driven UI:** Confirmation dialogs for Delete Line, Post, and Void operations only close upon confirmed successful repository completion.
 - **Selection Safety:** Protected the line editor against ingredient-selection races using a cancellation-aware pipeline.
 
-### Current milestone: Milestone 5
-### Next milestone: Milestone 6 — Stock Counts
+### Current milestone: Milestone 6 — Stock Counts
+### Next milestone: Milestone 7 — Waste Tracking
 
 ## Tech Stack
 - **UI:** Jetpack Compose with Material 3.

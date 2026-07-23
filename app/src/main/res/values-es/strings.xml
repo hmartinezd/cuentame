@@ -92,6 +92,7 @@
     <string name="action_add">Añadir</string>
     <string name="action_remove">Eliminar</string>
     <string name="action_archive">Archivar</string>
+    <string name="action_confirm">Confirmar</string>
 
     <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
     <string name="about_version">Versión %s</string>
@@ -254,4 +255,33 @@
     <string name="purchase_lines">Líneas de compra</string>
     <string name="new_purchase">Nueva compra</string>
     <string name="draft_purchase">Borrador de compra</string>
+
+    <!-- Stock Counts -->
+    <string name="action_start_count">Iniciar nuevo conteo</string>
+    <string name="status_completed">Completado</string>
+    <string name="count_by_area">Conteo por área</string>
+    <string name="not_started">No iniciado</string>
+    <string name="status_in_progress">En progreso</string>
+    <string name="area_completed">Área completada</string>
+    <string name="reopen_area">Reabrir área</string>
+    <string name="pending_item">Pendiente</string>
+    <string name="counted_item">Contado</string>
+    <string name="expected_quantity">Cantidad esperada</string>
+    <string name="counted_quantity">Cantidad contada</string>
+    <string name="adjustment">Ajuste</string>
+    <string name="opening_balance">Saldo inicial</string>
+    <string name="no_prior_inventory">Sin inventario previo</string>
+    <string name="missing_items">Artículos faltantes</string>
+    <string name="complete_with_missing">Completar con artículos faltantes</string>
+    <string name="complete_area">Completar área</string>
+    <string name="complete_count">Completar conteo</string>
+    <string name="void_count">Anular conteo</string>
+    <string name="saving">Guardando…</string>
+    <string name="saved">Guardado</string>
+    <string name="inventory_changed_warning">El inventario cambió mientras el conteo estaba abierto</string>
+    <string name="archived_nonzero_warning">Ingrediente archivado con saldo distinto de cero</string>
+    <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explícitamente afectan el inventario.</string>
+    <string name="complete_count_desc">Se crearán ajustes de inventario. El conteo pasará a ser de solo lectura. Se pueden crear saldos iniciales para artículos sin historial previo en el área.</string>
+    <string name="void_count_desc">Los movimientos originales permanecen en el historial. Los movimientos de reversión restaurarán el efecto de inventario anterior. El conteo sigue siendo visible como ANULADO.</string>
+    <string name="delete_draft_desc">¿Eliminar este borrador de conteo? Esta acción elimina el borrador no publicado y sus líneas.</string>
 </resources>

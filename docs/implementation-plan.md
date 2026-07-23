@@ -20,13 +20,15 @@
 * **Integrity:** Atomic ingredient/unit creation, base unit immutability enforced in repository, dimension-safe conversions.
 * **Result:** A fully functional ingredient catalog with precise measurement and packaging support.
 
-### Milestone 5: Purchases
+### Milestone 5: Purchases (Completed)
 * **Scope:** Supplier management, Purchase receipts (Draft/Posted/Void), Inventory movements, Cost averaging.
-* **Dependency:** Milestone 4.
+* **Integrity:** Authoritative `PurchaseLineCalculator`, transactional posting/voiding, movement history validation, numeric equivalence for decimal comparison.
+* **Result:** Precise, restaurant-scoped purchase tracking with strict audit trails.
 
-### Milestone 6: Stock Counts
+### Milestone 6: Stock Counts (Completed)
 * **Scope:** Physical inventory counts, Area-based counting, Opening balances, Adjustments.
-* **Dependency:** Milestone 5.
+* **Integrity:** Point-in-time inventory snapshot replaying movement history, debounced autosave for counts, atomic completion, strict history validation.
+* **Result:** Accurate area-based physical counts with automated opening balances and adjustments.
 
 ### Milestone 7: Waste Tracking
 * **Scope:** Waste events registration, Photos, History.

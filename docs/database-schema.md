@@ -56,7 +56,9 @@ Records of incoming goods.
 
 ### `stock_counts`, `stock_count_areas`, `stock_count_lines`
 Periodic physical counts.
-*   `adjustmentQuantityBase`: String? (BigDecimal)
+*   **stock_counts**: `id`, `restaurantId`, `name`, `status` (DRAFT, COMPLETED, VOIDED), `effectiveAt`.
+*   **stock_count_areas**: `id`, `stockCountId`, `areaId`, `status` (NOT_STARTED, IN_PROGRESS, COMPLETED).
+*   **stock_count_lines**: `id`, `stockCountAreaId`, `ingredientId`, `quantityEntered`, `quantityBase`, `expectedQuantityBaseSnapshot`, `adjustmentQuantityBase`.
 
 ### `waste_events`
 Records of discarded items.

@@ -36,3 +36,11 @@ In Milestone 2, we established the **Local Data Foundation**:
 * **Mappers:** Explicit boundaries between Room Entities and Domain Models.
 * **Repositories:** Room-backed implementations of domain repositories.
 * **Domain Services:** Conversion and calculation logic for units, cost, and balances.
+
+## Milestone 6 Implementation
+
+In Milestone 6, we implemented **Stock Counts and Opening Balances**:
+* **Inventory Snapshot Service:** Point-in-time inventory calculation replaying movement history.
+* **Stock Count Lifecycle:** Draft, Completed, and Voided states with strict immutability rules.
+* **Autosave Engine:** Debounced line entry with latest-write-wins protection.
+* **Integrity Validation:** Strict history validation for posting and voiding, ensuring idempotency.

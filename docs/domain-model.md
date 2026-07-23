@@ -52,5 +52,11 @@ Cost is tracked using the weighted average method:
 `new_avg = ((old_qty * old_avg) + (new_qty * new_unit_cost)) / (old_qty + new_qty)`
 Only positive inflows with cost data affect the average cost. If stock is exhausted, the last cost is preserved until reset by the next positive purchase.
 
+## Stock Counts
+
+*   **StockCount:** The root aggregate for a physical inventory session. Contains name, notes, and effective time.
+*   **StockCountArea:** Represents an area included in the count. Tracks progress and completion status.
+*   **StockCountLine:** The actual count for an ingredient in an area. Stores the entered quantity and unit, and captures snapshots of expected quantity and adjustment during completion.
+
 ## Validation
 Domain validation rules are centralized in `ValidationError`. Repositories and Services enforce these rules before any operation is committed. Expected rule failures throw typed errors rather than generic exceptions.
