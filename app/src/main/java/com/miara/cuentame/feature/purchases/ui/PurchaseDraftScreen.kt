@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -59,6 +58,7 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.supplier.Supplier
 import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
@@ -101,6 +101,7 @@ fun PurchaseDraftRoute(
 
     PurchaseDraftScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onSaveHeader = viewModel::onSaveHeader,
         onAddLine = { purchaseId?.let { onAddLine(it) } },
@@ -115,6 +116,7 @@ fun PurchaseDraftRoute(
 @Composable
 fun PurchaseDraftScreen(
     uiState: PurchaseDraftUiState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onSaveHeader: (SupplierId?, String?, Instant, String?) -> Unit,
     onAddLine: () -> Unit,
@@ -125,12 +127,18 @@ fun PurchaseDraftScreen(
 ) {
     var showDeleteDraftConfirm by remember { mutableStateOf(false) }
     var showPostConfirm by remember { mutableStateOf(false) }
+    var lineToDelete by remember { mutableStateOf<PurchaseLineWithDetails?>(null) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.add_purchase)) },
+                title = { 
+                    Text(
+                        if (uiState.receiptId == null) stringResource(R.string.add_purchase)
+                        else stringResource(R.string.status_draft)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -176,15 +184,28 @@ fun PurchaseDraftScreen(
                         }
                     }
 
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(uiState.details?.lines ?: emptyList()) { lineWithDetails ->
-                            PurchaseLineItem(
-                                lineWithDetails = lineWithDetails,
-                                onEdit = { onEditLine(lineWithDetails.line.id) },
-                                onDelete = { onDeleteLine(lineWithDetails.line.id) }
-                            )
-                            HorizontalDivider()
+                    if (uiState.details?.lines?.isEmpty() == true) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.state_empty_desc))
                         }
+                    } else {
+                        if (uiState.details?.lines?.isEmpty() == true) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.state_empty_desc))
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(uiState.details?.lines ?: emptyList()) { lineWithDetails ->
+                                PurchaseLineItem(
+                                    lineWithDetails = lineWithDetails,
+                                    currencyCode = uiState.currencyCode,
+                                    onEdit = { onEditLine(lineWithDetails.line.id) },
+                                    onDelete = { lineToDelete = lineWithDetails }
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
                     }
 
                     Row(
@@ -213,18 +234,6 @@ fun PurchaseDraftScreen(
                             Text(stringResource(R.string.post_purchase))
                         }
                     }
-                } else {
-                    // Only show save button for new draft
-                    Button(
-                        onClick = { 
-                            // Header save is handled inside PurchaseHeaderSection or here?
-                            // Let's make PurchaseHeaderSection handle its own local state and expose onSave
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isSaving
-                    ) {
-                        Text(stringResource(R.string.action_save))
-                    }
                 }
             }
         }
@@ -238,7 +247,7 @@ fun PurchaseDraftScreen(
             onDismiss = { showDeleteDraftConfirm = false },
             onConfirm = {
                 onDeleteDraft()
-                showDeleteDraftConfirm = false
+                // Dialog will close via event or state change
             }
         )
     }
@@ -251,9 +260,28 @@ fun PurchaseDraftScreen(
             onDismiss = { showPostConfirm = false },
             onConfirm = {
                 onPost()
-                showPostConfirm = false
+                // Dialog will close via event or state change
             }
         )
+    }
+
+    lineToDelete?.let { line ->
+        ArchiveConfirmDialog(
+            title = stringResource(R.string.delete_line),
+            message = stringResource(R.string.delete_line_desc, line.ingredientName ?: ""),
+            onDismiss = { lineToDelete = null },
+            onConfirm = {
+                onDeleteLine(line.line.id)
+                lineToDelete = null
+            }
+        )
+    }
+    
+    // Success effects to close dialogs
+    LaunchedEffect(uiState.details?.receipt?.status) {
+        if (uiState.details?.receipt?.status == DocumentStatus.POSTED) {
+            showPostConfirm = false
+        }
     }
 }
 
@@ -311,16 +339,6 @@ fun PurchaseHeaderSection(
             modifier = Modifier.fillMaxWidth()
         )
 
-        OutlinedTextField(
-            value = dateFormatter.format(purchaseDate),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(stringResource(R.string.purchase_date)) },
-            modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true },
-            enabled = false, // To prevent keyboard but keep it clickable through modifier?
-            // Actually better to use a non-editable field or a Button
-        )
-        // Correct way for date picker trigger
         Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
              OutlinedTextField(
                 value = dateFormatter.format(purchaseDate),
@@ -349,6 +367,9 @@ fun PurchaseHeaderSection(
             modifier = Modifier.align(Alignment.End),
             enabled = !uiState.isSaving
         ) {
+            if (uiState.isSaving && uiState.receiptId != null) {
+                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+            }
             Text(stringResource(R.string.action_save))
         }
     }
@@ -361,10 +382,10 @@ fun PurchaseHeaderSection(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { purchaseDate = Instant.ofEpochMilli(it) }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(android.R.string.ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(android.R.string.cancel)) }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -375,31 +396,46 @@ fun PurchaseHeaderSection(
 @Composable
 fun PurchaseLineItem(
     lineWithDetails: PurchaseLineWithDetails,
+    currencyCode: String,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     ListItem(
-        headlineContent = { Text(lineWithDetails.ingredientName, fontWeight = FontWeight.Bold) },
+        headlineContent = { Text(lineWithDetails.ingredientName ?: stringResource(R.string.uncategorized), fontWeight = FontWeight.Bold) },
         supportingContent = {
             Column {
-                Text("${lineWithDetails.line.quantityEntered} ${lineWithDetails.unitOptionName}")
+                Text("${lineWithDetails.line.quantityEntered} ${lineWithDetails.unitOptionName ?: ""}")
                 Text(
-                    text = stringResource(R.string.unit_conversion_format, lineWithDetails.line.quantityBase.toPlainString(), lineWithDetails.baseUnitSymbol, ""), // Format correctly
+                    text = "${lineWithDetails.line.quantityBase} ${lineWithDetails.baseUnitSymbol ?: ""}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "${stringResource(R.string.receiving_area)}: ${lineWithDetails.areaName ?: ""}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         },
         trailingContent = {
             Row {
-                Text(
-                    text = lineWithDetails.line.lineTotal.toPlainString(),
-                    modifier = Modifier.padding(end = 16.dp).align(Alignment.CenterVertically)
-                )
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 16.dp)) {
+                    Text(
+                        text = "$currencyCode ${lineWithDetails.line.lineTotal.toPlainString()}",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(R.string.cost_per_base_unit, lineWithDetails.baseUnitSymbol ?: ""),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                    Text(
+                        text = lineWithDetails.line.unitCostBase.toPlainString(),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.purchase_line_desc, lineWithDetails.ingredientName))
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.purchase_line_desc, lineWithDetails.ingredientName ?: ""))
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_line_desc, lineWithDetails.ingredientName))
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_line_desc, lineWithDetails.ingredientName ?: ""))
                 }
             }
         }

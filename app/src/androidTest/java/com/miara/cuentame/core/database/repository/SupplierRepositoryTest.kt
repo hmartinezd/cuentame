@@ -41,7 +41,7 @@ class SupplierRepositoryTest {
             .allowMainThreadQueries()
             .build()
         repository = RoomSupplierRepository(
-            db.supplierDao(), idGenerator, timeProvider
+            db.supplierDao(), db.restaurantDao(), idGenerator, timeProvider
         )
         
         runBlocking {

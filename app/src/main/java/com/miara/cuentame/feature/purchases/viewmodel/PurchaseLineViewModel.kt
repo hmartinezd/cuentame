@@ -16,6 +16,7 @@ import com.miara.cuentame.core.domain.usecase.ObserveInventoryAreasUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
 import com.miara.cuentame.core.domain.usecase.SavePurchaseLineUseCase
 import com.miara.cuentame.core.domain.usecase.GetIngredientDetailUseCase
+import com.miara.cuentame.core.domain.usecase.GetPurchaseLineUseCase
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
@@ -28,7 +29,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -53,6 +56,7 @@ data class PurchaseLineUiState(
     val baseQuantityPreview: BigDecimal? = null,
     val unitCostPreview: BigDecimal? = null,
     val baseUnitSymbol: String = "",
+    val fieldErrors: Map<String, Int> = emptyMap(),
     val error: Throwable? = null
 )
 
@@ -65,7 +69,7 @@ sealed interface PurchaseLineEvent {
 class PurchaseLineViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val savePurchaseLineUseCase: SavePurchaseLineUseCase,
-    private val getPurchaseLineUseCase: com.miara.cuentame.core.domain.usecase.GetPurchaseLineUseCase,
+    private val getPurchaseLineUseCase: GetPurchaseLineUseCase,
     private val observeIngredientsUseCase: ObserveIngredientsUseCase,
     private val observeInventoryAreasUseCase: ObserveInventoryAreasUseCase,
     private val observeIngredientUnitOptionsUseCase: ObserveIngredientUnitOptionsUseCase,
@@ -74,7 +78,8 @@ class PurchaseLineViewModel @Inject constructor(
     private val unitRepository: com.miara.cuentame.core.domain.repository.UnitRepository
 ) : ViewModel() {
 
-    private val receiptId = PurchaseReceiptId(requireNotNull(savedStateHandle.get<String>("purchaseId")))
+    private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
+    private val receiptId = purchaseIdStr?.let { PurchaseReceiptId(it) }
     private val lineId = savedStateHandle.get<String>("lineId")?.let { PurchaseLineId(it) }
 
     private val _uiState = MutableStateFlow(PurchaseLineUiState(lineId = lineId))
@@ -94,18 +99,26 @@ class PurchaseLineViewModel @Inject constructor(
     val areas = observeInventoryAreasUseCase(activeOnly = true)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _selectedIngredientId = MutableStateFlow<IngredientId?>(null)
+    val unitOptions: StateFlow<List<IngredientUnitOption>> = _selectedIngredientId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList())
+        else observeIngredientUnitOptionsUseCase(id, includeArchived = false)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     init {
-        viewModelScope.launch {
-            combine(ingredients, areas) { ing, ar -> ing to ar }.collect { (ing, ar) ->
-                _uiState.update { it.copy(ingredients = ing, areas = ar) }
-            }
+        if (receiptId == null) {
+             _uiState.update { it.copy(error = Exception("Invalid purchase ID")) }
+        } else {
+            loadInitialData()
         }
-        
-        if (lineId != null) {
-            viewModelScope.launch {
+    }
+
+    private fun loadInitialData() {
+        viewModelScope.launch {
+            if (lineId != null && receiptId != null) {
                 val line = getPurchaseLineUseCase(receiptId, lineId)
                 if (line != null) {
-                    _uiState.update { 
+                    _uiState.update {
                         it.copy(
                             selectedIngredientId = line.ingredientId,
                             selectedAreaId = line.areaId,
@@ -115,33 +128,36 @@ class PurchaseLineViewModel @Inject constructor(
                             notes = line.notes ?: ""
                         )
                     }
-                    onIngredientSelected(line.ingredientId, line.ingredientUnitOptionId)
+                    _selectedIngredientId.value = line.ingredientId
+                    // Trigger manual update of base unit symbol
+                    val ingredient = getIngredientDetailUseCase(line.ingredientId)
+                    val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
+                    _uiState.update { it.copy(baseUnitSymbol = baseUnit?.symbol ?: "") }
                 }
+            }
+        }
+
+        viewModelScope.launch {
+            combine(ingredients, areas, unitOptions) { ing, ar, opt -> Triple(ing, ar, opt) }.collect { (ing, ar, opt) ->
+                _uiState.update { it.copy(ingredients = ing, areas = ar, unitOptions = opt) }
             }
         }
     }
 
-    fun onIngredientSelected(ingredientId: IngredientId, initialUnitOptionId: IngredientUnitOptionId? = null) {
-        _uiState.update { it.copy(selectedIngredientId = ingredientId, selectedUnitOptionId = initialUnitOptionId) }
+    fun onIngredientSelected(ingredientId: IngredientId) {
+        _selectedIngredientId.value = ingredientId
+        _uiState.update { it.copy(selectedIngredientId = ingredientId, selectedUnitOptionId = null) }
         viewModelScope.launch {
-            observeIngredientUnitOptionsUseCase(ingredientId, includeArchived = false).collect { options ->
-                val activeOptions = options.filter { it.isActive }
-                val defaultPurchase = initialUnitOptionId?.let { id -> activeOptions.find { it.id == id } }
-                    ?: activeOptions.find { it.isDefaultPurchase } 
-                    ?: activeOptions.find { it.isBase }
-                
-                val ingredient = getIngredientDetailUseCase(ingredientId)
-                val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
-
-                _uiState.update { 
-                    it.copy(
-                        unitOptions = activeOptions,
-                        selectedUnitOptionId = defaultPurchase?.id,
-                        baseUnitSymbol = baseUnit?.symbol ?: ""
-                    )
-                }
-                updatePreviews()
-            }
+            val ingredient = getIngredientDetailUseCase(ingredientId)
+            val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
+            _uiState.update { it.copy(baseUnitSymbol = baseUnit?.symbol ?: "") }
+            
+            // Set default option when options load
+            val options = observeIngredientUnitOptionsUseCase(ingredientId, includeArchived = false).first()
+            val activeOptions = options.filter { it.isActive }
+            val defaultPurchase = activeOptions.find { it.isDefaultPurchase } ?: activeOptions.find { it.isBase }
+            _uiState.update { it.copy(selectedUnitOptionId = defaultPurchase?.id) }
+            updatePreviews()
         }
     }
 
@@ -185,24 +201,35 @@ class PurchaseLineViewModel @Inject constructor(
 
     fun onSave() {
         val state = _uiState.value
-        val qty = DecimalParser.parse(state.quantityText) ?: return
-        val total = DecimalParser.parse(state.totalText) ?: return
-        val ingredientId = state.selectedIngredientId ?: return
-        val areaId = state.selectedAreaId ?: return
-        val optionId = state.selectedUnitOptionId ?: return
+        if (state.isSaving || receiptId == null) return
 
-        _uiState.update { it.copy(isSaving = true, error = null) }
+        val errors = mutableMapOf<String, Int>()
+        val qty = DecimalParser.parse(state.quantityText)
+        val total = DecimalParser.parse(state.totalText)
+
+        if (state.selectedIngredientId == null) errors["ingredient"] = com.miara.cuentame.R.string.error_generic
+        if (state.selectedAreaId == null) errors["area"] = com.miara.cuentame.R.string.error_generic
+        if (state.selectedUnitOptionId == null) errors["unit"] = com.miara.cuentame.R.string.error_generic
+        if (qty == null || qty <= BigDecimal.ZERO) errors["quantity"] = com.miara.cuentame.R.string.error_invalid_package_qty
+        if (total == null || total < BigDecimal.ZERO) errors["total"] = com.miara.cuentame.R.string.error_generic
+
+        if (errors.isNotEmpty()) {
+            _uiState.update { it.copy(fieldErrors = errors) }
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true, error = null, fieldErrors = emptyMap()) }
         viewModelScope.launch {
             try {
                 savePurchaseLineUseCase(
                     SavePurchaseLineCommand(
                         receiptId = receiptId,
                         lineId = lineId,
-                        ingredientId = ingredientId,
-                        areaId = areaId,
-                        ingredientUnitOptionId = optionId,
-                        quantityEntered = qty,
-                        lineTotal = total,
+                        ingredientId = state.selectedIngredientId!!,
+                        areaId = state.selectedAreaId!!,
+                        ingredientUnitOptionId = state.selectedUnitOptionId!!,
+                        quantityEntered = qty!!,
+                        lineTotal = total!!,
                         notes = state.notes
                     )
                 )

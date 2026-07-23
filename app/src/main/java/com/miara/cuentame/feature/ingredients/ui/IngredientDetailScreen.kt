@@ -336,8 +336,8 @@ fun UnitOptionItem(
         },
         supportingContent = {
             Column {
-                val factor = if (option.isBase) "1" else option.factorToBase.stripTrailingZeros().toPlainString()
-                Text(stringResource(R.string.unit_conversion_format, option.shortLabel, factor, baseSymbol))
+                val factorStr = if (option.isBase) "1" else option.factorToBase.stripTrailingZeros().toPlainString()
+                Text(stringResource(R.string.unit_conversion_format, option.shortLabel, factorStr, baseSymbol))
                 
                 Row(modifier = Modifier.padding(top = 4.dp)) {
                     if (option.isDefaultCount) {

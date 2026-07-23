@@ -11,6 +11,8 @@ import com.miara.cuentame.core.domain.service.InventoryBalanceCalculator
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
+import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
+import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import dagger.Module
 import dagger.Provides
@@ -64,4 +66,12 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideLocalSetupValidator(): LocalSetupValidator = LocalSetupValidator()
+
+    @Provides
+    @Singleton
+    fun providePurchaseLineCalculator(): PurchaseLineCalculator = PurchaseLineCalculator()
+
+    @Provides
+    @Singleton
+    fun providePurchaseMovementHistoryValidator(): PurchaseMovementHistoryValidator = PurchaseMovementHistoryValidator()
 }

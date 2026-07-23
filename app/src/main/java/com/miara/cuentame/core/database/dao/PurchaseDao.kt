@@ -20,22 +20,19 @@ interface PurchaseDao {
     suspend fun upsertReceipt(receipt: PurchaseReceiptEntity)
 
     @Update
-    suspend fun updateReceipt(receipt: PurchaseReceiptEntity)
+    suspend fun updateReceipt(receipt: PurchaseReceiptEntity): Int
 
     @Query("DELETE FROM purchase_receipts WHERE id = :id AND status = 'DRAFT'")
-    suspend fun deleteDraftReceipt(id: String)
+    suspend fun deleteDraftReceipt(id: String): Int
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertLine(line: PurchaseLineEntity)
 
-    @Upsert
-    suspend fun upsertLines(lines: List<PurchaseLineEntity>)
-
     @Update
-    suspend fun updateLine(line: PurchaseLineEntity)
+    suspend fun updateLine(line: PurchaseLineEntity): Int
 
     @Query("DELETE FROM purchase_lines WHERE id = :id")
-    suspend fun deleteLine(id: String)
+    suspend fun deleteLine(id: String): Int
 
     @Query("DELETE FROM purchase_lines WHERE purchaseReceiptId = :receiptId")
     suspend fun deleteLinesForReceipt(receiptId: String)

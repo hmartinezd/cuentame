@@ -202,7 +202,7 @@ fun PurchaseItem(
                     )
                 }
                 Text(
-                    text = "${summary.lineCount} items",
+                    text = stringResource(R.string.purchase_items_count, summary.lineCount),
                     style = MaterialTheme.typography.bodySmall
                 )
             }

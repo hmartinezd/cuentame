@@ -73,6 +73,7 @@ fun SupplierFormRoute(
 
     SupplierFormScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onNameChanged = viewModel::onNameChanged,
         onPhoneChanged = viewModel::onPhoneChanged,
@@ -87,6 +88,7 @@ fun SupplierFormRoute(
 @Composable
 fun SupplierFormScreen(
     uiState: SupplierFormUiState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onNameChanged: (String) -> Unit,
     onPhoneChanged: (String) -> Unit,
@@ -98,7 +100,7 @@ fun SupplierFormScreen(
     var showArchiveConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { 

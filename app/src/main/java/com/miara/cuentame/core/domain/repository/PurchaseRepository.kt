@@ -45,8 +45,6 @@ data class PurchaseFilter(
     val restaurantId: RestaurantId,
     val status: DocumentStatus? = null,
     val supplierId: SupplierId? = null,
-    val startDate: Instant? = null,
-    val endDate: Instant? = null,
     val query: String? = null
 )
 
@@ -65,10 +63,10 @@ data class PurchaseDetails(
 
 data class PurchaseLineWithDetails(
     val line: PurchaseLine,
-    val ingredientName: String,
-    val areaName: String,
-    val unitOptionName: String,
-    val baseUnitSymbol: String
+    val ingredientName: String?,
+    val areaName: String?,
+    val unitOptionName: String?,
+    val baseUnitSymbol: String?
 )
 
 interface PurchaseRepository {

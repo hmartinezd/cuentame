@@ -8,7 +8,6 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.time.TimeProvider
@@ -18,6 +17,7 @@ import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.database.seed.UnitSeeds
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
+import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
@@ -27,7 +27,6 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +60,8 @@ class PurchaseRepositoryTest {
         repository = RoomPurchaseRepository(
             db, db.purchaseDao(), db.supplierDao(), db.ingredientDao(),
             db.ingredientUnitOptionDao(), db.inventoryAreaDao(), db.inventoryMovementDao(),
-            db.restaurantDao(), projectionRebuilder, idGenerator, timeProvider
+            db.restaurantDao(), projectionRebuilder, PurchaseLineCalculator(),
+            PurchaseMovementHistoryValidator(), idGenerator, timeProvider
         )
         
         runBlocking {

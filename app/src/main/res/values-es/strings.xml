@@ -201,6 +201,7 @@
     <string name="status_draft">Borrador</string>
     <string name="status_posted">Publicado</string>
     <string name="status_voided">Anulado</string>
+    <string name="purchase_items_count">%1$d artículos</string>
     <string name="posted_at">Publicado el: %1$s</string>
     <string name="voided_at">Anulado el: %1$s</string>
     <string name="purchase_line_desc">Editar línea de compra para %1$s</string>
@@ -230,4 +231,18 @@
     <string name="error_invalid_package_qty">La cantidad debe ser mayor a cero</string>
     <string name="error_default_selection">Selección de unidad por defecto no válida</string>
     <string name="error_dimension_mismatch">Las unidades deben tener la misma dimensión</string>
+    <string name="error_supplier_not_found">Proveedor no encontrado</string>
+    <string name="error_supplier_exists">Ya existe un proveedor con este nombre</string>
+    <string name="error_supplier_ownership">El proveedor no pertenece a este restaurante</string>
+    <string name="error_supplier_archived">El proveedor está archivado y no se puede modificar</string>
+    <string name="error_invalid_email">Formato de correo electrónico no válido</string>
+    <string name="error_purchase_not_found">Recibo de compra no encontrado</string>
+    <string name="error_purchase_line_not_found">Línea de compra no encontrada</string>
+    <string name="error_purchase_ownership">Error de pertenencia del registro</string>
+    <string name="error_purchase_not_draft">La compra ya no es un borrador</string>
+    <string name="error_purchase_already_posted">La compra ya ha sido publicada</string>
+    <string name="error_purchase_already_voided">La compra ya ha sido anulada</string>
+    <string name="error_purchase_no_lines">La compra debe tener al menos una línea</string>
+    <string name="error_malformed_history">Se detectó un historial de movimientos malformado</string>
+    <string name="error_invalid_status_transition">Transición de estado no válida</string>
 </resources>

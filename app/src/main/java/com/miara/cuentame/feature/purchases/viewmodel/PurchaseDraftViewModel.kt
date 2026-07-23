@@ -43,6 +43,7 @@ data class PurchaseDraftUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isPosting: Boolean = false,
+    val currencyCode: String = "",
     val receiptId: PurchaseReceiptId? = null,
     val details: PurchaseDetails? = null,
     val suppliers: List<Supplier> = emptyList(),
@@ -81,12 +82,11 @@ class PurchaseDraftViewModel @Inject constructor(
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    private val restaurantIdFlow = restaurantRepository.observeRestaurant()
+    private val restaurantFlow = restaurantRepository.observeRestaurant()
         .filterNotNull()
-        .map { it.id }
 
-    val suppliers = restaurantIdFlow.flatMapLatest { rid ->
-        observeSuppliersUseCase(rid)
+    val suppliers = restaurantFlow.flatMapLatest { res ->
+        observeSuppliersUseCase(res.id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val detailsFlow = if (receiptId == null) {
@@ -96,16 +96,14 @@ class PurchaseDraftViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<PurchaseDraftUiState> = combine(
-        detailsFlow,
-        suppliers,
-        _isSaving,
-        _isPosting,
-        _error
-    ) { details, suppliers, saving, posting, error ->
+        combine(detailsFlow, suppliers, restaurantFlow) { d, s, r -> Triple(d, s, r) },
+        combine(_isSaving, _isPosting, _error) { s, p, e -> Triple(s, p, e) }
+    ) { (details, suppliers, restaurant), (saving, posting, error) ->
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
             isSaving = saving,
             isPosting = posting,
+            currencyCode = restaurant.currencyCode,
             receiptId = receiptId,
             details = details,
             suppliers = suppliers,
@@ -129,7 +127,8 @@ class PurchaseDraftViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                if (receiptId == null) {
+                val currentState = uiState.value
+                if (currentState.receiptId == null) {
                     val restaurant = restaurantRepository.getRestaurant() ?: throw Exception("No restaurant")
                     val newId = createPurchaseDraftUseCase(
                         CreatePurchaseDraftCommand(
@@ -144,7 +143,7 @@ class PurchaseDraftViewModel @Inject constructor(
                 } else {
                     updatePurchaseDraftUseCase(
                         UpdatePurchaseDraftCommand(
-                            receiptId = receiptId,
+                            receiptId = currentState.receiptId,
                             supplierId = supplierId,
                             invoiceNumber = invoiceNumber,
                             purchaseDate = purchaseDate,

@@ -24,14 +24,32 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.InvalidStandardUnitFactor -> R.string.error_standard_factor_mismatch
             ValidationError.InvalidPackageQuantity -> R.string.error_invalid_package_qty
             ValidationError.InvalidDefaultUnitOption -> R.string.error_default_selection
-            ValidationError.MissingBaseUnitOption -> R.string.error_generic
-            ValidationError.MultipleBaseUnitOptions -> R.string.error_generic
-            ValidationError.InvalidBaseUnitFactor -> R.string.error_generic
             ValidationError.IncompatibleUnitDimensions -> R.string.error_dimension_mismatch
-            ValidationError.IngredientIdAlreadyExists -> R.string.error_generic // UI usually generates these
-            ValidationError.UnitOptionIdAlreadyExists -> R.string.error_generic
-            ValidationError.IngredientOwnershipMismatch -> R.string.error_generic
-            ValidationError.RecordNotFound -> R.string.error_generic
+            
+            // Suppliers
+            ValidationError.SupplierNotFound -> R.string.error_supplier_not_found
+            ValidationError.SupplierNameAlreadyExists -> R.string.error_supplier_exists
+            ValidationError.SupplierOwnershipMismatch -> R.string.error_supplier_ownership
+            ValidationError.SupplierArchived -> R.string.error_supplier_archived
+            ValidationError.InvalidSupplierEmail -> R.string.error_invalid_email
+
+            // Purchases
+            ValidationError.PurchaseNotFound -> R.string.error_purchase_not_found
+            ValidationError.PurchaseLineNotFound -> R.string.error_purchase_line_not_found
+            ValidationError.PurchaseOwnershipMismatch -> R.string.error_purchase_ownership
+            ValidationError.PurchaseLineOwnershipMismatch -> R.string.error_purchase_ownership
+            ValidationError.PurchaseNotDraft -> R.string.error_purchase_not_draft
+            ValidationError.PurchaseAlreadyPosted -> R.string.error_purchase_already_posted
+            ValidationError.PurchaseAlreadyVoided -> R.string.error_purchase_already_voided
+            ValidationError.PurchaseHasNoLines -> R.string.error_purchase_no_lines
+            ValidationError.MalformedPurchaseMovementHistory -> R.string.error_malformed_history
+            ValidationError.InvalidPurchaseStatusTransition -> R.string.error_invalid_status_transition
+            ValidationError.InvalidPurchaseArea -> R.string.error_generic
+            ValidationError.InvalidPurchaseIngredient -> R.string.error_generic
+            ValidationError.InvalidPurchaseUnitOption -> R.string.error_generic
+            ValidationError.InvalidPurchaseQuantity -> R.string.error_invalid_package_qty
+            ValidationError.InvalidPurchaseLineTotal -> R.string.error_generic
+
             else -> R.string.error_generic
         }
         else -> R.string.error_generic

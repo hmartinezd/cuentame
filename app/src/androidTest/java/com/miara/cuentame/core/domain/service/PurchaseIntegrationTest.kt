@@ -14,6 +14,7 @@ import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.factory.TestFactories
 import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
 import com.miara.cuentame.core.database.repository.RoomInventoryProjectionRebuilder
 import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.database.seed.UnitSeeds
@@ -61,7 +62,8 @@ class PurchaseIntegrationTest {
         repository = RoomPurchaseRepository(
             db, db.purchaseDao(), db.supplierDao(), db.ingredientDao(),
             db.ingredientUnitOptionDao(), db.inventoryAreaDao(), db.inventoryMovementDao(),
-            db.restaurantDao(), projectionRebuilder, idGenerator, timeProvider
+            db.restaurantDao(), projectionRebuilder, PurchaseLineCalculator(),
+            PurchaseMovementHistoryValidator(), idGenerator, timeProvider
         )
         
         runBlocking {

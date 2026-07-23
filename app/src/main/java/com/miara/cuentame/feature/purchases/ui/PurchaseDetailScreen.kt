@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -46,6 +47,7 @@ import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailEvent
+import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailUiState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailViewModel
 import java.time.ZoneId
@@ -63,7 +65,9 @@ fun PurchaseDetailRoute(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is PurchaseDetailEvent.Voided -> onBack()
+                is PurchaseDetailEvent.Voided -> {
+                    // Stay on screen, it should update to VOIDED via Flow
+                }
             }
         }
     }
@@ -77,6 +81,7 @@ fun PurchaseDetailRoute(
 
     PurchaseDetailScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onVoid = viewModel::onVoid
     )
@@ -86,6 +91,7 @@ fun PurchaseDetailRoute(
 @Composable
 fun PurchaseDetailScreen(
     uiState: PurchaseDetailUiState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onVoid: () -> Unit
 ) {
@@ -94,7 +100,7 @@ fun PurchaseDetailScreen(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.purchases)) },
@@ -106,90 +112,99 @@ fun PurchaseDetailScreen(
             )
         }
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.details == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.error_generic))
-            }
-        } else {
-            val details = uiState.details
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(
-                            text = details.supplierName ?: stringResource(R.string.no_supplier),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = dateFormatter.format(details.receipt.purchaseDate),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        if (!details.receipt.invoiceNumber.isNullOrBlank()) {
-                            Text(
-                                text = "${stringResource(R.string.invoice_number)}: ${details.receipt.invoiceNumber}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    StatusChip(status = details.receipt.status)
+        when (val state = uiState.state) {
+            is PurchaseDetailState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(details.lines) { line ->
-                        ReadOnlyPurchaseLineItem(line)
-                        HorizontalDivider()
-                    }
+            }
+            is PurchaseDetailState.NotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_purchase_not_found))
                 }
-
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                    val total = details.lines.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }
+            }
+            is PurchaseDetailState.Error -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_generic))
+                }
+            }
+            is PurchaseDetailState.Ready -> {
+                val details = state.details
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(16.dp)
+                ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            text = total.toPlainString(),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Column {
+                            Text(
+                                text = details.supplierName ?: stringResource(R.string.no_supplier),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = dateFormatter.format(details.receipt.purchaseDate),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            if (!details.receipt.invoiceNumber.isNullOrBlank()) {
+                                Text(
+                                    text = "${stringResource(R.string.invoice_number)}: ${details.receipt.invoiceNumber}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                        StatusChip(status = details.receipt.status)
                     }
 
-                    if (details.receipt.status == DocumentStatus.POSTED) {
-                        details.receipt.postedAt?.let {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(details.lines) { line ->
+                            ReadOnlyPurchaseLineItem(line, uiState.currencyCode)
+                            HorizontalDivider()
+                        }
+                    }
+
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                        val total = details.lines.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleLarge)
                             Text(
-                                text = stringResource(R.string.posted_at, timeFormatter.format(it)),
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 8.dp)
+                                text = total.toPlainString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Button(
-                            onClick = { showVoidConfirm = true },
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            enabled = !uiState.isVoiding
-                        ) {
-                            if (uiState.isVoiding) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp), color = MaterialTheme.colorScheme.onError)
+
+                        if (details.receipt.status == DocumentStatus.POSTED) {
+                            details.receipt.postedAt?.let {
+                                Text(
+                                    text = stringResource(R.string.posted_at, timeFormatter.format(it)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
                             }
-                            Text(stringResource(R.string.void_purchase))
-                        }
-                    } else if (details.receipt.status == DocumentStatus.VOIDED) {
-                        details.receipt.voidedAt?.let {
-                            Text(
-                                text = stringResource(R.string.voided_at, timeFormatter.format(it)),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
+                            Button(
+                                onClick = { showVoidConfirm = true },
+                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                enabled = !uiState.isVoiding
+                            ) {
+                                if (uiState.isVoiding) {
+                                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+                                }
+                                Text(stringResource(R.string.void_purchase))
+                            }
+                        } else if (details.receipt.status == DocumentStatus.VOIDED) {
+                            details.receipt.voidedAt?.let {
+                                Text(
+                                    text = stringResource(R.string.voided_at, timeFormatter.format(it)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -205,9 +220,15 @@ fun PurchaseDetailScreen(
             onDismiss = { showVoidConfirm = false },
             onConfirm = {
                 onVoid()
-                showVoidConfirm = false
             }
         )
+    }
+    
+    // Close dialog on success
+    LaunchedEffect(uiState.state) {
+        if (uiState.state is PurchaseDetailState.Ready && uiState.state.details.receipt.status == DocumentStatus.VOIDED) {
+            showVoidConfirm = false
+        }
     }
 }
 
@@ -233,23 +254,36 @@ fun StatusChip(status: DocumentStatus) {
 }
 
 @Composable
-fun ReadOnlyPurchaseLineItem(line: com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails) {
+fun ReadOnlyPurchaseLineItem(
+    line: com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails,
+    currencyCode: String
+) {
     ListItem(
-        headlineContent = { Text(line.ingredientName) },
+        headlineContent = { Text(line.ingredientName ?: stringResource(R.string.uncategorized)) },
         supportingContent = {
             Column {
-                Text("${line.line.quantityEntered} ${line.unitOptionName} (${line.line.quantityBase} ${line.baseUnitSymbol})")
+                Text("${line.line.quantityEntered} ${line.unitOptionName ?: ""} (${line.line.quantityBase} ${line.baseUnitSymbol ?: ""})")
                 Text(
-                    text = "${stringResource(R.string.receiving_area)}: ${line.areaName}",
+                    text = "${stringResource(R.string.receiving_area)}: ${line.areaName ?: ""}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         },
         trailingContent = {
-            Text(
-                text = line.line.lineTotal.toPlainString(),
-                fontWeight = FontWeight.Bold
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "$currencyCode ${line.line.lineTotal.toPlainString()}",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = stringResource(R.string.cost_per_base_unit, line.baseUnitSymbol ?: ""),
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = line.line.unitCostBase.toPlainString(),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     )
 }

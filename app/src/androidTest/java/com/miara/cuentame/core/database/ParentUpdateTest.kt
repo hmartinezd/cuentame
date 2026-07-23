@@ -54,13 +54,14 @@ class ParentUpdateTest {
             receiptId, "rest_1", null, null, Instant.now().toEpochMilli(),
             DocumentStatus.DRAFT.name, null, null, 0, 0, null, null
         )
-        db.purchaseDao().upsertReceipt(receipt)
+        db.purchaseDao().insertReceipt(receipt)
 
         val line = PurchaseLineEntity(
             "line_1", receiptId, "ing_1", "area_1", "opt_1",
             "10", "10", "100", "10", null, 0, 0
         )
-        db.purchaseDao().upsertLines(listOf(line))
+        // Correcting to insertLine as upsertLines was removed/not available in current DAO
+        db.purchaseDao().insertLine(line)
 
         // Update receipt
         val updatedReceipt = receipt.copy(notes = "Updated notes")

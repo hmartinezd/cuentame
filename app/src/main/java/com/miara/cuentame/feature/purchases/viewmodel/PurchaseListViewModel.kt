@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.purchases.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.SupplierId
+import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.domain.repository.PurchaseFilter
 import com.miara.cuentame.core.domain.repository.PurchaseSummary
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -59,7 +60,7 @@ class PurchaseListViewModel @Inject constructor(
                     restaurantId = rid,
                     status = status,
                     supplierId = supplier,
-                    query = query
+                    query = query.trim().ifBlank { null }
                 )
             }.flatMapLatest { filter ->
                 observePurchasesUseCase(filter)

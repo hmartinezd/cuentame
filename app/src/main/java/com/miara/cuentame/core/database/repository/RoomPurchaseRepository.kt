@@ -17,6 +17,9 @@ import com.miara.cuentame.core.database.dao.PurchaseDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import com.miara.cuentame.core.database.entity.PurchaseLineEntity
+import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
+import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
@@ -27,6 +30,7 @@ import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.domain.repository.PurchaseSummary
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
 import com.miara.cuentame.core.domain.repository.UpdatePurchaseDraftCommand
+import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
@@ -54,16 +58,22 @@ class RoomPurchaseRepository @Inject constructor(
     private val movementDao: InventoryMovementDao,
     private val restaurantDao: RestaurantDao,
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
+    private val lineCalculator: PurchaseLineCalculator,
+    private val historyValidator: PurchaseMovementHistoryValidator,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
 ) : PurchaseRepository {
+
+    private suspend fun requireActiveRestaurant(): com.miara.cuentame.core.database.entity.RestaurantEntity {
+        return restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
+    }
 
     override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> {
         return purchaseDao.observeFilteredReceipts(
             restaurantId = filter.restaurantId.value,
             status = filter.status?.name,
             supplierId = filter.supplierId?.value,
-            query = filter.query?.trim()?.ifBlank { null }
+            query = filter.query
         ).flatMapLatest { receipts ->
             val summaryFlows = receipts.map { entity ->
                 val linesFlow = purchaseDao.observeLinesForReceipt(entity.id)
@@ -112,10 +122,10 @@ class RoomPurchaseRepository @Inject constructor(
 
                     PurchaseLineWithDetails(
                         line = lineEntity.toDomain(),
-                        ingredientName = ingredient?.name ?: "Unknown Ingredient",
-                        areaName = area?.name ?: "Unknown Area",
-                        unitOptionName = option?.displayName ?: "Unknown Unit",
-                        baseUnitSymbol = baseUnit?.symbol ?: ""
+                        ingredientName = ingredient?.name,
+                        areaName = area?.name,
+                        unitOptionName = option?.displayName,
+                        baseUnitSymbol = baseUnit?.symbol
                     )
                 }
 
@@ -133,9 +143,8 @@ class RoomPurchaseRepository @Inject constructor(
     }
 
     override suspend fun createDraft(command: CreatePurchaseDraftCommand): PurchaseReceiptId {
-        val restaurant = restaurantDao.getById(command.restaurantId.value)
-            ?: throw ValidationError.RecordNotFound
-        if (restaurant.deletedAt != null) throw ValidationError.ArchivedReference
+        val activeRestaurant = requireActiveRestaurant()
+        if (activeRestaurant.id != command.restaurantId.value) throw ValidationError.PurchaseOwnershipMismatch
 
         if (command.supplierId != null) {
             val supplier = supplierDao.getById(command.supplierId.value)
@@ -166,6 +175,9 @@ class RoomPurchaseRepository @Inject constructor(
             val existing = purchaseDao.getReceiptById(command.receiptId.value)
                 ?: throw ValidationError.PurchaseNotFound
             
+            val activeRestaurant = requireActiveRestaurant()
+            if (existing.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+
             if (existing.status != DocumentStatus.DRAFT.name) {
                 throw ValidationError.PurchaseNotDraft
             }
@@ -195,6 +207,9 @@ class RoomPurchaseRepository @Inject constructor(
                 ?: throw ValidationError.PurchaseNotFound
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
 
+            val activeRestaurant = requireActiveRestaurant()
+            if (receipt.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+
             val ingredient = ingredientDao.getById(command.ingredientId.value)
                 ?: throw ValidationError.IngredientNotFound
             if (ingredient.restaurantId != receipt.restaurantId) throw ValidationError.IngredientOwnershipMismatch
@@ -202,7 +217,7 @@ class RoomPurchaseRepository @Inject constructor(
 
             val area = areaDao.getById(command.areaId.value)
                 ?: throw ValidationError.RecordNotFound
-            if (area.restaurantId != receipt.restaurantId) throw ValidationError.RecordNotFound
+            if (area.restaurantId != receipt.restaurantId) throw ValidationError.InvalidPurchaseArea
             if (!area.isActive || area.deletedAt != null) throw ValidationError.ArchivedReference
 
             val option = unitOptionDao.getById(command.ingredientUnitOptionId.value)
@@ -210,39 +225,56 @@ class RoomPurchaseRepository @Inject constructor(
             if (option.ingredientId != command.ingredientId.value) throw ValidationError.InvalidPurchaseUnitOption
             if (!option.isActive || option.deletedAt != null) throw ValidationError.ArchivedReference
 
-            if (command.quantityEntered <= BigDecimal.ZERO) throw ValidationError.InvalidPurchaseQuantity
-            if (command.lineTotal < BigDecimal.ZERO) throw ValidationError.InvalidPurchaseLineTotal
-
-            val quantityBase = command.quantityEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
-            val unitCostBase = if (quantityBase > BigDecimal.ZERO) {
-                command.lineTotal.divide(quantityBase, MathContext.DECIMAL128)
-            } else BigDecimal.ZERO
-
-            val now = timeProvider.now()
-            val lineId = command.lineId ?: PurchaseLineId(idGenerator.newId())
-            
-            val line = PurchaseLine(
-                id = lineId,
-                purchaseReceiptId = command.receiptId,
-                ingredientId = command.ingredientId,
-                areaId = command.areaId,
-                ingredientUnitOptionId = command.ingredientUnitOptionId,
+            val calculation = lineCalculator.calculate(
                 quantityEntered = command.quantityEntered,
-                quantityBase = quantityBase,
                 lineTotal = command.lineTotal,
-                unitCostBase = unitCostBase,
-                notes = command.notes?.trim()?.ifBlank { null },
-                createdAt = if (command.lineId == null) now else Instant.ofEpochMilli(purchaseDao.getLineById(lineId.value)?.createdAt ?: now.toEpochMilli()),
-                updatedAt = now
+                optionFactorToBase = option.factorToBase
             )
 
+            val now = timeProvider.now()
+            
             if (command.lineId == null) {
+                val newLineId = PurchaseLineId(idGenerator.newId())
+                val line = PurchaseLine(
+                    id = newLineId,
+                    purchaseReceiptId = command.receiptId,
+                    ingredientId = command.ingredientId,
+                    areaId = command.areaId,
+                    ingredientUnitOptionId = command.ingredientUnitOptionId,
+                    quantityEntered = command.quantityEntered,
+                    quantityBase = calculation.quantityBase,
+                    lineTotal = command.lineTotal,
+                    unitCostBase = calculation.unitCostBase,
+                    notes = command.notes?.trim()?.ifBlank { null },
+                    createdAt = now,
+                    updatedAt = now
+                )
                 purchaseDao.insertLine(line.toEntity())
+                newLineId
             } else {
-                purchaseDao.updateLine(line.toEntity())
-            }
+                val existingLine = purchaseDao.getLineById(command.lineId.value)
+                    ?: throw ValidationError.PurchaseLineNotFound
+                
+                if (existingLine.purchaseReceiptId != command.receiptId.value) {
+                    throw ValidationError.PurchaseLineOwnershipMismatch
+                }
 
-            lineId
+                val updatedLine = existingLine.copy(
+                    ingredientId = command.ingredientId.value,
+                    areaId = command.areaId.value,
+                    ingredientUnitOptionId = command.ingredientUnitOptionId.value,
+                    quantityEntered = command.quantityEntered.toPlainString(),
+                    quantityBase = calculation.quantityBase.toPlainString(),
+                    lineTotal = command.lineTotal.toPlainString(),
+                    unitCostBase = calculation.unitCostBase.toPlainString(),
+                    notes = command.notes?.trim()?.ifBlank { null },
+                    updatedAt = now.toEpochMilli()
+                )
+                
+                val affected = purchaseDao.updateLine(updatedLine)
+                if (affected != 1) throw ValidationError.PurchaseLineNotFound
+                command.lineId
+            }
         }
     }
 
@@ -251,6 +283,9 @@ class RoomPurchaseRepository @Inject constructor(
             val receipt = purchaseDao.getReceiptById(receiptId.value)
                 ?: throw ValidationError.PurchaseNotFound
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
+
+            val activeRestaurant = requireActiveRestaurant()
+            if (receipt.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
 
             val line = purchaseDao.getLineById(lineId.value)
                 ?: throw ValidationError.PurchaseLineNotFound
@@ -266,6 +301,9 @@ class RoomPurchaseRepository @Inject constructor(
                 ?: throw ValidationError.PurchaseNotFound
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
             
+            val activeRestaurant = requireActiveRestaurant()
+            if (receipt.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+
             purchaseDao.deleteDraftWithLines(id.value)
         }
     }
@@ -275,9 +313,14 @@ class RoomPurchaseRepository @Inject constructor(
             val receipt = purchaseDao.getReceiptById(id.value)
                 ?: throw ValidationError.PurchaseNotFound
             
+            val activeRestaurant = requireActiveRestaurant()
+            if (receipt.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+
+            val lines = purchaseDao.getLinesForReceipt(id.value)
+            val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
+
             if (receipt.status == DocumentStatus.POSTED.name) {
-                // Idempotency check
-                validatePostedHistory(receipt)
+                historyValidator.validatePostedHistory(receipt, lines, existingMovements)
                 return@withTransaction
             }
 
@@ -285,10 +328,16 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.InvalidPurchaseStatusTransition
             }
 
-            val lines = purchaseDao.getLinesForReceipt(id.value)
+            historyValidator.validateDraftHistory(receipt, existingMovements)
             if (lines.isEmpty()) throw ValidationError.PurchaseHasNoLines
 
             // Re-validate references and re-calculate canonical values
+            if (receipt.supplierId != null) {
+                val supplier = supplierDao.getById(receipt.supplierId)
+                    ?: throw ValidationError.SupplierNotFound
+                if (!supplier.isActive || supplier.deletedAt != null) throw ValidationError.SupplierArchived
+            }
+
             val movements = lines.map { lineEntity ->
                 val ingredient = ingredientDao.getById(lineEntity.ingredientId)
                     ?: throw ValidationError.InvalidPurchaseIngredient
@@ -302,16 +351,16 @@ class RoomPurchaseRepository @Inject constructor(
                     ?: throw ValidationError.InvalidPurchaseUnitOption
                 if (!option.isActive || option.deletedAt != null) throw ValidationError.ArchivedReference
 
-                // Final authoritative calculation
-                val qtyBase = BigDecimal(lineEntity.quantityEntered).multiply(option.factorToBase, MathContext.DECIMAL128)
-                val costBase = if (qtyBase > BigDecimal.ZERO) {
-                    BigDecimal(lineEntity.lineTotal).divide(qtyBase, MathContext.DECIMAL128)
-                } else BigDecimal.ZERO
+                val calculation = lineCalculator.calculate(
+                    quantityEntered = BigDecimal(lineEntity.quantityEntered),
+                    lineTotal = BigDecimal(lineEntity.lineTotal),
+                    optionFactorToBase = option.factorToBase
+                )
 
-                // Update line with canonical calculations just in case
+                // Update line with canonical calculations
                 purchaseDao.updateLine(lineEntity.copy(
-                    quantityBase = qtyBase.toPlainString(),
-                    unitCostBase = costBase.toPlainString(),
+                    quantityBase = calculation.quantityBase.toPlainString(),
+                    unitCostBase = calculation.unitCostBase.toPlainString(),
                     updatedAt = timeProvider.now().toEpochMilli()
                 ))
 
@@ -321,8 +370,8 @@ class RoomPurchaseRepository @Inject constructor(
                     ingredientId = lineEntity.ingredientId,
                     areaId = lineEntity.areaId,
                     movementType = InventoryMovementType.PURCHASE.name,
-                    quantityBaseSigned = qtyBase.toPlainString(),
-                    unitCostBaseSnapshot = costBase.toPlainString(),
+                    quantityBaseSigned = calculation.quantityBase.toPlainString(),
+                    unitCostBaseSnapshot = calculation.unitCostBase.toPlainString(),
                     totalValueSnapshot = lineEntity.lineTotal,
                     effectiveAt = receipt.purchaseDate,
                     sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
@@ -334,20 +383,13 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
 
-            // Check for existing movements (malformed history for DRAFT)
-            val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-            if (existingMovements.isNotEmpty()) throw ValidationError.MalformedPurchaseMovementHistory
-
-            // Insert movements
             movementDao.insertAll(movements)
 
-            // Update projections
             val affectedIngredients = lines.map { it.ingredientId }.distinct()
             affectedIngredients.forEach { ingredientId ->
                 projectionRebuilder.rebuildForIngredient(com.miara.cuentame.core.common.ids.IngredientId(ingredientId))
             }
 
-            // Update receipt status
             val now = timeProvider.now().toEpochMilli()
             purchaseDao.updateReceipt(receipt.copy(
                 status = DocumentStatus.POSTED.name,
@@ -362,9 +404,14 @@ class RoomPurchaseRepository @Inject constructor(
             val receipt = purchaseDao.getReceiptById(id.value)
                 ?: throw ValidationError.PurchaseNotFound
             
+            val activeRestaurant = requireActiveRestaurant()
+            if (receipt.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+
+            val lines = purchaseDao.getLinesForReceipt(id.value)
+            val allMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
+
             if (receipt.status == DocumentStatus.VOIDED.name) {
-                // Idempotency check
-                validateVoidedHistory(receipt)
+                historyValidator.validateVoidedHistory(receipt, lines, allMovements)
                 return@withTransaction
             }
 
@@ -372,18 +419,11 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.InvalidPurchaseStatusTransition
             }
 
-            // Load original movements
-            val originalMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-                .filter { it.movementType == InventoryMovementType.PURCHASE.name }
-            
-            val lines = purchaseDao.getLinesForReceipt(id.value)
-            if (originalMovements.size != lines.size) throw ValidationError.MalformedPurchaseMovementHistory
+            historyValidator.validatePostedHistory(receipt, lines, allMovements)
 
-            // Create reversals
+            val originalMovements = allMovements.filter { it.movementType == InventoryMovementType.PURCHASE.name }
             val now = timeProvider.now().toEpochMilli()
             val reversals = originalMovements.map { original ->
-                if (movementDao.findReversalFor(original.id) != null) throw ValidationError.PurchaseReversalAlreadyExists
-
                 InventoryMovementEntity(
                     id = idGenerator.newId(),
                     restaurantId = original.restaurantId,
@@ -405,49 +445,16 @@ class RoomPurchaseRepository @Inject constructor(
 
             movementDao.insertAll(reversals)
 
-            // Rebuild projections
             val affectedIngredients = lines.map { it.ingredientId }.distinct()
             affectedIngredients.forEach { ingredientId ->
                 projectionRebuilder.rebuildForIngredient(com.miara.cuentame.core.common.ids.IngredientId(ingredientId))
             }
 
-            // Update receipt status
             purchaseDao.updateReceipt(receipt.copy(
                 status = DocumentStatus.VOIDED.name,
                 voidedAt = now,
                 updatedAt = now
             ))
-        }
-    }
-
-    private suspend fun validatePostedHistory(receipt: com.miara.cuentame.core.database.entity.PurchaseReceiptEntity) {
-        val lines = purchaseDao.getLinesForReceipt(receipt.id)
-        val movements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-        
-        if (movements.size != lines.size) throw ValidationError.MalformedPurchaseMovementHistory
-        
-        val lineIds = lines.map { it.id }.toSet()
-        movements.forEach { mov ->
-            if (mov.movementType != InventoryMovementType.PURCHASE.name) throw ValidationError.MalformedPurchaseMovementHistory
-            if (mov.sourceLineId !in lineIds) throw ValidationError.MalformedPurchaseMovementHistory
-            // Additional field checks could go here
-        }
-    }
-
-    private suspend fun validateVoidedHistory(receipt: com.miara.cuentame.core.database.entity.PurchaseReceiptEntity) {
-        val lines = purchaseDao.getLinesForReceipt(receipt.id)
-        val allMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-        
-        val purchases = allMovements.filter { it.movementType == InventoryMovementType.PURCHASE.name }
-        val reversals = allMovements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
-
-        if (purchases.size != lines.size) throw ValidationError.MalformedPurchaseMovementHistory
-        if (reversals.size != purchases.size) throw ValidationError.MalformedPurchaseMovementHistory
-
-        val purchaseMap = purchases.associateBy { it.id }
-        reversals.forEach { rev ->
-            val original = purchaseMap[rev.reversalOfMovementId] ?: throw ValidationError.MalformedPurchaseMovementHistory
-            if (BigDecimal(rev.quantityBaseSigned) != BigDecimal(original.quantityBaseSigned).negate()) throw ValidationError.MalformedPurchaseMovementHistory
         }
     }
 }

@@ -75,6 +75,7 @@ fun PurchaseLineRoute(
 
     PurchaseLineScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onIngredientSelected = viewModel::onIngredientSelected,
         onAreaSelected = viewModel::onAreaSelected,
@@ -90,6 +91,7 @@ fun PurchaseLineRoute(
 @Composable
 fun PurchaseLineScreen(
     uiState: PurchaseLineUiState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onIngredientSelected: (IngredientId) -> Unit,
     onAreaSelected: (InventoryAreaId) -> Unit,
@@ -100,7 +102,7 @@ fun PurchaseLineScreen(
     onSave: () -> Unit
 ) {
     Scaffold(
-        snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { 

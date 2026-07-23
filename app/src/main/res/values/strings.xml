@@ -201,6 +201,7 @@
     <string name="status_draft">Draft</string>
     <string name="status_posted">Posted</string>
     <string name="status_voided">Voided</string>
+    <string name="purchase_items_count">%1$d items</string>
     <string name="posted_at">Posted at: %1$s</string>
     <string name="voided_at">Voided at: %1$s</string>
     <string name="purchase_line_desc">Edit purchase line for %1$s</string>
@@ -230,4 +231,18 @@
     <string name="error_invalid_package_qty">Quantity must be greater than zero</string>
     <string name="error_default_selection">Invalid default unit selection</string>
     <string name="error_dimension_mismatch">Units must have the same dimension</string>
+    <string name="error_supplier_not_found">Supplier not found</string>
+    <string name="error_supplier_exists">A supplier with this name already exists</string>
+    <string name="error_supplier_ownership">Supplier does not belong to this restaurant</string>
+    <string name="error_supplier_archived">Supplier is archived and cannot be modified</string>
+    <string name="error_invalid_email">Invalid email format</string>
+    <string name="error_purchase_not_found">Purchase receipt not found</string>
+    <string name="error_purchase_line_not_found">Purchase line not found</string>
+    <string name="error_purchase_ownership">Record ownership mismatch</string>
+    <string name="error_purchase_not_draft">Purchase is no longer a draft</string>
+    <string name="error_purchase_already_posted">Purchase is already posted</string>
+    <string name="error_purchase_already_voided">Purchase is already voided</string>
+    <string name="error_purchase_no_lines">Purchase must have at least one line</string>
+    <string name="error_malformed_history">Malformed movement history detected</string>
+    <string name="error_invalid_status_transition">Invalid status transition</string>
 </resources>

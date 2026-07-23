@@ -2,6 +2,8 @@ package com.miara.cuentame.feature.suppliers.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.usecase.ObserveSuppliersUseCase
 import com.miara.cuentame.core.model.supplier.Supplier
@@ -45,8 +47,9 @@ class SupplierListViewModel @Inject constructor(
         _searchQuery,
         _showArchived
     ) { suppliers, query, showArchived ->
+        val normalizedQuery = query.normalizeName()
         val filtered = suppliers.filter { 
-            query.isBlank() || it.name.contains(query, ignoreCase = true)
+            normalizedQuery.isBlank() || it.normalizedName.contains(normalizedQuery)
         }
         
         SupplierListUiState(
