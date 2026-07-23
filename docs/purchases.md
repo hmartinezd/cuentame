@@ -12,6 +12,7 @@
 - Suppliers, Ingredients, Areas, and Unit Options must belong to the same restaurant as the receipt.
 - Posting revalidates all references; archived records cannot be used for new postings.
 - Purchase lines cannot be moved between receipts.
+- **Historical Operability:** Receipts can be voided even if their supplier has been archived. Drafts with archived suppliers can be repaired (by removing/replacing the supplier) or deleted, but cannot be posted.
 
 ### Calculations
 - Use `PurchaseLineCalculator` with `BigDecimal` and `MathContext.DECIMAL128`.
@@ -19,19 +20,23 @@
 - `unitCostBase = lineTotal ÷ quantityBase`.
 
 ### History Validation
-- **POSTED:** Exactly one `PURCHASE` movement per receipt line. Matches line values numerically.
-- **VOIDED:** Exactly one `PURCHASE` and one `REVERSAL` per line. Reversal must target the correct movement and have opposite quantities.
+- **POSTED:** Exactly one `PURCHASE` movement per receipt line. Matches line values numerically using `compareTo()`.
+- **VOIDED:** Exactly one `PURCHASE` and one `REVERSAL` per line. Reversal must target the correct movement and have numerically opposite quantities and costs.
+- **Timestamps:** Reversal `effectiveAt` and `createdAt` match the receipt's `voidedAt` time.
 
 ## Technical Design
 
-### authorative Reference Validator
-`PurchaseReferenceValidator` is used by both `saveLine` and `post` to ensure consistency in ownership and active-reference checks.
+### Reference Validator
+`PurchaseReferenceValidator` separates ownership validation from active-state validation. 
+- `validateReceiptOwnership`: Ensures existence and restaurant ownership.
+- `validateSupplierForDraft`/`Posting`: Ensures supplier is active and belongs to the restaurant.
+- `validateLineReferences`: Ensures ingredient, area, and option are valid and belong to the restaurant.
 
 ### Movement History Validator
-`PurchaseMovementHistoryValidator` ensures the integrity of inventory movements before allowing status transitions or idempotent retries.
+`PurchaseMovementHistoryValidator` ensures the integrity of inventory movements using numeric comparison for all decimal values (`quantity`, `unitCost`, `totalValue`).
 
 ### Idempotency
-`post()` and `void()` are idempotent. If a receipt is already in the target state, the validator checks the movement history. If it is valid, the operation returns success without duplicating records.
+`post()` and `void()` are idempotent. They detect valid existing history and return success without duplication, even if master data (like suppliers) has changed since the original operation.
 
 ### UI Operation Lifecycle
-Confirmation dialogs in `PurchaseDraftScreen` and `PurchaseDetailScreen` use dedicated operation states (`isPosting`, `isVoiding`, `isDeletingDraft`, `deletingLineId`). They remain open during asynchronous calls to prevent duplicate actions and only close upon confirmed success.
+Confirmation dialogs use dedicated operation states and match matching events (e.g., `PurchaseDraftEvent.LineDeleted(lineId)`) to ensure they only close upon confirmed successful completion. Ingredient selection in the line editor is protected against race conditions using a cancellation-aware pipeline.

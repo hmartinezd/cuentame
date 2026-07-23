@@ -82,13 +82,17 @@ fun PurchaseDraftRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    var lastDeletedLineId by remember { mutableStateOf<PurchaseLineId?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is PurchaseDraftEvent.Created -> onNavigateToDraft(event.receiptId)
                 is PurchaseDraftEvent.Posted -> onPostSuccess(purchaseId!!)
                 is PurchaseDraftEvent.Deleted -> onBack()
-                is PurchaseDraftEvent.LineDeleted -> { /* Handled by Flow */ }
+                is PurchaseDraftEvent.LineDeleted -> {
+                    lastDeletedLineId = event.lineId
+                }
             }
         }
     }
@@ -103,13 +107,15 @@ fun PurchaseDraftRoute(
     PurchaseDraftScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
+        lastDeletedLineId = lastDeletedLineId,
         onBack = onBack,
         onSaveHeader = viewModel::onSaveHeader,
         onAddLine = { purchaseId?.let { onAddLine(it) } },
         onEditLine = { lineId -> purchaseId?.let { onEditLine(it, lineId) } },
         onDeleteLine = viewModel::onDeleteLine,
         onPost = viewModel::onPost,
-        onDeleteDraft = viewModel::onDeleteDraft
+        onDeleteDraft = viewModel::onDeleteDraft,
+        onResetLastDeletedLineId = { lastDeletedLineId = null }
     )
 }
 
@@ -118,13 +124,15 @@ fun PurchaseDraftRoute(
 fun PurchaseDraftScreen(
     uiState: PurchaseDraftUiState,
     snackbarHostState: SnackbarHostState,
+    lastDeletedLineId: PurchaseLineId?,
     onBack: () -> Unit,
     onSaveHeader: (SupplierId?, String?, Instant, String?) -> Unit,
     onAddLine: () -> Unit,
     onEditLine: (PurchaseLineId) -> Unit,
     onDeleteLine: (PurchaseLineId) -> Unit,
     onPost: () -> Unit,
-    onDeleteDraft: () -> Unit
+    onDeleteDraft: () -> Unit,
+    onResetLastDeletedLineId: () -> Unit
 ) {
     var showDeleteDraftConfirm by remember { mutableStateOf(false) }
     var showPostConfirm by remember { mutableStateOf(false) }
@@ -284,9 +292,10 @@ fun PurchaseDraftScreen(
         }
     }
     
-    LaunchedEffect(uiState.deletingLineId) {
-        if (uiState.deletingLineId == null) {
+    LaunchedEffect(lastDeletedLineId) {
+        if (lastDeletedLineId != null && lineToDelete?.line?.id == lastDeletedLineId) {
             lineToDelete = null
+            onResetLastDeletedLineId()
         }
     }
 }

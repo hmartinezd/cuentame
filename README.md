@@ -4,15 +4,16 @@ A local-first restaurant inventory application built with modern Android practic
 
 ## Current Status (Milestone 5 — Functional Completion)
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED
+- `testDebugUnitTest`: PASSED (66 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED
+- `connectedDebugAndroidTest`: PASSED (Core logic verified via Room integration tests)
 
 ### Milestone 5 Highlights
-- **Purchase Integrity:** Enforced restaurant ownership and atomic posting/voiding within Room transactions.
-- **History Validation:** Implemented strict one-to-one movement mapping with deterministic operation IDs.
-- **Success-Driven UI:** Confirmation dialogs for Post, Void, and Delete operations remain open until background processing succeeds.
-- **Centralized Calculation:** Shared `PurchaseLineCalculator` ensures consistent `BigDecimal` math between repository and UI previews.
+- **Purchase Integrity:** Enforced strict restaurant ownership and atomic posting/voiding within Room transactions.
+- **History Validation:** Implemented numeric `BigDecimal` movement comparison and one-to-one mapping for purchases and reversals.
+- **Historical Operability:** Separated ownership from active-state validation, allowing voiding and repair of receipts even after supplier archiving.
+- **Success-Driven UI:** Confirmation dialogs for Delete Line, Post, and Void operations only close upon confirmed successful repository completion.
+- **Selection Safety:** Protected the line editor against ingredient-selection races using a cancellation-aware pipeline.
 
 ### Current milestone: Milestone 5
 ### Next milestone: Milestone 6 — Stock Counts

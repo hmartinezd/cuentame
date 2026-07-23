@@ -149,12 +149,7 @@ class RoomPurchaseRepository @Inject constructor(
         val activeRestaurant = requireActiveRestaurant()
         if (activeRestaurant.id != command.restaurantId.value) throw ValidationError.PurchaseOwnershipMismatch
 
-        if (command.supplierId != null) {
-            val supplier = supplierDao.getById(command.supplierId.value)
-                ?: throw ValidationError.SupplierNotFound
-            if (supplier.restaurantId != command.restaurantId.value) throw ValidationError.SupplierOwnershipMismatch
-            if (!supplier.isActive || supplier.deletedAt != null) throw ValidationError.SupplierArchived
-        }
+        referenceValidator.validateSupplierForDraft(command.supplierId, activeRestaurant.id)
 
         val now = timeProvider.now()
         val receipt = PurchaseReceipt(
@@ -176,19 +171,13 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun updateDraft(command: UpdatePurchaseDraftCommand) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val refs = referenceValidator.validateReceiptAndRestaurant(command.receiptId, activeRestaurant)
-            val existing = refs.receipt
+            val existing = referenceValidator.validateReceiptOwnership(command.receiptId, activeRestaurant)
             
             if (existing.status != DocumentStatus.DRAFT.name) {
                 throw ValidationError.PurchaseNotDraft
             }
 
-            if (command.supplierId != null) {
-                val supplier = supplierDao.getById(command.supplierId.value)
-                    ?: throw ValidationError.SupplierNotFound
-                if (supplier.restaurantId != activeRestaurant.id) throw ValidationError.SupplierOwnershipMismatch
-                if (!supplier.isActive || supplier.deletedAt != null) throw ValidationError.SupplierArchived
-            }
+            referenceValidator.validateSupplierForDraft(command.supplierId, activeRestaurant.id)
 
             val updated = existing.copy(
                 supplierId = command.supplierId?.value,
@@ -210,11 +199,11 @@ class RoomPurchaseRepository @Inject constructor(
                 activeRestaurant.id,
                 command.ingredientId,
                 command.areaId,
-                command.ingredientUnitOptionId
+                command.ingredientUnitOptionId,
+                requireActive = true
             )
 
-            val refs = referenceValidator.validateReceiptAndRestaurant(command.receiptId, activeRestaurant)
-            val receipt = refs.receipt
+            val receipt = referenceValidator.validateReceiptOwnership(command.receiptId, activeRestaurant)
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
 
             val calculation = lineCalculator.calculate(
@@ -273,8 +262,7 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun deleteLine(receiptId: PurchaseReceiptId, lineId: PurchaseLineId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val refs = referenceValidator.validateReceiptAndRestaurant(receiptId, activeRestaurant)
-            val receipt = refs.receipt
+            val receipt = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
             
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
 
@@ -289,8 +277,7 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun deleteDraft(id: PurchaseReceiptId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val refs = referenceValidator.validateReceiptAndRestaurant(id, activeRestaurant)
-            val receipt = refs.receipt
+            val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
             
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
             
@@ -301,8 +288,7 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun post(id: PurchaseReceiptId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val refs = referenceValidator.validateReceiptAndRestaurant(id, activeRestaurant)
-            val receipt = refs.receipt
+            val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
 
             val lines = purchaseDao.getLinesForReceipt(id.value)
             val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
@@ -319,12 +305,16 @@ class RoomPurchaseRepository @Inject constructor(
             historyValidator.validateDraftHistory(receipt, existingMovements)
             if (lines.isEmpty()) throw ValidationError.PurchaseHasNoLines
 
+            // Re-validate references and re-calculate canonical values
+            referenceValidator.validateSupplierForPosting(receipt.supplierId, activeRestaurant.id)
+
             val movements = lines.map { lineEntity ->
                 val lineRefs = referenceValidator.validateLineReferences(
                     activeRestaurant.id,
                     IngredientId(lineEntity.ingredientId),
                     InventoryAreaId(lineEntity.areaId),
-                    IngredientUnitOptionId(lineEntity.ingredientUnitOptionId)
+                    IngredientUnitOptionId(lineEntity.ingredientUnitOptionId),
+                    requireActive = true
                 )
 
                 val calculation = lineCalculator.calculate(
@@ -378,8 +368,7 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun void(id: PurchaseReceiptId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val refs = referenceValidator.validateReceiptAndRestaurant(id, activeRestaurant)
-            val receipt = refs.receipt
+            val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
 
             val lines = purchaseDao.getLinesForReceipt(id.value)
             val allMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)

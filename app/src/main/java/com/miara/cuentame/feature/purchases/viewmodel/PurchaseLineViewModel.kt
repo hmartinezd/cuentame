@@ -27,12 +27,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -99,6 +98,8 @@ class PurchaseLineViewModel @Inject constructor(
     private val _events = Channel<PurchaseLineEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    private val _selectedIngredientId = MutableStateFlow<IngredientId?>(null)
+
     private val restaurantIdFlow = restaurantRepository.observeRestaurant()
         .filterNotNull()
         .map { it.id }
@@ -110,18 +111,13 @@ class PurchaseLineViewModel @Inject constructor(
     val areas = observeInventoryAreasUseCase(activeOnly = true)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _selectedIngredientId = MutableStateFlow<IngredientId?>(null)
-    val unitOptions: StateFlow<List<IngredientUnitOption>> = _selectedIngredientId.flatMapLatest { id ->
-        if (id == null) flowOf(emptyList())
-        else observeIngredientUnitOptionsUseCase(id, includeArchived = false)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     init {
         if (receiptId == null) {
              _uiState.update { it.copy(screenState = PurchaseLineScreenState.InvalidRoute) }
         } else {
             loadInitialData()
         }
+        observeIngredientChanges()
     }
 
     private fun loadInitialData() {
@@ -141,14 +137,6 @@ class PurchaseLineViewModel @Inject constructor(
                             )
                         }
                         _selectedIngredientId.value = line.ingredientId
-                        val ingredient = getIngredientDetailUseCase(line.ingredientId)
-                        val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
-                        _uiState.update { 
-                            it.copy(
-                                baseUnitSymbol = baseUnit?.symbol ?: "",
-                                screenState = PurchaseLineScreenState.Ready
-                            ) 
-                        }
                     } else {
                         _uiState.update { it.copy(screenState = PurchaseLineScreenState.NotFound) }
                     }
@@ -161,8 +149,49 @@ class PurchaseLineViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            combine(ingredients, areas, unitOptions) { ing, ar, opt -> Triple(ing, ar, opt) }.collect { (ing, ar, opt) ->
-                _uiState.update { it.copy(ingredients = ing, areas = ar, unitOptions = opt) }
+            combine(ingredients, areas) { ing, ar -> ing to ar }.collect { (ing, ar) ->
+                _uiState.update { it.copy(ingredients = ing, areas = ar) }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeIngredientChanges() {
+        viewModelScope.launch {
+            _selectedIngredientId.flatMapLatest { id ->
+                if (id == null) flowOf<Pair<Ingredient?, List<IngredientUnitOption>>?>(null)
+                else {
+                    combine(
+                        flow { emit(getIngredientDetailUseCase(id)) },
+                        observeIngredientUnitOptionsUseCase(id, includeArchived = false)
+                    ) { ingredient, options ->
+                        ingredient to options
+                    }
+                }
+            }.collect { pair ->
+                if (pair == null) return@collect
+                val ingredient = pair.first
+                val options = pair.second
+                
+                val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
+                
+                _uiState.update { state ->
+                    val activeOptions = options.filter { it.isActive }
+                    val currentSelectedId = state.selectedUnitOptionId
+                    val newSelectedId = if (currentSelectedId != null && activeOptions.any { it.id == currentSelectedId }) {
+                        currentSelectedId
+                    } else {
+                        activeOptions.find { it.isDefaultPurchase }?.id ?: activeOptions.find { it.isBase }?.id
+                    }
+
+                    state.copy(
+                        unitOptions = activeOptions,
+                        selectedUnitOptionId = newSelectedId,
+                        baseUnitSymbol = baseUnit?.symbol ?: "",
+                        screenState = if (state.screenState == PurchaseLineScreenState.Loading) PurchaseLineScreenState.Ready else state.screenState
+                    )
+                }
+                updatePreviews()
             }
         }
     }
@@ -170,18 +199,7 @@ class PurchaseLineViewModel @Inject constructor(
     fun onIngredientSelected(ingredientId: IngredientId) {
         if (_selectedIngredientId.value == ingredientId) return
         _selectedIngredientId.value = ingredientId
-        _uiState.update { it.copy(selectedIngredientId = ingredientId, selectedUnitOptionId = null) }
-        viewModelScope.launch {
-            val ingredient = getIngredientDetailUseCase(ingredientId)
-            val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
-            _uiState.update { it.copy(baseUnitSymbol = baseUnit?.symbol ?: "") }
-            
-            val options = observeIngredientUnitOptionsUseCase(ingredientId, includeArchived = false).first()
-            val activeOptions = options.filter { it.isActive }
-            val defaultPurchase = activeOptions.find { it.isDefaultPurchase } ?: activeOptions.find { it.isBase }
-            _uiState.update { it.copy(selectedUnitOptionId = defaultPurchase?.id) }
-            updatePreviews()
-        }
+        _uiState.update { it.copy(selectedIngredientId = ingredientId, selectedUnitOptionId = null, baseQuantityPreview = null, unitCostPreview = null) }
     }
 
     fun onAreaSelected(areaId: InventoryAreaId) {

@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -178,7 +179,8 @@ fun PurchaseLineScreen(
                             uiState.ingredients.forEach { ingredient ->
                                 DropdownMenuItem(
                                     text = { Text(ingredient.name) },
-                                    onClick = { onIngredientSelected(ingredient.id); ingredientExpanded = false }
+                                    onClick = { onIngredientSelected(ingredient.id); ingredientExpanded = false },
+                                    modifier = Modifier.testTag("ingredient_item_${ingredient.name}")
                                 )
                             }
                         }
@@ -209,7 +211,8 @@ fun PurchaseLineScreen(
                             uiState.areas.forEach { area ->
                                 DropdownMenuItem(
                                     text = { Text(area.name) },
-                                    onClick = { onAreaSelected(area.id); areaExpanded = false }
+                                    onClick = { onAreaSelected(area.id); areaExpanded = false },
+                                    modifier = Modifier.testTag("area_item_${area.name}")
                                 )
                             }
                         }
@@ -240,7 +243,8 @@ fun PurchaseLineScreen(
                             uiState.unitOptions.forEach { option ->
                                 DropdownMenuItem(
                                     text = { Text(option.displayName) },
-                                    onClick = { onUnitOptionSelected(option.id); unitExpanded = false }
+                                    onClick = { onUnitOptionSelected(option.id); unitExpanded = false },
+                                    modifier = Modifier.testTag("unit_item_${option.displayName}")
                                 )
                             }
                         }

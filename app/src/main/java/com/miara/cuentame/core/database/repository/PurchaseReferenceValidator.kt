@@ -20,12 +20,6 @@ import com.miara.cuentame.core.domain.validation.ValidationError
 import java.math.BigDecimal
 import javax.inject.Inject
 
-data class ValidatedPurchaseReferences(
-    val receipt: PurchaseReceiptEntity,
-    val supplier: SupplierEntity? = null,
-    val restaurant: RestaurantEntity
-)
-
 data class ValidatedPurchaseLineReferences(
     val ingredient: IngredientEntity,
     val area: InventoryAreaEntity,
@@ -39,10 +33,10 @@ class PurchaseReferenceValidator @Inject constructor(
     private val areaDao: InventoryAreaDao,
     private val unitOptionDao: IngredientUnitOptionDao
 ) {
-    suspend fun validateReceiptAndRestaurant(
+    suspend fun validateReceiptOwnership(
         receiptId: PurchaseReceiptId,
         activeRestaurant: RestaurantEntity
-    ): ValidatedPurchaseReferences {
+    ): PurchaseReceiptEntity {
         val receipt = purchaseDao.getReceiptById(receiptId.value)
             ?: throw ValidationError.PurchaseNotFound
         
@@ -50,36 +44,70 @@ class PurchaseReferenceValidator @Inject constructor(
             throw ValidationError.PurchaseOwnershipMismatch
         }
 
-        val supplier = receipt.supplierId?.let { sid ->
-            val s = supplierDao.getById(sid) ?: throw ValidationError.SupplierNotFound
-            if (s.restaurantId != activeRestaurant.id) throw ValidationError.SupplierOwnershipMismatch
-            if (!s.isActive || s.deletedAt != null) throw ValidationError.SupplierArchived
-            s
+        return receipt
+    }
+
+    suspend fun validateSupplierForDraft(
+        supplierId: SupplierId?,
+        restaurantId: String
+    ): SupplierEntity? {
+        if (supplierId == null) return null
+        
+        val supplier = supplierDao.getById(supplierId.value)
+            ?: throw ValidationError.SupplierNotFound
+        
+        if (supplier.restaurantId != restaurantId) {
+            throw ValidationError.SupplierOwnershipMismatch
         }
 
-        return ValidatedPurchaseReferences(receipt, supplier, activeRestaurant)
+        if (!supplier.isActive || supplier.deletedAt != null) {
+            throw ValidationError.SupplierArchived
+        }
+
+        return supplier
+    }
+
+    suspend fun validateSupplierForPosting(
+        supplierId: String?,
+        restaurantId: String
+    ): SupplierEntity? {
+        if (supplierId == null) return null
+        
+        val supplier = supplierDao.getById(supplierId)
+            ?: throw ValidationError.SupplierNotFound
+        
+        if (supplier.restaurantId != restaurantId) {
+            throw ValidationError.SupplierOwnershipMismatch
+        }
+
+        if (!supplier.isActive || supplier.deletedAt != null) {
+            throw ValidationError.SupplierArchived
+        }
+
+        return supplier
     }
 
     suspend fun validateLineReferences(
         restaurantId: String,
         ingredientId: IngredientId,
         areaId: InventoryAreaId,
-        unitOptionId: IngredientUnitOptionId
+        unitOptionId: IngredientUnitOptionId,
+        requireActive: Boolean = true
     ): ValidatedPurchaseLineReferences {
         val ingredient = ingredientDao.getById(ingredientId.value)
             ?: throw ValidationError.IngredientNotFound
         if (ingredient.restaurantId != restaurantId) throw ValidationError.IngredientOwnershipMismatch
-        if (!ingredient.isActive || ingredient.deletedAt != null) throw ValidationError.ArchivedReference
+        if (requireActive && (!ingredient.isActive || ingredient.deletedAt != null)) throw ValidationError.ArchivedReference
 
         val area = areaDao.getById(areaId.value)
             ?: throw ValidationError.RecordNotFound
         if (area.restaurantId != restaurantId) throw ValidationError.InvalidPurchaseArea
-        if (!area.isActive || area.deletedAt != null) throw ValidationError.ArchivedReference
+        if (requireActive && (!area.isActive || area.deletedAt != null)) throw ValidationError.ArchivedReference
 
         val option = unitOptionDao.getById(unitOptionId.value)
             ?: throw ValidationError.UnitOptionNotFound
         if (option.ingredientId != ingredientId.value) throw ValidationError.InvalidPurchaseUnitOption
-        if (!option.isActive || option.deletedAt != null) throw ValidationError.ArchivedReference
+        if (requireActive && (!option.isActive || option.deletedAt != null)) throw ValidationError.ArchivedReference
         if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
 
         return ValidatedPurchaseLineReferences(ingredient, area, option)

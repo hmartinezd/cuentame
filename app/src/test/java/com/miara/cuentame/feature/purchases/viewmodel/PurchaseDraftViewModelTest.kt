@@ -97,6 +97,21 @@ class PurchaseDraftViewModelTest {
         }
     }
 
+    @Test
+    fun `delete line success emits event`() = runTest {
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now())
+        detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
+        
+        val viewModel = createViewModel("p1")
+        runCurrent()
+        
+        val lineId = PurchaseLineId("l1")
+        viewModel.events.test {
+            viewModel.onDeleteLine(lineId)
+            assertThat(awaitItem()).isEqualTo(PurchaseDraftEvent.LineDeleted(lineId))
+        }
+    }
+
     private fun createViewModel(purchaseId: String?): PurchaseDraftViewModel {
         return PurchaseDraftViewModel(
             SavedStateHandle(if (purchaseId != null) mapOf("purchaseId" to purchaseId) else emptyMap()),

@@ -15,6 +15,9 @@ interface InventoryMovementDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(movements: List<InventoryMovementEntity>)
 
+    @Query("DELETE FROM inventory_movements WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("SELECT * FROM inventory_movements WHERE ingredientId = :ingredientId ORDER BY effectiveAt ASC, createdAt ASC, id ASC")
     fun observeByIngredient(ingredientId: String): Flow<List<InventoryMovementEntity>>
 

@@ -142,6 +142,21 @@ class PurchaseLineViewModelTest {
         assertEquals(0, BigDecimal("5").compareTo(state.unitCostPreview))
     }
 
+    @Test
+    fun `rapid ingredient selection cancels previous work`() = runTest {
+        val viewModel = createViewModel("receipt_1", null)
+        runCurrent()
+
+        val ing1 = IngredientId("ing_1")
+        val ing2 = IngredientId("ing_2")
+
+        viewModel.onIngredientSelected(ing1)
+        viewModel.onIngredientSelected(ing2)
+        runCurrent()
+
+        assertEquals(ing2, viewModel.uiState.value.selectedIngredientId)
+    }
+
     private fun createViewModel(receiptId: String?, lineId: String?): PurchaseLineViewModel {
         val savedStateHandle = SavedStateHandle().apply {
             if (receiptId != null) set("purchaseId", receiptId)

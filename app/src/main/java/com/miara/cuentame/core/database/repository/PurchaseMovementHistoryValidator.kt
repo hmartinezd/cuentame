@@ -99,12 +99,15 @@ class PurchaseMovementHistoryValidator {
         if (qty <= BigDecimal.ZERO || qty.compareTo(BigDecimal(line.quantityBase)) != 0) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
-        if (movement.unitCostBaseSnapshot == null || BigDecimal(movement.unitCostBaseSnapshot).compareTo(BigDecimal(line.unitCostBase)) != 0) {
+        
+        if (!isNumericallyEquivalent(movement.unitCostBaseSnapshot, line.unitCostBase)) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
-        if (movement.totalValueSnapshot == null || BigDecimal(movement.totalValueSnapshot).compareTo(BigDecimal(line.lineTotal)) != 0) {
+        
+        if (!isNumericallyEquivalent(movement.totalValueSnapshot, line.lineTotal)) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
+        
         if (movement.effectiveAt != receipt.purchaseDate) throw ValidationError.MalformedPurchaseMovementHistory
     }
 
@@ -114,6 +117,9 @@ class PurchaseMovementHistoryValidator {
         reversal: InventoryMovementEntity
     ) {
         if (reversal.movementType != InventoryMovementType.REVERSAL.name) throw ValidationError.MalformedPurchaseMovementHistory
+        if (original.movementType != InventoryMovementType.PURCHASE.name) throw ValidationError.MalformedPurchaseMovementHistory
+        if (original.reversalOfMovementId != null) throw ValidationError.MalformedPurchaseMovementHistory
+        
         if (reversal.restaurantId != original.restaurantId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.ingredientId != original.ingredientId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.areaId != original.areaId) throw ValidationError.MalformedPurchaseMovementHistory
@@ -126,7 +132,8 @@ class PurchaseMovementHistoryValidator {
         if (BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0) {
             throw ValidationError.MalformedPurchaseMovementHistory
         }
-        if (reversal.unitCostBaseSnapshot != original.unitCostBaseSnapshot) {
+        
+        if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
              throw ValidationError.MalformedPurchaseMovementHistory
         }
         
@@ -143,5 +150,15 @@ class PurchaseMovementHistoryValidator {
         
         if (reversal.effectiveAt != receipt.voidedAt) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.createdAt != receipt.voidedAt) throw ValidationError.MalformedPurchaseMovementHistory
+    }
+
+    private fun isNumericallyEquivalent(a: String?, b: String?): Boolean {
+        if (a == null && b == null) return true
+        if (a == null || b == null) return false
+        return try {
+            BigDecimal(a).compareTo(BigDecimal(b)) == 0
+        } catch (e: Exception) {
+            false
+        }
     }
 }

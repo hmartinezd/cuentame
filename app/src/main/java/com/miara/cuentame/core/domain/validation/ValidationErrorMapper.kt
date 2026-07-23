@@ -38,6 +38,7 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.PurchaseLineNotFound -> R.string.error_purchase_line_not_found
             ValidationError.PurchaseOwnershipMismatch -> R.string.error_purchase_ownership
             ValidationError.PurchaseLineOwnershipMismatch -> R.string.error_purchase_ownership
+            ValidationError.IngredientOwnershipMismatch -> R.string.error_purchase_ownership
             ValidationError.PurchaseNotDraft -> R.string.error_purchase_not_draft
             ValidationError.PurchaseAlreadyPosted -> R.string.error_purchase_already_posted
             ValidationError.PurchaseAlreadyVoided -> R.string.error_purchase_already_voided
