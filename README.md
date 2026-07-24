@@ -2,21 +2,21 @@
 
 A local-first restaurant inventory application built with modern Android practices.
 
-## Current Status (Milestone 6 — Historical Snapshot, Autosave and Completion Integrity)
+## Current Status (Milestone 6 — Final Integrity Pass)
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (66 tests)
-- `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (Core logic verified via Room and Snapshot integration tests)
+- `testDebugUnitTest`: PASSED (80 tests)
+- `connectedDebugAndroidTest`: Locally verified (Core logic and lifecycle verified via Room integration tests; some UI flakiness in emulator)
 
 ### Milestone 6 Highlights
-- **Historical Snapshot Hardening:** `InventorySnapshotService` is now restaurant-scoped with authoritative movement replay and reversal validation.
+- **Historical Snapshot Hardening:** `InventorySnapshotService` is restaurant-scoped with authoritative movement replay and reversal validation.
 - **Cost Integrity:** Historical costs are tracked strictly; no "zero" cost is invented if priced history is missing.
 - **Stock Count Lifecycle:** Atomic DRAFT -> COMPLETED -> VOIDED transitions with full graph re-validation during posting.
-- **Autosave with Integrity:** Revision-based latest-write-wins autosave for count lines with flush-before-completion protection.
-- **Candidate Suggestions:** Enhanced area-counting with suggested active items, missing candidate tracking, and archived-balance warnings.
-- **UI Enhancements:** Selectable count units, effective date/time selection, and full adjustment review before posting.
+- **Autosave with Integrity:** Revision-based latest-write-wins autosave for count lines with flush-before-completion and back-navigation protection.
+- **Candidate Suggestions:** Enhanced area-counting with suggested items separated from dirty lines, and persistent missing candidate tracking.
+- **UI Enhancements:** Selectable count units, UTC-safe date selection, and success-driven dialog lifecycles for completion, void, and deletion.
+- **Auditability:** Authoritative historical displays for completed and voided areas using persisted snapshots instead of recomputed ledger views.
 
-### Current milestone: Milestone 6 — Stock Counts
+### Current milestone: Milestone 6 — Stock Counts (Completed)
 ### Next milestone: Milestone 7 — Waste Tracking
 
 ## Tech Stack

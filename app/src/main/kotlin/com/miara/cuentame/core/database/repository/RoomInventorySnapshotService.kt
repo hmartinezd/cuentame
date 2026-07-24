@@ -9,6 +9,7 @@ import com.miara.cuentame.core.domain.service.InventorySnapshot
 import com.miara.cuentame.core.domain.service.InventorySnapshotService
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.domain.validation.ValidationError
 import java.math.BigDecimal
 import java.time.Instant
 import javax.inject.Inject
@@ -35,10 +36,10 @@ class RoomInventorySnapshotService @Inject constructor(
         val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
         
         reversals.forEach { reversal ->
-            val originalId = reversal.reversalOfMovementId ?: return@forEach
-            val original = movements.find { it.id == originalId } ?: throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedInventoryMovementHistory
+            val originalId = reversal.reversalOfMovementId ?: throw ValidationError.MalformedInventoryMovementHistory
+            val original = movements.find { it.id == originalId } ?: throw ValidationError.MalformedInventoryMovementHistory
             validator.validateReversal(original, reversal)
-            if (reversedIds.contains(originalId)) throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedInventoryMovementHistory
+            if (reversedIds.contains(originalId)) throw ValidationError.MalformedInventoryMovementHistory
             reversedIds.add(originalId)
         }
 
@@ -53,6 +54,7 @@ class RoomInventorySnapshotService @Inject constructor(
         var hasEstablishedCost = false
 
         effectiveMovements.forEach { movementEntity ->
+            validator.validateMovement(movementEntity)
             val movement = movementEntity.toDomain()
             val isTargetArea = movement.areaId == areaId
             
@@ -106,10 +108,10 @@ class RoomInventorySnapshotService @Inject constructor(
         val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
 
         reversals.forEach { reversal ->
-            val originalId = reversal.reversalOfMovementId ?: return@forEach
-            val original = movements.find { it.id == originalId } ?: throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedInventoryMovementHistory
+            val originalId = reversal.reversalOfMovementId ?: throw ValidationError.MalformedInventoryMovementHistory
+            val original = movements.find { it.id == originalId } ?: throw ValidationError.MalformedInventoryMovementHistory
             validator.validateReversal(original, reversal)
-            if (reversedIds.contains(originalId)) throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedInventoryMovementHistory
+            if (reversedIds.contains(originalId)) throw ValidationError.MalformedInventoryMovementHistory
             reversedIds.add(originalId)
         }
 
@@ -118,10 +120,11 @@ class RoomInventorySnapshotService @Inject constructor(
         }
 
         val balances = mutableMapOf<IngredientId, BigDecimal>()
-        effectiveMovements.forEach { movement ->
-            val ingredientId = IngredientId(movement.ingredientId)
-            val current = balances.getOrDefault(ingredientId, BigDecimal.ZERO)
-            balances[ingredientId] = current.add(BigDecimal(movement.quantityBaseSigned))
+        effectiveMovements.forEach { movementEntity ->
+            validator.validateMovement(movementEntity)
+            val movement = movementEntity.toDomain()
+            val current = balances.getOrDefault(movement.ingredientId, BigDecimal.ZERO)
+            balances[movement.ingredientId] = current.add(movement.quantityBaseSigned)
         }
 
         return balances

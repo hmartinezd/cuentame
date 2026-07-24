@@ -287,7 +287,13 @@
     <string name="saved">Guardado</string>
     <string name="items_counted">%1$d artículos contados</string>
     <string name="error_invalid_count_route">Ruta de conteo no válida</string>
+    <string name="error_count_not_found">Conteo de inventario no encontrado</string>
+    <string name="error_count_area_not_found">Área de inventario no encontrada para este conteo</string>
+    <string name="error_area_ownership_mismatch">El área no pertenece a este conteo</string>
     <string name="field_time">Hora</string>
+    <string name="field_unit">Unidad</string>
+    <string name="review_loading">Cargando revisión de ajustes…</string>
+    <string name="review_error">Error al generar la revisión de ajustes</string>
     <string name="inventory_changed_warning">El inventario cambió mientras el conteo estaba abierto</string>
     <string name="archived_nonzero_warning">Ingrediente archivado con saldo distinto de cero</string>
     <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explícitamente afectan el inventario.</string>

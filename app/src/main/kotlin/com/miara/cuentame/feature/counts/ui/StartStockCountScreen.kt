@@ -59,6 +59,7 @@ import com.miara.cuentame.feature.counts.viewmodel.StartStockCountViewModel
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -264,7 +265,7 @@ fun StartStockCountScreen(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val selectedDate = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
                         val currentDt = LocalDateTime.ofInstant(uiState.effectiveAt, ZoneId.systemDefault())
                         val newDt = LocalDateTime.of(selectedDate, currentDt.toLocalTime())
                         onDateChanged(newDt.atZone(ZoneId.systemDefault()).toInstant())

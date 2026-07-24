@@ -57,6 +57,7 @@ import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailEvent
+import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountReviewLine
@@ -73,14 +74,23 @@ fun StockCountDetailRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showVoidConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is StockCountDetailEvent.Deleted -> onBack()
-                is StockCountDetailEvent.Completed -> { /* Reactively updated */ }
-                is StockCountDetailEvent.Voided -> { /* Reactively updated */ }
+                is StockCountDetailEvent.Deleted -> {
+                    showDeleteConfirm = false
+                    onBack()
+                }
+                is StockCountDetailEvent.Completed -> {
+                    // Reactive update will handle UI
+                }
+                is StockCountDetailEvent.Voided -> {
+                    showVoidConfirm = false
+                }
             }
         }
     }
@@ -94,6 +104,10 @@ fun StockCountDetailRoute(
 
     StockCountDetailScreen(
         uiState = uiState,
+        showDeleteConfirm = showDeleteConfirm,
+        showVoidConfirm = showVoidConfirm,
+        onShowDeleteConfirm = { showDeleteConfirm = it },
+        onShowVoidConfirm = { showVoidConfirm = it },
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onAreaClick = onAreaClick,
@@ -108,6 +122,10 @@ fun StockCountDetailRoute(
 @Composable
 fun StockCountDetailScreen(
     uiState: StockCountDetailUiState,
+    showDeleteConfirm: Boolean,
+    showVoidConfirm: Boolean,
+    onShowDeleteConfirm: (Boolean) -> Unit,
+    onShowVoidConfirm: (Boolean) -> Unit,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onAreaClick: (StockCountAreaId) -> Unit,
@@ -116,9 +134,6 @@ fun StockCountDetailScreen(
     onVoidCount: () -> Unit,
     onDeleteDraft: () -> Unit
 ) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showVoidConfirm by remember { mutableStateOf(false) }
-
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
@@ -133,7 +148,7 @@ fun StockCountDetailScreen(
                 },
                 actions = {
                     if (uiState.details?.count?.status == StockCountStatus.DRAFT) {
-                        IconButton(onClick = { showDeleteConfirm = true }, enabled = !uiState.isDeleting) {
+                        IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                         }
                     }
@@ -141,70 +156,80 @@ fun StockCountDetailScreen(
             )
         }
     ) { padding ->
-        if (uiState.isInvalidRoute) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.error_invalid_count_route))
-            }
-        } else if (uiState.isNotFound) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.error_purchase_not_found)) // TODO: Specific resource
-            }
-        } else if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            val details = uiState.details!!
-            val count = details.count
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(text = count.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("count_detail_name"))
-                        Text(text = dateFormatter.format(count.effectiveAt), style = MaterialTheme.typography.bodyMedium)
-                    }
-                    StatusChip(status = count.status)
+        when (val state = uiState.screenState) {
+            is StockCountDetailScreenState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    item {
-                        Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.titleLarge)
-                    }
-                    items(details.areas) { areaDetail ->
-                        CountAreaItem(
-                            areaDetail = areaDetail,
-                            onClick = { onAreaClick(areaDetail.area.id) }
-                        )
-                        HorizontalDivider()
-                    }
+            }
+            is StockCountDetailScreenState.InvalidRoute -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_invalid_count_route))
                 }
-
-                if (count.status == StockCountStatus.DRAFT) {
-                    val allAreasCompleted = details.areas.isNotEmpty() && details.areas.all { it.area.status == CountAreaStatus.COMPLETED }
-                    Button(
-                        onClick = { onToggleReview(true) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        enabled = !uiState.isCompleting && allAreasCompleted
-                    ) {
-                        Text(stringResource(R.string.complete_count))
-                    }
-                } else if (count.status == StockCountStatus.COMPLETED) {
-                    Button(
-                        onClick = { showVoidConfirm = true },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        enabled = !uiState.isVoiding
-                    ) {
-                        if (uiState.isVoiding) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+            }
+            is StockCountDetailScreenState.NotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_count_not_found))
+                }
+            }
+            is StockCountDetailScreenState.Error -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(state.throwable.toUserMessageRes()))
+                }
+            }
+            is StockCountDetailScreenState.Ready -> {
+                val details = uiState.details!!
+                val count = details.count
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(16.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text(text = count.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("count_detail_name"))
+                            Text(text = dateFormatter.format(count.effectiveAt), style = MaterialTheme.typography.bodyMedium)
                         }
-                        Text(stringResource(R.string.void_count))
+                        StatusChip(status = count.status)
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        item {
+                            Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.titleLarge)
+                        }
+                        items(details.areas) { areaDetail ->
+                            CountAreaItem(
+                                areaDetail = areaDetail,
+                                onClick = { onAreaClick(areaDetail.area.id) }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    if (count.status == StockCountStatus.DRAFT) {
+                        val allAreasCompleted = details.areas.isNotEmpty() && details.areas.all { it.area.status == CountAreaStatus.COMPLETED }
+                        Button(
+                            onClick = { onToggleReview(true) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            enabled = !uiState.isCompleting && allAreasCompleted
+                        ) {
+                            Text(stringResource(R.string.complete_count))
+                        }
+                    } else if (count.status == StockCountStatus.COMPLETED) {
+                        Button(
+                            onClick = { onShowVoidConfirm(true) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            enabled = !uiState.isVoiding
+                        ) {
+                            if (uiState.isVoiding) {
+                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+                            }
+                            Text(stringResource(R.string.void_count))
+                        }
                     }
                 }
             }
@@ -216,7 +241,7 @@ fun StockCountDetailScreen(
             title = stringResource(R.string.delete_draft),
             message = stringResource(R.string.delete_draft_desc),
             isSaving = uiState.isDeleting,
-            onDismiss = { if (!uiState.isDeleting) showDeleteConfirm = false },
+            onDismiss = { if (!uiState.isDeleting) onShowDeleteConfirm(false) },
             onConfirm = onDeleteDraft
         )
     }
@@ -227,7 +252,7 @@ fun StockCountDetailScreen(
             message = stringResource(R.string.void_count_desc),
             confirmText = stringResource(R.string.action_confirm),
             isSaving = uiState.isVoiding,
-            onDismiss = { if (!uiState.isVoiding) showVoidConfirm = false },
+            onDismiss = { if (!uiState.isVoiding) onShowVoidConfirm(false) },
             onConfirm = onVoidCount
         )
     }
@@ -237,7 +262,8 @@ fun StockCountDetailScreen(
             lines = uiState.reviewLines,
             currencyCode = uiState.currencyCode,
             isCompleting = uiState.isCompleting,
-            onDismiss = { onToggleReview(false) },
+            isLoading = uiState.isReviewLoading,
+            onDismiss = { if (!uiState.isCompleting) onToggleReview(false) },
             onConfirm = onCompleteCount
         )
     }
@@ -249,6 +275,7 @@ fun AdjustmentReviewSheet(
     lines: List<StockCountReviewLine>,
     currencyCode: String,
     isCompleting: Boolean,
+    isLoading: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -273,9 +300,12 @@ fun AdjustmentReviewSheet(
                 }
             }
             
-            if (lines.isEmpty()) {
+            if (isLoading) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Text(text = stringResource(R.string.review_loading), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                    }
                 }
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -319,7 +349,7 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                 text = if (line.preview.willCreateOpeningBalance) 
                     stringResource(R.string.opening_balance) 
                 else 
-                    stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase ?: BigDecimal.ZERO, "lb"), // TODO: Base unit
+                    stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase?.toPlainString() ?: "0", line.baseUnitName),
                 style = MaterialTheme.typography.labelSmall
             )
             
@@ -330,7 +360,7 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                 else -> MaterialTheme.colorScheme.outline
             }
             Text(
-                text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), "lb"),
+                text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), line.baseUnitName),
                 style = MaterialTheme.typography.labelSmall,
                 color = color
             )

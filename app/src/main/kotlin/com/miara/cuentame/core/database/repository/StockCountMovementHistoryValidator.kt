@@ -108,11 +108,12 @@ class StockCountMovementHistoryValidator {
         if (movement.areaId != area.areaId) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceDocumentType != SourceDocumentType.STOCK_COUNT.name) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceDocumentId != count.id) throw ValidationError.MalformedStockCountMovementHistory
+        if (movement.sourceLineId != line.id) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceOperationId != "stock-count-complete:${count.id}:${line.id}") throw ValidationError.MalformedStockCountMovementHistory
         if (movement.reversalOfMovementId != null) throw ValidationError.MalformedStockCountMovementHistory
         
         val adjustmentStr = line.adjustmentQuantityBase ?: throw ValidationError.MalformedStockCountMovementHistory
-        val adjustment = BigDecimal(adjustmentStr)
+        val adjustment = try { BigDecimal(adjustmentStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
         if (BigDecimal(movement.quantityBaseSigned).compareTo(adjustment) != 0) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
@@ -126,10 +127,29 @@ class StockCountMovementHistoryValidator {
              if (adjustment.compareTo(BigDecimal(line.quantityBase)) != 0) throw ValidationError.MalformedStockCountMovementHistory
         } else {
              // Adjustment checks
-             val expected = BigDecimal(line.expectedQuantityBaseSnapshot!!)
+             val expected = try { BigDecimal(line.expectedQuantityBaseSnapshot!!) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
              if (adjustment.compareTo(BigDecimal(line.quantityBase).subtract(expected)) != 0) {
                  throw ValidationError.MalformedStockCountMovementHistory
              }
+        }
+
+        validateCostValueConsistency(movement)
+    }
+
+    private fun validateCostValueConsistency(movement: InventoryMovementEntity) {
+        val costStr = movement.unitCostBaseSnapshot
+        val totalStr = movement.totalValueSnapshot
+        val qty = BigDecimal(movement.quantityBaseSigned)
+
+        if (costStr == null) {
+            if (totalStr != null) throw ValidationError.MalformedStockCountMovementHistory
+        } else {
+            if (totalStr == null) throw ValidationError.MalformedStockCountMovementHistory
+            val cost = try { BigDecimal(costStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
+            val total = try { BigDecimal(totalStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
+            if (total.compareTo(qty.multiply(cost, java.math.MathContext.DECIMAL128)) != 0) {
+                 throw ValidationError.MalformedStockCountMovementHistory
+            }
         }
     }
 
@@ -144,6 +164,7 @@ class StockCountMovementHistoryValidator {
         if (reversal.areaId != original.areaId) throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.sourceDocumentType != SourceDocumentType.STOCK_COUNT.name) throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.sourceDocumentId != count.id) throw ValidationError.MalformedStockCountMovementHistory
+        if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedStockCountMovementHistory
         

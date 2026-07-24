@@ -287,7 +287,13 @@
     <string name="saved">Saved</string>
     <string name="items_counted">%1$d items counted</string>
     <string name="error_invalid_count_route">Invalid count route</string>
+    <string name="error_count_not_found">Stock count not found</string>
+    <string name="error_count_area_not_found">Inventory area not found for this count</string>
+    <string name="error_area_ownership_mismatch">Area does not belong to this count</string>
     <string name="field_time">Time</string>
+    <string name="field_unit">Unit</string>
+    <string name="review_loading">Loading adjustment review…</string>
+    <string name="review_error">Failed to generate adjustment review</string>
     <string name="inventory_changed_warning">Inventory changed while count was open</string>
     <string name="archived_nonzero_warning">Archived ingredient with nonzero balance</string>
     <string name="complete_area_desc">Missing ingredients will remain unchanged. Only explicitly counted lines affect inventory.</string>

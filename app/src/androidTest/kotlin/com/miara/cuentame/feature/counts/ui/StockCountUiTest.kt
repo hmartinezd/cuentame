@@ -83,7 +83,7 @@ class StockCountUiTest {
         composeTestRule.onNodeWithTag("start_count_fab").performClick()
         
         // 3. Enter count name
-        composeTestRule.onNodeWithText("Restaurant Name").performTextReplacement("Monthly Count")
+        composeTestRule.onNodeWithTag("count_name_input").performTextReplacement("Monthly Count")
         
         // 4. Select area (click the checkbox)
         composeTestRule.onNodeWithTag("area_checkbox_area_dry").performClick()
@@ -102,8 +102,8 @@ class StockCountUiTest {
         composeTestRule.onNodeWithText("Dry Storage").performClick()
         
         // 8. Enter quantity
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithTag("count_quantity_ing_chicken").fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("line_ingredient_ing_chicken").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("10")
         

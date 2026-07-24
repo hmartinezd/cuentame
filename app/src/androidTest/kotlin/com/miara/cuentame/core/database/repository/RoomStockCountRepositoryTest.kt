@@ -23,6 +23,7 @@ import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
+import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
@@ -268,6 +269,25 @@ class RoomStockCountRepositoryTest {
                         countId, areaId, null, IngredientId("ing_chicken"), IngredientUnitOptionId("opt_lb"), BigDecimal("20"), null
                     ))
                 }
+            }
+        }
+    }
+
+    @Test
+    fun completeCount_revalidatesAreas() {
+        runBlocking {
+            val countId = repository.start(StartStockCountCommand(
+                RestaurantId("rest_1"), "Count", timeProvider.now(), listOf(InventoryAreaId("area_dry")), null
+            ))
+            
+            // Re-open area manually via DAO to bypass repository protection if any, 
+            // but repository should check status during completeCount.
+            val details = repository.observeCount(countId).first()!!
+            val area = details.areas.first().area
+            db.stockCountDao().updateCountArea(area.toEntity().copy(status = CountAreaStatus.IN_PROGRESS.name))
+
+            assertThrows(ValidationError.StockCountAreasIncomplete::class.java) {
+                runBlocking { repository.completeCount(countId) }
             }
         }
     }

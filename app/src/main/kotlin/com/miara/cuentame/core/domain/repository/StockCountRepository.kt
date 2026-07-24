@@ -55,6 +55,8 @@ data class StockCountAreaDetails(
     val area: StockCountArea,
     val areaName: String,
     val restaurantId: RestaurantId,
+    val countId: StockCountId,
+    val countStatus: StockCountStatus,
     val effectiveAt: Instant,
     val lines: List<StockCountLine>
 )

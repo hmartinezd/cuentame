@@ -30,8 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -55,12 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
-import com.miara.cuentame.core.common.ids.StockCountLineId
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.Ingredient
-import com.miara.cuentame.core.model.inventory.CountAreaStatus
-import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaEvent
+import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountLineEntry
@@ -80,6 +76,10 @@ fun StockCountAreaRoute(
         viewModel.events.collect { event ->
             when (event) {
                 is StockCountAreaEvent.AreaCompleted -> onBack()
+                is StockCountAreaEvent.NavigateBack -> onBack()
+                is StockCountAreaEvent.ShowError -> {
+                    snackbarHostState.showSnackbar(context.getString(event.error.toUserMessageRes()))
+                }
             }
         }
     }
@@ -94,7 +94,7 @@ fun StockCountAreaRoute(
     StockCountAreaScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
-        onBack = onBack,
+        onBack = viewModel::onBackRequested,
         onSearchQueryChanged = viewModel::onSearchQueryChanged,
         onAddIngredient = viewModel::onAddIngredient,
         onQuantityChanged = viewModel::onQuantityChanged,
@@ -122,13 +122,20 @@ fun StockCountAreaScreen(
     var showMissingConfirm by remember { mutableStateOf(false) }
     var lineToDelete by remember { mutableStateOf<StockCountLineEntry?>(null) }
 
-    val isReadOnly = uiState.details?.area?.status == CountAreaStatus.COMPLETED
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(uiState.details?.areaName ?: stringResource(R.string.count_by_area)) },
+                title = { 
+                    val title = when (uiState.screenState) {
+                        is StockCountAreaScreenState.Ready -> uiState.details?.areaName ?: ""
+                        is StockCountAreaScreenState.Loading -> stringResource(R.string.state_loading_desc)
+                        is StockCountAreaScreenState.NotFound -> stringResource(R.string.state_empty_desc) // TODO: Specific
+                        is StockCountAreaScreenState.InvalidRoute -> stringResource(R.string.error_invalid_count_route)
+                        else -> stringResource(R.string.count_by_area)
+                    }
+                    Text(title)
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag("count_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -137,110 +144,129 @@ fun StockCountAreaScreen(
             )
         }
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.details == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.error_purchase_not_found))
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                if (!isReadOnly) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = onSearchQueryChanged,
-                        modifier = Modifier.fillMaxWidth().testTag("ingredient_search"),
-                        label = { Text(stringResource(R.string.action_search)) },
-                        placeholder = { Text(stringResource(R.string.search_ingredients)) }
-                    )
+        when (val state = uiState.screenState) {
+            is StockCountAreaScreenState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (uiState.searchQuery.length >= 2 && uiState.searchResults.isNotEmpty()) {
-                        item {
-                            Text(text = stringResource(R.string.search_ingredients), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-                        }
-                        items(uiState.searchResults) { ingredient ->
-                            ListItem(
-                                headlineContent = { Text(ingredient.name) },
-                                trailingContent = {
-                                    IconButton(onClick = { onAddIngredient(ingredient) }) {
-                                        Icon(Icons.Default.Add, contentDescription = null)
-                                    }
-                                },
-                                modifier = Modifier.clickable { onAddIngredient(ingredient) }
-                            )
-                            HorizontalDivider()
-                        }
-                    }
-
-                    item {
-                        Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-                    }
-
-                    if (uiState.archivedWarnings.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = stringResource(R.string.archived_nonzero_warning),
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.padding(top = 16.dp)
-                            )
-                        }
-                        items(uiState.archivedWarnings) { warning ->
-                            ListItem(
-                                headlineContent = { Text(warning.name, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
-                                supportingContent = {
-                                    Text(text = stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), "")) // Unit unknown here
-                                }
-                            )
-                            HorizontalDivider()
-                        }
-                    }
-
-                    items(uiState.lineEntries, key = { it.ingredientId }) { entry ->
-                        StockCountLineItem(
-                            entry = entry,
-                            onQuantityChanged = { qty -> onQuantityChanged(entry.ingredientId, qty) },
-                            onUnitChanged = { uid -> onUnitChanged(entry.ingredientId, uid) },
-                            onDelete = { lineToDelete = entry },
-                            enabled = !isReadOnly
+            }
+            is StockCountAreaScreenState.NotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_count_area_not_found))
+                }
+            }
+            is StockCountAreaScreenState.InvalidRoute -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_invalid_count_route))
+                }
+            }
+            is StockCountAreaScreenState.OwnershipMismatch -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_area_ownership_mismatch))
+                }
+            }
+            is StockCountAreaScreenState.Error -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(state.throwable.toUserMessageRes()))
+                }
+            }
+            is StockCountAreaScreenState.Ready -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(16.dp)
+                ) {
+                    if (uiState.canEdit) {
+                        OutlinedTextField(
+                            value = uiState.searchQuery,
+                            onValueChange = onSearchQueryChanged,
+                            modifier = Modifier.fillMaxWidth().testTag("ingredient_search"),
+                            label = { Text(stringResource(R.string.action_search)) },
+                            placeholder = { Text(stringResource(R.string.search_ingredients)) }
                         )
-                        HorizontalDivider()
                     }
-                }
 
-                if (isReadOnly) {
-                    Button(
-                        onClick = onReopenArea,
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
-                    ) {
-                        Text(stringResource(R.string.reopen_area))
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            if (uiState.missingCount > 0) {
-                                showMissingConfirm = true
-                            } else {
-                                onCompleteArea()
+                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (uiState.searchQuery.length >= 2 && uiState.searchResults.isNotEmpty()) {
+                            item {
+                                Text(text = stringResource(R.string.search_ingredients), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        enabled = !uiState.isCompleting
-                    ) {
-                        if (uiState.isCompleting) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                            items(uiState.searchResults) { ingredient ->
+                                ListItem(
+                                    headlineContent = { Text(ingredient.name) },
+                                    trailingContent = {
+                                        IconButton(onClick = { onAddIngredient(ingredient) }) {
+                                            Icon(Icons.Default.Add, contentDescription = null)
+                                        }
+                                    },
+                                    modifier = Modifier.clickable { onAddIngredient(ingredient) }
+                                )
+                                HorizontalDivider()
+                            }
                         }
-                        Text(stringResource(R.string.complete_area))
+
+                        item {
+                            Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                        }
+
+                        if (uiState.archivedWarnings.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.archived_nonzero_warning),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(top = 16.dp)
+                                )
+                            }
+                            items(uiState.archivedWarnings) { warning ->
+                                ListItem(
+                                    headlineContent = { Text(warning.name, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                                    supportingContent = {
+                                        Text(text = stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), ""))
+                                    }
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+
+                        items(uiState.lineEntries, key = { it.ingredientId }) { entry ->
+                            StockCountLineItem(
+                                entry = entry,
+                                onQuantityChanged = { qty -> onQuantityChanged(entry.ingredientId, qty) },
+                                onUnitChanged = { uid -> onUnitChanged(entry.ingredientId, uid) },
+                                onDelete = { lineToDelete = entry },
+                                enabled = uiState.canEdit
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    if (uiState.canReopen) {
+                        Button(
+                            onClick = onReopenArea,
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        ) {
+                            Text(stringResource(R.string.reopen_area))
+                        }
+                    } else if (uiState.canEdit) {
+                        Button(
+                            onClick = {
+                                if (uiState.missingCount > 0) {
+                                    showMissingConfirm = true
+                                } else {
+                                    onCompleteArea()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            enabled = !uiState.isCompleting
+                        ) {
+                            if (uiState.isCompleting) {
+                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                            }
+                            Text(stringResource(R.string.complete_area))
+                        }
                     }
                 }
             }
@@ -287,7 +313,12 @@ fun StockCountLineItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = entry.ingredientName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    text = entry.ingredientName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag("line_ingredient_${entry.ingredientId}")
+                )
                 if (entry.categoryName != null) {
                     Text(text = entry.categoryName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                 }
@@ -327,7 +358,7 @@ fun StockCountLineItem(
                     value = entry.unitName,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Unit") }, // TODO: Resource
+                    label = { Text(stringResource(R.string.field_unit)) },
                     trailingIcon = { if (enabled) ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     enabled = enabled
@@ -370,7 +401,7 @@ fun StockCountLineItem(
                     text = if (entry.preview.willCreateOpeningBalance) 
                         stringResource(R.string.opening_balance) 
                     else 
-                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase ?: BigDecimal.ZERO, entry.unitName),
+                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase ?: BigDecimal.ZERO, entry.baseUnitName),
                     style = MaterialTheme.typography.labelSmall
                 )
                 
@@ -381,7 +412,7 @@ fun StockCountLineItem(
                     else -> MaterialTheme.colorScheme.outline
                 }
                 Text(
-                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.unitName),
+                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.baseUnitName),
                     style = MaterialTheme.typography.labelSmall,
                     color = color
                 )
