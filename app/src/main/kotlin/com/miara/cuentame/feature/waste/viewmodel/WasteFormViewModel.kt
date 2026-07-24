@@ -27,22 +27,37 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.WasteReason
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.Instant
 import javax.inject.Inject
+
+data class WasteIngredientOptionUi(
+    val id: IngredientId,
+    val label: String,
+    val isActive: Boolean,
+    val isSelected: Boolean,
+    val isSelectable: Boolean
+)
+
+data class WasteAreaOptionUi(
+    val id: InventoryAreaId,
+    val label: String,
+    val isActive: Boolean,
+    val isSelected: Boolean,
+    val isSelectable: Boolean
+)
 
 data class WasteUnitOptionUi(
     val id: IngredientUnitOptionId,
@@ -59,6 +74,7 @@ sealed interface WasteFormScreenState {
     data object NotFound : WasteFormScreenState
     data object InvalidRoute : WasteFormScreenState
     data object OwnershipMismatch : WasteFormScreenState
+    data object SetupRequired : WasteFormScreenState
     data object Immutable : WasteFormScreenState
     data class Error(val throwable: Throwable) : WasteFormScreenState
 }
@@ -79,11 +95,21 @@ data class WasteFormUiState(
     val notes: String = "",
     val attachmentUri: String? = null,
     val preview: WastePreview? = null,
-    val ingredients: List<Ingredient> = emptyList(),
-    val areas: List<InventoryArea> = emptyList(),
+    val ingredients: List<WasteIngredientOptionUi> = emptyList(),
+    val areas: List<WasteAreaOptionUi> = emptyList(),
     val unitOptions: List<WasteUnitOptionUi> = emptyList(),
     val error: Throwable? = null,
     val canSave: Boolean = false
+)
+
+data class WastePreviewRequest(
+    val revision: Long,
+    val restaurantId: RestaurantId,
+    val ingredientId: IngredientId,
+    val areaId: InventoryAreaId,
+    val unitOptionId: IngredientUnitOptionId,
+    val quantityEntered: BigDecimal,
+    val effectiveAt: Instant
 )
 
 sealed interface WasteFormEvent {
@@ -121,26 +147,32 @@ class WasteFormViewModel @Inject constructor(
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
     private val _screenStateOverride = MutableStateFlow<WasteFormScreenState?>(null)
+    private val _previewRevision = MutableStateFlow(0L)
 
     private val _events = MutableSharedFlow<WasteFormEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
-    private var previewJob: Job? = null
-
     private val _unitOptions = _selectedIngredientId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList())
         else flowOf(ingredientRepository.getUnitOptions(id, true))
+    }.onEach { options ->
+        val currentUnit = _selectedUnitOptionId.value
+        if (currentUnit == null || options.none { it.id == currentUnit }) {
+            val defaultOption = options.find { it.isDefaultCount && it.isActive }
+                ?: options.find { it.isBase && it.isActive }
+            _selectedUnitOptionId.value = defaultOption?.id
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val uiState: StateFlow<WasteFormUiState> = restaurantRepository.observeRestaurant()
         .flatMapLatest { restaurant ->
             if (restaurant == null) {
-                return@flatMapLatest flowOf(WasteFormUiState(screenState = WasteFormScreenState.Loading))
+                return@flatMapLatest flowOf(WasteFormUiState(screenState = WasteFormScreenState.SetupRequired))
             }
             combine(
                 if (wasteEventId != null) wasteRepository.observeWasteEvent(wasteEventId) else flowOf(null),
-                ingredientRepository.observeIngredients(restaurant.id, false),
-                areaRepository.observeActiveAreas(),
+                ingredientRepository.observeIngredients(restaurant.id, true),
+                areaRepository.observeAllAreas(),
                 _unitOptions,
                 _selectedIngredientId,
                 _selectedAreaId,
@@ -158,8 +190,8 @@ class WasteFormViewModel @Inject constructor(
                 _screenStateOverride
             ) { args ->
                 val existingDetails = args[0] as com.miara.cuentame.core.domain.repository.WasteDetails?
-                val activeIngredients = args[1] as List<Ingredient>
-                val activeAreas = args[2] as List<InventoryArea>
+                val allIngredients = args[1] as List<Ingredient>
+                val allAreas = args[2] as List<InventoryArea>
                 val allUnitOptions = args[3] as List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>
                 val selIngId = args[4] as IngredientId?
                 val selAreaId = args[5] as InventoryAreaId?
@@ -185,21 +217,47 @@ class WasteFormViewModel @Inject constructor(
                     else -> WasteFormScreenState.Ready
                 }
 
+                val ingredientOptions = allIngredients
+                    .filter { it.isActive || it.id == selIngId }
+                    .map { ing ->
+                        WasteIngredientOptionUi(
+                            id = ing.id,
+                            label = ing.name,
+                            isActive = ing.isActive,
+                            isSelected = ing.id == selIngId,
+                            isSelectable = ing.isActive || ing.id == selIngId
+                        )
+                    }
+
+                val areaOptions = allAreas
+                    .filter { it.isActive || it.id == selAreaId }
+                    .map { area ->
+                        WasteAreaOptionUi(
+                            id = area.id,
+                            label = area.name,
+                            isActive = area.isActive,
+                            isSelected = area.id == selAreaId,
+                            isSelectable = area.isActive || area.id == selAreaId
+                        )
+                    }
+
+                val unitOptionsUi = allUnitOptions
+                    .filter { it.isActive || it.id == selUnitId }
+                    .map { opt ->
+                        val isSelected = opt.id == selUnitId
+                        WasteUnitOptionUi(
+                            id = opt.id,
+                            label = opt.shortLabel,
+                            factorToBase = opt.factorToBase,
+                            isSelected = isSelected,
+                            isSelectable = (opt.isActive || isSelected) && opt.factorToBase > BigDecimal.ZERO,
+                            isActive = opt.isActive
+                        )
+                    }
+
                 val canSave = selIngId != null && selAreaId != null && selUnitId != null && 
                               reason != null && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true &&
                               !isSaving
-
-                val unitOptionsUi = allUnitOptions.map { opt ->
-                    val isSelected = opt.id == selUnitId
-                    WasteUnitOptionUi(
-                        id = opt.id,
-                        label = opt.shortLabel,
-                        factorToBase = opt.factorToBase,
-                        isSelected = isSelected,
-                        isSelectable = (opt.isActive || isSelected) && opt.factorToBase > BigDecimal.ZERO,
-                        isActive = opt.isActive
-                    )
-                }
 
                 WasteFormUiState(
                     screenState = screenState,
@@ -217,8 +275,8 @@ class WasteFormViewModel @Inject constructor(
                     notes = notes,
                     attachmentUri = attUri,
                     preview = preview,
-                    ingredients = activeIngredients,
-                    areas = activeAreas,
+                    ingredients = ingredientOptions,
+                    areas = areaOptions,
                     unitOptions = unitOptionsUi,
                     error = error,
                     canSave = canSave
@@ -231,6 +289,64 @@ class WasteFormViewModel @Inject constructor(
         )
 
     init {
+        viewModelScope.launch {
+            combine(
+                _selectedIngredientId,
+                _selectedAreaId,
+                _selectedUnitOptionId,
+                _quantityText,
+                _effectiveAt,
+                _previewRevision
+            ) { args ->
+                val selIngId = args[0] as IngredientId?
+                val selAreaId = args[1] as InventoryAreaId?
+                val selUnitId = args[2] as IngredientUnitOptionId?
+                val qtyText = args[3] as String
+                val effAt = args[4] as Instant
+                val revision = args[5] as Long
+
+                val restId = restaurantRepository.getRestaurant()?.id
+                if (restId == null || selIngId == null || selAreaId == null || selUnitId == null || qtyText.isBlank()) {
+                    return@combine null
+                }
+                val parsedQty = DecimalParser.parse(qtyText)
+                if (parsedQty == null || parsedQty <= BigDecimal.ZERO) {
+                    return@combine null
+                }
+                WastePreviewRequest(revision, restId, selIngId, selAreaId, selUnitId, parsedQty, effAt)
+            }.collectLatest { request ->
+                if (request == null) {
+                    _preview.value = null
+                    _isLoadingPreview.value = false
+                    return@collectLatest
+                }
+
+                _isLoadingPreview.value = true
+                _preview.value = null
+                try {
+                    val result = previewWasteUseCase(
+                        restaurantId = request.restaurantId,
+                        ingredientId = request.ingredientId,
+                        areaId = request.areaId,
+                        unitOptionId = request.unitOptionId,
+                        quantityEntered = request.quantityEntered,
+                        effectiveAt = request.effectiveAt
+                    )
+                    if (_previewRevision.value == request.revision) {
+                        _preview.value = result
+                    }
+                } catch (e: Exception) {
+                    if (_previewRevision.value == request.revision) {
+                        _error.value = e
+                    }
+                } finally {
+                    if (_previewRevision.value == request.revision) {
+                        _isLoadingPreview.value = false
+                    }
+                }
+            }
+        }
+
         if (wasteEventIdStr != null && wasteEventIdStr.isBlank()) {
             _screenStateOverride.value = WasteFormScreenState.InvalidRoute
         } else if (wasteEventId != null) {
@@ -269,34 +385,28 @@ class WasteFormViewModel @Inject constructor(
         _selectedIngredientId.value = id
         _selectedUnitOptionId.value = null
         _preview.value = null
-        
-        viewModelScope.launch {
-            val options = ingredientRepository.getUnitOptions(id, true)
-            val defaultOption = options.find { it.isDefaultCount } ?: options.find { it.isBase }
-            _selectedUnitOptionId.value = defaultOption?.id
-            updatePreview()
-        }
+        _previewRevision.value++
     }
 
     fun onAreaSelected(id: InventoryAreaId) {
         if (_selectedAreaId.value == id) return
         _selectedAreaId.value = id
         _preview.value = null
-        updatePreview()
+        _previewRevision.value++
     }
 
     fun onUnitOptionSelected(id: IngredientUnitOptionId) {
         if (_selectedUnitOptionId.value == id) return
         _selectedUnitOptionId.value = id
         _preview.value = null
-        updatePreview()
+        _previewRevision.value++
     }
 
     fun onQuantityChanged(text: String) {
         if (_quantityText.value == text) return
         _quantityText.value = text
         _preview.value = null
-        updatePreview()
+        _previewRevision.value++
     }
 
     fun onReasonSelected(reason: WasteReason) {
@@ -307,7 +417,7 @@ class WasteFormViewModel @Inject constructor(
         if (_effectiveAt.value == instant) return
         _effectiveAt.value = instant
         _preview.value = null
-        updatePreview()
+        _previewRevision.value++
     }
 
     fun onNotesChanged(text: String) {
@@ -330,44 +440,6 @@ class WasteFormViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             _error.value = e
-        }
-    }
-
-    private fun updatePreview() {
-        previewJob?.cancel()
-        val restId = uiState.value.restaurantId ?: return
-        val ingId = _selectedIngredientId.value ?: return
-        val areaId = _selectedAreaId.value ?: return
-        val unitId = _selectedUnitOptionId.value ?: return
-        val qtyText = _quantityText.value
-        val parsedQty = DecimalParser.parse(qtyText)
-        
-        if (parsedQty == null || parsedQty <= BigDecimal.ZERO) {
-            _preview.value = null
-            _isLoadingPreview.value = false
-            return
-        }
-
-        val effAt = _effectiveAt.value
-
-        previewJob = viewModelScope.launch {
-            _isLoadingPreview.value = true
-            try {
-                val preview = previewWasteUseCase(
-                    restaurantId = restId,
-                    ingredientId = ingId,
-                    areaId = areaId,
-                    unitOptionId = unitId,
-                    quantityEntered = parsedQty,
-                    effectiveAt = effAt
-                )
-                _preview.value = preview
-            } catch (e: Exception) {
-                _preview.value = null
-                _error.value = e
-            } finally {
-                _isLoadingPreview.value = false
-            }
         }
     }
 

@@ -1,7 +1,7 @@
 package com.miara.cuentame.core.di
 
+import com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary
 import com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
-import com.miara.cuentame.core.database.repository.NoOpFailureBoundary
 import com.miara.cuentame.core.common.attachment.AndroidLocalAttachmentPermissionManager
 import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 import com.miara.cuentame.core.common.ids.IdGenerator
@@ -79,7 +79,7 @@ object CommonModule {
 
     @Provides
     @Singleton
-    fun provideIntegrationFailureBoundary(): IntegrationFailureBoundary = NoOpFailureBoundary()
+    fun provideIntegrationFailureBoundary(): IntegrationFailureBoundary = ConfigurableFailureBoundary()
 
     @Provides
     @Singleton

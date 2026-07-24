@@ -296,36 +296,28 @@ class RoomWasteRepository @Inject constructor(
             if (existing.restaurantId != activeRestaurant.value) throw ValidationError.WasteEventOwnershipMismatch
 
             val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, id.value)
-            
-            if (existing.status == DocumentStatus.POSTED.name) {
-                historyValidator.validatePostedHistory(existing, movements)
-                return@withTransaction
+            val now = timeProvider.now().toEpochMilli()
+
+            when (existing.status) {
+                DocumentStatus.POSTED.name -> {
+                    historyValidator.validatePostedHistory(existing, movements)
+                    return@withTransaction
+                }
+                DocumentStatus.VOIDED.name -> {
+                    throw ValidationError.WasteEventAlreadyVoided
+                }
+                DocumentStatus.DRAFT.name -> {
+                    validateDraftEventStructure(existing, now)
+                }
+                else -> {
+                    throw ValidationError.MalformedWasteMovementHistory
+                }
             }
-            
-            if (existing.status != DocumentStatus.DRAFT.name) throw ValidationError.WasteEventAlreadyVoided
-            historyValidator.validateDraftHistory(movements)
 
-            // Revalidate the entire graph
-            val ingredient = ingredientDao.getById(existing.ingredientId) ?: throw ValidationError.WasteIngredientNotFound
-            if (ingredient.restaurantId != existing.restaurantId) throw ValidationError.WasteIngredientOwnershipMismatch
-            
-            val area = areaDao.getById(existing.areaId) ?: throw ValidationError.WasteAreaNotFound
-            if (area.restaurantId != existing.restaurantId) throw ValidationError.WasteAreaOwnershipMismatch
-            
-            val option = unitOptionDao.getById(existing.ingredientUnitOptionId) ?: throw ValidationError.WasteUnitOptionNotFound
-            if (option.ingredientId != existing.ingredientId) throw ValidationError.WasteUnitOptionOwnershipMismatch
-            if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
-
+            val option = unitOptionDao.getById(existing.ingredientUnitOptionId)!!
             val qtyEntered = parseHistoryDecimal(existing.quantityEntered)
-            if (qtyEntered <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
-
             val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
-            if (canonicalQtyBase <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
             
-            if (commandEffectiveAtIsFuture(existing.effectiveAt)) throw ValidationError.InvalidWasteEffectiveTime
-            
-            if (existing.postedAt != null || existing.voidedAt != null) throw ValidationError.WasteEventImmutable
-
             val snapshot = snapshotService.calculateAt(
                 restaurantId = activeRestaurant,
                 ingredientId = IngredientId(existing.ingredientId),
@@ -333,8 +325,6 @@ class RoomWasteRepository @Inject constructor(
                 effectiveAt = Instant.ofEpochMilli(existing.effectiveAt)
             )
 
-            val now = timeProvider.now().toEpochMilli()
-            
             val totalValue = snapshot.ingredientAverageCostBase?.multiply(canonicalQtyBase, MathContext.DECIMAL128)
 
             val movement = InventoryMovementEntity(
@@ -382,19 +372,33 @@ class RoomWasteRepository @Inject constructor(
             if (existing.restaurantId != activeRestaurant.value) throw ValidationError.WasteEventOwnershipMismatch
 
             val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, id.value)
-            
-            if (existing.status == DocumentStatus.VOIDED.name) {
-                historyValidator.validateVoidedHistory(existing, movements)
-                return@withTransaction
+            val now = timeProvider.now().toEpochMilli()
+
+            when (existing.status) {
+                DocumentStatus.VOIDED.name -> {
+                    historyValidator.validateVoidedHistory(existing, movements)
+                    return@withTransaction
+                }
+                DocumentStatus.POSTED.name -> {
+                    historyValidator.validatePostedHistory(existing, movements)
+                }
+                DocumentStatus.DRAFT.name -> {
+                    throw ValidationError.WasteEventNotPosted
+                }
+                else -> {
+                    throw ValidationError.MalformedWasteMovementHistory
+                }
             }
 
-            if (existing.status != DocumentStatus.POSTED.name) throw ValidationError.WasteEventNotPosted
-            historyValidator.validatePostedHistory(existing, movements)
+            if (existing.postedAt == null) throw ValidationError.MalformedWasteMovementHistory
+            if (existing.voidedAt != null) throw ValidationError.WasteEventAlreadyVoided
+            if (now < existing.postedAt) throw ValidationError.MalformedWasteMovementHistory
+            if (existing.createdAt > existing.updatedAt) throw ValidationError.MalformedWasteMovementHistory
+            if (existing.updatedAt < existing.postedAt) throw ValidationError.MalformedWasteMovementHistory
 
             val original = movements.find { it.movementType == InventoryMovementType.WASTE.name } 
                 ?: throw ValidationError.MalformedWasteMovementHistory
 
-            val now = timeProvider.now().toEpochMilli()
             val totalValue = original.totalValueSnapshot?.let { parseHistoryDecimal(it) }
 
             val reversal = InventoryMovementEntity(
@@ -434,8 +438,42 @@ class RoomWasteRepository @Inject constructor(
         }
     }
 
-    private fun commandEffectiveAtIsFuture(effectiveAt: Long): Boolean {
-        return effectiveAt > timeProvider.now().toEpochMilli()
+    private suspend fun validateDraftEventStructure(
+        event: WasteEventEntity,
+        now: Long
+    ) {
+        if (event.status != DocumentStatus.DRAFT.name) throw ValidationError.WasteEventNotDraft
+        if (event.postedAt != null || event.voidedAt != null) throw ValidationError.MalformedWasteMovementHistory
+
+        if (event.createdAt > event.updatedAt) throw ValidationError.MalformedWasteMovementHistory
+        if (event.createdAt > now) throw ValidationError.MalformedWasteMovementHistory
+        if (event.updatedAt > now) throw ValidationError.MalformedWasteMovementHistory
+        if (event.effectiveAt > now) throw ValidationError.InvalidWasteEffectiveTime
+
+        try {
+            com.miara.cuentame.core.model.inventory.WasteReason.valueOf(event.reason)
+        } catch (e: Exception) {
+            throw ValidationError.InvalidWasteReason
+        }
+
+        val qtyEntered = parseHistoryDecimal(event.quantityEntered)
+        if (qtyEntered <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
+
+        val ingredient = ingredientDao.getById(event.ingredientId) ?: throw ValidationError.WasteIngredientNotFound
+        if (ingredient.restaurantId != event.restaurantId) throw ValidationError.WasteIngredientOwnershipMismatch
+
+        val area = areaDao.getById(event.areaId) ?: throw ValidationError.WasteAreaNotFound
+        if (area.restaurantId != event.restaurantId) throw ValidationError.WasteAreaOwnershipMismatch
+
+        val option = unitOptionDao.getById(event.ingredientUnitOptionId) ?: throw ValidationError.WasteUnitOptionNotFound
+        if (option.ingredientId != event.ingredientId) throw ValidationError.WasteUnitOptionOwnershipMismatch
+        if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
+
+        val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
+        if (canonicalQtyBase <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
+        
+        val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, event.id)
+        historyValidator.validateDraftHistory(movements)
     }
 
     private fun WasteEventEntity.toDomainWaste() = WasteEvent(

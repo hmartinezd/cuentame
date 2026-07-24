@@ -161,6 +161,11 @@ fun WasteDetailScreen(
                     CircularProgressIndicator()
                 }
             }
+            is WasteDetailScreenState.SetupRequired -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_no_restaurant))
+                }
+            }
             is WasteDetailScreenState.NotFound -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.error_waste_not_found), modifier = Modifier.testTag("not_found_text"))

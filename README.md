@@ -5,15 +5,16 @@ A local-first restaurant inventory application built with modern Android practic
 ## Current Status (Milestone 7 — Waste Tracking)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (108 tests)
+- `testDebugUnitTest`: PASSED (115 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: Locally verified (76 PASSED; WasteLifecycleTest stable)
+- `connectedDebugAndroidTest`: FAILED (79 PASSED, 7 FAILED; Environment timeouts detected)
 
 ### Verification Summary
-- **JVM Tests:** 108 total (ViewModel, UseCase, Repository unit tests).
-- **Waste ViewModel Tests:** 10 total.
-- **Room Integration Tests:** 11 total for Waste (82 total in project).
-- **Compose Tests:** 2 total for Waste (Waste E2E lifecycle and integrity).
+- **JVM Tests:** 115 total (ViewModel, UseCase, Repository unit tests).
+- **Waste ViewModel Tests:** 15 total (including races).
+- **Waste Validator Tests:** 11 total.
+- **Waste Room Integration Tests:** 13 total.
+- **Waste Compose Tests:** 4 total (Lifecycle, Integrity, Failure, Archive).
 - **CI verification:** NOT CONFIGURED
 
 ### Milestone 7 Highlights

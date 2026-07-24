@@ -45,7 +45,7 @@ class RoomWasteRepositoryTest {
     }
 
     private val timeProvider = object : TimeProvider {
-        var now = Instant.parse("2024-01-01T10:00:00Z")
+        var now = Instant.ofEpochMilli(10000L)
         override fun now() = now
     }
 
@@ -462,6 +462,94 @@ class RoomWasteRepositoryTest {
         repository.deleteDraft(id)
 
         assertThat(repository.getById(id)).isNull()
+    }
+
+    @Test
+    fun post_rejectsUnknownStoredStatus() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        db.wasteDao().insert(com.miara.cuentame.core.database.entity.WasteEventEntity(
+            id = "corrupted-status",
+            restaurantId = restaurantId.value,
+            ingredientId = ingredientId.value,
+            areaId = areaId.value,
+            ingredientUnitOptionId = unitOptionId.value,
+            quantityEntered = "5.0",
+            quantityBase = "5.0",
+            reason = WasteReason.SPOILED.name,
+            effectiveAt = timeProvider.now().toEpochMilli(),
+            notes = null,
+            attachmentPath = null,
+            status = "UNKNOWN_STATUS",
+            createdAt = timeProvider.now().toEpochMilli(),
+            updatedAt = timeProvider.now().toEpochMilli(),
+            postedAt = null,
+            voidedAt = null
+        ))
+
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.MalformedWasteMovementHistory::class.java) {
+            runBlocking { repository.post(WasteEventId("corrupted-status")) }
+        }
+    }
+
+    @Test
+    fun post_rejectsInvalidReason() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        db.wasteDao().insert(com.miara.cuentame.core.database.entity.WasteEventEntity(
+            id = "corrupted-reason",
+            restaurantId = restaurantId.value,
+            ingredientId = ingredientId.value,
+            areaId = areaId.value,
+            ingredientUnitOptionId = unitOptionId.value,
+            quantityEntered = "5.0",
+            quantityBase = "5.0",
+            reason = "NOT_A_REASON",
+            effectiveAt = timeProvider.now().toEpochMilli(),
+            notes = null,
+            attachmentPath = null,
+            status = DocumentStatus.DRAFT.name,
+            createdAt = timeProvider.now().toEpochMilli(),
+            updatedAt = timeProvider.now().toEpochMilli(),
+            postedAt = null,
+            voidedAt = null
+        ))
+
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.InvalidWasteReason::class.java) {
+            runBlocking { repository.post(WasteEventId("corrupted-reason")) }
+        }
+    }
+
+    @Test
+    fun void_rejectsEarlyVoidTime() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        // Create at T=1000
+        timeProvider.now = Instant.ofEpochMilli(1000L)
+        val id = repository.createDraft(CreateWasteDraftCommand(restaurantId, ingredientId, areaId, unitOptionId, BigDecimal("5.0"), WasteReason.SPOILED, timeProvider.now(), null, null))
+        
+        // Post at T=2000
+        timeProvider.now = Instant.ofEpochMilli(2000L)
+        repository.post(id)
+
+        // Try to void at T=1500 (before post T=2000)
+        timeProvider.now = Instant.ofEpochMilli(1500L)
+        
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.MalformedWasteMovementHistory::class.java) {
+            runBlocking { repository.void(id) }
+        }
     }
 
     private suspend fun setupUnitOption(ingredientId: IngredientId): IngredientUnitOptionId {

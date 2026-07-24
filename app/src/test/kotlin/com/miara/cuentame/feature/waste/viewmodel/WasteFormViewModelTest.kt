@@ -54,8 +54,9 @@ class WasteFormViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { restaurantRepository.observeRestaurant() } returns flowOf(restaurant)
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
-        every { areaRepository.observeActiveAreas() } returns flowOf(emptyList())
+        every { areaRepository.observeAllAreas() } returns flowOf(emptyList())
     }
 
     @After
@@ -68,30 +69,39 @@ class WasteFormViewModelTest {
         val viewModel = createViewModel()
         viewModel.uiState.test {
             assertThat(awaitItem().screenState).isEqualTo(WasteFormScreenState.Loading)
-            assertThat(awaitItem().screenState).isEqualTo(WasteFormScreenState.Ready)
+            // Skip potential intermediate emissions from combined flows
+            var state = awaitItem()
+            while (state.screenState == WasteFormScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(WasteFormScreenState.Ready)
         }
     }
 
     @Test
     fun `selecting ingredient updates unit options`() = runTest {
         val ingId = IngredientId("ing-1")
-        val option = IngredientUnitOption(IngredientUnitOptionId("opt-1"), ingId, "lb", "lb", null, BigDecimal.ONE, true, false, false, true, Instant.now(), Instant.now())
+        val option = IngredientUnitOption(IngredientUnitOptionId("opt-1"), ingId, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
         
         coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Wait for Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
 
             viewModel.onIngredientSelected(ingId)
             
-            // Wait for internal coroutines to finish
+            // Wait for internal coroutines and flow updates
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val state = expectMostRecentItem()
-            assertThat(state.selectedIngredientId).isEqualTo(ingId)
-            assertThat(state.selectedUnitOptionId).isEqualTo(option.id)
-            assertThat(state.unitOptions).hasSize(1)
+            val finalState = expectMostRecentItem()
+            assertThat(finalState.selectedIngredientId).isEqualTo(ingId)
+            assertThat(finalState.selectedUnitOptionId).isEqualTo(option.id)
+            assertThat(finalState.unitOptions).hasSize(1)
         }
     }
 
@@ -100,7 +110,7 @@ class WasteFormViewModelTest {
         val ingId = IngredientId("ing-1")
         val areaId = InventoryAreaId("area-1")
         val optId = IngredientUnitOptionId("opt-1")
-        val option = IngredientUnitOption(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, false, false, true, Instant.now(), Instant.now())
+        val option = IngredientUnitOption(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
         
         val preview = WastePreview(
             quantityBase = BigDecimal("5.0"),
@@ -117,7 +127,11 @@ class WasteFormViewModelTest {
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Wait for Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
 
             viewModel.onIngredientSelected(ingId)
             viewModel.onAreaSelected(areaId)
@@ -126,8 +140,8 @@ class WasteFormViewModelTest {
             
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val state = expectMostRecentItem()
-            assertThat(state.preview).isEqualTo(preview)
+            val finalState = expectMostRecentItem()
+            assertThat(finalState.preview).isEqualTo(preview)
         }
     }
 
@@ -135,29 +149,38 @@ class WasteFormViewModelTest {
     fun `changing ingredient clears incompatible unit and preview immediately`() = runTest {
         val ingA = IngredientId("ing-A")
         val ingB = IngredientId("ing-B")
-        val optA = IngredientUnitOption(IngredientUnitOptionId("opt-A"), ingA, "lb", "lb", null, BigDecimal.ONE, true, false, false, true, Instant.now(), Instant.now())
-        val optB = IngredientUnitOption(IngredientUnitOptionId("opt-B"), ingB, "kg", "kg", null, BigDecimal.ONE, true, false, false, true, Instant.now(), Instant.now())
+        val optA = IngredientUnitOption(IngredientUnitOptionId("opt-A"), ingA, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
+        val optB = IngredientUnitOption(IngredientUnitOptionId("opt-B"), ingB, "kg", "kg", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
 
         coEvery { ingredientRepository.getUnitOptions(ingA, true) } returns listOf(optA)
         coEvery { ingredientRepository.getUnitOptions(ingB, true) } returns listOf(optB)
 
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Wait for Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
 
             viewModel.onIngredientSelected(ingA)
             testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(expectMostRecentItem().selectedUnitOptionId).isEqualTo(optA.id)
+            // Consume intermediate states if any
+            val stateA = expectMostRecentItem()
+            assertThat(stateA.selectedUnitOptionId).isEqualTo(optA.id)
 
             viewModel.onIngredientSelected(ingB)
-            // Preview and unit should be cleared/reset immediately
-            val state = awaitItem()
-            assertThat(state.selectedIngredientId).isEqualTo(ingB)
-            assertThat(state.selectedUnitOptionId).isNull()
-            assertThat(state.preview).isNull()
+            // It should emit a state with new ingredient and null unit/preview immediately
+            var stateB = awaitItem()
+            while (stateB.selectedIngredientId != ingB) {
+                stateB = awaitItem()
+            }
+            assertThat(stateB.selectedUnitOptionId).isNull()
+            assertThat(stateB.preview).isNull()
             
             testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(expectMostRecentItem().selectedUnitOptionId).isEqualTo(optB.id)
+            var stateBFinal = expectMostRecentItem()
+            assertThat(stateBFinal.selectedUnitOptionId).isEqualTo(optB.id)
         }
     }
 
@@ -165,11 +188,12 @@ class WasteFormViewModelTest {
     fun `invalid decimal clears stale preview`() = runTest {
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Wait for Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
             
-            // Setup a valid preview first
-            // ... (omitted for brevity, assuming existing tests cover this)
-
             viewModel.onQuantityChanged("invalid")
             testDispatcher.scheduler.advanceUntilIdle()
             assertThat(expectMostRecentItem().preview).isNull()

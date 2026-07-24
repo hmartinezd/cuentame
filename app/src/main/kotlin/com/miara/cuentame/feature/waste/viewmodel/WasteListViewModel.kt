@@ -22,6 +22,7 @@ import javax.inject.Inject
 
 data class WasteListUiState(
     val isLoading: Boolean = true,
+    val isSetupRequired: Boolean = false,
     val wasteEvents: List<WasteSummary> = emptyList(),
     val statusFilter: DocumentStatus? = null,
     val searchQuery: String = "",
@@ -42,7 +43,7 @@ class WasteListViewModel @Inject constructor(
     val uiState: StateFlow<WasteListUiState> = restaurantRepository.observeRestaurant()
         .flatMapLatest { restaurant ->
             if (restaurant == null) {
-                return@flatMapLatest flowOf(WasteListUiState(isLoading = false))
+                return@flatMapLatest flowOf(WasteListUiState(isLoading = false, isSetupRequired = true))
             }
             combine(
                 _statusFilter,

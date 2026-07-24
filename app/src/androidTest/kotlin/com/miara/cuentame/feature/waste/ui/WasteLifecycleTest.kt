@@ -87,8 +87,15 @@ class WasteLifecycleTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
-            // Wait for Home
-            composeTestRule.waitUntilExactlyOneExists(hasTestTag("home_screen"), 15000)
+            // Wait for loading to finish
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+            
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            }
 
             // 1. Open Waste History
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
@@ -126,36 +133,75 @@ class WasteLifecycleTest {
                 composeTestRule.onAllNodesWithTag("estimated_value_preview").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("current_balance_preview").assertTextContains("10", substring = true)
+            composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("7", substring = true)
 
             // 5. Save Draft
             composeTestRule.onNodeWithTag("waste_save_button").assertIsEnabled().performClick()
             composeTestRule.waitForIdle()
             
-            // 6. Verify and Click Post (Detail Screen)
+            // 6. Navigate away and reopen
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.waitForIdle()
+            
+            // Wait for list to have items
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodesWithTag("waste_post_button").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
             }
+            
+            // Reopen most recent (should be top item in LazyColumn)
+            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.waitForIdle()
+            
+            // Assert exact values
+            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Main Kitchen").assertIsDisplayed()
+            composeTestRule.onNodeWithText("3 lb", substring = true).assertIsDisplayed()
+            
+            // 7. Edit and save
+            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("notes_input").performTextInput("Some notes")
+            composeTestRule.onNodeWithTag("waste_save_button").performClick()
+            composeTestRule.waitForIdle()
+            
+            // Verify edit persisted
+            composeTestRule.onNodeWithText("Some notes").assertIsDisplayed()
+
+            // 8. Post
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
             composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
             composeTestRule.waitForIdle()
             
-            // 7. Verify POSTED
+            // 9. Verify POSTED and mutation controls absent
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
+            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).assertDoesNotExist()
             
-            // 8. Void Waste
+            // 10. Navigate away and reopen POSTED
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(context.getString(R.string.status_posted), substring = true).assertIsDisplayed()
+
+            // 11. Void Waste
             composeTestRule.onNodeWithTag("waste_void_button").performClick()
             composeTestRule.waitForIdle()
             composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
             composeTestRule.waitForIdle()
             
-            // 9. Verify VOIDED
+            // 12. Verify VOIDED persists
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_voided), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(context.getString(R.string.status_voided), substring = true).assertIsDisplayed()
         }
     }
 
@@ -164,7 +210,15 @@ class WasteLifecycleTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
-            composeTestRule.waitUntilExactlyOneExists(hasTestTag("home_screen"), 15000)
+            // Wait for loading to finish
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+            
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            }
 
             // Open Waste History
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
@@ -221,6 +275,9 @@ class WasteLifecycleTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
+            
+            // Assert cost remains $2.0
+            composeTestRule.onNodeWithText("$2.00", substring = true).assertIsDisplayed()
         }
     }
 }

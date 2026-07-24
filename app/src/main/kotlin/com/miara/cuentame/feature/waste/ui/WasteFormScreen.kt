@@ -174,6 +174,11 @@ fun WasteFormScreen(
                     CircularProgressIndicator()
                 }
             }
+            is WasteFormScreenState.SetupRequired -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_no_restaurant))
+                }
+            }
             is WasteFormScreenState.NotFound -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.error_waste_not_found))
@@ -217,7 +222,7 @@ fun WasteFormScreen(
                     ) {
                         val selectedIngredient = uiState.ingredients.find { it.id == uiState.selectedIngredientId }
                         OutlinedTextField(
-                            value = selectedIngredient?.name ?: "",
+                            value = selectedIngredient?.label ?: "",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.ingredient_name)) },
@@ -230,10 +235,11 @@ fun WasteFormScreen(
                             onDismissRequest = { ingredientExpanded = false }
                         ) {
                             uiState.ingredients.forEach { ingredient ->
+                                val label = if (ingredient.isActive) ingredient.label else "${ingredient.label} (${stringResource(R.string.archived_label)})"
                                 DropdownMenuItem(
-                                    text = { Text(ingredient.name) },
+                                    text = { Text(label) },
                                     onClick = { onIngredientSelected(ingredient.id); ingredientExpanded = false },
-                                    modifier = Modifier.testTag("ingredient_item_${ingredient.name}")
+                                    modifier = Modifier.testTag("ingredient_item_${ingredient.label}")
                                 )
                             }
                         }
@@ -248,7 +254,7 @@ fun WasteFormScreen(
                     ) {
                         val selectedArea = uiState.areas.find { it.id == uiState.selectedAreaId }
                         OutlinedTextField(
-                            value = selectedArea?.name ?: "",
+                            value = selectedArea?.label ?: "",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.receiving_area)) },
@@ -261,10 +267,11 @@ fun WasteFormScreen(
                             onDismissRequest = { areaExpanded = false }
                         ) {
                             uiState.areas.forEach { area ->
+                                val label = if (area.isActive) area.label else "${area.label} (${stringResource(R.string.archived_label)})"
                                 DropdownMenuItem(
-                                    text = { Text(area.name) },
+                                    text = { Text(label) },
                                     onClick = { onAreaSelected(area.id); areaExpanded = false },
-                                    modifier = Modifier.testTag("area_item_${area.name}")
+                                    modifier = Modifier.testTag("area_item_${area.label}")
                                 )
                             }
                         }

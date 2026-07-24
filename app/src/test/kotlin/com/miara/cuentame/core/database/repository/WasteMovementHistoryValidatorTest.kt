@@ -119,6 +119,16 @@ class WasteMovementHistoryValidatorTest {
     }
 
     @Test
+    fun reversalOfReversal_throws() {
+        val event = createBaseEvent().copy(status = DocumentStatus.VOIDED.name, voidedAt = 3000L, updatedAt = 3000L)
+        val original = createBaseMovement().copy(movementType = InventoryMovementType.REVERSAL.name, reversalOfMovementId = "prev")
+        val reversal = createBaseMovement().copy(movementType = InventoryMovementType.REVERSAL.name, reversalOfMovementId = original.id)
+        assertThrows(ValidationError.MalformedWasteMovementHistory::class.java) {
+            validator.validateVoidedHistory(event, listOf(original, reversal))
+        }
+    }
+
+    @Test
     fun zeroWasteQuantity_throws() {
         val movement = createBaseMovement().copy(quantityBaseSigned = "0.0")
         assertThrows(ValidationError.MalformedWasteMovementHistory::class.java) {
@@ -169,6 +179,32 @@ class WasteMovementHistoryValidatorTest {
             sourceLineId = "event-1",
             sourceOperationId = "reversal:wrong",
             reversalOfMovementId = "wrong",
+            createdAt = 3000L
+        )
+        assertThrows(ValidationError.MalformedWasteMovementHistory::class.java) {
+            validator.validateVoidedHistory(event, listOf(original, reversal))
+        }
+    }
+
+    @Test
+    fun wrongReversalOperationId_throws() {
+        val event = createBaseEvent().copy(status = DocumentStatus.VOIDED.name, voidedAt = 3000L, updatedAt = 3000L)
+        val original = createBaseMovement()
+        val reversal = InventoryMovementEntity(
+            id = "rev-1",
+            restaurantId = "rest-1",
+            ingredientId = "ing-1",
+            areaId = "area-1",
+            movementType = InventoryMovementType.REVERSAL.name,
+            quantityBaseSigned = "10.0",
+            unitCostBaseSnapshot = "2.0",
+            totalValueSnapshot = "20.0",
+            effectiveAt = 3000L,
+            sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
+            sourceDocumentId = "event-1",
+            sourceLineId = "event-1",
+            sourceOperationId = "wrong-op",
+            reversalOfMovementId = "mov-1",
             createdAt = 3000L
         )
         assertThrows(ValidationError.MalformedWasteMovementHistory::class.java) {

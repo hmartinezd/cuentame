@@ -30,6 +30,7 @@ sealed interface WasteDetailScreenState {
     data object NotFound : WasteDetailScreenState
     data object InvalidRoute : WasteDetailScreenState
     data object OwnershipMismatch : WasteDetailScreenState
+    data object SetupRequired : WasteDetailScreenState
     data class Error(val throwable: Throwable) : WasteDetailScreenState
 }
 
@@ -88,7 +89,7 @@ class WasteDetailViewModel @Inject constructor(
 
         val screenState = when {
             wasteEventId == null || wasteEventIdStr.isNullOrBlank() -> WasteDetailScreenState.InvalidRoute
-            restaurant == null -> WasteDetailScreenState.Loading
+            restaurant == null -> WasteDetailScreenState.SetupRequired
             error != null && details == null -> WasteDetailScreenState.Error(error)
             details == null -> WasteDetailScreenState.NotFound
             details.event.restaurantId != restaurant.id -> WasteDetailScreenState.OwnershipMismatch
