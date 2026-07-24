@@ -2,26 +2,28 @@
 
 A local-first restaurant inventory application built with modern Android practices.
 
-## Current Status (Milestone 6 — Final Integrity Pass)
+## Current Status (Milestone 6 — Final Serialization & Integrity Pass)
+- `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (80 tests)
+- `testDebugUnitTest`: PASSED (84 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: Locally verified (64 PASSED, 3 unrelated flaky UI tests; StockCountLifecycleTest and integration logic PASSED)
+- `connectedDebugAndroidTest`: Locally verified (64 PASSED, 3 unrelated flaky Dashboard timeouts in emulator; StockCountLifecycleTest and StockCountUiTest PASSED)
 
 ### Verification Summary
-- **JVM Tests:** 80 total (ViewModel, UseCase, Repository unit tests).
-- **ViewModel Tests:** 24 total (Area, Detail, Start flows with race/failure coverage).
-- **Room Integration Tests:** 32 total (Snapshot, Repository transitions, Rollback validation).
-- **Compose Tests:** 8 total (Start, Lifecycle, Success-driven deletion).
+- **JVM Tests:** 84 total (ViewModel, UseCase, Repository unit tests).
+- **Stock-count ViewModel Tests:** 26 total (Including race condition and serialization coverage).
+- **Snapshot Tests:** 12 total (Core logic for history replay).
+- **Room Integration Tests:** 32 total (Lifecycle transitions and rollback verification).
+- **Compose Tests:** 10 total (E2E lifecycle, UI state, success-driven flows).
 
 ### Milestone 6 Highlights
-- **Success-Driven Deletion:** Deletion from areas is serialized with autosave and tracks explicit operation state to prevent stale data restoration.
-- **Autosave & Flush:** Revision-based serialization ensuring rapid edits create exactly one line and `flushPendingSaves()` awaits active operations.
-- **Route Ownership:** All routes validate active-restaurant ownership, rejecting cross-restaurant or malformed count/area links.
-- **Authoritative History:** Completed and Voided states use immutable snapshots; decimal parsing is strictly wrapped and validated against `MalformedStockCountMovementHistory`.
-- **Reversal Integrity:** Full structural validation for reversals including source-line parity, negative quantity/total matching, and chronological consistency.
-- **UI Integrity:** Selectable unit options exclude archived choices after change; Adjustment Review includes missing active item and archived balance warnings.
-- **UTC-Safe Dates:** Material DatePicker results are handled via UTC to prevent timezone-based date shifts in historical records.
+- **Authoritative Operation Coordinator:** Per-line serialization using `Mutex` and enqueued jobs ensures that CREATE, UPDATE, and DELETE operations never race.
+- **Atomic Deletion Integrity:** If a line is deleted while being created, the coordinator ensures the generated ID is captured and the database row is removed immediately after creation.
+- **Clean Persistence Handoff:** Debounce jobs are separated from active persistence; `flushPendingSaves()` awaits committed work rather than canceling it.
+- **Robust Detail Ownership:** `StockCountDetailViewModel` validates active-restaurant ownership, preventing cross-restaurant data exposure.
+- **UI Integrity & Localized Unknowns:** Removed all hardcoded fallbacks like "units"; missing references during review produce typed errors and localized unknown placeholders.
+- **Deterministic Lifecycle Testing:** `StockCountLifecycleTest` and `StockCountUiTest` are fully green, asserting exact inventory values and verifying read-only states for COMPLETED and VOIDED counts.
+- **Race Condition Verification:** Added `StockCountAreaViewModelRaceTest` with controllable fakes to verify serialized save/delete behavior.
 
 ### Current milestone: Milestone 6 — Stock Counts (Completed)
 ### Next milestone: Milestone 7 — Waste Tracking

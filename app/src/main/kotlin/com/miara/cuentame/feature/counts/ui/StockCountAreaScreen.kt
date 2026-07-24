@@ -245,6 +245,7 @@ fun StockCountAreaScreen(
                         items(uiState.lineEntries, key = { it.ingredientId }) { entry ->
                             StockCountLineItem(
                                 entry = entry,
+                                areaId = uiState.details?.area?.id?.value ?: "",
                                 onQuantityChanged = { qty -> onQuantityChanged(entry.ingredientId, qty) },
                                 onUnitChanged = { uid -> onUnitChanged(entry.ingredientId, uid) },
                                 onDelete = { onShowDeleteConfirm(entry) },
@@ -312,12 +313,13 @@ fun StockCountAreaScreen(
 @Composable
 fun StockCountLineItem(
     entry: StockCountLineEntry,
+    areaId: String,
     onQuantityChanged: (String) -> Unit,
     onUnitChanged: (String) -> Unit,
     onDelete: () -> Unit,
     enabled: Boolean
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth().testTag("line_item_${areaId}_${entry.ingredientId}")) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -328,7 +330,7 @@ fun StockCountLineItem(
                     text = entry.ingredientName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.testTag("line_ingredient_${entry.ingredientId}")
+                    modifier = Modifier.testTag("line_ingredient_${areaId}_${entry.ingredientId}")
                 )
                 if (entry.categoryName != null) {
                     Text(text = entry.categoryName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
@@ -336,7 +338,7 @@ fun StockCountLineItem(
             }
             
             if (enabled) {
-                IconButton(onClick = onDelete, modifier = Modifier.testTag("delete_line_${entry.ingredientId}")) {
+                IconButton(onClick = onDelete, modifier = Modifier.testTag("delete_line_${areaId}_${entry.ingredientId}")) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error)
                 }
             }
@@ -350,7 +352,7 @@ fun StockCountLineItem(
             OutlinedTextField(
                 value = entry.quantityText,
                 onValueChange = onQuantityChanged,
-                modifier = Modifier.weight(1f).testTag("count_quantity_${entry.ingredientId}"),
+                modifier = Modifier.weight(1f).testTag("quantity_${areaId}_${entry.ingredientId}"),
                 enabled = enabled && !entry.isDeleting,
                 label = { Text(stringResource(R.string.quantity)) },
                 isError = entry.error != null,
@@ -363,7 +365,7 @@ fun StockCountLineItem(
             ExposedDropdownMenuBox(
                 expanded = unitExpanded && enabled && !entry.isDeleting,
                 onExpandedChange = { if (enabled && !entry.isDeleting) unitExpanded = !unitExpanded },
-                modifier = Modifier.weight(1f).testTag("unit_selector_${entry.ingredientId}")
+                modifier = Modifier.weight(1f).testTag("unit_selector_${areaId}_${entry.ingredientId}")
             ) {
                 OutlinedTextField(
                     value = entry.unitName,
@@ -396,11 +398,11 @@ fun StockCountLineItem(
             if (enabled) {
                 Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                     if (entry.isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp).testTag("save_indicator_saving_${entry.ingredientId}"), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp).testTag("save_indicator_saving_${areaId}_${entry.ingredientId}"), strokeWidth = 2.dp)
                     } else if (entry.isSaved) {
-                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.saved), modifier = Modifier.size(16.dp).testTag("save_indicator_saved_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.saved), modifier = Modifier.size(16.dp).testTag("save_indicator_saved_${areaId}_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.primary)
                     } else if (entry.error != null) {
-                        Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.state_error_desc), modifier = Modifier.size(16.dp).testTag("save_indicator_error_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.state_error_desc), modifier = Modifier.size(16.dp).testTag("save_indicator_error_${areaId}_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -415,9 +417,9 @@ fun StockCountLineItem(
                     text = if (entry.preview.willCreateOpeningBalance) 
                         stringResource(R.string.opening_balance) 
                     else 
-                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", entry.baseUnitName),
+                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", entry.baseUnitName.ifBlank { stringResource(R.string.unknown_unit) }),
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.testTag("expected_preview_${entry.ingredientId}")
+                    modifier = Modifier.testTag("historical_expected_${areaId}_${entry.ingredientId}")
                 )
                 
                 val adjustment = entry.preview.provisionalAdjustmentBase
@@ -427,10 +429,10 @@ fun StockCountLineItem(
                     else -> MaterialTheme.colorScheme.outline
                 }
                 Text(
-                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.baseUnitName),
+                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.baseUnitName.ifBlank { stringResource(R.string.unknown_unit) }),
                     style = MaterialTheme.typography.labelSmall,
                     color = color,
-                    modifier = Modifier.testTag("adjustment_preview_${entry.ingredientId}")
+                    modifier = Modifier.testTag("historical_adjustment_${areaId}_${entry.ingredientId}")
                 )
             }
         }

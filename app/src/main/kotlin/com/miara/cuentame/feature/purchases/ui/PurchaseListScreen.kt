@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -124,7 +125,10 @@ fun PurchaseListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddPurchase) {
+            FloatingActionButton(
+                onClick = onAddPurchase,
+                modifier = Modifier.testTag("add_purchase_fab")
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_purchase))
             }
         }

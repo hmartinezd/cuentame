@@ -158,7 +158,8 @@ fun PurchaseLineScreen(
                     var ingredientExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = ingredientExpanded,
-                        onExpandedChange = { if (!uiState.isSaving) ingredientExpanded = !ingredientExpanded }
+                        onExpandedChange = { if (!uiState.isSaving) ingredientExpanded = !ingredientExpanded },
+                        modifier = Modifier.testTag("ingredient_selector")
                     ) {
                         val selectedIngredient = uiState.ingredients.find { it.id == uiState.selectedIngredientId }
                         OutlinedTextField(
@@ -223,7 +224,8 @@ fun PurchaseLineScreen(
                     var unitExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = unitExpanded,
-                        onExpandedChange = { if (uiState.selectedIngredientId != null && !uiState.isSaving) unitExpanded = !unitExpanded }
+                        onExpandedChange = { if (uiState.selectedIngredientId != null && !uiState.isSaving) unitExpanded = !unitExpanded },
+                        modifier = Modifier.testTag("unit_selector")
                     ) {
                         val selectedOption = uiState.unitOptions.find { it.id == uiState.selectedUnitOptionId }
                         OutlinedTextField(
@@ -255,7 +257,7 @@ fun PurchaseLineScreen(
                         value = uiState.quantityText,
                         onValueChange = onQuantityChanged,
                         label = { Text(stringResource(R.string.quantity)) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("quantity_input"),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         isError = uiState.fieldErrors.containsKey("quantity"),
                         supportingText = uiState.fieldErrors["quantity"]?.let { { Text(stringResource(it)) } },
@@ -266,7 +268,7 @@ fun PurchaseLineScreen(
                         value = uiState.totalText,
                         onValueChange = onTotalChanged,
                         label = { Text(stringResource(R.string.line_total)) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("total_price_input"),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         isError = uiState.fieldErrors.containsKey("total"),
                         supportingText = uiState.fieldErrors["total"]?.let { { Text(stringResource(it)) } },
@@ -300,7 +302,7 @@ fun PurchaseLineScreen(
 
                     Button(
                         onClick = onSave,
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("purchase_line_save"),
                         enabled = !uiState.isSaving
                     ) {
                         if (uiState.isSaving) {

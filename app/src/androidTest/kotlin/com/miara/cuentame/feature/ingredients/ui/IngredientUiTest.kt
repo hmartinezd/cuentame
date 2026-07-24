@@ -1,25 +1,19 @@
 package com.miara.cuentame.feature.ingredients.ui
 
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.R
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import javax.inject.Inject
 
 @HiltAndroidTest
 class IngredientUiTest {
@@ -28,150 +22,122 @@ class IngredientUiTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
+
+    @Inject
+    lateinit var database: RestaurantInventoryDatabase
+
+    @Inject
+    lateinit var preferencesRepository: AppPreferencesRepository
 
     @Before
     fun setup() {
         hiltRule.inject()
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearOnboardingDraft()
+
+            database.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
+            // Seed a restaurant as well
+            database.restaurantDao().insert(com.miara.cuentame.core.model.restaurant.Restaurant(
+                com.miara.cuentame.core.common.ids.RestaurantId("rest_ing_test"), "Test Ing Rest", "USD", "en-US", java.time.Instant.now(), java.time.Instant.now(), null
+            ).toEntity())
+            database.inventoryAreaDao().upsert(com.miara.cuentame.core.model.inventory.InventoryArea(
+                com.miara.cuentame.core.common.ids.InventoryAreaId("area_ing_test"), com.miara.cuentame.core.common.ids.RestaurantId("rest_ing_test"), "Area 1", "area 1", 0, true, java.time.Instant.now(), java.time.Instant.now(), null
+            ).toEntity())
+            
+            // Verify DB state before proceeding
+            assert(database.restaurantDao().getRestaurant() != null)
+            assert(database.inventoryAreaDao().getActiveCount("rest_ing_test") > 0)
+
+            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setOnboardingCompleted(true)
+        }
     }
 
     @Test
     fun complete_ingredient_e2e_flow() {
-        composeTestRule.waitForIdle()
-
-        // 1. Complete onboarding if needed
-        ensureOnboarded()
-
-        // 2. Navigate to Inventory
-        val navInventory = composeTestRule.activity.getString(R.string.nav_inventory)
-        composeTestRule.onAllNodesWithText(navInventory).onFirst().performClick()
-        composeTestRule.waitForIdle()
-
-        // 3. Create Chicken Breast
-        val addLabel = composeTestRule.activity.getString(R.string.add_ingredient)
-        composeTestRule.onNodeWithContentDescription(addLabel).performClick()
-        composeTestRule.waitForIdle()
-        
-        val nameLabel = composeTestRule.activity.getString(R.string.ingredient_name)
-        composeTestRule.onNodeWithText(nameLabel).performTextInput("Chicken Breast")
-        composeTestRule.waitForIdle()
-        
-        // Select Dimension: Mass
-        composeTestRule.onNodeWithTag("dimension_selector").performClick()
-        composeTestRule.waitForIdle()
-        val massLabel = composeTestRule.activity.getString(R.string.dim_mass)
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithText(massLabel, substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onAllNodesWithText(massLabel, substring = true).onFirst().performClick()
-        composeTestRule.waitForIdle()
-
-        // Select Base Unit: Pound
-        composeTestRule.onNodeWithTag("base_unit_selector").performClick()
-        composeTestRule.waitForIdle()
-        // Wait for units to load
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithText("Pound", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onAllNodesWithText("Pound", substring = true).onFirst().performClick()
-        composeTestRule.waitForIdle()
-
-        // Add Ounce Standard Unit
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.standard_unit)).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodesWithText("Ounce", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onAllNodesWithText("Ounce", substring = true).onFirst().performClick()
-        composeTestRule.waitForIdle()
-        
-        // Check preview
-        composeTestRule.onNodeWithText("1 oz = 0.0625 lb", substring = true).assertIsDisplayed()
-        composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
-        composeTestRule.waitForIdle()
-
-        // Add Case Package
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.package_option)).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.package_name)).performTextInput("Case")
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.contains_quantity)).performTextInput("40")
-        composeTestRule.onNodeWithTag("package_dialog_confirm").performClick()
-        composeTestRule.waitForIdle()
-
-        // Save Ingredient
-        composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled().performClick()
-        composeTestRule.waitForIdle()
-        
-        // 4. Verify Detail
-        composeTestRule.waitUntil(20000) {
-            composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).onFirst().assertIsDisplayed()
-
-        // 5. Reopen and verify persistence
-        val backLabel = composeTestRule.activity.getString(R.string.action_back)
-        composeTestRule.onNodeWithContentDescription(backLabel).performClick()
-        composeTestRule.waitForIdle()
-        
-        // Wait for list to load
-        composeTestRule.waitUntil(20000) {
-            composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        
-        composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).onFirst().performClick()
-        composeTestRule.waitForIdle()
-        
-        composeTestRule.waitUntil(20000) {
-            composeTestRule.onAllNodesWithText("Case", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onAllNodesWithText("Case", substring = true).onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("40", substring = true).onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("oz", substring = true).onFirst().assertIsDisplayed()
-
-        // 6. Test Read-only Edit
-        composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.action_edit)).performClick()
-        composeTestRule.waitForIdle()
-
-        // Verify units are read-only (no add standard unit button)
-        composeTestRule.onAllNodesWithText(composeTestRule.activity.getString(R.string.standard_unit))
-            .assertCountEquals(0)
-        
-        // Verify delete buttons are absent
-        composeTestRule.onAllNodes(hasContentDescription("Remove", substring = true))
-            .assertCountEquals(0)
-
-        // Save (no changes)
-        composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
-        composeTestRule.waitForIdle()
-        
-        // Back to detail
-        composeTestRule.onAllNodesWithText("Chicken Breast", substring = true).onFirst().assertIsDisplayed()
-    }
-
-    private fun ensureOnboarded() {
-        val setupAction = composeTestRule.activity.getString(R.string.onboarding_setup_action)
-        val setupExists = composeTestRule.onAllNodesWithText(setupAction).fetchSemanticsNodes().isNotEmpty()
-        
-        if (setupExists) {
-            composeTestRule.onNodeWithText(setupAction).performClick()
-            composeTestRule.waitForIdle()
-            
-            composeTestRule.onNodeWithTag("onboarding_restaurant_name").performTextInput("Test Rest")
-            composeTestRule.waitForIdle()
-            
-            composeTestRule.onNodeWithTag("onboarding_next_button").performClick() // to areas
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true).onFirst().performClick() // to categories
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithTag("onboarding_next_button", useUnmergedTree = true).onFirst().performClick() // to review
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithTag("onboarding_finish_button", useUnmergedTree = true).onFirst().performClick()
-            composeTestRule.waitForIdle()
-            
-            // Wait for Home screen
-            composeTestRule.waitUntil(20000) {
-                composeTestRule.onAllNodesWithText("Dashboard", substring = true).fetchSemanticsNodes().isNotEmpty()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
             }
+
+            // 1. Navigate to Inventory
+            composeTestRule.onNodeWithTag("nav_inventory").performClick()
+
+            // 2. Create Chicken Breast
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("add_ingredient_fab").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("add_ingredient_fab").performClick()
+            
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("ingredient_name_input").performTextInput("Chicken Breast")
+            
+            // Select Dimension: Mass
+            composeTestRule.onNodeWithTag("dimension_selector").performClick()
+            composeTestRule.onNodeWithText("Mass").performClick()
+
+            // Select Base Unit: Pound
+            composeTestRule.onNodeWithTag("base_unit_selector").performClick()
+            composeTestRule.onNodeWithText("Pound").performClick()
+
+            // Add Ounce Standard Unit
+            composeTestRule.onNodeWithText("Add Standard Unit").performClick()
+            composeTestRule.onNodeWithText("Ounce").performClick()
+            
+            // Check preview
+            composeTestRule.onNodeWithText("1 oz = 0.0625 lb", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
+
+            // Add Case Package
+            composeTestRule.onNodeWithText("Add Package Option").performClick()
+            composeTestRule.onNodeWithTag("package_name_input").performTextInput("Case")
+            composeTestRule.onNodeWithTag("package_factor_input").performTextInput("40")
+            composeTestRule.onNodeWithTag("package_dialog_confirm").performClick()
+
+            // Save Ingredient
+            composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled().performClick()
+            
+            // 3. Verify Detail
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+
+            // 4. Reopen and verify persistence
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Chicken Breast").performClick()
+            
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("Case").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Case").assertIsDisplayed()
+            composeTestRule.onNodeWithText("40", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("oz", substring = true).assertIsDisplayed()
+
+            // 5. Test Read-only Edit
+            composeTestRule.onNodeWithContentDescription("Edit").performClick()
+            
+            // Verify units are read-only (no add standard unit button)
+            composeTestRule.onAllNodesWithText("Add Standard Unit").assertCountEquals(0)
+            
+            // Verify delete buttons are absent
+            composeTestRule.onAllNodes(hasContentDescription("Remove", substring = true)).assertCountEquals(0)
+
+            // Save (no changes)
+            composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
+            
+            // Back to detail
+            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
         }
     }
 }

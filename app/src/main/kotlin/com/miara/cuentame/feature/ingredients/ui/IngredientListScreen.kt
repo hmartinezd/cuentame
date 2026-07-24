@@ -78,7 +78,10 @@ fun IngredientListScreen(
 ) {
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddIngredient) {
+            FloatingActionButton(
+                onClick = onAddIngredient,
+                modifier = Modifier.testTag("add_ingredient_fab")
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_ingredient))
             }
         }

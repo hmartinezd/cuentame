@@ -30,13 +30,14 @@ import java.math.BigDecimal
 import javax.inject.Inject
 
 data class StockCountReviewLine(
+    val areaId: String,
     val ingredientId: String,
     val ingredientName: String,
     val areaName: String?,
     val quantityEntered: BigDecimal,
     val unitName: String,
     val quantityBase: BigDecimal,
-    val baseUnitName: String,
+    val baseUnitName: String?,
     val preview: StockCountLinePreview
 )
 
@@ -45,7 +46,7 @@ data class ReviewWarning(
     val name: String,
     val areaName: String?,
     val expectedBalanceBase: BigDecimal,
-    val baseUnitName: String,
+    val baseUnitName: String?,
     val isArchived: Boolean
 )
 
@@ -54,6 +55,7 @@ sealed interface StockCountDetailScreenState {
     data object Ready : StockCountDetailScreenState
     data object NotFound : StockCountDetailScreenState
     data object InvalidRoute : StockCountDetailScreenState
+    data object OwnershipMismatch : StockCountDetailScreenState
     data class Error(val throwable: Throwable) : StockCountDetailScreenState
 }
 
@@ -123,7 +125,7 @@ class StockCountDetailViewModel @Inject constructor(
     @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<StockCountDetailUiState> = combine(
         if (countId != null) repository.observeCount(countId) else kotlinx.coroutines.flow.flowOf(null),
-        restaurantRepository.observeRestaurant().map { it?.currencyCode ?: "USD" },
+        restaurantRepository.observeRestaurant(),
         _isDeleting,
         _isCompleting,
         _isVoiding,
@@ -136,7 +138,7 @@ class StockCountDetailViewModel @Inject constructor(
         _hasLoadedOnce
     ) { args ->
         val details = args[0] as StockCountDetails?
-        val currencyCode = args[1] as String
+        val activeRestaurant = args[1] as com.miara.cuentame.core.model.restaurant.Restaurant?
         val deleting = args[2] as Boolean
         val completing = args[3] as Boolean
         val voiding = args[4] as Boolean
@@ -153,6 +155,7 @@ class StockCountDetailViewModel @Inject constructor(
             !hasLoadedOnce && error == null -> StockCountDetailScreenState.Loading
             error != null && details == null -> StockCountDetailScreenState.Error(error)
             details == null -> StockCountDetailScreenState.NotFound
+            activeRestaurant == null || details.count.restaurantId != activeRestaurant.id -> StockCountDetailScreenState.OwnershipMismatch
             else -> StockCountDetailScreenState.Ready
         }
 
@@ -162,7 +165,7 @@ class StockCountDetailViewModel @Inject constructor(
             isCompleting = completing,
             isVoiding = voiding,
             details = details,
-            currencyCode = currencyCode,
+            currencyCode = activeRestaurant?.currencyCode ?: "USD",
             reviewLines = reviewLines,
             missingWarnings = missingWarnings,
             archivedWarnings = archivedWarnings,
@@ -178,6 +181,7 @@ class StockCountDetailViewModel @Inject constructor(
 
     fun onDelete() {
         val cid = countId ?: return
+        if (uiState.value.screenState != StockCountDetailScreenState.Ready) return
         if (_isDeleting.value) return
         _isDeleting.value = true
         _error.value = null
@@ -194,6 +198,7 @@ class StockCountDetailViewModel @Inject constructor(
     }
 
     fun onToggleReview(show: Boolean) {
+        if (uiState.value.screenState != StockCountDetailScreenState.Ready) return
         if (show && _reviewLines.value.isEmpty()) {
              generateReviewData()
         }
@@ -219,14 +224,14 @@ class StockCountDetailViewModel @Inject constructor(
                     
                     result.missingActiveCandidates.forEach { ing ->
                         val options = ingredientRepository.getUnitOptions(ing.id, true)
-                        val baseUnit = options.find { it.isBase }
+                        val baseUnit = options.find { it.isBase } ?: throw ValidationError.UnitOptionNotFound
                         missingW.add(
                             ReviewWarning(
                                 ingredientId = ing.id.value,
                                 name = ing.name,
                                 areaName = areaDetail.areaName,
                                 expectedBalanceBase = BigDecimal.ZERO,
-                                baseUnitName = baseUnit?.shortLabel ?: "units",
+                                baseUnitName = baseUnit.shortLabel,
                                 isArchived = false
                             )
                         )
@@ -234,14 +239,14 @@ class StockCountDetailViewModel @Inject constructor(
                     
                     result.archivedBalanceWarnings.forEach { arc ->
                         val options = ingredientRepository.getUnitOptions(IngredientId(arc.ingredientId), true)
-                        val baseUnit = options.find { it.isBase }
+                        val baseUnit = options.find { it.isBase } ?: throw ValidationError.UnitOptionNotFound
                         archivedW.add(
                             ReviewWarning(
                                 ingredientId = arc.ingredientId,
                                 name = arc.name,
                                 areaName = areaDetail.areaName,
                                 expectedBalanceBase = arc.expectedBalanceBase,
-                                baseUnitName = baseUnit?.shortLabel ?: "units",
+                                baseUnitName = baseUnit.shortLabel,
                                 isArchived = true
                             )
                         )
@@ -251,7 +256,7 @@ class StockCountDetailViewModel @Inject constructor(
                         val ingredient = ingredientRepository.getById(line.ingredientId) ?: throw ValidationError.IngredientNotFound
                         val options = ingredientRepository.getUnitOptions(line.ingredientId, true)
                         val option = options.find { it.id == line.ingredientUnitOptionId } ?: throw ValidationError.UnitOptionNotFound
-                        val baseUnit = options.find { it.isBase }
+                        val baseUnit = options.find { it.isBase } ?: throw ValidationError.UnitOptionNotFound
                         
                         val preview = previewUseCase(
                             restaurantId = areaDetail.restaurantId,
@@ -263,13 +268,14 @@ class StockCountDetailViewModel @Inject constructor(
 
                         lines.add(
                             StockCountReviewLine(
+                                areaId = areaDetail.area.id.value,
                                 ingredientId = line.ingredientId.value,
                                 ingredientName = ingredient.name,
                                 areaName = areaDetail.areaName,
                                 quantityEntered = line.quantityEntered,
                                 unitName = option.shortLabel,
                                 quantityBase = line.quantityBase,
-                                baseUnitName = baseUnit?.shortLabel ?: "units",
+                                baseUnitName = baseUnit.shortLabel,
                                 preview = preview
                             )
                         )
@@ -289,6 +295,7 @@ class StockCountDetailViewModel @Inject constructor(
 
     fun onComplete() {
         val cid = countId ?: return
+        if (uiState.value.screenState != StockCountDetailScreenState.Ready) return
         if (_isCompleting.value) return
         _isCompleting.value = true
         _error.value = null
@@ -307,6 +314,7 @@ class StockCountDetailViewModel @Inject constructor(
 
     fun onVoid() {
         val cid = countId ?: return
+        if (uiState.value.screenState != StockCountDetailScreenState.Ready) return
         if (_isVoiding.value) return
         _isVoiding.value = true
         _error.value = null

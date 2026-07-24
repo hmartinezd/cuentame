@@ -209,7 +209,12 @@ fun CuentameNavHost(
         composable(route = Destination.STOCK_COUNT_DETAIL.route) {
             StockCountDetailRoute(
                 onBack = { navController.popBackStack() },
-                onAreaClick = { /* Read only */ }
+                onAreaClick = { aid ->
+                    val cid = navController.currentBackStackEntry?.arguments?.getString("countId")
+                    if (cid != null) {
+                        navController.navigate("count/$cid/area/${aid.value}")
+                    }
+                }
             )
         }
         

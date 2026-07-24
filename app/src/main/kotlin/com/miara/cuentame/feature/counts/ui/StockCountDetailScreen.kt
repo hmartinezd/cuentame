@@ -172,6 +172,11 @@ fun StockCountDetailScreen(
                     Text(stringResource(R.string.error_count_not_found))
                 }
             }
+            is StockCountDetailScreenState.OwnershipMismatch -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_count_ownership_mismatch))
+                }
+            }
             is StockCountDetailScreenState.Error -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(state.throwable.toUserMessageRes()))
@@ -379,7 +384,7 @@ fun ReviewWarningItem(warning: ReviewWarning) {
         supportingContent = { 
             Column {
                 Text(warning.areaName ?: stringResource(R.string.unknown_area))
-                Text(stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), warning.baseUnitName))
+                Text(stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), warning.baseUnitName ?: stringResource(R.string.unknown_unit)))
             }
         },
         leadingContent = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
@@ -388,7 +393,7 @@ fun ReviewWarningItem(warning: ReviewWarning) {
 
 @Composable
 fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(vertical = 8.dp).testTag("review_line_${line.areaName}_${line.ingredientId}")) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text(text = line.ingredientName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
@@ -405,9 +410,9 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                 text = if (line.preview.willCreateOpeningBalance) 
                     stringResource(R.string.opening_balance) 
                 else 
-                    stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase?.toPlainString() ?: "0", line.baseUnitName),
+                    stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase?.toPlainString() ?: "0", line.baseUnitName ?: stringResource(R.string.unknown_unit)),
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.testTag("historical_expected_${line.ingredientId}")
+                modifier = Modifier.testTag("historical_expected_${line.areaId}_${line.ingredientId}")
             )
             
             val adjustment = line.preview.provisionalAdjustmentBase
@@ -417,10 +422,10 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                 else -> MaterialTheme.colorScheme.outline
             }
             Text(
-                text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), line.baseUnitName),
+                text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), line.baseUnitName ?: stringResource(R.string.unknown_unit)),
                 style = MaterialTheme.typography.labelSmall,
                 color = color,
-                modifier = Modifier.testTag("historical_adjustment_${line.ingredientId}")
+                modifier = Modifier.testTag("historical_adjustment_${line.areaId}_${line.ingredientId}")
             )
         }
 

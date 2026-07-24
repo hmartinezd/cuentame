@@ -22,42 +22,48 @@ enum class TopLevelDestination(
     val unselectedIcon: ImageVector,
     @StringRes val iconTextId: Int,
     @StringRes val titleTextId: Int,
-    val route: String
+    val route: String,
+    val testTag: String
 ) {
     HOME(
         selectedIcon = Icons.Filled.Home,
         unselectedIcon = Icons.Outlined.Home,
         iconTextId = R.string.nav_home,
         titleTextId = R.string.home_title,
-        route = "home"
+        route = "home",
+        testTag = "nav_home"
     ),
     INVENTORY(
         selectedIcon = Icons.Filled.Inventory,
         unselectedIcon = Icons.Outlined.Inventory,
         iconTextId = R.string.nav_inventory,
         titleTextId = R.string.inventory_title,
-        route = "inventory"
+        route = "inventory",
+        testTag = "nav_inventory"
     ),
     COUNT(
         selectedIcon = Icons.Filled.QrCodeScanner,
         unselectedIcon = Icons.Outlined.QrCodeScanner,
         iconTextId = R.string.nav_count,
         titleTextId = R.string.count_title,
-        route = "count"
+        route = "count",
+        testTag = "nav_count"
     ),
     ACTIVITY(
         selectedIcon = Icons.Filled.History,
         unselectedIcon = Icons.Outlined.History,
         iconTextId = R.string.nav_activity,
         titleTextId = R.string.activity_title,
-        route = "activity"
+        route = "activity",
+        testTag = "nav_activity"
     ),
     REPORTS(
         selectedIcon = Icons.Filled.Analytics,
         unselectedIcon = Icons.Outlined.Analytics,
         iconTextId = R.string.nav_reports,
         titleTextId = R.string.reports_title,
-        route = "reports"
+        route = "reports",
+        testTag = "nav_reports"
     )
 }
 

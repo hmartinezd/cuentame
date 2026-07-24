@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -174,7 +175,8 @@ private fun CuentameBottomBar(
                         contentDescription = null
                     )
                 },
-                label = { Text(stringResource(destination.iconTextId)) }
+                label = { Text(stringResource(destination.iconTextId)) },
+                modifier = Modifier.testTag(destination.testTag)
             )
         }
     }
@@ -199,7 +201,8 @@ private fun CuentameNavRail(
                         contentDescription = null
                     )
                 },
-                label = { Text(stringResource(destination.iconTextId)) }
+                label = { Text(stringResource(destination.iconTextId)) },
+                modifier = Modifier.testTag(destination.testTag)
             )
         }
     }

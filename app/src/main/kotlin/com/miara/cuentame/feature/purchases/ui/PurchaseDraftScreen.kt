@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -353,7 +354,7 @@ fun PurchaseHeaderSection(
             value = invoiceNumber,
             onValueChange = { invoiceNumber = it },
             label = { Text(stringResource(R.string.invoice_number)) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("purchase_invoice_input"),
             enabled = !uiState.isSaving && !uiState.isPosting
         )
 
@@ -383,7 +384,7 @@ fun PurchaseHeaderSection(
 
         Button(
             onClick = { onSave(supplierId, invoiceNumber, purchaseDate, notes) },
-            modifier = Modifier.align(Alignment.End),
+            modifier = Modifier.align(Alignment.End).testTag("purchase_header_save"),
             enabled = !uiState.isSaving && !uiState.isPosting
         ) {
             if (uiState.isSaving) {

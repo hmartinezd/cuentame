@@ -1,20 +1,18 @@
 package com.miara.cuentame.feature.purchases.ui
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.R
-import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.core.common.ids.UnitId
+import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -23,6 +21,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltAndroidTest
@@ -32,111 +31,133 @@ class PurchaseUiTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var db: RestaurantInventoryDatabase
 
+    @Inject
+    lateinit var preferencesRepository: AppPreferencesRepository
+
     @Before
     fun setup() {
         hiltRule.inject()
-        seedData()
+        runBlocking {
+            db.clearAllTables()
+            db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
+            
+            val now = Instant.now()
+            val restId = RestaurantId("rest_1")
+            db.restaurantDao().insert(Restaurant(restId, "Test Restaurant", "USD", "en-US", now, now, null).toEntity())
+            db.inventoryAreaDao().upsert(InventoryArea(InventoryAreaId("area_1"), restId, "Main Kitchen", "main kitchen", 0, true, now, now, null).toEntity())
+            
+            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setOnboardingCompleted(true)
+        }
     }
 
-    private fun seedData() = runBlocking {
-        val now = Instant.now()
-        val restId = RestaurantId("rest_ui_test")
-        db.restaurantDao().insert(Restaurant(restId, "Test Restaurant", "USD", "en-US", now, now).toEntity())
-        
-        val areaId = InventoryAreaId("area_ui_test")
-        db.inventoryAreaDao().upsert(InventoryArea(areaId, restId, "Main Kitchen", "main kitchen", 0, true, now, now).toEntity())
-        
-        val ingId = IngredientId("chicken_ui_test")
-        db.ingredientDao().insert(Ingredient(ingId, restId, "Chicken Breast", "chicken breast", null, UnitId("mass_lb"), null, null, null, null, true, now, now).toEntity())
-        
-        db.ingredientUnitOptionDao().insert(IngredientUnitOption(IngredientUnitOptionId("opt_lb_ui_test"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now).toEntity())
-        db.ingredientUnitOptionDao().insert(IngredientUnitOption(IngredientUnitOptionId("opt_case_ui_test"), ingId, "Case", "case", null, BigDecimal("40"), false, false, true, true, now, now).toEntity())
-    }
 
     @Test
     fun complete_purchase_lifecycle() {
-        composeTestRule.waitForIdle()
-
-        // 1. Navigate to Purchases
-        val navActivity = composeTestRule.activity.getString(R.string.nav_activity)
-        composeTestRule.onAllNodesWithText(navActivity).onFirst().performClick()
-        composeTestRule.waitForIdle()
-
-        // 2. Create Draft
-        val addPurchase = composeTestRule.activity.getString(R.string.add_purchase)
-        composeTestRule.onNodeWithContentDescription(addPurchase).performClick()
-        composeTestRule.waitForIdle()
-
-        // 3. Save Header
-        val invoiceLabel = composeTestRule.activity.getString(R.string.invoice_number)
-        composeTestRule.onNodeWithText(invoiceLabel).performTextInput("INV-UI-TEST")
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.action_save)).performClick()
-        composeTestRule.waitForIdle()
-
-        // 4. Add Line
-        val addLine = composeTestRule.activity.getString(R.string.add_line)
-        composeTestRule.onNodeWithContentDescription(addLine).performClick()
-        composeTestRule.waitForIdle()
-
-        // 5. Fill Line Form
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.ingredient_name)).performClick()
-        composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
+        val testId = UUID.randomUUID().toString().take(8)
+        val invoiceNum = "INV-$testId"
         
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.receiving_area)).performClick()
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().size > 1
+        runBlocking {
+            val restId = RestaurantId("rest_1")
+            val ingId = IngredientId("chicken_$testId")
+            val now = Instant.now()
+            db.ingredientDao().insert(Ingredient(ingId, restId, "Chicken Breast", "chicken breast", null, UnitId("mass_lb"), InventoryAreaId("area_1"), null, null, null, true, now, now, null).toEntity())
+            db.ingredientUnitOptionDao().insert(IngredientUnitOption(IngredientUnitOptionId("opt_lb_$testId"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now, null).toEntity())
+            db.ingredientUnitOptionDao().insert(IngredientUnitOption(IngredientUnitOptionId("opt_case_$testId"), ingId, "Case", "case", null, BigDecimal("40"), false, false, true, true, now, now, null).toEntity())
         }
-        composeTestRule.onAllNodesWithText("Main Kitchen").onLast().performClick()
-        
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.purchase_unit)).performClick()
-        composeTestRule.onNodeWithTag("unit_item_Case").performClick()
 
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.quantity)).performTextInput("2")
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.line_total)).performTextInput("160")
-        
-        // Verify Preview
-        composeTestRule.onNodeWithText("= 80 lb").assertIsDisplayed()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
+            }
 
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.action_save)).performClick()
-        composeTestRule.waitForIdle()
+            // 1. Navigate to Activity (Purchases)
+            composeTestRule.onNodeWithTag("nav_activity").performClick()
+            
+            // 2. Create Draft
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
+            
+            // 3. Save Header
+            composeTestRule.onNodeWithTag("purchase_invoice_input").performTextInput(invoiceNum)
+            composeTestRule.onNodeWithTag("purchase_header_save").performClick()
+            
+            // 4. Add Line
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithContentDescription("Add Line").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithContentDescription("Add Line").performClick()
+            
+            // 5. Fill Line Form
+            composeTestRule.onNodeWithTag("ingredient_selector").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
+            
+            composeTestRule.onNodeWithTag("area_selector").performClick()
+            // In the selector, find the one with the area name
+            composeTestRule.onNodeWithText("Main Kitchen").performClick()
+            
+            composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.onNodeWithTag("unit_item_Case").performClick()
 
-        // 6. Navigate away and reopen
-        composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.action_back)).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("INV-UI-TEST", substring = true).performClick()
-        composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("quantity_input").performTextInput("2")
+            composeTestRule.onNodeWithTag("total_price_input").performTextInput("160")
+            
+            // Verify Preview
+            composeTestRule.onNodeWithText("= 80 lb", substring = true).assertIsDisplayed()
 
-        // 7. Verify persisted line
-        composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
-        composeTestRule.onNodeWithText("2 Case", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithTag("purchase_line_save").performClick()
+            
+            // 6. Navigate away and reopen
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText(invoiceNum, substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            
+            // 7. Verify persisted line
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+            composeTestRule.onNodeWithText("2 Case", substring = true).assertIsDisplayed()
 
-        // 8. Post Purchase
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.post_purchase)).performClick()
-        // Confirmation dialog
-        composeTestRule.onNode(hasText(composeTestRule.activity.getString(android.R.string.ok), ignoreCase = true)).performClick()
-        composeTestRule.waitForIdle()
+            // 8. Post Purchase
+            composeTestRule.onNodeWithText("Post Receipt").performClick()
+            // Confirmation dialog
+            composeTestRule.onNodeWithText("Confirm").performClick()
+            
+            // 9. Verify Posted
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("POSTED").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("POSTED").assertIsDisplayed()
 
-        // 9. Verify Posted
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.status_posted)).assertIsDisplayed()
-
-        // 10. Navigate away and reopen POSTED
-        composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.action_back)).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("INV-UI-TEST", substring = true).performClick()
-        composeTestRule.waitForIdle()
-
-        // 11. Void Purchase
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.void_purchase)).performClick()
-        // Confirmation dialog
-        composeTestRule.onNode(hasText(composeTestRule.activity.getString(android.R.string.ok), ignoreCase = true)).performClick()
-        composeTestRule.waitForIdle()
-
-        // 12. Verify Voided
-        composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.status_voided)).assertIsDisplayed()
+            // 10. Navigate away and reopen POSTED
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            
+            // 11. Void Purchase
+            composeTestRule.onNodeWithText("Void Receipt").performClick()
+            // Confirmation dialog
+            composeTestRule.onNodeWithText("Confirm").performClick()
+            
+            // 12. Verify Voided
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("VOIDED").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("VOIDED").assertIsDisplayed()
+        }
     }
 }

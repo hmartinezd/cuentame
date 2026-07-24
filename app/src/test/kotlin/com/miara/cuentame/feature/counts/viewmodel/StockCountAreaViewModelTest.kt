@@ -66,12 +66,13 @@ class StockCountAreaViewModelTest {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = flowOf(emptyList<Ingredient>())
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = emptyList<Ingredient>()
         override fun observeIngredient(id: IngredientId) = flowOf(null)
-        override suspend fun getById(id: IngredientId): Ingredient? = Ingredient(id, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        override suspend fun getById(id: IngredientId): Ingredient? = Ingredient(id, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         override suspend fun updateIngredient(command: UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = flowOf(emptyList<IngredientUnitOption>())
         override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = listOf(
-            IngredientUnitOption(IngredientUnitOptionId("o1"), ingredientId, "Pound", "lb", UnitId("lb"), BigDecimal.ONE, true, true, true, true, now, now)
+            IngredientUnitOption(IngredientUnitOptionId("o1"), ingredientId, "Pound", "lb", UnitId("lb"), BigDecimal.ONE, true, true, true, true, now, now, null),
+            IngredientUnitOption(IngredientUnitOptionId("o2"), ingredientId, "Kilo", "kg", UnitId("kg"), BigDecimal("2.2"), true, false, true, true, now, now, null)
         )
         override suspend fun addStandardUnitOption(command: AddStandardUnitOptionCommand) {}
         override suspend fun addPackageUnitOption(command: AddPackageUnitOptionCommand) {}
@@ -149,7 +150,7 @@ class StockCountAreaViewModelTest {
 
     @Test
     fun `untouched suggestions are not pending`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.uiState.test {
             runCurrent()
             viewModel.onAddIngredient(ingredient)
@@ -165,37 +166,70 @@ class StockCountAreaViewModelTest {
 
     @Test
     fun `user edit makes line pending`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+        
         viewModel.uiState.test {
-            runCurrent()
-            viewModel.onAddIngredient(ingredient)
-            runCurrent()
             viewModel.onQuantityChanged(ingId.value, "10")
-            runCurrent()
-            val state = expectMostRecentItem()
+            var state = awaitItem()
+            while (!state.hasPendingSaves) {
+                state = awaitItem()
+            }
             assertThat(state.hasPendingSaves).isTrue()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `rapid unit selection preserves final selection`() = runTest {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+        
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+            
+            viewModel.onUnitChanged(ingId.value, "o2")
+            viewModel.onUnitChanged(ingId.value, "o1")
+            
+            runCurrent()
+            state = expectMostRecentItem()
+            assertThat(state.lineEntries.first().unitId).isEqualTo("o1")
         }
     }
 
     @Test
     fun `invalid input blocks completion`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+        
         viewModel.uiState.test {
-            runCurrent()
-            viewModel.onAddIngredient(ingredient)
-            runCurrent()
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
             viewModel.onQuantityChanged(ingId.value, "invalid")
-            runCurrent()
+            state = awaitItem()
+            while (state.lineEntries.first().error == null) {
+                state = awaitItem()
+            }
             viewModel.onCompleteArea()
-            runCurrent()
-            val state = expectMostRecentItem()
+            state = awaitItem()
+            while (state.error == null) {
+                state = awaitItem()
+            }
             assertThat(state.error).isInstanceOf(ValidationError.PendingCountSaves::class.java)
         }
     }
 
     @Test
     fun `back navigation flushes pending saves`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.onAddIngredient(ingredient)
         runCurrent()
         viewModel.onQuantityChanged(ingId.value, "20")
@@ -203,22 +237,24 @@ class StockCountAreaViewModelTest {
         viewModel.events.test {
             viewModel.onBackRequested()
             assertThat(awaitItem()).isInstanceOf(StockCountAreaEvent.NavigateBack::class.java)
-            cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
     fun `stale save result does not overwrite newer state`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now)
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.uiState.test {
             runCurrent()
             viewModel.onAddIngredient(ingredient)
-            runCurrent()
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
             viewModel.onQuantityChanged(ingId.value, "10")
             viewModel.onQuantityChanged(ingId.value, "20")
             advanceTimeBy(1000)
             runCurrent()
-            val state = expectMostRecentItem()
+            state = expectMostRecentItem()
             assertThat(state.lineEntries.find { it.ingredientId == ingId.value }?.quantityText).isEqualTo("20")
         }
     }

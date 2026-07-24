@@ -6,6 +6,7 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.domain.usecase.*
+import com.miara.cuentame.core.domain.service.*
 import com.miara.cuentame.core.model.count.*
 import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.model.inventory.*
@@ -32,6 +33,7 @@ class StockCountDetailViewModelTest {
     private val now = Instant.parse("2024-01-01T12:00:00Z")
 
     private val detailsFlow = MutableStateFlow<StockCountDetails?>(null)
+    private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
     
     private val fakeRepo = object : StockCountRepository {
         override fun observeCounts(filter: StockCountFilter) = flowOf(emptyList<StockCountSummary>())
@@ -69,8 +71,8 @@ class StockCountDetailViewModelTest {
     }
 
     private val fakeRestaurantRepo = object : RestaurantRepository {
-        override fun observeRestaurant(): Flow<Restaurant?> = flowOf(Restaurant(restId, "R1", "USD", "en-US", now, now, null))
-        override suspend fun getRestaurant(): Restaurant = Restaurant(restId, "R1", "USD", "en-US", now, now, null)
+        override fun observeRestaurant(): Flow<Restaurant?> = restaurantFlow
+        override suspend fun getRestaurant(): Restaurant = restaurantFlow.value!!
         override suspend fun save(restaurant: Restaurant) {}
     }
 
@@ -80,14 +82,15 @@ class StockCountDetailViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         
+        restaurantFlow.value = Restaurant(restId, "R1", "USD", "en-US", now, now, null)
         detailsFlow.value = StockCountDetails(
             count = StockCount(countId, restId, "Monthly", now, now, null, StockCountStatus.DRAFT, null, now, now, null),
             areas = emptyList()
         )
 
-        val fakeSnapshotService = object : com.miara.cuentame.core.domain.service.InventorySnapshotService {
+        val fakeSnapshotService = object : InventorySnapshotService {
             override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = 
-                com.miara.cuentame.core.domain.service.InventorySnapshot(false, BigDecimal.ZERO, null)
+                InventorySnapshot(false, BigDecimal.ZERO, null)
             override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = 
                 emptyMap<IngredientId, BigDecimal>()
         }
@@ -110,18 +113,38 @@ class StockCountDetailViewModelTest {
     @Test
     fun `initial state loads correctly`() = runTest {
         viewModel.uiState.test {
-            runCurrent()
-            assertThat(expectMostRecentItem().details?.count?.name).isEqualTo("Monthly")
+            var state = awaitItem()
+            while (state.screenState == StockCountDetailScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.details?.count?.name).isEqualTo("Monthly")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `ownership mismatch state works`() = runTest {
+        restaurantFlow.value = Restaurant(RestaurantId("other"), "Other", "USD", "en-US", now, now, null)
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.screenState == StockCountDetailScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountDetailScreenState.OwnershipMismatch)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
     fun `not found state works`() = runTest {
+        detailsFlow.value = null
         viewModel.uiState.test {
-            runCurrent()
-            detailsFlow.value = null
-            runCurrent()
-            assertThat(expectMostRecentItem().screenState).isEqualTo(StockCountDetailScreenState.NotFound)
+            var state = awaitItem()
+            while (state.screenState == StockCountDetailScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountDetailScreenState.NotFound)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
