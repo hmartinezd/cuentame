@@ -26,6 +26,7 @@ import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.WasteReason
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,7 +103,7 @@ data class WasteFormUiState(
     val canSave: Boolean = false
 )
 
-data class WastePreviewRequest(
+private data class WastePreviewRequest(
     val revision: Long,
     val restaurantId: RestaurantId,
     val ingredientId: IngredientId,
@@ -144,6 +145,7 @@ class WasteFormViewModel @Inject constructor(
     private val _notes = MutableStateFlow("")
     private val _attachmentUri = MutableStateFlow<String?>(null)
     private val _preview = MutableStateFlow<WastePreview?>(null)
+    private val _previewError = MutableStateFlow<Throwable?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
     private val _screenStateOverride = MutableStateFlow<WasteFormScreenState?>(null)
@@ -186,6 +188,7 @@ class WasteFormViewModel @Inject constructor(
                 _isSaving,
                 _isLoadingPreview,
                 _error,
+                _previewError,
                 _hasLoadedOnce,
                 _screenStateOverride
             ) { args ->
@@ -205,12 +208,22 @@ class WasteFormViewModel @Inject constructor(
                 val isSaving = args[13] as Boolean
                 val isLoadingPreview = args[14] as Boolean
                 val error = args[15] as Throwable?
-                val hasLoadedOnce = args[16] as Boolean
-                val screenStateOverride = args[17] as WasteFormScreenState?
+                val previewError = args[16] as Throwable?
+                val hasLoadedOnce = args[17] as Boolean
+                val screenStateOverride = args[18] as WasteFormScreenState?
+
+                val isHydrated = if (wasteEventId != null) hasLoadedOnce else true
+
+                val missingReference = isHydrated && wasteEventId != null && (
+                    (selIngId != null && allIngredients.none { it.id == selIngId }) ||
+                    (selAreaId != null && allAreas.none { it.id == selAreaId }) ||
+                    (selUnitId != null && allUnitOptions.none { it.id == selUnitId })
+                )
 
                 val screenState = when {
                     screenStateOverride != null -> screenStateOverride
-                    !hasLoadedOnce && error == null -> WasteFormScreenState.Loading
+                    missingReference -> WasteFormScreenState.Error(ValidationError.RecordNotFound)
+                    !hasLoadedOnce && wasteEventId != null && error == null -> WasteFormScreenState.Loading
                     error != null && wasteEventId != null && existingDetails == null -> WasteFormScreenState.Error(error)
                     wasteEventId != null && existingDetails == null -> WasteFormScreenState.NotFound
                     wasteEventId != null && existingDetails?.event?.restaurantId != restaurant.id -> WasteFormScreenState.OwnershipMismatch
@@ -245,7 +258,7 @@ class WasteFormViewModel @Inject constructor(
                     .filter { it.isActive || it.id == selUnitId }
                     .map { opt ->
                         val isSelected = opt.id == selUnitId
-                        WasteUnitOptionUi(
+                         WasteUnitOptionUi(
                             id = opt.id,
                             label = opt.shortLabel,
                             factorToBase = opt.factorToBase,
@@ -255,9 +268,13 @@ class WasteFormViewModel @Inject constructor(
                         )
                     }
 
+                val parsedQty = DecimalParser.parse(qtyText)
                 val canSave = selIngId != null && selAreaId != null && selUnitId != null && 
-                              reason != null && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true &&
-                              !isSaving
+                              reason != null && parsedQty != null && parsedQty > BigDecimal.ZERO &&
+                              !isSaving && !missingReference &&
+                              ingredientOptions.any { it.id == selIngId } &&
+                              areaOptions.any { it.id == selAreaId } &&
+                              unitOptionsUi.any { it.id == selUnitId }
 
                 WasteFormUiState(
                     screenState = screenState,
@@ -278,7 +295,7 @@ class WasteFormViewModel @Inject constructor(
                     ingredients = ingredientOptions,
                     areas = areaOptions,
                     unitOptions = unitOptionsUi,
-                    error = error,
+                    error = error ?: previewError,
                     canSave = canSave
                 )
             }
@@ -318,11 +335,13 @@ class WasteFormViewModel @Inject constructor(
                 if (request == null) {
                     _preview.value = null
                     _isLoadingPreview.value = false
+                    _previewError.value = null
                     return@collectLatest
                 }
 
                 _isLoadingPreview.value = true
                 _preview.value = null
+                _previewError.value = null
                 try {
                     val result = previewWasteUseCase(
                         restaurantId = request.restaurantId,
@@ -335,9 +354,11 @@ class WasteFormViewModel @Inject constructor(
                     if (_previewRevision.value == request.revision) {
                         _preview.value = result
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     if (_previewRevision.value == request.revision) {
-                        _error.value = e
+                        _previewError.value = e
                     }
                 } finally {
                     if (_previewRevision.value == request.revision) {
@@ -500,5 +521,6 @@ class WasteFormViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+        _previewError.value = null
     }
 }

@@ -53,23 +53,26 @@ class WasteArchiveUiTest {
         seedData()
     }
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     private fun seedData() = runBlocking {
         database.clearAllTables()
         preferencesRepository.setOnboardingCompleted(true)
         database.restaurantDao().insert(RestaurantEntity(restaurantId, "Archive Rest", "USD", "en", 0L, 0L, null))
         
-        // Seed archived area
         database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId, restaurantId, "Archived Area", "archived area", 1, false, 0L, 0L, Instant.now().toEpochMilli()))
+        database.inventoryAreaDao().upsert(InventoryAreaEntity("area-active", restaurantId, "Active Area", "active area", 2, true, 0L, 0L, null))
         
         database.unitDao().insertSeedUnits(listOf(UnitEntity(unitId, "Pound", "lb", "Mass", BigDecimal.ONE, true, 1)))
-        
-        // Seed archived ingredient
         database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Archived Chicken", "archived chicken", null, unitId, null, null, null, null, false, 0L, 0L, Instant.now().toEpochMilli()))
-        
-        // Seed archived unit option
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, false, 0L, 0L, Instant.now().toEpochMilli()))
         
-        // Seed a DRAFT referencing these
         database.wasteDao().insert(WasteEventEntity(
             "event-archived", restaurantId, ingId, areaId, optId, "5.0", "5.0",
             WasteReason.SPOILED.name, 1000L, null, null, DocumentStatus.DRAFT.name,
@@ -81,41 +84,85 @@ class WasteArchiveUiTest {
     fun draftWithArchivedReferences_labelsVisibleAndSelectable() {
         ActivityScenario.launch(MainActivity::class.java).use {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-            
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
-            }
-
+            waitForHome()
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
-            composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
+            }
 
             composeTestRule.onNodeWithTag("waste_item_event-archived").performClick()
             composeTestRule.waitForIdle()
 
-            // Verify detail shows labels
-            composeTestRule.onNodeWithText("Archived Chicken").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Archived Area").assertIsDisplayed()
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithText("Archived Chicken", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Archived Chicken", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("Archived Area", substring = true).assertIsDisplayed()
 
             // Edit
             composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).performClick()
             composeTestRule.waitForIdle()
 
-            // Verify form shows labels
-            composeTestRule.onNodeWithText("Archived Chicken").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Archived Area").assertIsDisplayed()
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithText("Archived Chicken", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Archived Chicken", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("Archived Area", substring = true).assertIsDisplayed()
             
             // Save unchanged
             composeTestRule.onNodeWithTag("waste_save_button").performClick()
             composeTestRule.waitForIdle()
             
-            // Should still be visible
-            composeTestRule.onNodeWithText("Archived Chicken").assertIsDisplayed()
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithText("Archived Chicken", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Archived Chicken", substring = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun missingReference_showsError() {
+        runBlocking {
+            database.openHelper.writableDatabase.execSQL("PRAGMA foreign_keys = OFF")
+            database.wasteDao().insert(WasteEventEntity(
+                "event-missing", restaurantId, "MISSING_ING", areaId, optId, "5.0", "5.0",
+                WasteReason.SPOILED.name, 1000L, null, null, DocumentStatus.DRAFT.name,
+                500L, 500L, null, null
+            ))
+            database.openHelper.writableDatabase.execSQL("PRAGMA foreign_keys = ON")
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            waitForHome()
+            composeTestRule.onNodeWithTag("view_waste_button").performClick()
+            
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            composeTestRule.onNodeWithTag("waste_item_event-missing").performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithContentDescription(context.getString(R.string.action_edit)).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).performClick()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithText(context.getString(R.string.state_error_desc), substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

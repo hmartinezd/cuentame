@@ -156,8 +156,11 @@ class RoomWasteRepository @Inject constructor(
                 WasteDetails(
                     event = entity.toDomainWaste(),
                     ingredientName = ingredient?.name,
+                    isIngredientActive = ingredient?.isActive ?: false,
                     areaName = area?.name,
+                    isAreaActive = area?.isActive ?: false,
                     unitLabel = unit?.shortLabel,
+                    isUnitActive = unit?.isActive ?: false,
                     baseUnitSymbol = baseUnit?.shortLabel,
                     currentAreaQuantityBase = currentAreaQuantityBase,
                     remainingAreaQuantityBase = remainingAreaQuantityBase,

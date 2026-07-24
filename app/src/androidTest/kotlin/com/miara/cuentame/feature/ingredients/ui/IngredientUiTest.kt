@@ -56,20 +56,18 @@ class IngredientUiTest {
         }
     }
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     @Test
     fun complete_ingredient_e2e_flow() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitForIdle()
-            
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // 1. Navigate to Inventory
             composeTestRule.onNodeWithTag("nav_inventory", useUnmergedTree = true).performClick()
@@ -162,6 +160,15 @@ class IngredientUiTest {
             
             // Back to detail
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+        }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitUntil(30000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitUntil(30000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

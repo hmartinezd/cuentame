@@ -293,7 +293,7 @@ class RoomWasteRepositoryTest {
         ))
 
         assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.WasteIngredientOwnershipMismatch::class.java) {
-            kotlinx.coroutines.runBlocking { repository.post(WasteEventId("corrupted-1")) }
+            runBlocking { repository.post(WasteEventId("corrupted-1")) }
         }
     }
 

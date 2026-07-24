@@ -53,8 +53,11 @@ data class WasteSummary(
 data class WasteDetails(
     val event: WasteEvent,
     val ingredientName: String?,
+    val isIngredientActive: Boolean = true,
     val areaName: String?,
+    val isAreaActive: Boolean = true,
     val unitLabel: String?,
+    val isUnitActive: Boolean = true,
     val baseUnitSymbol: String?,
     val currentAreaQuantityBase: BigDecimal?,
     val remainingAreaQuantityBase: BigDecimal?,

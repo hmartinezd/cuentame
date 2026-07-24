@@ -58,6 +58,14 @@ class PurchaseFailureUiTest {
         }
     }
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            db.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     @Test
     fun post_failure_preserves_dialog_and_shows_snackbar() {
         val now = Instant.now()

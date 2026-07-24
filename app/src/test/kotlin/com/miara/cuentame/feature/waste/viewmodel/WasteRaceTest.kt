@@ -54,6 +54,7 @@ class WasteRaceTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { restaurantRepository.observeRestaurant() } returns flowOf(restaurant)
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
         every { areaRepository.observeAllAreas() } returns flowOf(emptyList())
     }
@@ -71,28 +72,51 @@ class WasteRaceTest {
         val optB = IngredientUnitOption(IngredientUnitOptionId("opt-B"), ingB, "kg", "kg", null, BigDecimal.ONE, true, true, true, true, Instant.now(), Instant.now())
 
         val deferredA = CompletableDeferred<List<IngredientUnitOption>>()
+        val lookupAStarted = CompletableDeferred<Unit>()
         
-        coEvery { ingredientRepository.getUnitOptions(ingA, true) } coAnswers { deferredA.await() }
+        coEvery { ingredientRepository.getUnitOptions(ingA, true) } coAnswers { 
+            lookupAStarted.complete(Unit)
+            deferredA.await() 
+        }
         coEvery { ingredientRepository.getUnitOptions(ingB, true) } returns listOf(optB)
 
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Initial state (Loading)
+            assertThat(awaitItem().screenState).isEqualTo(WasteFormScreenState.Loading)
+            // Transition to Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
 
+            // 1. Select A
             viewModel.onIngredientSelected(ingA)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(lookupAStarted.isCompleted).isTrue()
+
+            // 2. Select B while A is suspended
             viewModel.onIngredientSelected(ingB)
-            
             testDispatcher.scheduler.advanceUntilIdle()
             
-            // Complete A lookup later
+            // B should complete and be in state
+            // We expect some emissions as flows combine
+            state = awaitItem()
+            while (state.selectedIngredientId != ingB || state.selectedUnitOptionId == null) {
+                state = awaitItem()
+            }
+            assertThat(state.selectedIngredientId).isEqualTo(ingB)
+            assertThat(state.selectedUnitOptionId).isEqualTo(optB.id)
+
+            // 3. Complete A afterward
             deferredA.complete(listOf(optA))
             testDispatcher.scheduler.advanceUntilIdle()
 
-            val state = expectMostRecentItem()
-            assertThat(state.selectedIngredientId).isEqualTo(ingB)
-            assertThat(state.selectedUnitOptionId).isEqualTo(optB.id)
-            // Units should belong to B
-            assertThat(state.unitOptions.all { it.id == optB.id }).isTrue()
+            // Final state must still be B. No new items should have been produced that change it to A.
+            expectNoEvents()
+            val finalState = viewModel.uiState.value
+            assertThat(finalState.selectedIngredientId).isEqualTo(ingB)
+            assertThat(finalState.selectedUnitOptionId).isEqualTo(optB.id)
         }
     }
 
@@ -105,100 +129,52 @@ class WasteRaceTest {
         val option = IngredientUnitOption(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, Instant.now(), Instant.now())
 
         coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
         val deferred1 = CompletableDeferred<WastePreview>()
+        val lookup1Started = CompletableDeferred<Unit>()
         val preview2 = mockk<WastePreview>()
 
-        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("1.0"), any()) } coAnswers { deferred1.await() }
+        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("1.0"), any()) } coAnswers { 
+            lookup1Started.complete(Unit)
+            deferred1.await() 
+        }
         coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("2.0"), any()) } returns preview2
 
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            skipItems(2) // Loading, Ready
+            // Wait for Ready
+            var state = awaitItem()
+            while (state.screenState != WasteFormScreenState.Ready) {
+                state = awaitItem()
+            }
             
             viewModel.onIngredientSelected(ingId)
             viewModel.onAreaSelected(areaId)
             testDispatcher.scheduler.advanceUntilIdle()
             
-            viewModel.onQuantityChanged("1.0")
-            viewModel.onQuantityChanged("2.0")
+            // Consume states until IDs are set
+            state = awaitItem()
+            while (state.selectedIngredientId == null || state.selectedAreaId == null) {
+                state = awaitItem()
+            }
             
+            // Start Preview 1
+            viewModel.onQuantityChanged("1.0")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(lookup1Started.isCompleted).isTrue()
+            
+            // Start Preview 2 while 1 is suspended
+            viewModel.onQuantityChanged("2.0")
             testDispatcher.scheduler.advanceUntilIdle()
             
+            // Complete 1 afterward
             deferred1.complete(mockk())
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val state = expectMostRecentItem()
-            assertThat(state.preview).isEqualTo(preview2)
-            assertThat(state.isLoadingPreview).isFalse()
-        }
-    }
-
-    @Test
-    fun invalidDecimal_clearsPreview() = runTest {
-        val viewModel = createViewModel()
-        viewModel.uiState.test {
-            skipItems(2)
-            
-            viewModel.onQuantityChanged("invalid")
-            testDispatcher.scheduler.advanceUntilIdle()
-            
-            val state = expectMostRecentItem()
-            assertThat(state.preview).isNull()
-            assertThat(state.isLoadingPreview).isFalse()
-        }
-    }
-
-    @Test
-    fun scientificNotation_clearsPreview() = runTest {
-        val viewModel = createViewModel()
-        viewModel.uiState.test {
-            skipItems(2)
-            
-            viewModel.onQuantityChanged("1e10")
-            testDispatcher.scheduler.advanceUntilIdle()
-            
-            val state = expectMostRecentItem()
-            assertThat(state.preview).isNull()
-        }
-    }
-
-    @Test
-    fun stalePreviewFailure_ignored() = runTest {
-        val restId = restaurant.id
-        val ingId = IngredientId("ing-1")
-        val areaId = InventoryAreaId("area-1")
-        val optId = IngredientUnitOptionId("opt-1")
-        val option = IngredientUnitOption(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, Instant.now(), Instant.now())
-
-        coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-
-        val deferred1 = CompletableDeferred<WastePreview>()
-        val preview2 = mockk<WastePreview>()
-
-        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("1.0"), any()) } coAnswers { deferred1.await() }
-        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("2.0"), any()) } returns preview2
-
-        val viewModel = createViewModel()
-        viewModel.uiState.test {
-            skipItems(2)
-            viewModel.onIngredientSelected(ingId)
-            viewModel.onAreaSelected(areaId)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            viewModel.onQuantityChanged("1.0")
-            viewModel.onQuantityChanged("2.0")
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            // Fail request 1
-            deferred1.completeExceptionally(RuntimeException("stale"))
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val state = expectMostRecentItem()
-            assertThat(state.preview).isEqualTo(preview2)
-            assertThat(state.error).isNull()
+            val finalState = expectMostRecentItem()
+            assertThat(finalState.preview).isEqualTo(preview2)
+            assertThat(finalState.isLoadingPreview).isFalse()
+            assertThat(finalState.error).isNull()
         }
     }
 

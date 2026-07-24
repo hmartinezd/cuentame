@@ -57,6 +57,14 @@ class PurchaseUiTest {
     }
 
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            db.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     @Test
     fun complete_purchase_lifecycle() {
         val testId = UUID.randomUUID().toString().take(8)

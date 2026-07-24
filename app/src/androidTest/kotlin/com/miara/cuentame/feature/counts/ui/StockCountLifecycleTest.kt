@@ -106,6 +106,14 @@ class StockCountLifecycleTest {
         }
     }
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     @Test
     fun full_lifecycle_test() {
         ActivityScenario.launch(MainActivity::class.java).use {
@@ -161,10 +169,10 @@ class StockCountLifecycleTest {
             }
             
             // Find quantity field for chicken in Dry Storage
-            composeTestRule.onNode(hasSetTextAction() and hasAnyAncestor(SemanticsMatcher("") {
+            composeTestRule.onNode(hasSetTextAction() and SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
-                tag != null && tag.startsWith("line_item_") && tag.contains("ing_chicken")
-            })).performTextReplacement("75")
+                tag != null && tag.startsWith("quantity_") && tag.contains("ing_chicken_life")
+            }).performTextReplacement("75")
             
             // Wait for autosave
             composeTestRule.waitUntil(15000) {
@@ -192,10 +200,10 @@ class StockCountLifecycleTest {
             composeTestRule.onAllNodesWithText("Chicken Breast").onFirst().performClick()
             
             // 14. Enter 10 lb
-            composeTestRule.onNode(hasSetTextAction() and hasAnyAncestor(SemanticsMatcher("") {
+            composeTestRule.onNode(hasSetTextAction() and SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
-                tag != null && tag.startsWith("line_item_") && tag.contains("ing_chicken")
-            })).performTextReplacement("10")
+                tag != null && tag.startsWith("quantity_") && tag.contains("ing_chicken_life")
+            }).performTextReplacement("10")
             
             // Wait for autosave
             composeTestRule.waitUntil(15000) {

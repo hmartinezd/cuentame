@@ -221,8 +221,11 @@ fun WasteFormScreen(
                         modifier = Modifier.testTag("ingredient_selector")
                     ) {
                         val selectedIngredient = uiState.ingredients.find { it.id == uiState.selectedIngredientId }
+                        val label = selectedIngredient?.let {
+                            if (it.isActive) it.label else "${it.label} (${stringResource(R.string.archived_label)})"
+                        } ?: ""
                         OutlinedTextField(
-                            value = selectedIngredient?.label ?: "",
+                            value = label,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.ingredient_name)) },
@@ -253,8 +256,11 @@ fun WasteFormScreen(
                         modifier = Modifier.testTag("area_selector")
                     ) {
                         val selectedArea = uiState.areas.find { it.id == uiState.selectedAreaId }
+                        val label = selectedArea?.let {
+                            if (it.isActive) it.label else "${it.label} (${stringResource(R.string.archived_label)})"
+                        } ?: ""
                         OutlinedTextField(
-                            value = selectedArea?.label ?: "",
+                            value = label,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.receiving_area)) },
@@ -295,8 +301,11 @@ fun WasteFormScreen(
                             modifier = Modifier.weight(1f).testTag("unit_selector")
                         ) {
                             val selectedUnit = uiState.unitOptions.find { it.id == uiState.selectedUnitOptionId }
+                            val label = selectedUnit?.let {
+                                if (it.isActive) it.label else "${it.label} (${stringResource(R.string.archived_label)})"
+                            } ?: ""
                             OutlinedTextField(
-                                value = selectedUnit?.label ?: "",
+                                value = label,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.field_unit)) },

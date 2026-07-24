@@ -201,15 +201,22 @@ fun WasteDetailScreen(
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = details.ingredientName ?: stringResource(R.string.error_ingredient_not_found), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text(text = details.areaName ?: stringResource(R.string.unknown_area), style = MaterialTheme.typography.bodyMedium)
+                            val ingredientLabel = details.ingredientName ?: stringResource(R.string.error_ingredient_not_found)
+                            val finalIngredientLabel = if (details.isIngredientActive) ingredientLabel else "$ingredientLabel (${stringResource(R.string.archived_label)})"
+                            Text(text = finalIngredientLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            
+                            val areaLabel = details.areaName ?: stringResource(R.string.unknown_area)
+                            val finalAreaLabel = if (details.isAreaActive) areaLabel else "$areaLabel (${stringResource(R.string.archived_label)})"
+                            Text(text = finalAreaLabel, style = MaterialTheme.typography.bodyMedium)
                         }
                         StatusChip(status = e.status)
                     }
 
                     HorizontalDivider()
 
-                    DetailItem(label = stringResource(R.string.quantity_wasted), value = "${e.quantityEntered} ${details.unitLabel ?: ""}")
+                    val unitLabel = details.unitLabel ?: ""
+                    val finalUnitLabel = if (details.isUnitActive) unitLabel else "$unitLabel (${stringResource(R.string.archived_label)})"
+                    DetailItem(label = stringResource(R.string.quantity_wasted), value = "${e.quantityEntered} $finalUnitLabel")
                     DetailItem(label = stringResource(R.string.base_unit), value = "${e.quantityBase} ${details.baseUnitSymbol ?: ""}")
                     DetailItem(label = stringResource(R.string.waste_reason), value = stringResource(e.reason.toLabelRes()))
                     DetailItem(label = stringResource(R.string.effective_date), value = dateFormatter.format(e.effectiveAt))

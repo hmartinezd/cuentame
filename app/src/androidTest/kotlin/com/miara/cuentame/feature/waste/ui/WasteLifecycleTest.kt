@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.waste.ui
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.R
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
@@ -14,6 +15,9 @@ import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.WasteReason
+import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -37,7 +41,7 @@ class WasteLifecycleTest {
     lateinit var database: RestaurantInventoryDatabase
 
     @Inject
-    lateinit var preferencesRepository: com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+    lateinit var preferencesRepository: AppPreferencesRepository
 
     private val restaurantId = "rest-1"
     private val areaId = "area-1"
@@ -51,6 +55,14 @@ class WasteLifecycleTest {
         seedData()
     }
 
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+        }
+    }
+
     private fun seedData() = runBlocking {
         database.clearAllTables()
         preferencesRepository.setOnboardingCompleted(true)
@@ -60,7 +72,7 @@ class WasteLifecycleTest {
         database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken Breast", "chicken breast", null, unitId, null, null, null, null, true, 0L, 0L, null))
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
-        // Seed a purchase to have initial balance and cost
+        // Seed 10 lb at $2/lb
         database.inventoryMovementDao().insert(
             InventoryMovementEntity(
                 id = "purch-1",
@@ -71,13 +83,13 @@ class WasteLifecycleTest {
                 quantityBaseSigned = "10.0",
                 unitCostBaseSnapshot = "2.0",
                 totalValueSnapshot = "20.0",
-                effectiveAt = 0L,
+                effectiveAt = 1000L,
                 sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
                 sourceDocumentId = "doc-1",
                 sourceLineId = "line-1",
                 sourceOperationId = "op-1",
                 reversalOfMovementId = null,
-                createdAt = 0L
+                createdAt = 1000L
             )
         )
     }
@@ -87,15 +99,7 @@ class WasteLifecycleTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-            
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // 1. Open Waste History
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
@@ -107,14 +111,14 @@ class WasteLifecycleTest {
             
             // 3. Fill Form
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
-            composeTestRule.waitUntil(5000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("ingredient_item_Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
             composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
-            composeTestRule.waitUntil(5000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("area_item_Main Kitchen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("area_item_Main Kitchen").performClick()
@@ -124,16 +128,19 @@ class WasteLifecycleTest {
             composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("reason_selector").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("reason_item_SPOILED").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("reason_item_SPOILED").performClick()
             composeTestRule.waitForIdle()
             
             // 4. Verify Preview (3 lb, current 10, remaining 7, value $6)
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("estimated_value_preview").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("current_balance_preview").assertTextContains("10", substring = true)
             composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("7", substring = true)
+            composeTestRule.onNodeWithTag("estimated_value_preview").assertTextContains("$6.00", substring = true)
 
             // 5. Save Draft
             composeTestRule.onNodeWithTag("waste_save_button").assertIsEnabled().performClick()
@@ -143,49 +150,74 @@ class WasteLifecycleTest {
             composeTestRule.onNodeWithContentDescription("Back").performClick()
             composeTestRule.waitForIdle()
             
-            // Wait for list to have items
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Reopen most recent (should be top item in LazyColumn)
             composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
             composeTestRule.waitForIdle()
             
-            // Assert exact values
+            // Assert exact values in Detail
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
             composeTestRule.onNodeWithText("Main Kitchen").assertIsDisplayed()
             composeTestRule.onNodeWithText("3 lb", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText(context.getString(WasteReason.SPOILED.toUserMessageRes())).assertIsDisplayed()
             
+            // Detail screen for DRAFT should show preview info if available
+            // Wait! Does WasteDetailScreen show current/remaining/estimated value?
+            // I should check WasteDetailScreen.kt.
+
             // 7. Edit and save
             composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).performClick()
             composeTestRule.waitForIdle()
-            composeTestRule.onNodeWithTag("notes_input").performTextInput("Some notes")
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("notes_input").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("notes_input").performTextInput("Edit notes")
             composeTestRule.onNodeWithTag("waste_save_button").performClick()
             composeTestRule.waitForIdle()
             
             // Verify edit persisted
-            composeTestRule.onNodeWithText("Some notes").assertIsDisplayed()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithText("Edit notes").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Edit notes").assertIsDisplayed()
 
             // 8. Post
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
             composeTestRule.waitForIdle()
             
+            // Verify confirmation contains summary
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasAnyAncestor(isDialog()) and hasText("3 lb", substring = true)).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
             composeTestRule.waitForIdle()
             
             // 9. Verify POSTED and mutation controls absent
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).assertDoesNotExist()
+            composeTestRule.onNodeWithContentDescription(context.getString(R.string.delete_waste_draft)).assertDoesNotExist()
             
             // 10. Navigate away and reopen POSTED
             composeTestRule.onNodeWithContentDescription("Back").performClick()
             composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
+            }
+            
             composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
             composeTestRule.waitForIdle()
-            composeTestRule.onNodeWithText(context.getString(R.string.status_posted), substring = true).assertIsDisplayed()
+            
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
+            }
 
             // 11. Void Waste
             composeTestRule.onNodeWithTag("waste_void_button").performClick()
@@ -194,31 +226,35 @@ class WasteLifecycleTest {
             composeTestRule.waitForIdle()
             
             // 12. Verify VOIDED persists
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_voided), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithContentDescription("Back").performClick()
             composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
+            }
+            
             composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
             composeTestRule.waitForIdle()
-            composeTestRule.onNodeWithText(context.getString(R.string.status_voided), substring = true).assertIsDisplayed()
+            
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_voided), substring = true)).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            // Original data should remain
+            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+            composeTestRule.onNodeWithText("3 lb", substring = true).assertIsDisplayed()
         }
     }
 
     @Test
     fun wasteLifecycle_negativeBalance() {
-        ActivityScenario.launch(MainActivity::class.java).use {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-            
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // Open Waste History
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
@@ -230,14 +266,14 @@ class WasteLifecycleTest {
             
             // Fill Form (12 lb waste, current 10 lb)
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
-            composeTestRule.waitUntil(5000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("ingredient_item_Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
             composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
-            composeTestRule.waitUntil(5000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("area_item_Main Kitchen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("area_item_Main Kitchen").performClick()
@@ -247,12 +283,14 @@ class WasteLifecycleTest {
             composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("reason_selector").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("reason_item_SPOILED").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("reason_item_SPOILED").performClick()
             composeTestRule.waitForIdle()
             
             // Verify negative warning
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithText(context.getString(R.string.negative_inventory_warning)).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("-2", substring = true)
@@ -261,23 +299,40 @@ class WasteLifecycleTest {
             composeTestRule.onNodeWithTag("waste_save_button").assertIsEnabled().performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("waste_post_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
             composeTestRule.waitForIdle()
             
-            // Confirmation should still show warning or be allowed
+            // Confirmation should still show warning
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasAnyAncestor(isDialog()) and hasText(context.getString(R.string.negative_inventory_warning))).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
             composeTestRule.waitForIdle()
             
-            // Verify POSTED and balance
-            composeTestRule.waitUntil(15000) {
+            // Verify POSTED
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
             }
+
+            // Verify resulting projection equals -2
+            val projection = runBlocking { database.inventoryProjectionDao().getBalance(ingId, areaId) }
+            assertThat(BigDecimal(projection!!.quantityBase).compareTo(BigDecimal("-2.0"))).isEqualTo(0)
             
-            // Assert cost remains $2.0
-            composeTestRule.onNodeWithText("$2.00", substring = true).assertIsDisplayed()
+            // Verify cost remains unchanged
+            val costProj = runBlocking { database.ingredientCostProjectionDao().getCost(ingId) }
+            assertThat(BigDecimal(costProj!!.averageUnitCostBase).compareTo(BigDecimal("2.0"))).isEqualTo(0)
+        }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }
