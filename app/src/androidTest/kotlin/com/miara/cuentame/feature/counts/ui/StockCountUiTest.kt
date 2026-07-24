@@ -1,26 +1,14 @@
 package com.miara.cuentame.feature.counts.ui
 
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onLast
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextReplacement
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.core.common.ids.UnitId
+import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.database.seed.UnitSeeds
-import com.miara.cuentame.core.model.ingredient.Ingredient
-import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
-import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.ingredient.*
+import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -57,19 +45,19 @@ class StockCountUiTest {
             database.clearAllTables()
             
             val now = Instant.now()
-            database.restaurantDao().insert(Restaurant(RestaurantId("rest_1"), "Test Restaurant", "USD", "en-US", now, now).toEntity())
+            database.restaurantDao().insert(Restaurant(RestaurantId("rest_1"), "Test Restaurant", "USD", "en-US", now, now, null).toEntity())
             database.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
             
             database.inventoryAreaDao().upsert(
-                InventoryArea(InventoryAreaId("area_dry"), RestaurantId("rest_1"), "Dry Storage", "dry storage", 0, true, now, now).toEntity()
+                InventoryArea(InventoryAreaId("area_dry"), RestaurantId("rest_1"), "Dry Storage", "dry storage", 0, true, now, now, null).toEntity()
             )
             
             val ingId = IngredientId("ing_chicken")
             database.ingredientDao().insert(
-                Ingredient(ingId, RestaurantId("rest_1"), "Chicken Breast", "chicken breast", null, UnitId("mass_lb"), InventoryAreaId("area_dry"), null, null, null, true, now, now).toEntity()
+                Ingredient(ingId, RestaurantId("rest_1"), "Chicken Breast", "chicken breast", null, UnitId("mass_lb"), InventoryAreaId("area_dry"), null, null, null, true, now, now, null).toEntity()
             )
             database.ingredientUnitOptionDao().insert(
-                IngredientUnitOption(IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now).toEntity()
+                IngredientUnitOption(IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now, null).toEntity()
             )
         }
     }
@@ -83,10 +71,10 @@ class StockCountUiTest {
         composeTestRule.onNodeWithTag("start_count_fab").performClick()
         
         // 3. Enter count name
-        composeTestRule.onNodeWithTag("count_name_input").performTextReplacement("Monthly Count")
+        composeTestRule.onNodeWithTag("count_name_input", useUnmergedTree = true).performTextReplacement("Monthly Count")
         
         // 4. Select area (click the checkbox)
-        composeTestRule.onNodeWithTag("area_checkbox_area_dry").performClick()
+        composeTestRule.onNodeWithTag("area_checkbox_area_dry", useUnmergedTree = true).performClick()
         
         // 5. Save (Button at bottom)
         composeTestRule.onNodeWithTag("start_count_button").performClick()
@@ -105,7 +93,7 @@ class StockCountUiTest {
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodesWithTag("line_ingredient_ing_chicken").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("10")
+        composeTestRule.onNodeWithTag("count_quantity_ing_chicken", useUnmergedTree = true).performTextReplacement("10")
         
         // Wait for autosave
         composeTestRule.waitUntil(10000) {
@@ -122,13 +110,13 @@ class StockCountUiTest {
         composeTestRule.onNodeWithText("Area Completed").assertIsDisplayed()
         
         // 11. Complete count (Opens Review)
-        composeTestRule.onNodeWithText("Complete Count").performClick()
+        composeTestRule.onNodeWithTag("complete_count_button").performClick()
         
         // 12. Confirm completion (In Review Sheet)
-        composeTestRule.onAllNodesWithText("Complete Count").onLast().performClick()
+        composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
         
         // 13. Verify COMPLETED status
-        composeTestRule.waitUntil(5000) {
+        composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodesWithText("Completed").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Completed").assertIsDisplayed()

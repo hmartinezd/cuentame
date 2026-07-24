@@ -286,6 +286,7 @@
     <string name="saving">Guardando…</string>
     <string name="saved">Guardado</string>
     <string name="items_counted">%1$d artículos contados</string>
+    <string name="unknown_area">Área desconocida</string>
     <string name="error_invalid_count_route">Ruta de conteo no válida</string>
     <string name="error_count_not_found">Conteo de inventario no encontrado</string>
     <string name="error_count_area_not_found">Área de inventario no encontrada para este conteo</string>

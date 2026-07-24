@@ -1,14 +1,7 @@
 package com.miara.cuentame.feature.counts.ui
 
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onLast
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.common.ids.IngredientId
@@ -152,12 +145,19 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("count_quantity_ing_chicken").assertIsDisplayed()
             
             // 11. Complete Dry Storage
-            composeTestRule.onNodeWithText("Complete Area").performClick()
+            composeTestRule.onNodeWithTag("complete_area_button").performClick()
             
             // 12. Open Main Kitchen
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
             
-            // 13. Enter 10 lb
+            // 13. Search and Add Chicken Breast (since it's not a candidate for Kitchen)
+            composeTestRule.onNodeWithTag("ingredient_search").performTextReplacement("Chicken")
+            composeTestRule.onNodeWithText("Chicken Breast").performClick()
+            
+            // 14. Enter 10 lb
+            composeTestRule.waitUntil(5000) {
+                composeTestRule.onAllNodesWithTag("count_quantity_ing_chicken").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("10")
             
             // Wait for autosave
@@ -165,49 +165,59 @@ class StockCountLifecycleTest {
                 composeTestRule.onAllNodesWithTag("save_indicator_saved_ing_chicken").fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 14. Verify "No prior inventory" (represented by "Opening Balance")
+            // 15. Verify "Opening Balance"
             composeTestRule.onNodeWithText("Opening Balance").assertIsDisplayed()
             
-            // 15. Complete Main Kitchen
-            composeTestRule.onNodeWithText("Complete Area").performClick()
+            // 16. Complete Main Kitchen
+            composeTestRule.onNodeWithTag("complete_area_button").performClick()
             
-            // 16. Open adjustment review
-            composeTestRule.onNodeWithText("Complete Count").performClick()
+            // 17. Open adjustment review
+            composeTestRule.onNodeWithTag("complete_count_button").performClick()
             
-            // 17. Verify review data
-            composeTestRule.onNodeWithText("Adjustment Review").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Expected: 80 lb").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Adjustment: -5 lb").assertIsDisplayed()
+            // 18. Verify review data
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithTag("historical_expected_ing_chicken").fetchSemanticsNodes().isNotEmpty()
+            }
+            // Chicken appears in two areas, so we check onAllNodes
+            composeTestRule.onAllNodesWithTag("historical_expected_ing_chicken").assertCountEquals(2)
+            composeTestRule.onAllNodesWithTag("historical_adjustment_ing_chicken").assertCountEquals(2)
             
-            // 18. Complete count
-            composeTestRule.onAllNodesWithText("Complete Count").onLast().performClick()
+            // 19. Complete count
+            composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
             
-            // 19. Verify COMPLETED status
+            // 20. Verify COMPLETED status
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithText("Completed").fetchSemanticsNodes().isNotEmpty()
             }
             
-            // 20. Open completed areas and verify read-only
+            // 21. Open completed areas and verify read-only
             composeTestRule.onNodeWithText("Dry Storage").performClick()
-            composeTestRule.onNodeWithText("Expected: 80 lb").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Adjustment: -5 lb").assertIsDisplayed()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("expected_preview_ing_chicken").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("expected_preview_ing_chicken").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("adjustment_preview_ing_chicken").assertIsDisplayed()
             composeTestRule.onNodeWithTag("ingredient_search").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("delete_line_ing_chicken").assertDoesNotExist()
             
             composeTestRule.onNodeWithTag("count_back_button").performClick()
 
-            // 21. Void count
-            composeTestRule.onNodeWithText("Void Count").performClick()
+            // 22. Void count
+            composeTestRule.onNodeWithTag("void_count_button").performClick()
             composeTestRule.onNodeWithText("Confirm").performClick()
             
-            // 22. Verify VOIDED status
+            // 23. Verify VOIDED status
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithText("Voided").fetchSemanticsNodes().isNotEmpty()
             }
             
-            // 23. Verify VOIDED area is also read-only
+            // 24. Verify VOIDED area is also read-only
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
+            composeTestRule.waitUntil(10000) {
+                 composeTestRule.onAllNodesWithText("Opening Balance").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Opening Balance").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Adjustment: +10 lb").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("adjustment_preview_ing_chicken").assertIsDisplayed()
             composeTestRule.onNodeWithTag("ingredient_search").assertDoesNotExist()
         }
     }

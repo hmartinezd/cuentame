@@ -18,6 +18,23 @@ data class StockCountValidationGraph(
 
 class StockCountMovementHistoryValidator {
 
+    private fun parseHistoryDecimal(value: String): BigDecimal {
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedStockCountMovementHistory
+        }
+    }
+
+    private fun parseOptionalHistoryDecimal(value: String?): BigDecimal? {
+        if (value == null) return null
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedStockCountMovementHistory
+        }
+    }
+
     fun validateDraftHistory(
         count: StockCountEntity,
         movements: List<InventoryMovementEntity>
@@ -112,9 +129,15 @@ class StockCountMovementHistoryValidator {
         if (movement.sourceOperationId != "stock-count-complete:${count.id}:${line.id}") throw ValidationError.MalformedStockCountMovementHistory
         if (movement.reversalOfMovementId != null) throw ValidationError.MalformedStockCountMovementHistory
         
+        val quantityEntered = parseHistoryDecimal(line.quantityEntered)
+        if (quantityEntered < BigDecimal.ZERO) throw ValidationError.MalformedStockCountMovementHistory
+        
+        val quantityBase = parseHistoryDecimal(line.quantityBase)
+        if (quantityBase < BigDecimal.ZERO) throw ValidationError.MalformedStockCountMovementHistory
+
         val adjustmentStr = line.adjustmentQuantityBase ?: throw ValidationError.MalformedStockCountMovementHistory
-        val adjustment = try { BigDecimal(adjustmentStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
-        if (BigDecimal(movement.quantityBaseSigned).compareTo(adjustment) != 0) {
+        val adjustment = parseHistoryDecimal(adjustmentStr)
+        if (parseHistoryDecimal(movement.quantityBaseSigned).compareTo(adjustment) != 0) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
@@ -124,11 +147,12 @@ class StockCountMovementHistoryValidator {
         // Opening balance checks
         if (expectedType == InventoryMovementType.OPENING_BALANCE.name) {
              if (line.expectedQuantityBaseSnapshot != null) throw ValidationError.MalformedStockCountMovementHistory
-             if (adjustment.compareTo(BigDecimal(line.quantityBase)) != 0) throw ValidationError.MalformedStockCountMovementHistory
+             if (adjustment.compareTo(quantityBase) != 0) throw ValidationError.MalformedStockCountMovementHistory
         } else {
              // Adjustment checks
-             val expected = try { BigDecimal(line.expectedQuantityBaseSnapshot!!) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
-             if (adjustment.compareTo(BigDecimal(line.quantityBase).subtract(expected)) != 0) {
+             val expectedStr = line.expectedQuantityBaseSnapshot ?: throw ValidationError.MalformedStockCountMovementHistory
+             val expected = parseHistoryDecimal(expectedStr)
+             if (adjustment.compareTo(quantityBase.subtract(expected)) != 0) {
                  throw ValidationError.MalformedStockCountMovementHistory
              }
         }
@@ -139,14 +163,14 @@ class StockCountMovementHistoryValidator {
     private fun validateCostValueConsistency(movement: InventoryMovementEntity) {
         val costStr = movement.unitCostBaseSnapshot
         val totalStr = movement.totalValueSnapshot
-        val qty = BigDecimal(movement.quantityBaseSigned)
+        val qty = parseHistoryDecimal(movement.quantityBaseSigned)
 
         if (costStr == null) {
             if (totalStr != null) throw ValidationError.MalformedStockCountMovementHistory
         } else {
             if (totalStr == null) throw ValidationError.MalformedStockCountMovementHistory
-            val cost = try { BigDecimal(costStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
-            val total = try { BigDecimal(totalStr) } catch (e: Exception) { throw ValidationError.MalformedStockCountMovementHistory }
+            val cost = parseHistoryDecimal(costStr)
+            val total = parseHistoryDecimal(totalStr)
             if (total.compareTo(qty.multiply(cost, java.math.MathContext.DECIMAL128)) != 0) {
                  throw ValidationError.MalformedStockCountMovementHistory
             }
@@ -168,20 +192,22 @@ class StockCountMovementHistoryValidator {
         if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedStockCountMovementHistory
         
-        if (BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0) {
+        val originalQty = parseHistoryDecimal(original.quantityBaseSigned)
+        val reversalQty = parseHistoryDecimal(reversal.quantityBaseSigned)
+        if (reversalQty.compareTo(originalQty.negate()) != 0) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
-        val originalCost = original.unitCostBaseSnapshot?.let { BigDecimal(it) }
-        val reversalCost = reversal.unitCostBaseSnapshot?.let { BigDecimal(it) }
+        val originalCost = parseOptionalHistoryDecimal(original.unitCostBaseSnapshot)
+        val reversalCost = parseOptionalHistoryDecimal(reversal.unitCostBaseSnapshot)
         if (originalCost != null && reversalCost != null) {
             if (originalCost.compareTo(reversalCost) != 0) throw ValidationError.MalformedStockCountMovementHistory
         } else if (originalCost != reversalCost) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
 
-        val originalTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
-        val reversalTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
+        val originalTotal = parseOptionalHistoryDecimal(original.totalValueSnapshot)
+        val reversalTotal = parseOptionalHistoryDecimal(reversal.totalValueSnapshot)
         if (originalTotal != null && reversalTotal != null) {
             if (reversalTotal.compareTo(originalTotal.negate()) != 0) throw ValidationError.MalformedStockCountMovementHistory
         } else if (originalTotal != reversalTotal) {

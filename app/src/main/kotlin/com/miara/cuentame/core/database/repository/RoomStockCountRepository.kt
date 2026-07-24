@@ -69,6 +69,14 @@ class RoomStockCountRepository @Inject constructor(
         return restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
     }
 
+    private fun parseHistoryDecimal(value: String): BigDecimal {
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedStockCountMovementHistory
+        }
+    }
+
     override fun observeCounts(filter: StockCountFilter): Flow<List<StockCountSummary>> {
         return countDao.observeFilteredCounts(
             restaurantId = filter.restaurantId.value,
@@ -105,7 +113,7 @@ class RoomStockCountRepository @Inject constructor(
                     combine(areaInfoFlow, linesFlow) { areaInfo, lineEntities ->
                         StockCountAreaDetails(
                             area = areaEntity.toDomain(),
-                            areaName = areaInfo?.name ?: "Unknown archived area",
+                            areaName = areaInfo?.name,
                             restaurantId = RestaurantId(countEntity.restaurantId),
                             countId = id,
                             countStatus = StockCountStatus.valueOf(countEntity.status),
@@ -140,7 +148,7 @@ class RoomStockCountRepository @Inject constructor(
                 combine(areaInfoFlow, linesFlow) { areaInfo, lineEntities ->
                     StockCountAreaDetails(
                         area = areaEntity.toDomain(),
-                        areaName = areaInfo?.name ?: "Unknown archived area",
+                        areaName = areaInfo?.name,
                         restaurantId = RestaurantId(countEntity.restaurantId),
                         countId = StockCountId(countEntity.id),
                         countStatus = StockCountStatus.valueOf(countEntity.status),
@@ -474,7 +482,7 @@ class RoomStockCountRepository @Inject constructor(
                 if (option.ingredientId != ingredient.id) throw ValidationError.InvalidCountUnitOption
                 if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
 
-                val qtyEntered = BigDecimal(lineEntity.quantityEntered)
+                val qtyEntered = parseHistoryDecimal(lineEntity.quantityEntered)
                 if (qtyEntered < BigDecimal.ZERO) throw ValidationError.InvalidCountQuantity
                 
                 val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
@@ -563,8 +571,11 @@ class RoomStockCountRepository @Inject constructor(
             val originalMovements = allMovements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
             
             val reversals = originalMovements.map { original ->
-                val originalTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
+                val originalTotalStr = original.totalValueSnapshot
+                val originalTotal = originalTotalStr?.let { parseHistoryDecimal(it) }
                 val reversalTotal = originalTotal?.negate()?.toPlainString()
+
+                val originalQty = parseHistoryDecimal(original.quantityBaseSigned)
 
                 InventoryMovementEntity(
                     id = idGenerator.newId(),
@@ -572,7 +583,7 @@ class RoomStockCountRepository @Inject constructor(
                     ingredientId = original.ingredientId,
                     areaId = original.areaId,
                     movementType = InventoryMovementType.REVERSAL.name,
-                    quantityBaseSigned = BigDecimal(original.quantityBaseSigned).negate().toPlainString(),
+                    quantityBaseSigned = originalQty.negate().toPlainString(),
                     unitCostBaseSnapshot = original.unitCostBaseSnapshot,
                     totalValueSnapshot = reversalTotal,
                     effectiveAt = now.toEpochMilli(),

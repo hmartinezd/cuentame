@@ -286,6 +286,7 @@
     <string name="saving">Saving…</string>
     <string name="saved">Saved</string>
     <string name="items_counted">%1$d items counted</string>
+    <string name="unknown_area">Unknown area</string>
     <string name="error_invalid_count_route">Invalid count route</string>
     <string name="error_count_not_found">Stock count not found</string>
     <string name="error_count_area_not_found">Inventory area not found for this count</string>

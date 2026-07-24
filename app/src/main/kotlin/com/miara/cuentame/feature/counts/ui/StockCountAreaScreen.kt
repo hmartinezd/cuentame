@@ -53,8 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.Ingredient
+import com.miara.cuentame.feature.counts.viewmodel.CountUnitOptionUi
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaEvent
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaUiState
@@ -71,12 +73,16 @@ fun StockCountAreaRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var lineToDelete by remember { mutableStateOf<StockCountLineEntry?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is StockCountAreaEvent.AreaCompleted -> onBack()
                 is StockCountAreaEvent.NavigateBack -> onBack()
+                is StockCountAreaEvent.LineDeleted -> {
+                    lineToDelete = null
+                }
                 is StockCountAreaEvent.ShowError -> {
                     snackbarHostState.showSnackbar(context.getString(event.error.toUserMessageRes()))
                 }
@@ -93,13 +99,15 @@ fun StockCountAreaRoute(
 
     StockCountAreaScreen(
         uiState = uiState,
+        lineToDelete = lineToDelete,
+        onShowDeleteConfirm = { lineToDelete = it },
         snackbarHostState = snackbarHostState,
         onBack = viewModel::onBackRequested,
         onSearchQueryChanged = viewModel::onSearchQueryChanged,
         onAddIngredient = viewModel::onAddIngredient,
         onQuantityChanged = viewModel::onQuantityChanged,
         onUnitChanged = viewModel::onUnitChanged,
-        onDeleteLine = viewModel::onDeleteLine,
+        onConfirmDelete = viewModel::onConfirmDelete,
         onCompleteArea = viewModel::onCompleteArea,
         onReopenArea = viewModel::onReopenArea
     )
@@ -109,18 +117,19 @@ fun StockCountAreaRoute(
 @Composable
 fun StockCountAreaScreen(
     uiState: StockCountAreaUiState,
+    lineToDelete: StockCountLineEntry?,
+    onShowDeleteConfirm: (StockCountLineEntry?) -> Unit,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onAddIngredient: (Ingredient) -> Unit,
     onQuantityChanged: (String, String) -> Unit,
     onUnitChanged: (String, String) -> Unit,
-    onDeleteLine: (String) -> Unit,
+    onConfirmDelete: (String) -> Unit,
     onCompleteArea: () -> Unit,
     onReopenArea: () -> Unit
 ) {
     var showMissingConfirm by remember { mutableStateOf(false) }
-    var lineToDelete by remember { mutableStateOf<StockCountLineEntry?>(null) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -130,7 +139,7 @@ fun StockCountAreaScreen(
                     val title = when (uiState.screenState) {
                         is StockCountAreaScreenState.Ready -> uiState.details?.areaName ?: ""
                         is StockCountAreaScreenState.Loading -> stringResource(R.string.state_loading_desc)
-                        is StockCountAreaScreenState.NotFound -> stringResource(R.string.state_empty_desc) // TODO: Specific
+                        is StockCountAreaScreenState.NotFound -> stringResource(R.string.error_count_area_not_found)
                         is StockCountAreaScreenState.InvalidRoute -> stringResource(R.string.error_invalid_count_route)
                         else -> stringResource(R.string.count_by_area)
                     }
@@ -223,7 +232,10 @@ fun StockCountAreaScreen(
                                 ListItem(
                                     headlineContent = { Text(warning.name, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
                                     supportingContent = {
-                                        Text(text = stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), ""))
+                                        Text(
+                                            text = stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), ""),
+                                            modifier = Modifier.testTag("archived_expected_${warning.ingredientId}")
+                                        )
                                     }
                                 )
                                 HorizontalDivider()
@@ -235,7 +247,7 @@ fun StockCountAreaScreen(
                                 entry = entry,
                                 onQuantityChanged = { qty -> onQuantityChanged(entry.ingredientId, qty) },
                                 onUnitChanged = { uid -> onUnitChanged(entry.ingredientId, uid) },
-                                onDelete = { lineToDelete = entry },
+                                onDelete = { onShowDeleteConfirm(entry) },
                                 enabled = uiState.canEdit
                             )
                             HorizontalDivider()
@@ -245,7 +257,7 @@ fun StockCountAreaScreen(
                     if (uiState.canReopen) {
                         Button(
                             onClick = onReopenArea,
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("reopen_area_button"),
                             colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
                         ) {
                             Text(stringResource(R.string.reopen_area))
@@ -259,7 +271,7 @@ fun StockCountAreaScreen(
                                     onCompleteArea()
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("complete_area_button"),
                             enabled = !uiState.isCompleting
                         ) {
                             if (uiState.isCompleting) {
@@ -284,15 +296,14 @@ fun StockCountAreaScreen(
     }
 
     if (lineToDelete != null) {
+        val isDeleting = uiState.deletingIngredientId == lineToDelete.ingredientId
         ArchiveConfirmDialog(
             title = stringResource(R.string.action_remove),
-            message = stringResource(R.string.action_remove_item, lineToDelete!!.ingredientName),
-            isSaving = false,
-            onDismiss = { lineToDelete = null },
-            onConfirm = {
-                onDeleteLine(lineToDelete!!.ingredientId)
-                lineToDelete = null
-            }
+            message = stringResource(R.string.action_remove_item, lineToDelete.ingredientName),
+            confirmText = stringResource(R.string.action_remove),
+            isSaving = isDeleting,
+            onDismiss = { if (!isDeleting) onShowDeleteConfirm(null) },
+            onConfirm = { onConfirmDelete(lineToDelete.ingredientId) }
         )
     }
 }
@@ -325,7 +336,7 @@ fun StockCountLineItem(
             }
             
             if (enabled) {
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = onDelete, modifier = Modifier.testTag("delete_line_${entry.ingredientId}")) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error)
                 }
             }
@@ -340,7 +351,7 @@ fun StockCountLineItem(
                 value = entry.quantityText,
                 onValueChange = onQuantityChanged,
                 modifier = Modifier.weight(1f).testTag("count_quantity_${entry.ingredientId}"),
-                enabled = enabled,
+                enabled = enabled && !entry.isDeleting,
                 label = { Text(stringResource(R.string.quantity)) },
                 isError = entry.error != null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -350,30 +361,33 @@ fun StockCountLineItem(
 
             var unitExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
-                expanded = unitExpanded && enabled,
-                onExpandedChange = { if (enabled) unitExpanded = !unitExpanded },
-                modifier = Modifier.weight(1f)
+                expanded = unitExpanded && enabled && !entry.isDeleting,
+                onExpandedChange = { if (enabled && !entry.isDeleting) unitExpanded = !unitExpanded },
+                modifier = Modifier.weight(1f).testTag("unit_selector_${entry.ingredientId}")
             ) {
                 OutlinedTextField(
                     value = entry.unitName,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text(stringResource(R.string.field_unit)) },
-                    trailingIcon = { if (enabled) ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                    label = { Text(stringResource(R.string.field_unit)) }, 
+                    trailingIcon = { if (enabled && !entry.isDeleting) ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    enabled = enabled
+                    enabled = enabled && !entry.isDeleting
                 )
                 ExposedDropdownMenu(
                     expanded = unitExpanded,
                     onDismissRequest = { unitExpanded = false }
                 ) {
-                    entry.unitOptions.forEach { option ->
+                    entry.unitOptions.forEach { optionUi ->
                         DropdownMenuItem(
-                            text = { Text(option.displayName) },
+                            text = { Text(optionUi.label) },
                             onClick = {
-                                onUnitChanged(option.id.value)
-                                unitExpanded = false
-                            }
+                                if (optionUi.isSelectable) {
+                                    onUnitChanged(optionUi.id.value)
+                                    unitExpanded = false
+                                }
+                            },
+                            enabled = optionUi.isSelectable
                         )
                     }
                 }
@@ -401,8 +415,9 @@ fun StockCountLineItem(
                     text = if (entry.preview.willCreateOpeningBalance) 
                         stringResource(R.string.opening_balance) 
                     else 
-                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase ?: BigDecimal.ZERO, entry.baseUnitName),
-                    style = MaterialTheme.typography.labelSmall
+                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", entry.baseUnitName),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("expected_preview_${entry.ingredientId}")
                 )
                 
                 val adjustment = entry.preview.provisionalAdjustmentBase
@@ -414,7 +429,8 @@ fun StockCountLineItem(
                 Text(
                     text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.baseUnitName),
                     style = MaterialTheme.typography.labelSmall,
-                    color = color
+                    color = color,
+                    modifier = Modifier.testTag("adjustment_preview_${entry.ingredientId}")
                 )
             }
         }

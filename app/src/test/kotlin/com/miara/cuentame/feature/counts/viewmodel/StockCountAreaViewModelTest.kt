@@ -12,8 +12,10 @@ import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.count.*
 import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.model.inventory.*
+import com.miara.cuentame.core.model.restaurant.Restaurant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
@@ -52,6 +54,12 @@ class StockCountAreaViewModelTest {
         override suspend fun deleteDraft(countId: StockCountId) {}
         override suspend fun completeCount(countId: StockCountId) {}
         override suspend fun voidCount(countId: StockCountId) {}
+    }
+
+    private val fakeRestaurantRepo = object : RestaurantRepository {
+        override fun observeRestaurant(): Flow<Restaurant?> = flowOf(Restaurant(restId, "R1", "USD", "en-US", now, now, null))
+        override suspend fun getRestaurant(): Restaurant = Restaurant(restId, "R1", "USD", "en-US", now, now, null)
+        override suspend fun save(restaurant: Restaurant) {}
     }
 
     private val fakeIngredientRepo = object : IngredientRepository {
@@ -113,6 +121,7 @@ class StockCountAreaViewModelTest {
         viewModel = StockCountAreaViewModel(
             SavedStateHandle(mapOf("countId" to countId.value, "countAreaId" to countAreaId.value)),
             fakeRepo,
+            fakeRestaurantRepo,
             GetMissingCountItemsUseCase(fakeIngredientRepo, fakeRepo, fakeSnapshotService),
             PreviewStockCountLineUseCase(fakeSnapshotService),
             fakeIngredientRepo,
@@ -129,8 +138,12 @@ class StockCountAreaViewModelTest {
     @Test
     fun `initial state loads correctly`() = runTest {
         viewModel.uiState.test {
-            runCurrent()
-            assertThat(expectMostRecentItem().details?.areaName).isEqualTo("Area 1")
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.details?.areaName).isEqualTo("Area 1")
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -140,10 +153,13 @@ class StockCountAreaViewModelTest {
         viewModel.uiState.test {
             runCurrent()
             viewModel.onAddIngredient(ingredient)
-            runCurrent()
-            val state = expectMostRecentItem()
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
             assertThat(state.lineEntries).hasSize(1)
             assertThat(state.hasPendingSaves).isFalse()
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -186,8 +202,8 @@ class StockCountAreaViewModelTest {
         runCurrent()
         viewModel.events.test {
             viewModel.onBackRequested()
-            runCurrent()
             assertThat(awaitItem()).isInstanceOf(StockCountAreaEvent.NavigateBack::class.java)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -199,9 +215,7 @@ class StockCountAreaViewModelTest {
             viewModel.onAddIngredient(ingredient)
             runCurrent()
             viewModel.onQuantityChanged(ingId.value, "10")
-            runCurrent()
             viewModel.onQuantityChanged(ingId.value, "20")
-            runCurrent()
             advanceTimeBy(1000)
             runCurrent()
             val state = expectMostRecentItem()

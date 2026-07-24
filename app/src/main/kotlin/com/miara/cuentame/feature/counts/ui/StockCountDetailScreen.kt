@@ -1,6 +1,5 @@
 package com.miara.cuentame.feature.counts.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,11 +51,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.StockCountAreaId
-import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.domain.repository.StockCountAreaDetails
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
+import com.miara.cuentame.feature.counts.viewmodel.ReviewWarning
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailEvent
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailUiState
@@ -148,7 +148,7 @@ fun StockCountDetailScreen(
                 },
                 actions = {
                     if (uiState.details?.count?.status == StockCountStatus.DRAFT) {
-                        IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting) {
+                        IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting, modifier = Modifier.testTag("delete_draft_button")) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                         }
                     }
@@ -213,7 +213,7 @@ fun StockCountDetailScreen(
                         val allAreasCompleted = details.areas.isNotEmpty() && details.areas.all { it.area.status == CountAreaStatus.COMPLETED }
                         Button(
                             onClick = { onToggleReview(true) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("complete_count_button"),
                             enabled = !uiState.isCompleting && allAreasCompleted
                         ) {
                             Text(stringResource(R.string.complete_count))
@@ -221,7 +221,7 @@ fun StockCountDetailScreen(
                     } else if (count.status == StockCountStatus.COMPLETED) {
                         Button(
                             onClick = { onShowVoidConfirm(true) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("void_count_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                             enabled = !uiState.isVoiding
                         ) {
@@ -260,6 +260,8 @@ fun StockCountDetailScreen(
     if (uiState.showReview) {
         AdjustmentReviewSheet(
             lines = uiState.reviewLines,
+            missingWarnings = uiState.missingWarnings,
+            archivedWarnings = uiState.archivedWarnings,
             currencyCode = uiState.currencyCode,
             isCompleting = uiState.isCompleting,
             isLoading = uiState.isReviewLoading,
@@ -273,6 +275,8 @@ fun StockCountDetailScreen(
 @Composable
 fun AdjustmentReviewSheet(
     lines: List<StockCountReviewLine>,
+    missingWarnings: List<ReviewWarning>,
+    archivedWarnings: List<ReviewWarning>,
     currencyCode: String,
     isCompleting: Boolean,
     isLoading: Boolean,
@@ -309,6 +313,44 @@ fun AdjustmentReviewSheet(
                 }
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
+                    if (missingWarnings.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.missing_items),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(missingWarnings) { warning ->
+                            ReviewWarningItem(warning)
+                            HorizontalDivider()
+                        }
+                    }
+
+                    if (archivedWarnings.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.archived_nonzero_warning),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(archivedWarnings) { warning ->
+                            ReviewWarningItem(warning)
+                            HorizontalDivider()
+                        }
+                    }
+
+                    item {
+                        Text(
+                            text = stringResource(R.string.counted_item),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
                     items(lines) { line ->
                         ReviewLineItem(line, currencyCode)
                         HorizontalDivider()
@@ -318,7 +360,7 @@ fun AdjustmentReviewSheet(
 
             Button(
                 onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("confirm_completion_button"),
                 enabled = !isCompleting && lines.isNotEmpty()
             ) {
                 if (isCompleting) {
@@ -331,12 +373,26 @@ fun AdjustmentReviewSheet(
 }
 
 @Composable
+fun ReviewWarningItem(warning: ReviewWarning) {
+    ListItem(
+        headlineContent = { Text(warning.name, fontWeight = FontWeight.Bold) },
+        supportingContent = { 
+            Column {
+                Text(warning.areaName ?: stringResource(R.string.unknown_area))
+                Text(stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), warning.baseUnitName))
+            }
+        },
+        leadingContent = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+    )
+}
+
+@Composable
 fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text(text = line.ingredientName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(text = line.areaName, style = MaterialTheme.typography.labelSmall)
+                Text(text = line.areaName ?: stringResource(R.string.unknown_area), style = MaterialTheme.typography.labelSmall)
             }
             Text(text = "${line.quantityEntered} ${line.unitName}", style = MaterialTheme.typography.bodyLarge)
         }
@@ -350,7 +406,8 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                     stringResource(R.string.opening_balance) 
                 else 
                     stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase?.toPlainString() ?: "0", line.baseUnitName),
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.testTag("historical_expected_${line.ingredientId}")
             )
             
             val adjustment = line.preview.provisionalAdjustmentBase
@@ -362,7 +419,8 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
             Text(
                 text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), line.baseUnitName),
                 style = MaterialTheme.typography.labelSmall,
-                color = color
+                color = color,
+                modifier = Modifier.testTag("historical_adjustment_${line.ingredientId}")
             )
         }
 
@@ -382,8 +440,8 @@ fun CountAreaItem(
     onClick: () -> Unit
 ) {
     ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        headlineContent = { Text(areaDetail.areaName, fontWeight = FontWeight.Bold) },
+        modifier = Modifier.clickable(onClick = onClick).testTag("area_item_${areaDetail.area.id.value}"),
+        headlineContent = { Text(areaDetail.areaName ?: stringResource(R.string.unknown_area), fontWeight = FontWeight.Bold) },
         supportingContent = {
             Text(text = stringResource(R.string.items_counted, areaDetail.lines.size))
         },

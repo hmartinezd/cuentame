@@ -70,7 +70,7 @@ class StockCountDetailViewModelTest {
 
     private val fakeRestaurantRepo = object : RestaurantRepository {
         override fun observeRestaurant(): Flow<Restaurant?> = flowOf(Restaurant(restId, "R1", "USD", "en-US", now, now, null))
-        override suspend fun getRestaurant(): Restaurant? = null
+        override suspend fun getRestaurant(): Restaurant = Restaurant(restId, "R1", "USD", "en-US", now, now, null)
         override suspend fun save(restaurant: Restaurant) {}
     }
 
@@ -97,6 +97,7 @@ class StockCountDetailViewModelTest {
             fakeRepo,
             fakeIngredientRepo,
             fakeRestaurantRepo,
+            GetMissingCountItemsUseCase(fakeIngredientRepo, fakeRepo, fakeSnapshotService),
             PreviewStockCountLineUseCase(fakeSnapshotService)
         )
     }

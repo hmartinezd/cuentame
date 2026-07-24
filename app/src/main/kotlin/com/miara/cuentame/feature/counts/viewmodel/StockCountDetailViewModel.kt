@@ -9,8 +9,10 @@ import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.StockCountDetails
 import com.miara.cuentame.core.domain.repository.StockCountRepository
+import com.miara.cuentame.core.domain.usecase.GetMissingCountItemsUseCase
 import com.miara.cuentame.core.domain.usecase.PreviewStockCountLineUseCase
 import com.miara.cuentame.core.domain.usecase.StockCountLinePreview
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -30,12 +32,21 @@ import javax.inject.Inject
 data class StockCountReviewLine(
     val ingredientId: String,
     val ingredientName: String,
-    val areaName: String,
+    val areaName: String?,
     val quantityEntered: BigDecimal,
     val unitName: String,
     val quantityBase: BigDecimal,
     val baseUnitName: String,
     val preview: StockCountLinePreview
+)
+
+data class ReviewWarning(
+    val ingredientId: String,
+    val name: String,
+    val areaName: String?,
+    val expectedBalanceBase: BigDecimal,
+    val baseUnitName: String,
+    val isArchived: Boolean
 )
 
 sealed interface StockCountDetailScreenState {
@@ -54,6 +65,8 @@ data class StockCountDetailUiState(
     val details: StockCountDetails? = null,
     val currencyCode: String = "USD",
     val reviewLines: List<StockCountReviewLine> = emptyList(),
+    val missingWarnings: List<ReviewWarning> = emptyList(),
+    val archivedWarnings: List<ReviewWarning> = emptyList(),
     val showReview: Boolean = false,
     val isReviewLoading: Boolean = false,
     val error: Throwable? = null
@@ -71,6 +84,7 @@ class StockCountDetailViewModel @Inject constructor(
     private val repository: StockCountRepository,
     private val ingredientRepository: IngredientRepository,
     private val restaurantRepository: RestaurantRepository,
+    private val getMissingItemsUseCase: GetMissingCountItemsUseCase,
     private val previewUseCase: PreviewStockCountLineUseCase
 ) : ViewModel() {
 
@@ -83,6 +97,8 @@ class StockCountDetailViewModel @Inject constructor(
     private val _showReview = MutableStateFlow(false)
     private val _isReviewLoading = MutableStateFlow(false)
     private val _reviewLines = MutableStateFlow<List<StockCountReviewLine>>(emptyList())
+    private val _missingWarnings = MutableStateFlow<List<ReviewWarning>>(emptyList())
+    private val _archivedWarnings = MutableStateFlow<List<ReviewWarning>>(emptyList())
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
 
@@ -97,6 +113,8 @@ class StockCountDetailViewModel @Inject constructor(
                     .collect {
                         // Invalidate review data when count changes
                         _reviewLines.value = emptyList()
+                        _missingWarnings.value = emptyList()
+                        _archivedWarnings.value = emptyList()
                     }
             }
         }
@@ -112,6 +130,8 @@ class StockCountDetailViewModel @Inject constructor(
         _showReview,
         _isReviewLoading,
         _reviewLines,
+        _missingWarnings,
+        _archivedWarnings,
         _error,
         _hasLoadedOnce
     ) { args ->
@@ -123,8 +143,10 @@ class StockCountDetailViewModel @Inject constructor(
         val showReview = args[5] as Boolean
         val isReviewLoading = args[6] as Boolean
         val reviewLines = args[7] as List<StockCountReviewLine>
-        val error = args[8] as Throwable?
-        val hasLoadedOnce = args[9] as Boolean
+        val missingWarnings = args[8] as List<ReviewWarning>
+        val archivedWarnings = args[9] as List<ReviewWarning>
+        val error = args[10] as Throwable?
+        val hasLoadedOnce = args[11] as Boolean
 
         val screenState = when {
             countId == null || countIdStr.isNullOrBlank() -> StockCountDetailScreenState.InvalidRoute
@@ -142,6 +164,8 @@ class StockCountDetailViewModel @Inject constructor(
             details = details,
             currencyCode = currencyCode,
             reviewLines = reviewLines,
+            missingWarnings = missingWarnings,
+            archivedWarnings = archivedWarnings,
             showReview = showReview,
             isReviewLoading = isReviewLoading,
             error = error
@@ -182,11 +206,51 @@ class StockCountDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val lines = mutableListOf<StockCountReviewLine>()
-                details.areas.forEach { areaDetail ->
-                    areaDetail.lines.forEach { line ->
-                        val ingredient = ingredientRepository.getById(line.ingredientId) ?: return@forEach
+                val missingW = mutableListOf<ReviewWarning>()
+                val archivedW = mutableListOf<ReviewWarning>()
+                
+                for (areaDetail in details.areas) {
+                    val result = getMissingItemsUseCase(
+                        restaurantId = areaDetail.restaurantId,
+                        countId = details.count.id,
+                        areaId = areaDetail.area.areaId,
+                        effectiveAt = areaDetail.effectiveAt
+                    )
+                    
+                    result.missingActiveCandidates.forEach { ing ->
+                        val options = ingredientRepository.getUnitOptions(ing.id, true)
+                        val baseUnit = options.find { it.isBase }
+                        missingW.add(
+                            ReviewWarning(
+                                ingredientId = ing.id.value,
+                                name = ing.name,
+                                areaName = areaDetail.areaName,
+                                expectedBalanceBase = BigDecimal.ZERO,
+                                baseUnitName = baseUnit?.shortLabel ?: "units",
+                                isArchived = false
+                            )
+                        )
+                    }
+                    
+                    result.archivedBalanceWarnings.forEach { arc ->
+                        val options = ingredientRepository.getUnitOptions(IngredientId(arc.ingredientId), true)
+                        val baseUnit = options.find { it.isBase }
+                        archivedW.add(
+                            ReviewWarning(
+                                ingredientId = arc.ingredientId,
+                                name = arc.name,
+                                areaName = areaDetail.areaName,
+                                expectedBalanceBase = arc.expectedBalanceBase,
+                                baseUnitName = baseUnit?.shortLabel ?: "units",
+                                isArchived = true
+                            )
+                        )
+                    }
+
+                    for (line in areaDetail.lines) {
+                        val ingredient = ingredientRepository.getById(line.ingredientId) ?: throw ValidationError.IngredientNotFound
                         val options = ingredientRepository.getUnitOptions(line.ingredientId, true)
-                        val option = options.find { it.id == line.ingredientUnitOptionId } ?: return@forEach
+                        val option = options.find { it.id == line.ingredientUnitOptionId } ?: throw ValidationError.UnitOptionNotFound
                         val baseUnit = options.find { it.isBase }
                         
                         val preview = previewUseCase(
@@ -212,6 +276,8 @@ class StockCountDetailViewModel @Inject constructor(
                     }
                 }
                 _reviewLines.value = lines
+                _missingWarnings.value = missingW
+                _archivedWarnings.value = archivedW
                 _isReviewLoading.value = false
             } catch (e: Exception) {
                 _isReviewLoading.value = false

@@ -53,7 +53,7 @@ data class StockCountDetails(
 
 data class StockCountAreaDetails(
     val area: StockCountArea,
-    val areaName: String,
+    val areaName: String?,
     val restaurantId: RestaurantId,
     val countId: StockCountId,
     val countStatus: StockCountStatus,
