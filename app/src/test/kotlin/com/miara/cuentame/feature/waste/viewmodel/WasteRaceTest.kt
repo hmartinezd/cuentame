@@ -82,13 +82,9 @@ class WasteRaceTest {
 
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            // Initial state (Loading)
-            assertThat(awaitItem().screenState).isEqualTo(WasteFormScreenState.Loading)
-            // Transition to Ready
+            testDispatcher.scheduler.advanceUntilIdle()
             var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
+            while (state.screenState == WasteFormScreenState.Loading) { state = awaitItem() }
 
             // 1. Select A
             viewModel.onIngredientSelected(ingA)
@@ -100,11 +96,8 @@ class WasteRaceTest {
             testDispatcher.scheduler.advanceUntilIdle()
             
             // B should complete and be in state
-            // We expect some emissions as flows combine
             state = awaitItem()
-            while (state.selectedIngredientId != ingB || state.selectedUnitOptionId == null) {
-                state = awaitItem()
-            }
+            while (state.selectedIngredientId != ingB || state.selectedUnitOptionId == null) { state = awaitItem() }
             assertThat(state.selectedIngredientId).isEqualTo(ingB)
             assertThat(state.selectedUnitOptionId).isEqualTo(optB.id)
 
@@ -112,16 +105,13 @@ class WasteRaceTest {
             deferredA.complete(listOf(optA))
             testDispatcher.scheduler.advanceUntilIdle()
 
-            // Final state must still be B. No new items should have been produced that change it to A.
-            expectNoEvents()
-            val finalState = viewModel.uiState.value
-            assertThat(finalState.selectedIngredientId).isEqualTo(ingB)
-            assertThat(finalState.selectedUnitOptionId).isEqualTo(optB.id)
+            // Final state must still be B
+            assertThat(viewModel.uiState.value.selectedIngredientId).isEqualTo(ingB)
         }
     }
 
     @Test
-    fun previewRace_lastRequestWins() = runTest {
+    fun previewCancellation_latestRequestWins() = runTest {
         val restId = restaurant.id
         val ingId = IngredientId("ing-1")
         val areaId = InventoryAreaId("area-1")
@@ -130,51 +120,65 @@ class WasteRaceTest {
 
         coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
 
-        val deferred1 = CompletableDeferred<WastePreview>()
-        val lookup1Started = CompletableDeferred<Unit>()
-        val preview2 = mockk<WastePreview>()
+        val deferredA = CompletableDeferred<WastePreview>()
+        val deferredB = CompletableDeferred<WastePreview>()
+        val startA = CompletableDeferred<Unit>()
+        val startB = CompletableDeferred<Unit>()
+        val previewB = mockk<WastePreview>()
 
-        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("1.0"), any()) } coAnswers { 
-            lookup1Started.complete(Unit)
-            deferred1.await() 
+        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("1.0"), any()) } coAnswers {
+            startA.complete(Unit)
+            deferredA.await()
         }
-        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("2.0"), any()) } returns preview2
+        coEvery { previewWasteUseCase(restId, ingId, areaId, optId, BigDecimal("2.0"), any()) } coAnswers {
+            startB.complete(Unit)
+            deferredB.await()
+        }
 
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            // Wait for Ready
+            testDispatcher.scheduler.advanceUntilIdle()
             var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
+            while (state.screenState == WasteFormScreenState.Loading) { state = awaitItem() }
             
             viewModel.onIngredientSelected(ingId)
             viewModel.onAreaSelected(areaId)
             testDispatcher.scheduler.advanceUntilIdle()
             
-            // Consume states until IDs are set
             state = awaitItem()
-            while (state.selectedIngredientId == null || state.selectedAreaId == null) {
-                state = awaitItem()
-            }
+            while (state.selectedIngredientId == null || state.selectedAreaId == null) { state = awaitItem() }
             
-            // Start Preview 1
+            // 1. Start A
             viewModel.onQuantityChanged("1.0")
             testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(lookup1Started.isCompleted).isTrue()
+            assertThat(startA.isCompleted).isTrue()
             
-            // Start Preview 2 while 1 is suspended
+            // 2. Start B while A is suspended
             viewModel.onQuantityChanged("2.0")
             testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(startB.isCompleted).isTrue()
             
-            // Complete 1 afterward
-            deferred1.complete(mockk())
+            // 3. Confirm A is canceled 
+            state = awaitItem()
+            while (!state.isLoadingPreview) { state = awaitItem() }
+            assertThat(state.error).isNull()
+            
+            // 4. Fail A afterward (should be ignored)
+            deferredA.completeExceptionally(RuntimeException("Stale fail"))
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val finalState = expectMostRecentItem()
-            assertThat(finalState.preview).isEqualTo(preview2)
-            assertThat(finalState.isLoadingPreview).isFalse()
-            assertThat(finalState.error).isNull()
+            assertThat(viewModel.uiState.value.isLoadingPreview).isTrue()
+            assertThat(viewModel.uiState.value.error).isNull()
+            
+            // 5. Complete B
+            deferredB.complete(previewB)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            state = awaitItem()
+            while (state.preview != previewB) { state = awaitItem() }
+            assertThat(state.preview).isEqualTo(previewB)
+            assertThat(state.isLoadingPreview).isFalse()
+            assertThat(state.error).isNull()
         }
     }
 

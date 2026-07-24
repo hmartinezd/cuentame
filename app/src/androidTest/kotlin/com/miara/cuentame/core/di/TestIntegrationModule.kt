@@ -16,5 +16,9 @@ import javax.inject.Singleton
 object TestIntegrationModule {
     @Provides
     @Singleton
-    fun provideIntegrationFailureBoundary(): IntegrationFailureBoundary = ConfigurableFailureBoundary()
+    fun provideConfigurableFailureBoundary(): ConfigurableFailureBoundary = ConfigurableFailureBoundary()
+
+    @Provides
+    @Singleton
+    fun provideIntegrationFailureBoundary(configurable: ConfigurableFailureBoundary): IntegrationFailureBoundary = configurable
 }

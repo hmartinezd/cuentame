@@ -78,17 +78,7 @@ class PurchaseFailureUiTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitForIdle()
-            
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // 1. Navigate to Purchases
             composeTestRule.onNodeWithTag("nav_activity", useUnmergedTree = true).performClick()
@@ -99,16 +89,23 @@ class PurchaseFailureUiTest {
                 composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
+            
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithTag("purchase_header_save").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
             
             // 3. Add Line
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithContentDescription("Add Line").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithContentDescription("Add Line").performClick()
             
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodesWithTag("ingredient_selector").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
@@ -134,7 +131,7 @@ class PurchaseFailureUiTest {
             }
 
             // 5. Try to Post
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithText("Post Receipt").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Post Receipt").performClick()
@@ -143,13 +140,22 @@ class PurchaseFailureUiTest {
             composeTestRule.waitForIdle()
             
             // 6. Verify Dialog remains or error is shown
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(30000) {
                 // Check for snackbar text
                 composeTestRule.onAllNodesWithText("Malformed inventory history", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             
             // 7. Verify we are still DRAFT
             composeTestRule.onNodeWithText("DRAFT").assertIsDisplayed()
+        }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

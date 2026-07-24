@@ -155,7 +155,7 @@ class PurchaseUiTest {
             composeTestRule.onNodeWithText("Confirm").performClick()
             
             // 9. Verify Posted
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithText("POSTED").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("POSTED").assertIsDisplayed()

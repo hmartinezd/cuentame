@@ -287,6 +287,8 @@ class RoomWasteRepository @Inject constructor(
             val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, id.value)
             historyValidator.validateDraftHistory(movements)
 
+            failureBoundary.trigger("delete-after-validation")
+
             val affected = wasteDao.deleteDraft(id.value)
             if (affected != 1) throw ValidationError.WasteEventNotFound
         }

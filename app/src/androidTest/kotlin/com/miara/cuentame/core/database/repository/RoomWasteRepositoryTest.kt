@@ -36,13 +36,7 @@ class RoomWasteRepositoryTest {
 
     private lateinit var db: RestaurantInventoryDatabase
     private lateinit var repository: RoomWasteRepository
-    private var failurePoint: String? = null
-    
-    private val failureBoundary = object : IntegrationFailureBoundary {
-        override fun trigger(point: String) {
-            if (point == failurePoint) throw ForcedFailureException()
-        }
-    }
+    private val failureBoundary = ConfigurableFailureBoundary()
 
     private val timeProvider = object : TimeProvider {
         var now = Instant.ofEpochMilli(10000L)
@@ -201,7 +195,7 @@ class RoomWasteRepositoryTest {
             attachmentUri = null
         ))
 
-        failurePoint = "post-after-movement"
+        failureBoundary.failurePoint = "post-after-movement"
 
         try {
             repository.post(id)
@@ -241,7 +235,7 @@ class RoomWasteRepositoryTest {
         ))
         repository.post(id)
 
-        failurePoint = "void-after-reversal"
+        failureBoundary.failurePoint = "void-after-reversal"
 
         try {
             repository.void(id)

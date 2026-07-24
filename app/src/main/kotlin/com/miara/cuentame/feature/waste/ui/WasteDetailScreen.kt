@@ -138,7 +138,7 @@ fun WasteDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.waste_event)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("waste_detail_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },

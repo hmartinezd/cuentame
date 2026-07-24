@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.R
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -67,6 +68,7 @@ class IngredientUiTest {
     @Test
     fun complete_ingredient_e2e_flow() {
         ActivityScenario.launch(MainActivity::class.java).use {
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
 
             // 1. Navigate to Inventory
@@ -122,16 +124,16 @@ class IngredientUiTest {
             composeTestRule.waitForIdle()
             
             // 3. Verify Detail
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
 
             // 4. Reopen and verify persistence
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_back)).performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").performClick()

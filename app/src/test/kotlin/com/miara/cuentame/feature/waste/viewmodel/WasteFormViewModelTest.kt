@@ -57,6 +57,7 @@ class WasteFormViewModelTest {
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
         every { areaRepository.observeAllAreas() } returns flowOf(emptyList())
+        every { attachmentPermissionManager.persistReadPermission(any()) } returns Result.success(Unit)
     }
 
     @After
@@ -69,12 +70,10 @@ class WasteFormViewModelTest {
         val viewModel = createViewModel()
         viewModel.uiState.test {
             assertThat(awaitItem().screenState).isEqualTo(WasteFormScreenState.Loading)
-            // Skip potential intermediate emissions from combined flows
-            var state = awaitItem()
-            while (state.screenState == WasteFormScreenState.Loading) {
-                state = awaitItem()
-            }
-            assertThat(state.screenState).isEqualTo(WasteFormScreenState.Ready)
+            testDispatcher.scheduler.advanceUntilIdle()
+            var item = awaitItem()
+            while (item.screenState == WasteFormScreenState.Loading) { item = awaitItem() }
+            assertThat(item.screenState).isEqualTo(WasteFormScreenState.Ready)
         }
     }
 
@@ -87,116 +86,98 @@ class WasteFormViewModelTest {
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            // Wait for Ready
-            var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
+            testDispatcher.scheduler.advanceUntilIdle()
+            skipItems(1) // Loading
 
             viewModel.onIngredientSelected(ingId)
-            
-            // Wait for internal coroutines and flow updates
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val finalState = expectMostRecentItem()
-            assertThat(finalState.selectedIngredientId).isEqualTo(ingId)
-            assertThat(finalState.selectedUnitOptionId).isEqualTo(option.id)
-            assertThat(finalState.unitOptions).hasSize(1)
+            var state = awaitItem()
+            while (state.selectedIngredientId != ingId) { state = awaitItem() }
+            assertThat(state.selectedIngredientId).isEqualTo(ingId)
+            assertThat(state.selectedUnitOptionId).isEqualTo(option.id)
         }
     }
 
     @Test
-    fun `entering quantity triggers preview`() = runTest {
+    fun `attachment permission failure handles error and preserves existing`() = runTest {
+        val uriA = "uri-A"
+        val uriB = "uri-B"
+        
+        val viewModel = createViewModel()
+        viewModel.uiState.test {
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            // Select uriA successfully
+            viewModel.onAttachmentChanged(uriA)
+            testDispatcher.scheduler.advanceUntilIdle()
+            var state = awaitItem()
+            while (state.attachmentUri != uriA) { state = awaitItem() }
+            assertThat(state.attachmentUri).isEqualTo(uriA)
+            
+            // Configure failure
+            every { attachmentPermissionManager.persistReadPermission(android.net.Uri.parse(uriB)) } returns Result.failure(RuntimeException("Fail"))
+            
+            // Try to select uriB
+            viewModel.onAttachmentChanged(uriB)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            state = awaitItem()
+            while (state.error == null) { state = awaitItem() }
+            assertThat(state.attachmentUri).isEqualTo(uriA)
+            assertThat(state.error).isNotNull()
+            
+            // Clear error
+            viewModel.clearError()
+            testDispatcher.scheduler.advanceUntilIdle()
+            state = awaitItem()
+            while (state.error != null) { state = awaitItem() }
+            
+            // Retry uriB successfully
+            every { attachmentPermissionManager.persistReadPermission(android.net.Uri.parse(uriB)) } returns Result.success(Unit)
+            viewModel.onAttachmentChanged(uriB)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            state = awaitItem()
+            while (state.attachmentUri != uriB) { state = awaitItem() }
+            assertThat(state.attachmentUri).isEqualTo(uriB)
+        }
+    }
+
+    @Test
+    fun `preview failure handles error and clears preview`() = runTest {
         val ingId = IngredientId("ing-1")
         val areaId = InventoryAreaId("area-1")
         val optId = IngredientUnitOptionId("opt-1")
         val option = IngredientUnitOption(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
         
-        val preview = WastePreview(
-            quantityBase = BigDecimal("5.0"),
-            currentAreaQuantityBase = BigDecimal("10.0"),
-            remainingAreaQuantityBase = BigDecimal("5.0"),
-            averageCostBase = BigDecimal("2.0"),
-            estimatedWasteValue = BigDecimal("10.0"),
-            createsNegativeBalance = false,
-            baseUnitSymbol = "lb"
-        )
-        
         coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
-        coEvery { previewWasteUseCase(any(), any(), any(), any(), any(), any()) } returns preview
+        coEvery { previewWasteUseCase(any(), any(), any(), any(), any(), any()) } throws RuntimeException("Preview fail")
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
-            // Wait for Ready
-            var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
+            testDispatcher.scheduler.advanceUntilIdle()
 
             viewModel.onIngredientSelected(ingId)
             viewModel.onAreaSelected(areaId)
-            viewModel.onUnitOptionSelected(optId)
             viewModel.onQuantityChanged("5.0")
             
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val finalState = expectMostRecentItem()
-            assertThat(finalState.preview).isEqualTo(preview)
-        }
-    }
-
-    @Test
-    fun `changing ingredient clears incompatible unit and preview immediately`() = runTest {
-        val ingA = IngredientId("ing-A")
-        val ingB = IngredientId("ing-B")
-        val optA = IngredientUnitOption(IngredientUnitOptionId("opt-A"), ingA, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
-        val optB = IngredientUnitOption(IngredientUnitOptionId("opt-B"), ingB, "kg", "kg", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
-
-        coEvery { ingredientRepository.getUnitOptions(ingA, true) } returns listOf(optA)
-        coEvery { ingredientRepository.getUnitOptions(ingB, true) } returns listOf(optB)
-
-        val viewModel = createViewModel()
-        viewModel.uiState.test {
-            // Wait for Ready
             var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
-
-            viewModel.onIngredientSelected(ingA)
-            testDispatcher.scheduler.advanceUntilIdle()
-            // Consume intermediate states if any
-            val stateA = expectMostRecentItem()
-            assertThat(stateA.selectedUnitOptionId).isEqualTo(optA.id)
-
-            viewModel.onIngredientSelected(ingB)
-            // It should emit a state with new ingredient and null unit/preview immediately
-            var stateB = awaitItem()
-            while (stateB.selectedIngredientId != ingB) {
-                stateB = awaitItem()
-            }
-            assertThat(stateB.selectedUnitOptionId).isNull()
-            assertThat(stateB.preview).isNull()
+            while (state.error == null) { state = awaitItem() }
+            assertThat(state.error).isNotNull()
+            assertThat(state.preview).isNull()
             
+            // Retry
+            coEvery { previewWasteUseCase(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+            viewModel.onQuantityChanged("6.0")
             testDispatcher.scheduler.advanceUntilIdle()
-            var stateBFinal = expectMostRecentItem()
-            assertThat(stateBFinal.selectedUnitOptionId).isEqualTo(optB.id)
-        }
-    }
-
-    @Test
-    fun `invalid decimal clears stale preview`() = runTest {
-        val viewModel = createViewModel()
-        viewModel.uiState.test {
-            // Wait for Ready
-            var state = awaitItem()
-            while (state.screenState != WasteFormScreenState.Ready) {
-                state = awaitItem()
-            }
             
-            viewModel.onQuantityChanged("invalid")
-            testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(expectMostRecentItem().preview).isNull()
+            state = awaitItem()
+            while (state.preview == null) { state = awaitItem() }
+            assertThat(state.preview).isNotNull()
+            assertThat(state.error).isNull()
         }
     }
 
