@@ -69,14 +69,14 @@ class PurchaseFailureUiTest {
             // 3. Add Line
             composeTestRule.onNodeWithContentDescription(composeTestRule.activity.getString(R.string.add_line)).performClick()
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.ingredient_name)).performClick()
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithText("Chicken Breast").onLast().performClick()
+            composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.receiving_area)).performClick()
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithText("Main Kitchen").onLast().performClick()
+            composeTestRule.waitUntil(5000) {
+                composeTestRule.onAllNodesWithTag("area_item_Main Kitchen", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("area_item_Main Kitchen", useUnmergedTree = true).performClick()
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.purchase_unit)).performClick()
-            composeTestRule.waitForIdle()
-            composeTestRule.onAllNodesWithText("Pound").onLast().performClick()
+            composeTestRule.onNodeWithTag("unit_item_Pound").performClick()
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.quantity)).performTextInput("1")
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.line_total)).performTextInput("10")
             composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.action_save)).performClick()

@@ -9,7 +9,10 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.StockCountAreaId
 import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.common.ids.StockCountLineId
+import com.miara.cuentame.core.common.text.DecimalParser
 import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.domain.model.count.ArchivedCountCandidate
+import com.miara.cuentame.core.domain.model.count.CountCandidateResult
 import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
@@ -20,11 +23,13 @@ import com.miara.cuentame.core.domain.usecase.PreviewStockCountLineUseCase
 import com.miara.cuentame.core.domain.usecase.StockCountLinePreview
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.Ingredient
+import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,9 +38,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.math.BigDecimal
 import java.math.MathContext
 import javax.inject.Inject
@@ -50,21 +59,32 @@ data class StockCountLineEntry(
     val quantityText: String = "",
     val lineId: String? = null,
     val preview: StockCountLinePreview? = null,
+    val editRevision: Long = 0,
+    val savedRevision: Long = -1,
     val isSaving: Boolean = false,
-    val isSaved: Boolean = false,
-    val error: Throwable? = null
-)
+    val error: Throwable? = null,
+    val unitOptions: List<IngredientUnitOption> = emptyList()
+) {
+    val isSaved: Boolean = editRevision == savedRevision && error == null && !isSaving && editRevision >= 0
+    val isPending: Boolean = editRevision > savedRevision || isSaving
+}
 
 data class StockCountAreaUiState(
     val isLoading: Boolean = true,
     val isCompleting: Boolean = false,
+    val hasPendingSaves: Boolean = false,
     val searchQuery: String = "",
     val details: StockCountAreaDetails? = null,
     val lineEntries: List<StockCountLineEntry> = emptyList(),
     val searchResults: List<Ingredient> = emptyList(),
+    val archivedWarnings: List<ArchivedCountCandidate> = emptyList(),
     val missingCount: Int = 0,
     val error: Throwable? = null
 )
+
+sealed interface StockCountAreaEvent {
+    data object AreaCompleted : StockCountAreaEvent
+}
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -83,10 +103,22 @@ class StockCountAreaViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     private val _lineEntries = MutableStateFlow<Map<String, StockCountLineEntry>>(emptyMap())
+    private val _archivedWarnings = MutableStateFlow<List<ArchivedCountCandidate>>(emptyList())
     private val _isCompleting = MutableStateFlow(false)
     private val _error = MutableStateFlow<Throwable?>(null)
 
+    private val _events = Channel<StockCountAreaEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
     private val saveJobs = mutableMapOf<String, Job>()
+    private val saveMutexes = mutableMapOf<String, Mutex>()
+
+    private data class CombinedOtherStates(
+        val completing: Boolean,
+        val error: Throwable?,
+        val searchResults: List<Ingredient>,
+        val archivedWarnings: List<ArchivedCountCandidate>
+    )
 
     private val searchResultsFlow = _searchQuery.flatMapLatest { query ->
         if (query.length < 2) kotlinx.coroutines.flow.flowOf(emptyList())
@@ -111,21 +143,24 @@ class StockCountAreaViewModel @Inject constructor(
         combine(
             _isCompleting,
             _error,
-            searchResultsFlow
-        ) { completing, error, searchResults ->
-            Triple(completing, error, searchResults)
+            searchResultsFlow,
+            _archivedWarnings
+        ) { completing, error, searchResults, archivedWarnings ->
+            CombinedOtherStates(completing, error, searchResults, archivedWarnings)
         }
-    ) { (details, entriesMap, query), (completing, error, searchResults) ->
+    ) { (details, entriesMap, query), others ->
         val sortedEntries = entriesMap.values.sortedBy { it.ingredientName }
         StockCountAreaUiState(
-            isLoading = details == null && error == null,
-            isCompleting = completing,
+            isLoading = details == null && others.error == null,
+            isCompleting = others.completing,
+            hasPendingSaves = entriesMap.values.any { it.isPending },
             searchQuery = query,
             details = details,
             lineEntries = sortedEntries.filter { it.ingredientName.contains(query, ignoreCase = true) },
-            searchResults = searchResults.filter { !entriesMap.containsKey(it.id.value) },
+            searchResults = others.searchResults.filter { !entriesMap.containsKey(it.id.value) },
+            archivedWarnings = others.archivedWarnings,
             missingCount = sortedEntries.count { it.quantityText.isBlank() },
-            error = error
+            error = others.error
         )
     }.stateIn(
         scope = viewModelScope,
@@ -146,7 +181,7 @@ class StockCountAreaViewModel @Inject constructor(
     }
 
     private suspend fun initializeEntries(details: StockCountAreaDetails) {
-        val missingIngredients = getMissingItemsUseCase(
+        val candidateResult = getMissingItemsUseCase(
             restaurantId = details.restaurantId,
             countId = countId,
             areaId = details.area.areaId,
@@ -170,11 +205,12 @@ class StockCountAreaViewModel @Inject constructor(
                 factorToBase = option.factorToBase,
                 quantityText = line.quantityEntered.toPlainString(),
                 lineId = line.id.value,
-                isSaved = true
+                savedRevision = 0,
+                unitOptions = options
             )
         }
 
-        missingIngredients.forEach { ingredient ->
+        candidateResult.missingActiveCandidates.forEach { ingredient ->
             if (!entries.containsKey(ingredient.id.value)) {
                 val options = ingredientRepository.getUnitOptions(ingredient.id)
                 val option = options.find { it.isDefaultCount } ?: options.find { it.isBase } ?: return@forEach
@@ -187,12 +223,14 @@ class StockCountAreaViewModel @Inject constructor(
                     unitId = option.id.value,
                     unitName = option.shortLabel,
                     factorToBase = option.factorToBase,
-                    quantityText = ""
+                    quantityText = "",
+                    unitOptions = options
                 )
             }
         }
 
         _lineEntries.value = entries
+        _archivedWarnings.value = candidateResult.archivedBalanceWarnings
         entries.values.forEach { updatePreview(it) }
     }
 
@@ -224,7 +262,8 @@ class StockCountAreaViewModel @Inject constructor(
                 unitId = option.id.value,
                 unitName = option.shortLabel,
                 factorToBase = option.factorToBase,
-                quantityText = ""
+                quantityText = "",
+                unitOptions = options
             )
             _lineEntries.update { it + (ingredient.id.value to entry) }
             updatePreview(entry)
@@ -236,27 +275,85 @@ class StockCountAreaViewModel @Inject constructor(
         val entry = _lineEntries.value[ingredientId] ?: return
         if (entry.quantityText == quantity) return
 
-        _lineEntries.update { it + (ingredientId to entry.copy(
+        val newRevision = entry.editRevision + 1
+        val updatedEntry = entry.copy(
             quantityText = quantity,
-            isSaved = false,
+            editRevision = newRevision,
             error = null
-        )) }
+        )
+        _lineEntries.update { it + (ingredientId to updatedEntry) }
 
-        val updatedEntry = _lineEntries.value[ingredientId]!!
         updatePreview(updatedEntry)
 
         saveJobs[ingredientId]?.cancel()
-        if (quantity.isNotBlank() && quantity.toBigDecimalOrNull() != null) {
+        val parsed = DecimalParser.parse(quantity)
+        if (quantity.isNotBlank() && parsed != null && parsed >= BigDecimal.ZERO) {
             saveJobs[ingredientId] = viewModelScope.launch {
                 delay(500)
-                saveLine(ingredientId)
+                saveLine(ingredientId, newRevision)
+            }
+        } else if (quantity.isNotBlank()) {
+             val error = if (parsed != null && parsed < BigDecimal.ZERO) ValidationError.InvalidCountQuantity else ValidationError.InvalidDecimal
+             _lineEntries.update { it + (ingredientId to updatedEntry.copy(error = error)) }
+        }
+    }
+
+    fun onUnitChanged(ingredientId: String, optionId: String) {
+        val entry = _lineEntries.value[ingredientId] ?: return
+        val option = entry.unitOptions.find { it.id.value == optionId } ?: return
+        if (entry.unitId == optionId) return
+
+        val newRevision = entry.editRevision + 1
+        val updatedEntry = entry.copy(
+            unitId = optionId,
+            unitName = option.shortLabel,
+            factorToBase = option.factorToBase,
+            editRevision = newRevision,
+            error = null
+        )
+        _lineEntries.update { it + (ingredientId to updatedEntry) }
+        updatePreview(updatedEntry)
+        
+        saveJobs[ingredientId]?.cancel()
+        val parsed = DecimalParser.parse(updatedEntry.quantityText)
+        if (updatedEntry.quantityText.isNotBlank() && parsed != null && parsed >= BigDecimal.ZERO) {
+            saveJobs[ingredientId] = viewModelScope.launch {
+                saveLine(ingredientId, newRevision)
+            }
+        }
+    }
+
+    fun onDeleteLine(ingredientId: String) {
+        val entry = _lineEntries.value[ingredientId] ?: return
+        val lineId = entry.lineId ?: run {
+            _lineEntries.update { it - ingredientId }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.deleteLine(countId, countAreaId, StockCountLineId(lineId))
+                _lineEntries.update { it - ingredientId }
+            } catch (e: Exception) {
+                _error.value = e
             }
         }
     }
 
     private fun updatePreview(entry: StockCountLineEntry) {
-        val qty = entry.quantityText.toBigDecimalOrNull() ?: return
+        val parsed = DecimalParser.parse(entry.quantityText)
+        if (parsed == null || parsed < BigDecimal.ZERO) {
+            _lineEntries.update { 
+                val current = it[entry.ingredientId]
+                if (current != null && current.editRevision == entry.editRevision) {
+                    it + (entry.ingredientId to current.copy(preview = null))
+                } else it
+            }
+            return
+        }
+
         val details = uiState.value.details ?: return
+        val revision = entry.editRevision
         
         viewModelScope.launch {
             try {
@@ -265,11 +362,11 @@ class StockCountAreaViewModel @Inject constructor(
                     ingredientId = IngredientId(entry.ingredientId),
                     areaId = details.area.areaId,
                     effectiveAt = details.effectiveAt,
-                    quantityBase = qty.multiply(entry.factorToBase, MathContext.DECIMAL128)
+                    quantityBase = parsed.multiply(entry.factorToBase, MathContext.DECIMAL128)
                 )
                 _lineEntries.update { 
                     val current = it[entry.ingredientId]
-                    if (current != null) {
+                    if (current != null && current.editRevision == revision) {
                         it + (entry.ingredientId to current.copy(preview = preview))
                     } else it
                 }
@@ -278,49 +375,94 @@ class StockCountAreaViewModel @Inject constructor(
         }
     }
 
-    private suspend fun saveLine(ingredientId: String) {
-        val entry = _lineEntries.value[ingredientId] ?: return
-        val qty = entry.quantityText.toBigDecimalOrNull() ?: return
-        
-        _lineEntries.update { it + (ingredientId to it[ingredientId]!!.copy(isSaving = true)) }
+    private suspend fun saveLine(ingredientId: String, revision: Long) {
+        val mutex = saveMutexes.getOrPut(ingredientId) { Mutex() }
+        mutex.withLock {
+            val entry = _lineEntries.value[ingredientId] ?: return
+            if (entry.editRevision != revision || entry.savedRevision >= revision) return
+            
+            val parsed = DecimalParser.parse(entry.quantityText) ?: return
+            if (parsed < BigDecimal.ZERO) return
 
-        try {
-            val lineId = repository.saveLine(
-                SaveStockCountLineCommand(
-                    countId = countId,
-                    countAreaId = countAreaId,
-                    lineId = entry.lineId?.let { StockCountLineId(it) },
-                    ingredientId = IngredientId(ingredientId),
-                    ingredientUnitOptionId = IngredientUnitOptionId(entry.unitId),
-                    quantityEntered = qty,
-                    notes = null
+            _lineEntries.update { it + (ingredientId to it[ingredientId]!!.copy(isSaving = true)) }
+
+            try {
+                val lineId = repository.saveLine(
+                    SaveStockCountLineCommand(
+                        countId = countId,
+                        countAreaId = countAreaId,
+                        lineId = entry.lineId?.let { StockCountLineId(it) },
+                        ingredientId = IngredientId(ingredientId),
+                        ingredientUnitOptionId = IngredientUnitOptionId(entry.unitId),
+                        quantityEntered = parsed,
+                        notes = null
+                    )
                 )
-            )
-            _lineEntries.update { it + (ingredientId to it[ingredientId]!!.copy(
-                isSaving = false,
-                isSaved = true,
-                lineId = lineId.value
-            )) }
-        } catch (e: Exception) {
-            _lineEntries.update { it + (ingredientId to it[ingredientId]!!.copy(
-                isSaving = false,
-                error = e
-            )) }
+                _lineEntries.update { entries ->
+                    val current = entries[ingredientId]
+                    val updated = if (current != null && current.editRevision == revision) {
+                        current.copy(
+                            isSaving = false,
+                            savedRevision = revision,
+                            lineId = lineId.value,
+                            error = null
+                        )
+                    } else if (current != null) {
+                        current.copy(isSaving = false, lineId = lineId.value)
+                    } else null
+                    
+                    if (updated != null) entries + (ingredientId to updated) else entries
+                }
+            } catch (e: Exception) {
+                _lineEntries.update { entries ->
+                    val current = entries[ingredientId]
+                    val updated = if (current != null && current.editRevision == revision) {
+                        current.copy(isSaving = false, error = e)
+                    } else if (current != null) {
+                        current.copy(isSaving = false)
+                    } else null
+                    
+                    if (updated != null) entries + (ingredientId to updated) else entries
+                }
+            }
         }
+    }
+
+    private suspend fun flushPendingSaves(): Boolean {
+        val pending = _lineEntries.value.values.filter { it.isPending }
+        if (pending.isEmpty()) return true
+
+        pending.forEach { saveJobs[it.ingredientId]?.cancel() }
+
+        if (pending.any { 
+            val parsed = DecimalParser.parse(it.quantityText)
+            parsed == null || parsed < BigDecimal.ZERO 
+        }) return false
+
+        val jobs = pending.map { entry ->
+            viewModelScope.launch {
+                saveLine(entry.ingredientId, entry.editRevision)
+            }
+        }
+        jobs.joinAll()
+        
+        return _lineEntries.value.values.none { it.isPending || it.error != null }
     }
 
     fun onCompleteArea() {
         if (_isCompleting.value) return
         
-        if (_lineEntries.value.values.any { it.isSaving }) {
-            _error.value = ValidationError.PendingCountSaves
-            return
-        }
-
         _isCompleting.value = true
+        _error.value = null
         viewModelScope.launch {
             try {
-                repository.completeArea(countId, countAreaId)
+                if (flushPendingSaves()) {
+                    repository.completeArea(countId, countAreaId)
+                    _events.send(StockCountAreaEvent.AreaCompleted)
+                } else {
+                    _isCompleting.value = false
+                    _error.value = ValidationError.PendingCountSaves
+                }
             } catch (e: Exception) {
                 _isCompleting.value = false
                 _error.value = e

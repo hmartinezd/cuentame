@@ -107,6 +107,8 @@
     <string name="error_no_areas">At least one area is required</string>
     <string name="error_draft_corrupted">Setup draft was corrupted and has been reset</string>
     <string name="error_draft_save">Draft save failed</string>
+    <string name="error_overlapping_area">Area %1$s is already included in another draft count</string>
+    <string name="error_no_restaurant">Restaurant not configured</string>
 
     <!-- States -->
     <string name="state_loading_desc">Loading…</string>
@@ -258,6 +260,8 @@
 
     <!-- Stock Counts -->
     <string name="action_start_count">Start New Count</string>
+    <string name="count_default_name">Count %1$s</string>
+    <string name="count_review_title">Adjustment Review</string>
     <string name="status_completed">Completed</string>
     <string name="count_by_area">Count by Area</string>
     <string name="not_started">Not Started</string>
@@ -267,8 +271,11 @@
     <string name="pending_item">Pending</string>
     <string name="counted_item">Counted</string>
     <string name="expected_quantity">Expected Quantity</string>
+    <string name="expected_quantity_format">Expected: %1$s %2$s</string>
     <string name="counted_quantity">Counted Quantity</string>
     <string name="adjustment">Adjustment</string>
+    <string name="adjustment_format">Adjustment: %1$s %2$s</string>
+    <string name="value_change_format">Value change: %1$s %2$s</string>
     <string name="opening_balance">Opening Balance</string>
     <string name="no_prior_inventory">No prior inventory</string>
     <string name="missing_items">Missing Items</string>
@@ -278,6 +285,9 @@
     <string name="void_count">Void Count</string>
     <string name="saving">Saving…</string>
     <string name="saved">Saved</string>
+    <string name="items_counted">%1$d items counted</string>
+    <string name="error_invalid_count_route">Invalid count route</string>
+    <string name="field_time">Time</string>
     <string name="inventory_changed_warning">Inventory changed while count was open</string>
     <string name="archived_nonzero_warning">Archived ingredient with nonzero balance</string>
     <string name="complete_area_desc">Missing ingredients will remain unchanged. Only explicitly counted lines affect inventory.</string>

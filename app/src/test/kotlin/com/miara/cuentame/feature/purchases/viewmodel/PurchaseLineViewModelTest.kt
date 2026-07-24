@@ -75,11 +75,13 @@ class PurchaseLineViewModelTest {
 
     private val fakeIngredientRepository = object : com.miara.cuentame.core.domain.repository.IngredientRepository {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = flowOf(listOf(fakeIngredient))
+        override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = listOf(fakeIngredient)
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = flowOf(fakeIngredient)
         override suspend fun getById(id: IngredientId): Ingredient? = fakeIngredient
         override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = flowOf(listOf(fakeOption))
+        override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): List<IngredientUnitOption> = listOf(fakeOption)
         override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) {}
         override suspend fun addPackageUnitOption(command: com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand) {}
         override suspend fun updatePackageUnitOption(command: com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand) {}

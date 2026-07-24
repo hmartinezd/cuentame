@@ -36,6 +36,32 @@ interface InventoryMovementDao {
     @Query("SELECT * FROM inventory_movements WHERE sourceDocumentType = :type AND sourceDocumentId = :docId")
     suspend fun getBySourceDocument(type: String, docId: String): List<InventoryMovementEntity>
 
+    @Query("""
+        SELECT * FROM inventory_movements 
+        WHERE restaurantId = :restaurantId 
+        AND ingredientId = :ingredientId 
+        AND effectiveAt <= :effectiveAt
+        ORDER BY effectiveAt ASC, createdAt ASC, id ASC
+    """)
+    suspend fun getByRestaurantAndIngredientUpTo(
+        restaurantId: String,
+        ingredientId: String,
+        effectiveAt: Long
+    ): List<InventoryMovementEntity>
+
+    @Query("""
+        SELECT * FROM inventory_movements 
+        WHERE restaurantId = :restaurantId 
+        AND areaId = :areaId 
+        AND effectiveAt <= :effectiveAt
+        ORDER BY effectiveAt ASC, createdAt ASC, id ASC
+    """)
+    suspend fun getByRestaurantAndAreaUpTo(
+        restaurantId: String,
+        areaId: String,
+        effectiveAt: Long
+    ): List<InventoryMovementEntity>
+
     @Query("SELECT EXISTS(SELECT 1 FROM inventory_movements WHERE sourceDocumentType = :type AND sourceDocumentId = :docId AND sourceOperationId = :opId LIMIT 1)")
     suspend fun existsBySourceOperation(type: String, docId: String, opId: String): Boolean
 }

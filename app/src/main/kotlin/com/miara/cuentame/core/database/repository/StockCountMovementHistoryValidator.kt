@@ -1,12 +1,20 @@
 package com.miara.cuentame.core.database.repository
 
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import com.miara.cuentame.core.database.entity.StockCountAreaEntity
 import com.miara.cuentame.core.database.entity.StockCountEntity
 import com.miara.cuentame.core.database.entity.StockCountLineEntity
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
+
+data class StockCountValidationGraph(
+    val count: StockCountEntity,
+    val areas: List<StockCountAreaEntity>,
+    val lines: List<StockCountLineEntity>,
+    val movements: List<InventoryMovementEntity>
+)
 
 class StockCountMovementHistoryValidator {
 
@@ -22,11 +30,11 @@ class StockCountMovementHistoryValidator {
         }
     }
 
-    fun validateCompletedHistory(
-        count: StockCountEntity,
-        lines: List<StockCountLineEntity>,
-        movements: List<InventoryMovementEntity>
-    ) {
+    fun validateCompletedHistory(graph: StockCountValidationGraph) {
+        val count = graph.count
+        val lines = graph.lines
+        val movements = graph.movements
+
         if (count.completedAt == null || count.voidedAt != null) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
@@ -43,7 +51,9 @@ class StockCountMovementHistoryValidator {
             if (lineMovements.size != 1) throw ValidationError.MalformedStockCountMovementHistory
             
             val movement = lineMovements.first()
-            validateMovementMatchesLine(count, line, movement)
+            val area = graph.areas.find { it.id == line.stockCountAreaId } ?: throw ValidationError.StockCountAreaOwnershipMismatch
+            
+            validateMovementMatchesLine(count, area, line, movement)
         }
 
         if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
@@ -51,36 +61,38 @@ class StockCountMovementHistoryValidator {
         }
     }
 
-    fun validateVoidedHistory(
-        count: StockCountEntity,
-        lines: List<StockCountLineEntity>,
-        movements: List<InventoryMovementEntity>
-    ) {
+    fun validateVoidedHistory(graph: StockCountValidationGraph) {
+        val count = graph.count
+        val lines = graph.lines
+        val movements = graph.movements
+
         if (count.completedAt == null || count.voidedAt == null) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
-        val purchases = movements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
+        val originals = movements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
         val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
 
-        if (purchases.size != lines.size) throw ValidationError.MalformedStockCountMovementHistory
-        if (reversals.size != purchases.size) throw ValidationError.MalformedStockCountMovementHistory
-        if (movements.size != (purchases.size + reversals.size)) throw ValidationError.MalformedStockCountMovementHistory
+        if (originals.size != lines.size) throw ValidationError.MalformedStockCountMovementHistory
+        if (reversals.size != originals.size) throw ValidationError.MalformedStockCountMovementHistory
+        if (movements.size != (originals.size + reversals.size)) throw ValidationError.MalformedStockCountMovementHistory
 
-        val purchasesByLineId = purchases.associateBy { it.sourceLineId }
+        val originalsByLineId = originals.associateBy { it.sourceLineId }
         val reversalsByOriginalId = reversals.associateBy { it.reversalOfMovementId }
 
         lines.forEach { line ->
-            val purchase = purchasesByLineId[line.id] ?: throw ValidationError.MalformedStockCountMovementHistory
-            validateMovementMatchesLine(count, line, purchase)
+            val original = originalsByLineId[line.id] ?: throw ValidationError.MalformedStockCountMovementHistory
+            val area = graph.areas.find { it.id == line.stockCountAreaId } ?: throw ValidationError.StockCountAreaOwnershipMismatch
+            validateMovementMatchesLine(count, area, line, original)
             
-            val reversal = reversalsByOriginalId[purchase.id] ?: throw ValidationError.MalformedStockCountMovementHistory
-            validateReversalMatchesOriginal(count, purchase, reversal)
+            val reversal = reversalsByOriginalId[original.id] ?: throw ValidationError.MalformedStockCountMovementHistory
+            validateReversalMatchesOriginal(count, original, reversal)
         }
     }
 
     private fun validateMovementMatchesLine(
         count: StockCountEntity,
+        area: StockCountAreaEntity,
         line: StockCountLineEntity,
         movement: InventoryMovementEntity
     ) {
@@ -93,17 +105,32 @@ class StockCountMovementHistoryValidator {
         if (movement.movementType != expectedType) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.restaurantId != count.restaurantId) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.ingredientId != line.ingredientId) throw ValidationError.MalformedStockCountMovementHistory
+        if (movement.areaId != area.areaId) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceDocumentType != SourceDocumentType.STOCK_COUNT.name) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceDocumentId != count.id) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.sourceOperationId != "stock-count-complete:${count.id}:${line.id}") throw ValidationError.MalformedStockCountMovementHistory
         if (movement.reversalOfMovementId != null) throw ValidationError.MalformedStockCountMovementHistory
         
-        val adjustment = line.adjustmentQuantityBase ?: "0"
-        if (BigDecimal(movement.quantityBaseSigned).compareTo(BigDecimal(adjustment)) != 0) {
+        val adjustmentStr = line.adjustmentQuantityBase ?: throw ValidationError.MalformedStockCountMovementHistory
+        val adjustment = BigDecimal(adjustmentStr)
+        if (BigDecimal(movement.quantityBaseSigned).compareTo(adjustment) != 0) {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
         if (movement.effectiveAt != count.effectiveAt) throw ValidationError.MalformedStockCountMovementHistory
+        if (movement.createdAt != count.completedAt) throw ValidationError.MalformedStockCountMovementHistory
+        
+        // Opening balance checks
+        if (expectedType == InventoryMovementType.OPENING_BALANCE.name) {
+             if (line.expectedQuantityBaseSnapshot != null) throw ValidationError.MalformedStockCountMovementHistory
+             if (adjustment.compareTo(BigDecimal(line.quantityBase)) != 0) throw ValidationError.MalformedStockCountMovementHistory
+        } else {
+             // Adjustment checks
+             val expected = BigDecimal(line.expectedQuantityBaseSnapshot!!)
+             if (adjustment.compareTo(BigDecimal(line.quantityBase).subtract(expected)) != 0) {
+                 throw ValidationError.MalformedStockCountMovementHistory
+             }
+        }
     }
 
     private fun validateReversalMatchesOriginal(
@@ -124,6 +151,22 @@ class StockCountMovementHistoryValidator {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
+        val originalCost = original.unitCostBaseSnapshot?.let { BigDecimal(it) }
+        val reversalCost = reversal.unitCostBaseSnapshot?.let { BigDecimal(it) }
+        if (originalCost != null && reversalCost != null) {
+            if (originalCost.compareTo(reversalCost) != 0) throw ValidationError.MalformedStockCountMovementHistory
+        } else if (originalCost != reversalCost) {
+            throw ValidationError.MalformedStockCountMovementHistory
+        }
+
+        val originalTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
+        val reversalTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
+        if (originalTotal != null && reversalTotal != null) {
+            if (reversalTotal.compareTo(originalTotal.negate()) != 0) throw ValidationError.MalformedStockCountMovementHistory
+        } else if (originalTotal != reversalTotal) {
+            throw ValidationError.MalformedStockCountMovementHistory
+        }
+
         if (reversal.effectiveAt != count.voidedAt) throw ValidationError.MalformedStockCountMovementHistory
         if (reversal.createdAt != count.voidedAt) throw ValidationError.MalformedStockCountMovementHistory
     }

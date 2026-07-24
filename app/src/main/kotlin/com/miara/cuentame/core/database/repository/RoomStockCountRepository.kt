@@ -105,7 +105,7 @@ class RoomStockCountRepository @Inject constructor(
                     combine(areaInfoFlow, linesFlow) { areaInfo, lineEntities ->
                         StockCountAreaDetails(
                             area = areaEntity.toDomain(),
-                            areaName = areaInfo?.name ?: "Unknown Area",
+                            areaName = areaInfo?.name ?: "Unknown archived area",
                             restaurantId = RestaurantId(countEntity.restaurantId),
                             effectiveAt = Instant.ofEpochMilli(countEntity.effectiveAt),
                             lines = lineEntities.map { it.toDomain() }
@@ -138,7 +138,7 @@ class RoomStockCountRepository @Inject constructor(
                 combine(areaInfoFlow, linesFlow) { areaInfo, lineEntities ->
                     StockCountAreaDetails(
                         area = areaEntity.toDomain(),
-                        areaName = areaInfo?.name ?: "Unknown Area",
+                        areaName = areaInfo?.name ?: "Unknown archived area",
                         restaurantId = RestaurantId(countEntity.restaurantId),
                         effectiveAt = Instant.ofEpochMilli(countEntity.effectiveAt),
                         lines = lineEntities.map { it.toDomain() }
@@ -146,6 +146,22 @@ class RoomStockCountRepository @Inject constructor(
                 }
             }
         }
+    }
+
+    override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId): Set<IngredientId> {
+        val areas = countDao.getAreasForCount(countId.value)
+        val countArea = areas.find { it.areaId == areaId.value } ?: return emptySet()
+        return countDao.getLinesForArea(countArea.id).map { IngredientId(it.ingredientId) }.toSet()
+    }
+
+    override suspend fun getDraftAreaIds(restaurantId: RestaurantId): Set<InventoryAreaId> {
+        val draftCounts = countDao.getCountsByStatus(restaurantId.value, StockCountStatus.DRAFT.name)
+        val areaIds = mutableSetOf<InventoryAreaId>()
+        draftCounts.forEach { count ->
+            val areas = countDao.getAreasForCount(count.id)
+            areaIds.addAll(areas.map { InventoryAreaId(it.areaId) })
+        }
+        return areaIds
     }
 
     override suspend fun start(command: StartStockCountCommand): StockCountId {
@@ -224,7 +240,8 @@ class RoomStockCountRepository @Inject constructor(
                 notes = command.notes?.trim()?.ifBlank { null },
                 updatedAt = timeProvider.now().toEpochMilli()
             )
-            countDao.updateCount(updated)
+            val affected = countDao.updateCount(updated)
+            if (affected != 1) throw ValidationError.RecordNotFound
         }
     }
 
@@ -255,6 +272,12 @@ class RoomStockCountRepository @Inject constructor(
                 if (!ingredient.isActive || ingredient.deletedAt != null) throw ValidationError.ArchivedReference
                 if (!option.isActive || option.deletedAt != null) throw ValidationError.ArchivedReference
 
+                // Check for existing ingredient in area
+                val existingLines = countDao.getLinesForArea(command.countAreaId.value)
+                if (existingLines.any { it.ingredientId == command.ingredientId.value }) {
+                    throw ValidationError.DuplicateIngredientInCountArea
+                }
+
                 val newLineId = StockCountLineId(idGenerator.newId())
                 val line = StockCountLine(
                     id = newLineId,
@@ -281,6 +304,11 @@ class RoomStockCountRepository @Inject constructor(
                 val existingLine = countDao.getLineById(command.lineId.value) ?: throw ValidationError.StockCountLineNotFound
                 if (existingLine.stockCountAreaId != command.countAreaId.value) throw ValidationError.StockCountLineOwnershipMismatch
 
+                if (existingLine.ingredientId != command.ingredientId.value || existingLine.ingredientUnitOptionId != command.ingredientUnitOptionId.value) {
+                     if (!ingredient.isActive || ingredient.deletedAt != null) throw ValidationError.ArchivedReference
+                     if (!option.isActive || option.deletedAt != null) throw ValidationError.ArchivedReference
+                }
+
                 val updatedLine = existingLine.copy(
                     ingredientId = command.ingredientId.value,
                     ingredientUnitOptionId = command.ingredientUnitOptionId.value,
@@ -291,7 +319,8 @@ class RoomStockCountRepository @Inject constructor(
                     notes = command.notes?.trim()?.ifBlank { null },
                     updatedAt = now.toEpochMilli()
                 )
-                countDao.updateCountLine(updatedLine)
+                val affected = countDao.updateCountLine(updatedLine)
+                if (affected != 1) throw ValidationError.StockCountLineNotFound
                 command.lineId
             }
         }
@@ -311,7 +340,8 @@ class RoomStockCountRepository @Inject constructor(
             val line = countDao.getLineById(lineId.value) ?: throw ValidationError.StockCountLineNotFound
             if (line.stockCountAreaId != countAreaId.value) throw ValidationError.StockCountLineOwnershipMismatch
 
-            countDao.deleteLine(lineId.value)
+            val affected = countDao.deleteLine(lineId.value)
+            if (affected != 1) throw ValidationError.StockCountLineNotFound
         }
     }
 
@@ -327,10 +357,11 @@ class RoomStockCountRepository @Inject constructor(
             
             if (area.status == CountAreaStatus.COMPLETED.name) return@withTransaction
 
-            countDao.updateCountArea(area.copy(
+            val affected = countDao.updateCountArea(area.copy(
                 status = CountAreaStatus.COMPLETED.name,
                 completedAt = timeProvider.now().toEpochMilli()
             ))
+            if (affected != 1) throw ValidationError.StockCountAreaNotFound
         }
     }
 
@@ -346,10 +377,11 @@ class RoomStockCountRepository @Inject constructor(
             
             if (area.status != CountAreaStatus.COMPLETED.name) return@withTransaction
 
-            countDao.updateCountArea(area.copy(
+            val affected = countDao.updateCountArea(area.copy(
                 status = CountAreaStatus.IN_PROGRESS.name,
                 completedAt = null
             ))
+            if (affected != 1) throw ValidationError.StockCountAreaNotFound
         }
     }
 
@@ -360,7 +392,15 @@ class RoomStockCountRepository @Inject constructor(
             if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
             if (count.status != StockCountStatus.DRAFT.name) throw ValidationError.StockCountNotDraft
 
-            countDao.deleteDraftWithGraph(countId.value)
+            val movements = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
+            if (movements.isNotEmpty()) throw ValidationError.MalformedStockCountMovementHistory
+
+            val affected = countDao.deleteDraftCount(countId.value)
+            if (affected != 1) throw ValidationError.StockCountNotFound
+            
+            val areas = countDao.getAreasForCount(countId.value)
+            areas.forEach { countDao.deleteLinesForArea(it.id) }
+            countDao.deleteAreasForCount(countId.value)
         }
     }
 
@@ -370,30 +410,48 @@ class RoomStockCountRepository @Inject constructor(
             val count = countDao.getCountById(countId.value) ?: throw ValidationError.StockCountNotFound
             if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
             
+            val areas = countDao.getAreasForCount(countId.value)
+            val lines = countDao.getAllLinesForCount(countId.value)
+            val movements = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
+            val graph = StockCountValidationGraph(count, areas, lines, movements)
+
             if (count.status == StockCountStatus.COMPLETED.name) {
-                val lines = countDao.getAllLinesForCount(countId.value)
-                val movements = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
-                historyValidator.validateCompletedHistory(count, lines, movements)
+                historyValidator.validateCompletedHistory(graph)
                 return@withTransaction
             }
 
             if (count.status != StockCountStatus.DRAFT.name) throw ValidationError.StockCountAlreadyVoided
 
-            val areas = countDao.getAreasForCount(countId.value)
             if (areas.isEmpty()) throw ValidationError.StockCountHasNoAreas
             if (areas.any { it.status != CountAreaStatus.COMPLETED.name }) throw ValidationError.StockCountAreasIncomplete
-
-            val lines = countDao.getAllLinesForCount(countId.value)
             if (lines.isEmpty()) throw ValidationError.StockCountHasNoLines
 
-            val movements = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
             historyValidator.validateDraftHistory(count, movements)
 
             val now = timeProvider.now()
             val effectiveAt = Instant.ofEpochMilli(count.effectiveAt)
             
+            val seenIngredientsInArea = mutableSetOf<Pair<String, String>>()
+
             val movementsToInsert = lines.map { lineEntity ->
-                val areaEntity = areas.find { it.id == lineEntity.stockCountAreaId }!!
+                val areaEntity = areas.find { it.id == lineEntity.stockCountAreaId } ?: throw ValidationError.StockCountAreaOwnershipMismatch
+                
+                if (!seenIngredientsInArea.add(lineEntity.ingredientId to areaEntity.id)) {
+                    throw ValidationError.DuplicateIngredientInCountArea
+                }
+
+                val ingredient = ingredientDao.getById(lineEntity.ingredientId) ?: throw ValidationError.InvalidCountIngredient
+                if (ingredient.restaurantId != activeRestaurant.id) throw ValidationError.IngredientOwnershipMismatch
+
+                val option = unitOptionDao.getById(lineEntity.ingredientUnitOptionId) ?: throw ValidationError.InvalidCountUnitOption
+                if (option.ingredientId != ingredient.id) throw ValidationError.InvalidCountUnitOption
+                if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
+
+                val qtyEntered = BigDecimal(lineEntity.quantityEntered)
+                if (qtyEntered < BigDecimal.ZERO) throw ValidationError.InvalidCountQuantity
+                
+                val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
+
                 val snapshot = snapshotService.calculateAt(
                     restaurantId = RestaurantId(activeRestaurant.id),
                     ingredientId = IngredientId(lineEntity.ingredientId),
@@ -401,15 +459,17 @@ class RoomStockCountRepository @Inject constructor(
                     effectiveAt = effectiveAt
                 )
 
-                val countedQtyBase = BigDecimal(lineEntity.quantityBase)
                 val expectedQtyBase = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
-                val adjustmentQtyBase = if (expectedQtyBase == null) countedQtyBase else countedQtyBase.subtract(expectedQtyBase)
+                val adjustmentQtyBase = if (expectedQtyBase == null) canonicalQtyBase else canonicalQtyBase.subtract(expectedQtyBase)
 
-                countDao.updateCountLine(lineEntity.copy(
+                val updatedLine = lineEntity.copy(
+                    quantityBase = canonicalQtyBase.toPlainString(),
                     expectedQuantityBaseSnapshot = expectedQtyBase?.toPlainString(),
                     adjustmentQuantityBase = adjustmentQtyBase.toPlainString(),
                     updatedAt = now.toEpochMilli()
-                ))
+                )
+                val affected = countDao.updateCountLine(updatedLine)
+                if (affected != 1) throw ValidationError.StockCountLineNotFound
 
                 val movementType = if (expectedQtyBase == null) InventoryMovementType.OPENING_BALANCE else InventoryMovementType.COUNT_ADJUSTMENT
                 
@@ -443,11 +503,12 @@ class RoomStockCountRepository @Inject constructor(
                 projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
             }
 
-            countDao.updateCount(count.copy(
+            val affected = countDao.updateCount(count.copy(
                 status = StockCountStatus.COMPLETED.name,
                 completedAt = now.toEpochMilli(),
                 updatedAt = now.toEpochMilli()
             ))
+            if (affected != 1) throw ValidationError.StockCountNotFound
         }
     }
 
@@ -457,17 +518,19 @@ class RoomStockCountRepository @Inject constructor(
             val count = countDao.getCountById(countId.value) ?: throw ValidationError.StockCountNotFound
             if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
 
+            val areas = countDao.getAreasForCount(countId.value)
             val lines = countDao.getAllLinesForCount(countId.value)
             val allMovements = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
+            val graph = StockCountValidationGraph(count, areas, lines, allMovements)
 
             if (count.status == StockCountStatus.VOIDED.name) {
-                historyValidator.validateVoidedHistory(count, lines, allMovements)
+                historyValidator.validateVoidedHistory(graph)
                 return@withTransaction
             }
 
             if (count.status != StockCountStatus.COMPLETED.name) throw ValidationError.StockCountNotDraft
 
-            historyValidator.validateCompletedHistory(count, lines, allMovements)
+            historyValidator.validateCompletedHistory(graph)
 
             val now = timeProvider.now()
             val originalMovements = allMovements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
@@ -502,11 +565,12 @@ class RoomStockCountRepository @Inject constructor(
                 projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
             }
 
-            countDao.updateCount(count.copy(
+            val affected = countDao.updateCount(count.copy(
                 status = StockCountStatus.VOIDED.name,
                 voidedAt = now.toEpochMilli(),
                 updatedAt = now.toEpochMilli()
             ))
+            if (affected != 1) throw ValidationError.StockCountNotFound
         }
     }
 }

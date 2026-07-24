@@ -190,7 +190,8 @@ fun PurchaseLineScreen(
                     var areaExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = areaExpanded,
-                        onExpandedChange = { if (!uiState.isSaving) areaExpanded = !areaExpanded }
+                        onExpandedChange = { if (!uiState.isSaving) areaExpanded = !areaExpanded },
+                        modifier = Modifier.testTag("area_selector")
                     ) {
                         val selectedArea = uiState.areas.find { it.id == uiState.selectedAreaId }
                         OutlinedTextField(

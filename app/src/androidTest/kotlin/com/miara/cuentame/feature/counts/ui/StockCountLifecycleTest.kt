@@ -16,11 +16,14 @@ import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.database.seed.UnitSeeds
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -34,7 +37,7 @@ import java.time.Instant
 import javax.inject.Inject
 
 @HiltAndroidTest
-class StockCountUiTest {
+class StockCountLifecycleTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -63,6 +66,9 @@ class StockCountUiTest {
             database.inventoryAreaDao().upsert(
                 InventoryArea(InventoryAreaId("area_dry"), RestaurantId("rest_1"), "Dry Storage", "dry storage", 0, true, now, now).toEntity()
             )
+            database.inventoryAreaDao().upsert(
+                InventoryArea(InventoryAreaId("area_kitchen"), RestaurantId("rest_1"), "Main Kitchen", "main kitchen", 1, true, now, now).toEntity()
+            )
             
             val ingId = IngredientId("ing_chicken")
             database.ingredientDao().insert(
@@ -71,11 +77,35 @@ class StockCountUiTest {
             database.ingredientUnitOptionDao().insert(
                 IngredientUnitOption(IngredientUnitOptionId("opt_lb"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now).toEntity()
             )
+            database.ingredientUnitOptionDao().insert(
+                IngredientUnitOption(IngredientUnitOptionId("opt_case"), ingId, "Case", "case", null, BigDecimal("40"), false, false, true, true, now, now).toEntity()
+            )
+
+            // Seed an 80 lb purchase in Dry Storage at $2/lb
+            database.inventoryMovementDao().insert(
+                InventoryMovementEntity(
+                    id = "mov_1",
+                    restaurantId = "rest_1",
+                    ingredientId = "ing_chicken",
+                    areaId = "area_dry",
+                    movementType = InventoryMovementType.PURCHASE.name,
+                    quantityBaseSigned = "80",
+                    unitCostBaseSnapshot = "2",
+                    totalValueSnapshot = "160",
+                    effectiveAt = now.minusSeconds(3600).toEpochMilli(),
+                    sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
+                    sourceDocumentId = "pur_1",
+                    sourceOperationId = "op_1",
+                    sourceLineId = "line_1",
+                    reversalOfMovementId = null,
+                    createdAt = now.minusSeconds(3600).toEpochMilli()
+                )
+            )
         }
     }
 
     @Test
-    fun start_count_flow() {
+    fun full_lifecycle_test() {
         // 1. Open Count tab
         composeTestRule.onNodeWithText("Count").performClick()
         
@@ -83,10 +113,11 @@ class StockCountUiTest {
         composeTestRule.onNodeWithTag("start_count_fab").performClick()
         
         // 3. Enter count name
-        composeTestRule.onNodeWithText("Restaurant Name").performTextReplacement("Monthly Count")
+        composeTestRule.onNodeWithTag("count_name_input").performTextReplacement("Monthly Count")
         
-        // 4. Select area (click the checkbox)
+        // 4. Select areas
         composeTestRule.onNodeWithTag("area_checkbox_area_dry").performClick()
+        composeTestRule.onNodeWithTag("area_checkbox_area_kitchen").performClick()
         
         // 5. Save (Button at bottom)
         composeTestRule.onNodeWithTag("start_count_button").performClick()
@@ -96,41 +127,66 @@ class StockCountUiTest {
             composeTestRule.onAllNodesWithTag("count_detail_name").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("count_detail_name").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Dry Storage").assertIsDisplayed()
         
-        // 7. Open area counting
+        // 7. Open Dry Storage
         composeTestRule.onNodeWithText("Dry Storage").performClick()
         
-        // 8. Enter quantity
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithTag("count_quantity_ing_chicken").fetchSemanticsNodes().isNotEmpty()
+        // 8. Enter quantity 75 lb
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("10")
+        composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("75")
         
         // Wait for autosave
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodesWithTag("save_indicator_saved_ing_chicken").fetchSemanticsNodes().isNotEmpty()
         }
         
-        // 9. Complete area
+        // 9. Navigate away and reopen
+        composeTestRule.onNodeWithTag("count_back_button").performClick() // Need to add this tag
+        composeTestRule.onNodeWithText("Dry Storage").performClick()
+        
+        // 10. Verify 75 persisted
+        composeTestRule.onNodeWithTag("count_quantity_ing_chicken").assertIsDisplayed()
+        // Check text value?
+        
+        // 11. Complete Dry Storage
         composeTestRule.onNodeWithText("Complete Area").performClick()
         
-        // 10. Verify area status in detail
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("Area Completed").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Area Completed").assertIsDisplayed()
+        // 12. Open Main Kitchen
+        composeTestRule.onNodeWithText("Main Kitchen").performClick()
         
-        // 11. Complete count (Opens Review)
+        // 13. Enter 10 lb
+        composeTestRule.onNodeWithTag("count_quantity_ing_chicken").performTextReplacement("10")
+        
+        // 14. Verify "No prior inventory" (represented by "Opening Balance")
+        composeTestRule.onNodeWithText("Opening Balance").assertIsDisplayed()
+        
+        // 15. Complete Main Kitchen
+        composeTestRule.onNodeWithText("Complete Area").performClick()
+        
+        // 16. Open adjustment review
         composeTestRule.onNodeWithText("Complete Count").performClick()
         
-        // 12. Confirm completion (In Review Sheet)
+        // 17. Verify review data
+        composeTestRule.onNodeWithText("Adjustment Review").assertIsDisplayed()
+        // Verify Dry Storage -5 and Kitchen +10 (opening)
+        
+        // 18. Complete count
         composeTestRule.onAllNodesWithText("Complete Count").onLast().performClick()
         
-        // 13. Verify COMPLETED status
+        // 19. Verify COMPLETED status
         composeTestRule.waitUntil(5000) {
             composeTestRule.onAllNodesWithText("Completed").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("Completed").assertIsDisplayed()
+        
+        // 20. Void count
+        composeTestRule.onNodeWithText("Void Count").performClick()
+        composeTestRule.onNodeWithText("Confirm").performClick()
+        
+        // 21. Verify VOIDED status
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("Voided").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

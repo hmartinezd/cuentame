@@ -61,6 +61,7 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.StockCountAreasIncomplete -> R.string.error_malformed_history
             ValidationError.MalformedStockCountMovementHistory -> R.string.error_malformed_history
             ValidationError.PendingCountSaves -> R.string.error_generic
+            ValidationError.StockCountAreaAlreadyInDraft -> R.string.error_generic // Should use error_overlapping_area with args but toUserMessageRes is simple
 
             else -> R.string.error_generic
         }

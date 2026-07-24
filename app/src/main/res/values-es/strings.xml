@@ -107,6 +107,8 @@
     <string name="error_no_areas">Se requiere al menos un área</string>
     <string name="error_draft_corrupted">El borrador de configuración estaba corrupto y ha sido reiniciado</string>
     <string name="error_draft_save">Error al guardar el borrador</string>
+    <string name="error_overlapping_area">El área %1$s ya está incluida en otro conteo en borrador</string>
+    <string name="error_no_restaurant">Restaurante no configurado</string>
 
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
@@ -258,6 +260,8 @@
 
     <!-- Stock Counts -->
     <string name="action_start_count">Iniciar nuevo conteo</string>
+    <string name="count_default_name">Conteo %1$s</string>
+    <string name="count_review_title">Revisión de Ajustes</string>
     <string name="status_completed">Completado</string>
     <string name="count_by_area">Conteo por área</string>
     <string name="not_started">No iniciado</string>
@@ -267,8 +271,11 @@
     <string name="pending_item">Pendiente</string>
     <string name="counted_item">Contado</string>
     <string name="expected_quantity">Cantidad esperada</string>
+    <string name="expected_quantity_format">Esperado: %1$s %2$s</string>
     <string name="counted_quantity">Cantidad contada</string>
     <string name="adjustment">Ajuste</string>
+    <string name="adjustment_format">Ajuste: %1$s %2$s</string>
+    <string name="value_change_format">Cambio de valor: %1$s %2$s</string>
     <string name="opening_balance">Saldo inicial</string>
     <string name="no_prior_inventory">Sin inventario previo</string>
     <string name="missing_items">Artículos faltantes</string>
@@ -278,6 +285,9 @@
     <string name="void_count">Anular conteo</string>
     <string name="saving">Guardando…</string>
     <string name="saved">Guardado</string>
+    <string name="items_counted">%1$d artículos contados</string>
+    <string name="error_invalid_count_route">Ruta de conteo no válida</string>
+    <string name="field_time">Hora</string>
     <string name="inventory_changed_warning">El inventario cambió mientras el conteo estaba abierto</string>
     <string name="archived_nonzero_warning">Ingrediente archivado con saldo distinto de cero</string>
     <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explícitamente afectan el inventario.</string>

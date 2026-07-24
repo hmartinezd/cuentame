@@ -13,6 +13,7 @@ import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.service.InventorySnapshotService
+import com.miara.cuentame.core.database.repository.InventoryMovementValidator
 import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
 import com.miara.cuentame.core.database.repository.PurchaseReferenceValidator
 import com.miara.cuentame.core.database.repository.StockCountMovementHistoryValidator
@@ -84,10 +85,8 @@ object CommonModule {
     fun provideStockCountMovementHistoryValidator(): StockCountMovementHistoryValidator = StockCountMovementHistoryValidator()
 
     @Provides
-    fun provideInventorySnapshotService(
-        movementDao: com.miara.cuentame.core.database.dao.InventoryMovementDao,
-        costCalculator: WeightedAverageCostCalculator
-    ): InventorySnapshotService = RoomInventorySnapshotService(movementDao, costCalculator)
+    @Singleton
+    fun provideInventoryMovementValidator(): InventoryMovementValidator = InventoryMovementValidator()
 
     @Provides
     fun providePurchaseReferenceValidator(

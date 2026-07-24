@@ -59,6 +59,9 @@ interface StockCountDao {
     @Query("SELECT * FROM stock_counts WHERE id = :id")
     suspend fun getCountById(id: String): StockCountEntity?
 
+    @Query("SELECT * FROM stock_counts WHERE restaurantId = :restaurantId AND status = :status")
+    suspend fun getCountsByStatus(restaurantId: String, status: String): List<StockCountEntity>
+
     @Query("SELECT * FROM stock_counts WHERE id = :id")
     fun observeCountById(id: String): Flow<StockCountEntity?>
 

@@ -85,17 +85,16 @@ class PurchaseUiTest {
 
         // 5. Fill Line Form
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.ingredient_name)).performClick()
-        composeTestRule.waitForIdle()
-        // Wait and find the menu item specifically
-        composeTestRule.onAllNodesWithText("Chicken Breast").onLast().performClick()
+        composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
         
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.receiving_area)).performClick()
-        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().size > 1
+        }
         composeTestRule.onAllNodesWithText("Main Kitchen").onLast().performClick()
         
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.purchase_unit)).performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onAllNodesWithText("Case").onLast().performClick()
+        composeTestRule.onNodeWithTag("unit_item_Case").performClick()
 
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.quantity)).performTextInput("2")
         composeTestRule.onNodeWithText(composeTestRule.activity.getString(R.string.line_total)).performTextInput("160")

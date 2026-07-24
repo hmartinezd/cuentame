@@ -16,15 +16,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -48,9 +55,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.ids.StockCountLineId
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.inventory.CountAreaStatus
+import com.miara.cuentame.core.model.inventory.StockCountStatus
+import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaEvent
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountLineEntry
@@ -66,6 +76,14 @@ fun StockCountAreaRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is StockCountAreaEvent.AreaCompleted -> onBack()
+            }
+        }
+    }
+
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
@@ -80,6 +98,8 @@ fun StockCountAreaRoute(
         onSearchQueryChanged = viewModel::onSearchQueryChanged,
         onAddIngredient = viewModel::onAddIngredient,
         onQuantityChanged = viewModel::onQuantityChanged,
+        onUnitChanged = viewModel::onUnitChanged,
+        onDeleteLine = viewModel::onDeleteLine,
         onCompleteArea = viewModel::onCompleteArea,
         onReopenArea = viewModel::onReopenArea
     )
@@ -94,10 +114,15 @@ fun StockCountAreaScreen(
     onSearchQueryChanged: (String) -> Unit,
     onAddIngredient: (Ingredient) -> Unit,
     onQuantityChanged: (String, String) -> Unit,
+    onUnitChanged: (String, String) -> Unit,
+    onDeleteLine: (String) -> Unit,
     onCompleteArea: () -> Unit,
     onReopenArea: () -> Unit
 ) {
     var showMissingConfirm by remember { mutableStateOf(false) }
+    var lineToDelete by remember { mutableStateOf<StockCountLineEntry?>(null) }
+
+    val isReadOnly = uiState.details?.area?.status == CountAreaStatus.COMPLETED
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -105,7 +130,7 @@ fun StockCountAreaScreen(
             TopAppBar(
                 title = { Text(uiState.details?.areaName ?: stringResource(R.string.count_by_area)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("count_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
@@ -121,26 +146,26 @@ fun StockCountAreaScreen(
                 Text(stringResource(R.string.error_purchase_not_found))
             }
         } else {
-            val details = uiState.details
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp)
             ) {
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = onSearchQueryChanged,
-                    modifier = Modifier.fillMaxWidth().testTag("ingredient_search"),
-                    label = { Text(stringResource(R.string.action_search)) },
-                    placeholder = { Text(stringResource(R.string.search_ingredients)) },
-                    enabled = details.area.status != CountAreaStatus.COMPLETED
-                )
+                if (!isReadOnly) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = onSearchQueryChanged,
+                        modifier = Modifier.fillMaxWidth().testTag("ingredient_search"),
+                        label = { Text(stringResource(R.string.action_search)) },
+                        placeholder = { Text(stringResource(R.string.search_ingredients)) }
+                    )
+                }
 
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (uiState.searchQuery.length >= 2 && uiState.searchResults.isNotEmpty()) {
                         item {
-                            Text(text = "Search Results", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                            Text(text = stringResource(R.string.search_ingredients), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
                         }
                         items(uiState.searchResults) { ingredient ->
                             ListItem(
@@ -160,17 +185,39 @@ fun StockCountAreaScreen(
                         Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
                     }
 
+                    if (uiState.archivedWarnings.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.archived_nonzero_warning),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                        }
+                        items(uiState.archivedWarnings) { warning ->
+                            ListItem(
+                                headlineContent = { Text(warning.name, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                                supportingContent = {
+                                    Text(text = stringResource(R.string.expected_quantity_format, warning.expectedBalanceBase.toPlainString(), "")) // Unit unknown here
+                                }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
                     items(uiState.lineEntries, key = { it.ingredientId }) { entry ->
                         StockCountLineItem(
                             entry = entry,
                             onQuantityChanged = { qty -> onQuantityChanged(entry.ingredientId, qty) },
-                            enabled = details.area.status != CountAreaStatus.COMPLETED
+                            onUnitChanged = { uid -> onUnitChanged(entry.ingredientId, uid) },
+                            onDelete = { lineToDelete = entry },
+                            enabled = !isReadOnly
                         )
                         HorizontalDivider()
                     }
                 }
 
-                if (details.area.status == CountAreaStatus.COMPLETED) {
+                if (isReadOnly) {
                     Button(
                         onClick = onReopenArea,
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -206,18 +253,31 @@ fun StockCountAreaScreen(
             message = stringResource(R.string.complete_area_desc),
             isSaving = uiState.isCompleting,
             onDismiss = { if (!uiState.isCompleting) showMissingConfirm = false },
+            onConfirm = onCompleteArea
+        )
+    }
+
+    if (lineToDelete != null) {
+        ArchiveConfirmDialog(
+            title = stringResource(R.string.action_remove),
+            message = stringResource(R.string.action_remove_item, lineToDelete!!.ingredientName),
+            isSaving = false,
+            onDismiss = { lineToDelete = null },
             onConfirm = {
-                showMissingConfirm = false
-                onCompleteArea()
+                onDeleteLine(lineToDelete!!.ingredientId)
+                lineToDelete = null
             }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StockCountLineItem(
     entry: StockCountLineEntry,
     onQuantityChanged: (String) -> Unit,
+    onUnitChanged: (String) -> Unit,
+    onDelete: () -> Unit,
     enabled: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -233,24 +293,69 @@ fun StockCountLineItem(
                 }
             }
             
-            Column(horizontalAlignment = Alignment.End) {
+            if (enabled) {
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove), tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = entry.quantityText,
+                onValueChange = onQuantityChanged,
+                modifier = Modifier.weight(1f).testTag("count_quantity_${entry.ingredientId}"),
+                enabled = enabled,
+                label = { Text(stringResource(R.string.quantity)) },
+                isError = entry.error != null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                supportingText = entry.error?.let { { Text(stringResource(it.toUserMessageRes())) } }
+            )
+
+            var unitExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = unitExpanded && enabled,
+                onExpandedChange = { if (enabled) unitExpanded = !unitExpanded },
+                modifier = Modifier.weight(1f)
+            ) {
                 OutlinedTextField(
-                    value = entry.quantityText,
-                    onValueChange = onQuantityChanged,
-                    modifier = Modifier.size(width = 120.dp, height = 56.dp).testTag("count_quantity_${entry.ingredientId}"),
-                    enabled = enabled,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    suffix = { Text(entry.unitName) }
+                    value = entry.unitName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Unit") }, // TODO: Resource
+                    trailingIcon = { if (enabled) ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    enabled = enabled
                 )
-                
-                Box(modifier = Modifier.padding(top = 4.dp)) {
+                ExposedDropdownMenu(
+                    expanded = unitExpanded,
+                    onDismissRequest = { unitExpanded = false }
+                ) {
+                    entry.unitOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.displayName) },
+                            onClick = {
+                                onUnitChanged(option.id.value)
+                                unitExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            
+            if (enabled) {
+                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                     if (entry.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp).testTag("save_indicator_saving_${entry.ingredientId}"), strokeWidth = 2.dp)
                     } else if (entry.isSaved) {
-                        Icon(Icons.Default.Check, contentDescription = "Saved", modifier = Modifier.size(16.dp).testTag("save_indicator_saved_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.saved), modifier = Modifier.size(16.dp).testTag("save_indicator_saved_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.primary)
                     } else if (entry.error != null) {
-                        Icon(Icons.Default.Warning, contentDescription = "Error", modifier = Modifier.size(16.dp).testTag("save_indicator_error_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.state_error_desc), modifier = Modifier.size(16.dp).testTag("save_indicator_error_${entry.ingredientId}"), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -265,7 +370,7 @@ fun StockCountLineItem(
                     text = if (entry.preview.willCreateOpeningBalance) 
                         stringResource(R.string.opening_balance) 
                     else 
-                        "${stringResource(R.string.expected_quantity)}: ${entry.preview.expectedQuantityBase ?: 0}",
+                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase ?: BigDecimal.ZERO, entry.unitName),
                     style = MaterialTheme.typography.labelSmall
                 )
                 
@@ -276,7 +381,7 @@ fun StockCountLineItem(
                     else -> MaterialTheme.colorScheme.outline
                 }
                 Text(
-                    text = "${stringResource(R.string.adjustment)}: $adjustment",
+                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.unitName),
                     style = MaterialTheme.typography.labelSmall,
                     color = color
                 )

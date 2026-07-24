@@ -70,6 +70,13 @@ interface StockCountRepository {
     fun observeCount(id: StockCountId): Flow<StockCountDetails?>
     fun observeCountArea(id: StockCountAreaId): Flow<StockCountAreaDetails?>
     
+    suspend fun getCountedIngredientIds(
+        countId: StockCountId,
+        areaId: InventoryAreaId
+    ): Set<IngredientId>
+
+    suspend fun getDraftAreaIds(restaurantId: RestaurantId): Set<InventoryAreaId>
+
     suspend fun start(command: StartStockCountCommand): StockCountId
     suspend fun updateDraft(command: UpdateStockCountDraftCommand)
     suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLineId

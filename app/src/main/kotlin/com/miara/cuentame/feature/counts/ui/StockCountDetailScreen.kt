@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,11 +27,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +59,9 @@ import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailEvent
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailViewModel
+import com.miara.cuentame.feature.counts.viewmodel.StockCountReviewLine
 import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import java.math.BigDecimal
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -91,6 +97,7 @@ fun StockCountDetailRoute(
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onAreaClick = onAreaClick,
+        onToggleReview = viewModel::onToggleReview,
         onCompleteCount = viewModel::onComplete,
         onVoidCount = viewModel::onVoid,
         onDeleteDraft = viewModel::onDelete
@@ -104,12 +111,12 @@ fun StockCountDetailScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onAreaClick: (StockCountAreaId) -> Unit,
+    onToggleReview: (Boolean) -> Unit,
     onCompleteCount: () -> Unit,
     onVoidCount: () -> Unit,
     onDeleteDraft: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showCompleteConfirm by remember { mutableStateOf(false) }
     var showVoidConfirm by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
@@ -120,7 +127,7 @@ fun StockCountDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.count_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("count_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -134,16 +141,20 @@ fun StockCountDetailScreen(
             )
         }
     ) { padding ->
-        if (uiState.isLoading) {
+        if (uiState.isInvalidRoute) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.error_invalid_count_route))
+            }
+        } else if (uiState.isNotFound) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.error_purchase_not_found)) // TODO: Specific resource
+            }
+        } else if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else if (uiState.details == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.error_purchase_not_found)) // TODO: Specific error
-            }
         } else {
-            val details = uiState.details
+            val details = uiState.details!!
             val count = details.count
             Column(
                 modifier = Modifier
@@ -168,8 +179,7 @@ fun StockCountDetailScreen(
                     items(details.areas) { areaDetail ->
                         CountAreaItem(
                             areaDetail = areaDetail,
-                            onClick = { onAreaClick(areaDetail.area.id) },
-                            enabled = count.status == StockCountStatus.DRAFT
+                            onClick = { onAreaClick(areaDetail.area.id) }
                         )
                         HorizontalDivider()
                     }
@@ -178,13 +188,10 @@ fun StockCountDetailScreen(
                 if (count.status == StockCountStatus.DRAFT) {
                     val allAreasCompleted = details.areas.isNotEmpty() && details.areas.all { it.area.status == CountAreaStatus.COMPLETED }
                     Button(
-                        onClick = { showCompleteConfirm = true },
+                        onClick = { onToggleReview(true) },
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         enabled = !uiState.isCompleting && allAreasCompleted
                     ) {
-                        if (uiState.isCompleting) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
-                        }
                         Text(stringResource(R.string.complete_count))
                     }
                 } else if (count.status == StockCountStatus.COMPLETED) {
@@ -214,17 +221,6 @@ fun StockCountDetailScreen(
         )
     }
 
-    if (showCompleteConfirm) {
-        ArchiveConfirmDialog(
-            title = stringResource(R.string.complete_count),
-            message = stringResource(R.string.complete_count_desc),
-            confirmText = stringResource(R.string.action_confirm),
-            isSaving = uiState.isCompleting,
-            onDismiss = { if (!uiState.isCompleting) showCompleteConfirm = false },
-            onConfirm = onCompleteCount
-        )
-    }
-
     if (showVoidConfirm) {
         ArchiveConfirmDialog(
             title = stringResource(R.string.void_count),
@@ -235,26 +231,136 @@ fun StockCountDetailScreen(
             onConfirm = onVoidCount
         )
     }
+
+    if (uiState.showReview) {
+        AdjustmentReviewSheet(
+            lines = uiState.reviewLines,
+            currencyCode = uiState.currencyCode,
+            isCompleting = uiState.isCompleting,
+            onDismiss = { onToggleReview(false) },
+            onConfirm = onCompleteCount
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdjustmentReviewSheet(
+    lines: List<StockCountReviewLine>,
+    currencyCode: String,
+    isCompleting: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = stringResource(R.string.count_review_title), style = MaterialTheme.typography.headlineSmall)
+                IconButton(onClick = onDismiss, enabled = !isCompleting) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                }
+            }
+            
+            if (lines.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(lines) { line ->
+                        ReviewLineItem(line, currencyCode)
+                        HorizontalDivider()
+                    }
+                }
+            }
+
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                enabled = !isCompleting && lines.isNotEmpty()
+            ) {
+                if (isCompleting) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                }
+                Text(stringResource(R.string.complete_count))
+            }
+        }
+    }
+}
+
+@Composable
+fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text(text = line.ingredientName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(text = line.areaName, style = MaterialTheme.typography.labelSmall)
+            }
+            Text(text = "${line.quantityEntered} ${line.unitName}", style = MaterialTheme.typography.bodyLarge)
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = if (line.preview.willCreateOpeningBalance) 
+                    stringResource(R.string.opening_balance) 
+                else 
+                    stringResource(R.string.expected_quantity_format, line.preview.expectedQuantityBase ?: BigDecimal.ZERO, "lb"), // TODO: Base unit
+                style = MaterialTheme.typography.labelSmall
+            )
+            
+            val adjustment = line.preview.provisionalAdjustmentBase
+            val color = when {
+                adjustment > BigDecimal.ZERO -> MaterialTheme.colorScheme.primary
+                adjustment < BigDecimal.ZERO -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.outline
+            }
+            Text(
+                text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), "lb"),
+                style = MaterialTheme.typography.labelSmall,
+                color = color
+            )
+        }
+
+        if (line.preview.estimatedValueChange != null) {
+            Text(
+                text = stringResource(R.string.value_change_format, line.preview.estimatedValueChange.toPlainString(), currencyCode),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (line.preview.estimatedValueChange > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else if (line.preview.estimatedValueChange < BigDecimal.ZERO) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+            )
+        }
+    }
 }
 
 @Composable
 fun CountAreaItem(
     areaDetail: StockCountAreaDetails,
-    onClick: () -> Unit,
-    enabled: Boolean
+    onClick: () -> Unit
 ) {
     ListItem(
-        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier.clickable(onClick = onClick),
         headlineContent = { Text(areaDetail.areaName, fontWeight = FontWeight.Bold) },
         supportingContent = {
-            Text(text = "${areaDetail.lines.size} items counted") // TODO: Resource
+            Text(text = stringResource(R.string.items_counted, areaDetail.lines.size))
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AreaStatusChip(status = areaDetail.area.status)
-                if (enabled) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = null)
-                }
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
         }
     )

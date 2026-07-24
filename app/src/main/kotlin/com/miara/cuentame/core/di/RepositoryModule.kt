@@ -4,6 +4,7 @@ import com.miara.cuentame.core.database.repository.RoomIngredientCategoryReposit
 import com.miara.cuentame.core.database.repository.RoomIngredientRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryAreaRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryReadRepository
+import com.miara.cuentame.core.database.repository.RoomInventorySnapshotService
 import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.database.repository.RoomLocalSetupRepository
 import com.miara.cuentame.core.database.repository.RoomRestaurantRepository
@@ -71,6 +72,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindStockCountRepository(repo: RoomStockCountRepository): StockCountRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindInventorySnapshotService(repo: RoomInventorySnapshotService): com.miara.cuentame.core.domain.service.InventorySnapshotService
 
     @Binds
     @Singleton

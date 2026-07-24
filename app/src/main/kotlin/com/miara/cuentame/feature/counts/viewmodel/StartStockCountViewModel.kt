@@ -9,22 +9,17 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.domain.usecase.ObserveInventoryAreasUseCase
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class StartStockCountUiState(
@@ -33,7 +28,8 @@ data class StartStockCountUiState(
     val name: String = "",
     val effectiveAt: Instant = Instant.now(),
     val availableAreas: List<InventoryArea> = emptyList(),
-    val selectedAreaIds: Set<InventoryAreaId> = emptySet(),
+    val selectedAreaIds: List<InventoryAreaId> = emptyList(),
+    val draftAreaUsage: Set<InventoryAreaId> = emptySet(),
     val notes: String = "",
     val error: Throwable? = null
 )
@@ -57,19 +53,25 @@ class StartStockCountViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     private val areasFlow = observeInventoryAreasUseCase(activeOnly = true)
-    private val restaurantFlow = restaurantRepository.observeRestaurant().filterNotNull()
 
     init {
-        val dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault())
-        val defaultName = "Count ${dateFormatter.format(timeProvider.now())}"
-        
         viewModelScope.launch {
+            val restaurant = restaurantRepository.getRestaurant()
+            if (restaurant == null) {
+                _uiState.update { it.copy(isLoading = false, error = ValidationError.RecordNotFound) }
+                return@launch
+            }
+
+            val draftAreaIds = repository.getDraftAreaIds(restaurant.id)
+
             areasFlow.collect { areas ->
-                _uiState.update { it.copy(
-                    isLoading = false,
-                    availableAreas = areas,
-                    name = if (it.name.isBlank()) defaultName else it.name
-                ) }
+                _uiState.update { state -> 
+                    state.copy(
+                        isLoading = false,
+                        availableAreas = areas,
+                        draftAreaUsage = draftAreaIds
+                    )
+                }
             }
         }
     }
@@ -77,11 +79,17 @@ class StartStockCountViewModel @Inject constructor(
     fun onNameChanged(name: String) = _uiState.update { it.copy(name = name) }
     
     fun onDateChanged(date: Instant) {
+        if (date > timeProvider.now()) {
+             _uiState.update { it.copy(error = ValidationError.InvalidCountEffectiveTime) }
+             return
+        }
         _uiState.update { it.copy(effectiveAt = date) }
     }
 
     fun onAreaToggle(areaId: InventoryAreaId) {
         _uiState.update { state ->
+            if (state.draftAreaUsage.contains(areaId)) return@update state
+            
             val newSelection = if (state.selectedAreaIds.contains(areaId)) {
                 state.selectedAreaIds - areaId
             } else {
@@ -95,26 +103,32 @@ class StartStockCountViewModel @Inject constructor(
 
     fun onStart() {
         val state = _uiState.value
-        if (state.isStarting || state.name.isBlank() || state.selectedAreaIds.isEmpty()) return
+        if (state.isStarting) return
+
+        if (state.name.isBlank()) {
+             _uiState.update { it.copy(error = ValidationError.InvalidName) }
+             return
+        }
+        if (state.selectedAreaIds.isEmpty()) {
+             _uiState.update { it.copy(error = ValidationError.StockCountHasNoAreas) }
+             return
+        }
 
         _uiState.update { it.copy(isStarting = true, error = null) }
         viewModelScope.launch {
             try {
-                android.util.Log.d("StartStockCount", "Starting count with name: ${state.name}, areas: ${state.selectedAreaIds}")
-                val restaurant = restaurantRepository.getRestaurant() ?: throw Exception("No restaurant")
+                val restaurant = restaurantRepository.getRestaurant() ?: throw ValidationError.RecordNotFound
                 val countId = repository.start(
                     StartStockCountCommand(
                         restaurantId = restaurant.id,
-                        name = state.name,
+                        name = state.name.trim(),
                         effectiveAt = state.effectiveAt,
-                        areaIds = state.selectedAreaIds.toList(),
+                        areaIds = state.selectedAreaIds,
                         notes = state.notes.ifBlank { null }
                     )
                 )
-                android.util.Log.d("StartStockCount", "Count started successfully: $countId")
                 _events.send(StartStockCountEvent.Success(countId))
             } catch (e: Exception) {
-                android.util.Log.e("StartStockCount", "Error starting count", e)
                 _uiState.update { it.copy(isStarting = false, error = e) }
             }
         }

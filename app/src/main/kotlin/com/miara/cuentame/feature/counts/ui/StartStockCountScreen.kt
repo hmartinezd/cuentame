@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.counts.ui
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -55,6 +57,7 @@ import com.miara.cuentame.feature.counts.viewmodel.StartStockCountEvent
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountUiState
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountViewModel
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -67,6 +70,9 @@ fun StartStockCountRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
+    val defaultName = stringResource(R.string.count_default_name, dateFormatter.format(uiState.effectiveAt))
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -85,6 +91,7 @@ fun StartStockCountRoute(
 
     StartStockCountScreen(
         uiState = uiState,
+        defaultName = defaultName,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onNameChanged = viewModel::onNameChanged,
@@ -99,6 +106,7 @@ fun StartStockCountRoute(
 @Composable
 fun StartStockCountScreen(
     uiState: StartStockCountUiState,
+    defaultName: String,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onNameChanged: (String) -> Unit,
@@ -108,7 +116,10 @@ fun StartStockCountScreen(
     onStartCount: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -116,7 +127,7 @@ fun StartStockCountScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.action_start_count)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("count_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
@@ -140,47 +151,81 @@ fun StartStockCountScreen(
                     value = uiState.name,
                     onValueChange = onNameChanged,
                     label = { Text(stringResource(R.string.onboarding_field_name)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(defaultName) },
+                    modifier = Modifier.fillMaxWidth().testTag("count_name_input"),
                     enabled = !uiState.isStarting
                 )
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = dateFormatter.format(uiState.effectiveAt),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.purchase_date)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isStarting,
-                        trailingIcon = {
-                            IconButton(onClick = { showDatePicker = true }, enabled = !uiState.isStarting) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = dateFormatter.format(uiState.effectiveAt),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.purchase_date)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !uiState.isStarting,
+                            trailingIcon = {
                                 Icon(Icons.Default.DateRange, contentDescription = null)
                             }
-                        }
-                    )
-                    // Invisible overlay to make the whole field clickable
-                    Box(modifier = Modifier.matchParentSize().clickable(enabled = !uiState.isStarting) { showDatePicker = true })
+                        )
+                        Box(modifier = Modifier.matchParentSize().clickable(enabled = !uiState.isStarting) { showDatePicker = true })
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = timeFormatter.format(uiState.effectiveAt),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.field_time)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !uiState.isStarting,
+                            trailingIcon = {
+                                Icon(Icons.Default.AccessTime, contentDescription = null)
+                            }
+                        )
+                        Box(modifier = Modifier.matchParentSize().clickable(enabled = !uiState.isStarting) {
+                            val dt = LocalDateTime.ofInstant(uiState.effectiveAt, ZoneId.systemDefault())
+                            TimePickerDialog(context, { _, hour, minute ->
+                                val newDt = dt.withHour(hour).withMinute(minute)
+                                onDateChanged(newDt.atZone(ZoneId.systemDefault()).toInstant())
+                            }, dt.hour, dt.minute, true).show()
+                        })
+                    }
                 }
 
                 Text(text = stringResource(R.string.onboarding_areas_title), style = MaterialTheme.typography.titleMedium)
                 
                 uiState.availableAreas.forEach { area ->
                     val isSelected = uiState.selectedAreaIds.contains(area.id)
+                    val isInAnotherDraft = uiState.draftAreaUsage.contains(area.id)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("area_item_${area.id.value}")
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 4.dp)
+                            .clickable(enabled = !uiState.isStarting && !isInAnotherDraft) { onAreaToggle(area.id) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = isSelected,
                             onCheckedChange = { onAreaToggle(area.id) },
-                            enabled = !uiState.isStarting,
+                            enabled = !uiState.isStarting && !isInAnotherDraft,
                             modifier = Modifier.testTag("area_checkbox_${area.id.value}")
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text(text = area.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            Text(
+                                text = area.name,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isInAnotherDraft) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (isInAnotherDraft) {
+                                Text(
+                                    text = stringResource(R.string.error_overlapping_area, area.name),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                     HorizontalDivider()
@@ -196,9 +241,12 @@ fun StartStockCountScreen(
                 )
 
                 Button(
-                    onClick = onStartCount,
+                    onClick = {
+                        if (uiState.name.isBlank()) onNameChanged(defaultName)
+                        onStartCount()
+                    },
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("start_count_button"),
-                    enabled = !uiState.isStarting && uiState.name.isNotBlank() && uiState.selectedAreaIds.isNotEmpty()
+                    enabled = !uiState.isStarting && uiState.selectedAreaIds.isNotEmpty()
                 ) {
                     if (uiState.isStarting) {
                         CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
@@ -215,7 +263,12 @@ fun StartStockCountScreen(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { onDateChanged(Instant.ofEpochMilli(it)) }
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val currentDt = LocalDateTime.ofInstant(uiState.effectiveAt, ZoneId.systemDefault())
+                        val newDt = LocalDateTime.of(selectedDate, currentDt.toLocalTime())
+                        onDateChanged(newDt.atZone(ZoneId.systemDefault()).toInstant())
+                    }
                     showDatePicker = false
                 }) { Text(stringResource(android.R.string.ok)) }
             },

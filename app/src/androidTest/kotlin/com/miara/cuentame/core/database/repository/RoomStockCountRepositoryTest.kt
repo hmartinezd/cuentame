@@ -62,7 +62,11 @@ class RoomStockCountRepositoryTest {
             db.ingredientCostProjectionDao(), WeightedAverageCostCalculator(), timeProvider
         )
 
-        val snapshotService = RoomInventorySnapshotService(db.inventoryMovementDao(), WeightedAverageCostCalculator())
+        val snapshotService = RoomInventorySnapshotService(
+            db.inventoryMovementDao(),
+            WeightedAverageCostCalculator(),
+            InventoryMovementValidator()
+        )
 
         repository = RoomStockCountRepository(
             db, db.stockCountDao(), db.inventoryMovementDao(), db.ingredientDao(),
@@ -201,6 +205,70 @@ class RoomStockCountRepositoryTest {
             val balanceKitchenAfterVoid = db.inventoryProjectionDao().getBalance("ing_chicken", "area_kitchen")
             val balanceKitchenQty = balanceKitchenAfterVoid?.quantityBase?.let { BigDecimal(it) } ?: BigDecimal.ZERO
             assertThat(balanceKitchenQty.compareTo(BigDecimal.ZERO)).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun startCount_validations() {
+        runBlocking {
+            // Blank name
+            assertThrows(ValidationError.InvalidName::class.java) {
+                runBlocking {
+                    repository.start(StartStockCountCommand(
+                        RestaurantId("rest_1"), "", timeProvider.now(), listOf(InventoryAreaId("area_dry")), null
+                    ))
+                }
+            }
+
+            // Future effective timestamp
+            assertThrows(ValidationError.InvalidCountEffectiveTime::class.java) {
+                runBlocking {
+                    repository.start(StartStockCountCommand(
+                        RestaurantId("rest_1"), "Count", timeProvider.now().plusSeconds(3600), listOf(InventoryAreaId("area_dry")), null
+                    ))
+                }
+            }
+
+            // No areas
+            assertThrows(ValidationError.StockCountHasNoAreas::class.java) {
+                runBlocking {
+                    repository.start(StartStockCountCommand(
+                        RestaurantId("rest_1"), "Count", timeProvider.now(), emptyList(), null
+                    ))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun saveLine_validations() {
+        runBlocking {
+            val countId = repository.start(StartStockCountCommand(
+                RestaurantId("rest_1"), "Count", timeProvider.now(), listOf(InventoryAreaId("area_dry")), null
+            ))
+            val details = repository.observeCount(countId).first()!!
+            val areaId = details.areas.first().area.id
+
+            // Negative quantity
+            assertThrows(ValidationError.InvalidCountQuantity::class.java) {
+                runBlocking {
+                    repository.saveLine(SaveStockCountLineCommand(
+                        countId, areaId, null, IngredientId("ing_chicken"), IngredientUnitOptionId("opt_lb"), BigDecimal("-1"), null
+                    ))
+                }
+            }
+
+            // Duplicate ingredient in one area
+            repository.saveLine(SaveStockCountLineCommand(
+                countId, areaId, null, IngredientId("ing_chicken"), IngredientUnitOptionId("opt_lb"), BigDecimal("10"), null
+            ))
+            assertThrows(ValidationError.DuplicateIngredientInCountArea::class.java) {
+                runBlocking {
+                    repository.saveLine(SaveStockCountLineCommand(
+                        countId, areaId, null, IngredientId("ing_chicken"), IngredientUnitOptionId("opt_lb"), BigDecimal("20"), null
+                    ))
+                }
+            }
         }
     }
 
