@@ -164,7 +164,7 @@ class StockCountDetailViewModel @Inject constructor(
             isDeleting = deleting,
             isCompleting = completing,
             isVoiding = voiding,
-            details = details,
+            details = if (screenState == StockCountDetailScreenState.Ready) details else null,
             currencyCode = activeRestaurant?.currencyCode ?: "USD",
             reviewLines = reviewLines,
             missingWarnings = missingWarnings,

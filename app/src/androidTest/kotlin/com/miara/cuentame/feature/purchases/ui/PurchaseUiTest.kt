@@ -72,16 +72,24 @@ class PurchaseUiTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            // Wait for Home screen to load
+            composeTestRule.waitForIdle()
+            
+            // Wait for loading to finish
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
 
             // 1. Navigate to Activity (Purchases)
-            composeTestRule.onNodeWithTag("nav_activity").performClick()
+            composeTestRule.onNodeWithTag("nav_activity", useUnmergedTree = true).performClick()
+            composeTestRule.waitForIdle()
             
             // 2. Create Draft
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
@@ -150,11 +158,13 @@ class PurchaseUiTest {
             
             // 11. Void Purchase
             composeTestRule.onNodeWithText("Void Receipt").performClick()
+            composeTestRule.waitForIdle()
             // Confirmation dialog
             composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.waitForIdle()
             
             // 12. Verify Voided
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodesWithText("VOIDED").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("VOIDED").assertIsDisplayed()

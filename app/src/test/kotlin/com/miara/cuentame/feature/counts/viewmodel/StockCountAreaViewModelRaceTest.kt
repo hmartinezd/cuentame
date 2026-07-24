@@ -20,6 +20,9 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.Instant
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StockCountAreaViewModelRaceTest {
@@ -34,10 +37,11 @@ class StockCountAreaViewModelRaceTest {
     private val now = Instant.parse("2024-01-01T12:00:00Z")
 
     private class ControllableStockCountRepository : StockCountRepository {
-        val saveLineDeferred = CompletableDeferred<StockCountLineId>()
-        var saveLineCallCount = 0
-        var deleteLineCallCount = 0
-        val deleteLineDeferred = CompletableDeferred<Unit>()
+        val saveLineDeferreds = mutableListOf<CompletableDeferred<StockCountLineId>>()
+        val deleteLineDeferreds = mutableListOf<CompletableDeferred<Unit>>()
+        
+        val savedCommands = mutableListOf<SaveStockCountLineCommand>()
+        val deletedLineIds = mutableListOf<StockCountLineId>()
 
         override fun observeCounts(filter: StockCountFilter) = flowOf(emptyList<StockCountSummary>())
         override fun observeCount(id: StockCountId) = flowOf(null)
@@ -56,13 +60,17 @@ class StockCountAreaViewModelRaceTest {
         override suspend fun updateDraft(command: UpdateStockCountDraftCommand) {}
         
         override suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLineId {
-            saveLineCallCount++
-            return saveLineDeferred.await()
+            savedCommands.add(command)
+            val deferred = CompletableDeferred<StockCountLineId>()
+            saveLineDeferreds.add(deferred)
+            return deferred.await()
         }
         
         override suspend fun deleteLine(countId: StockCountId, countAreaId: StockCountAreaId, lineId: StockCountLineId) {
-            deleteLineCallCount++
-            deleteLineDeferred.await()
+            deletedLineIds.add(lineId)
+            val deferred = CompletableDeferred<Unit>()
+            deleteLineDeferreds.add(deferred)
+            deferred.await()
         }
         
         override suspend fun completeArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
@@ -140,31 +148,33 @@ class StockCountAreaViewModelRaceTest {
     }
 
     @Test
-    fun `delete during CREATE removes the committed database row`() = runTest {
+    fun `Delete during CREATE captures generated ID and removes line`() = runTest {
         val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.onAddIngredient(ingredient)
         runCurrent()
         
-        // Start CREATE
+        // 1. Start CREATE
         viewModel.onQuantityChanged(ingId.value, "10")
         advanceTimeBy(600) // Trigger debounce
         runCurrent()
         
-        assertThat(repository.saveLineCallCount).isEqualTo(1)
+        assertThat(repository.savedCommands).hasSize(1)
+        assertThat(repository.savedCommands[0].lineId).isNull()
         
-        // Request DELETE while CREATE is active
+        // 2. Request DELETE while CREATE is active
         viewModel.onConfirmDelete(ingId.value)
         runCurrent()
         
-        // Complete CREATE
-        repository.saveLineDeferred.complete(StockCountLineId("generated-l1"))
+        // 3. Complete CREATE
+        val generatedId = StockCountLineId("generated-l1")
+        repository.saveLineDeferreds[0].complete(generatedId)
         runCurrent()
         
-        // Verify DELETE was called with the generated ID
-        assertThat(repository.deleteLineCallCount).isEqualTo(1)
+        // 4. Verify DELETE was called with the generated ID
+        assertThat(repository.deletedLineIds).containsExactly(generatedId)
         
-        // Complete DELETE
-        repository.deleteLineDeferred.complete(Unit)
+        // 5. Complete DELETE
+        repository.deleteLineDeferreds[0].complete(Unit)
         runCurrent()
         
         viewModel.uiState.test {
@@ -173,7 +183,51 @@ class StockCountAreaViewModelRaceTest {
     }
 
     @Test
-    fun `flush during CREATE does not create duplicate line`() = runTest {
+    fun `Queued save and delete complete in order without deadlock`() = runTest(timeout = 5000.toDuration(DurationUnit.MILLISECONDS)) {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+        
+        // 1. Save A holds the coordinator
+        viewModel.onQuantityChanged(ingId.value, "10")
+        advanceTimeBy(600)
+        runCurrent()
+        assertThat(repository.savedCommands).hasSize(1)
+        
+        // 2. Save B is queued (via rapid edits or flush)
+        viewModel.onQuantityChanged(ingId.value, "20")
+        // We bypass debounce and go straight to coordinator via flush to force queuing
+        val flushJob = launch { viewModel.flushPendingSaves() }
+        runCurrent()
+        
+        // 3. Delete is queued
+        val deleteJob = launch { viewModel.onConfirmDelete(ingId.value) }
+        runCurrent()
+        
+        // 4. Save A completes
+        repository.saveLineDeferreds[0].complete(StockCountLineId("l1"))
+        runCurrent()
+        
+        // 5. Save B should start and then complete
+        assertThat(repository.savedCommands).hasSize(2)
+        repository.saveLineDeferreds[1].complete(StockCountLineId("l1"))
+        runCurrent()
+        
+        // 6. Delete should start and then complete
+        assertThat(repository.deletedLineIds).containsExactly(StockCountLineId("l1"))
+        repository.deleteLineDeferreds[0].complete(Unit)
+        runCurrent()
+        
+        flushJob.join()
+        deleteJob.join()
+        
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().lineEntries).isEmpty()
+        }
+    }
+
+    @Test
+    fun `Flush during CREATE does not create duplicate line`() = runTest {
         val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.onAddIngredient(ingredient)
         runCurrent()
@@ -183,7 +237,7 @@ class StockCountAreaViewModelRaceTest {
         advanceTimeBy(600)
         runCurrent()
         
-        assertThat(repository.saveLineCallCount).isEqualTo(1)
+        assertThat(repository.savedCommands).hasSize(1)
         
         // Call flush while CREATE is active
         val flushJob = launch {
@@ -192,12 +246,12 @@ class StockCountAreaViewModelRaceTest {
         runCurrent()
         
         // Complete CREATE
-        repository.saveLineDeferred.complete(StockCountLineId("l1"))
+        repository.saveLineDeferreds[0].complete(StockCountLineId("l1"))
         runCurrent()
         
         flushJob.join()
         
-        // Verify only one save call happened
-        assertThat(repository.saveLineCallCount).isEqualTo(1)
+        // Verify only one save call happened (no new Save enqueued because revision matched)
+        assertThat(repository.savedCommands).hasSize(1)
     }
 }

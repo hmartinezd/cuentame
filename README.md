@@ -2,28 +2,27 @@
 
 A local-first restaurant inventory application built with modern Android practices.
 
-## Current Status (Milestone 6 — Final Serialization & Integrity Pass)
+## Current Status (Milestone 6 — Deadlock-Free Coordinator & Integrity Pass)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (84 tests)
+- `testDebugUnitTest`: PASSED (86 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: Locally verified (64 PASSED, 3 unrelated flaky Dashboard timeouts in emulator; StockCountLifecycleTest and StockCountUiTest PASSED)
+- `connectedDebugAndroidTest`: Locally verified (64 PASSED, 3 environment-related flaky UI timeouts; StockCountLifecycleTest and StockCountUiTest PASSED)
 
 ### Verification Summary
-- **JVM Tests:** 84 total (ViewModel, UseCase, Repository unit tests).
-- **Stock-count ViewModel Tests:** 26 total (Including race condition and serialization coverage).
+- **JVM Tests:** 86 total (ViewModel, UseCase, Repository unit tests).
+- **Stock-count ViewModel Tests:** 28 total (Including deadlock-free coordinator and race coverage).
 - **Snapshot Tests:** 12 total (Core logic for history replay).
 - **Room Integration Tests:** 32 total (Lifecycle transitions and rollback verification).
-- **Compose Tests:** 10 total (E2E lifecycle, UI state, success-driven flows).
+- **Compose Tests:** 12 total (E2E lifecycle with area-specific tags and exact text assertions).
 
 ### Milestone 6 Highlights
-- **Authoritative Operation Coordinator:** Per-line serialization using `Mutex` and enqueued jobs ensures that CREATE, UPDATE, and DELETE operations never race.
-- **Atomic Deletion Integrity:** If a line is deleted while being created, the coordinator ensures the generated ID is captured and the database row is removed immediately after creation.
-- **Clean Persistence Handoff:** Debounce jobs are separated from active persistence; `flushPendingSaves()` awaits committed work rather than canceling it.
-- **Robust Detail Ownership:** `StockCountDetailViewModel` validates active-restaurant ownership, preventing cross-restaurant data exposure.
-- **UI Integrity & Localized Unknowns:** Removed all hardcoded fallbacks like "units"; missing references during review produce typed errors and localized unknown placeholders.
-- **Deterministic Lifecycle Testing:** `StockCountLifecycleTest` and `StockCountUiTest` are fully green, asserting exact inventory values and verifying read-only states for COMPLETED and VOIDED counts.
-- **Race Condition Verification:** Added `StockCountAreaViewModelRaceTest` with controllable fakes to verify serialized save/delete behavior.
+- **Deadlock-Free Operation Coordinator:** Replaced the mutex-and-join architecture with a per-ingredient `Channel`-based loop. All repository mutations (Save, Delete, Flush) are enqueued and processed sequentially, eliminating synchronization deadlocks.
+- **Strict Operation Ordering:** If a line is deleted while being created, the coordinator captures the generated ID and performs the deletion immediately after the CREATE completes, ensuring no invisible lines remain in Room.
+- **Flush & Navigation Integrity:** `flushPendingSaves()` enqueues a Flush operation in the coordinator loop and awaits its completion, ensuring all pending revisions are persisted before navigation or area completion.
+- **Robust Detail Ownership:** `StockCountDetailViewModel` enforces active-restaurant ownership, hiding all data and actions if a cross-restaurant count is requested.
+- **UI Integrity & Dynamic Unit Options:** Rebuilds unit-option state synchronously after selection; archived options are correctly displayed when selected but disabled for re-selection after changing away.
+- **Exact Lifecycle Verification:** `StockCountLifecycleTest` now asserts exact inventory values using area-specific tags, verifying that COMPLETED and VOIDED states correctly persist authoritative snapshots.
 
 ### Current milestone: Milestone 6 — Stock Counts (Completed)
 ### Next milestone: Milestone 7 — Waste Tracking

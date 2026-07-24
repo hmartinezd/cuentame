@@ -66,7 +66,7 @@ fun CuentameApp(
 
 @Composable
 fun LoadingContent() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().testTag("app_loading"), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
     }
 }

@@ -147,7 +147,7 @@ fun StockCountDetailScreen(
                     }
                 },
                 actions = {
-                    if (uiState.details?.count?.status == StockCountStatus.DRAFT) {
+                    if (uiState.screenState == StockCountDetailScreenState.Ready && uiState.details?.count?.status == StockCountStatus.DRAFT) {
                         IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting, modifier = Modifier.testTag("delete_draft_button")) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                         }

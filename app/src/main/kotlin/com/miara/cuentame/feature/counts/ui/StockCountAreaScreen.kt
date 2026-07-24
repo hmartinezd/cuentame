@@ -409,6 +409,7 @@ fun StockCountLineItem(
         }
         
         if (entry.preview != null) {
+            val unitLabel = if (entry.baseUnitName.isNullOrBlank()) stringResource(R.string.unknown_unit) else entry.baseUnitName
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -417,7 +418,7 @@ fun StockCountLineItem(
                     text = if (entry.preview.willCreateOpeningBalance) 
                         stringResource(R.string.opening_balance) 
                     else 
-                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", entry.baseUnitName.ifBlank { stringResource(R.string.unknown_unit) }),
+                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", unitLabel),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.testTag("historical_expected_${areaId}_${entry.ingredientId}")
                 )
@@ -429,7 +430,7 @@ fun StockCountLineItem(
                     else -> MaterialTheme.colorScheme.outline
                 }
                 Text(
-                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), entry.baseUnitName.ifBlank { stringResource(R.string.unknown_unit) }),
+                    text = stringResource(R.string.adjustment_format, (if (adjustment > BigDecimal.ZERO) "+" else "") + adjustment.toPlainString(), unitLabel),
                     style = MaterialTheme.typography.labelSmall,
                     color = color,
                     modifier = Modifier.testTag("historical_adjustment_${areaId}_${entry.ingredientId}")

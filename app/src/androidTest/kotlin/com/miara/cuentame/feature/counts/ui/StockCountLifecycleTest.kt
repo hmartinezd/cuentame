@@ -110,9 +110,15 @@ class StockCountLifecycleTest {
     fun full_lifecycle_test() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitForIdle()
-            // Wait for Home screen to load
+            
+            // Wait for loading to finish
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
 
             // 1. Open Count tab
@@ -219,14 +225,25 @@ class StockCountLifecycleTest {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().size >= 2
             }
             
-            // Exact values in review
             // Dry Storage: 75 entered, 80 expected -> -5 adjustment
-            composeTestRule.onNodeWithText("80", substring = true).assertExists()
-            composeTestRule.onNodeWithText("-5", substring = true).assertExists()
+            composeTestRule.onNode(hasText("Expected: 80 lb") and hasAnyAncestor(SemanticsMatcher("") {
+                val tag = it.config.getOrNull(SemanticsProperties.TestTag)
+                tag != null && tag.startsWith("review_line_") && tag.contains("Dry Storage")
+            })).assertIsDisplayed()
+            composeTestRule.onNode(hasText("Adjustment: -5 lb") and hasAnyAncestor(SemanticsMatcher("") {
+                val tag = it.config.getOrNull(SemanticsProperties.TestTag)
+                tag != null && tag.startsWith("review_line_") && tag.contains("Dry Storage")
+            })).assertIsDisplayed()
             
             // Main Kitchen: 10 entered, Opening Balance -> +10 adjustment
-            composeTestRule.onNodeWithText("Opening Balance", substring = true).assertExists()
-            composeTestRule.onNodeWithText("+10", substring = true).assertExists()
+            composeTestRule.onNode(hasText("Opening Balance") and hasAnyAncestor(SemanticsMatcher("") {
+                val tag = it.config.getOrNull(SemanticsProperties.TestTag)
+                tag != null && tag.startsWith("review_line_") && tag.contains("Main Kitchen")
+            })).assertIsDisplayed()
+            composeTestRule.onNode(hasText("Adjustment: +10 lb") and hasAnyAncestor(SemanticsMatcher("") {
+                val tag = it.config.getOrNull(SemanticsProperties.TestTag)
+                tag != null && tag.startsWith("review_line_") && tag.contains("Main Kitchen")
+            })).assertIsDisplayed()
 
             // 19. Complete count
             composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
@@ -246,12 +263,12 @@ class StockCountLifecycleTest {
             composeTestRule.onAllNodes(SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
                 tag != null && tag.startsWith("historical_expected_") && tag.contains("ing_chicken")
-            }).onFirst().assert(hasText("80", substring = true))
+            }).onFirst().assertTextEquals("Expected: 80 lb")
             
             composeTestRule.onAllNodes(SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
                 tag != null && tag.startsWith("historical_adjustment_") && tag.contains("ing_chicken")
-            }).onFirst().assert(hasText("-5", substring = true))
+            }).onFirst().assertTextEquals("Adjustment: -5 lb")
 
             composeTestRule.onNodeWithTag("ingredient_search").assertDoesNotExist()
             
@@ -281,12 +298,12 @@ class StockCountLifecycleTest {
             composeTestRule.onAllNodes(SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
                 tag != null && tag.startsWith("historical_expected_") && tag.contains("ing_chicken")
-            }).onFirst().assert(hasText("Opening Balance", substring = true))
+            }).onFirst().assertTextEquals("Opening Balance")
             
             composeTestRule.onAllNodes(SemanticsMatcher("") {
                 val tag = it.config.getOrNull(SemanticsProperties.TestTag)
                 tag != null && tag.startsWith("historical_adjustment_") && tag.contains("ing_chicken")
-            }).onFirst().assert(hasText("+10", substring = true))
+            }).onFirst().assertTextEquals("Adjustment: +10 lb")
             
             composeTestRule.onNodeWithTag("ingredient_search").assertDoesNotExist()
             

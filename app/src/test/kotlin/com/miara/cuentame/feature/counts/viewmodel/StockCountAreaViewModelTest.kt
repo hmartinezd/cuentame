@@ -72,7 +72,8 @@ class StockCountAreaViewModelTest {
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = flowOf(emptyList<IngredientUnitOption>())
         override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = listOf(
             IngredientUnitOption(IngredientUnitOptionId("o1"), ingredientId, "Pound", "lb", UnitId("lb"), BigDecimal.ONE, true, true, true, true, now, now, null),
-            IngredientUnitOption(IngredientUnitOptionId("o2"), ingredientId, "Kilo", "kg", UnitId("kg"), BigDecimal("2.2"), true, false, true, true, now, now, null)
+            IngredientUnitOption(IngredientUnitOptionId("o2"), ingredientId, "Kilo", "kg", UnitId("kg"), BigDecimal("2.2"), true, false, true, true, now, now, null),
+            IngredientUnitOption(IngredientUnitOptionId("archived"), ingredientId, "Old", "old", UnitId("lb"), BigDecimal.ONE, true, false, true, false, now, now, null)
         )
         override suspend fun addStandardUnitOption(command: AddStandardUnitOptionCommand) {}
         override suspend fun addPackageUnitOption(command: AddPackageUnitOptionCommand) {}
@@ -144,6 +145,55 @@ class StockCountAreaViewModelTest {
                 state = awaitItem()
             }
             assertThat(state.details?.areaName).isEqualTo("Area 1")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `Archived unit becomes disabled after changing away`() = runTest {
+        val archivedId = IngredientUnitOptionId("archived")
+        val activeId = IngredientUnitOptionId("o1")
+        
+        // Setup initial line with archived unit
+        detailsFlow.value = detailsFlow.value?.copy(
+            lines = listOf(
+                StockCountLine(
+                    id = StockCountLineId("l1"),
+                    stockCountAreaId = countAreaId,
+                    ingredientId = ingId,
+                    ingredientUnitOptionId = archivedId,
+                    quantityEntered = BigDecimal.TEN,
+                    quantityBase = BigDecimal.TEN,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+        )
+
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+            
+            val entry = state.lineEntries.first()
+            val archivedOption = entry.unitOptions.find { it.id == archivedId }!!
+            assertThat(archivedOption.isSelected).isTrue()
+            assertThat(archivedOption.isSelectable).isTrue() // Selectable because it's currently selected
+            
+            // Change to active unit
+            viewModel.onUnitChanged(ingId.value, activeId.value)
+            
+            state = awaitItem()
+            while (state.lineEntries.first().unitId != activeId.value) {
+                state = awaitItem()
+            }
+            
+            val updatedEntry = state.lineEntries.first()
+            val updatedArchivedOption = updatedEntry.unitOptions.find { it.id == archivedId }!!
+            assertThat(updatedArchivedOption.isSelected).isFalse()
+            assertThat(updatedArchivedOption.isSelectable).isFalse() // Now disabled
+            
             cancelAndIgnoreRemainingEvents()
         }
     }

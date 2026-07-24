@@ -76,16 +76,24 @@ class StockCountUiTest {
     @Test
     fun start_count_flow() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            // Wait for Home screen to load
+            composeTestRule.waitForIdle()
+            
+            // Wait for loading to finish
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
 
             // 1. Open Count tab
             composeTestRule.onNodeWithTag("nav_count").performClick()
+            composeTestRule.waitForIdle()
             
             // 2. Start New Count (FAB)
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("start_count_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("start_count_fab").performClick()

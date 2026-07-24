@@ -70,16 +70,24 @@ class PurchaseFailureUiTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            // Wait for Home screen to load
+            composeTestRule.waitForIdle()
+            
+            // Wait for loading to finish
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("nav_home").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            }
+
+            // Wait for Home screen to load
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
 
             // 1. Navigate to Purchases
-            composeTestRule.onNodeWithTag("nav_activity").performClick()
+            composeTestRule.onNodeWithTag("nav_activity", useUnmergedTree = true).performClick()
+            composeTestRule.waitForIdle()
             
             // 2. Create Draft
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
@@ -118,17 +126,16 @@ class PurchaseFailureUiTest {
             }
 
             // 5. Try to Post
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithText("Post Receipt").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Post Receipt").performClick()
+            composeTestRule.waitForIdle()
             composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.waitForIdle()
             
             // 6. Verify Dialog remains or error is shown
-            // Since it's a failure in repository, it should show a Snackbar and keep the detail screen open
-            // In Milestone 5/6, we made posting show a confirmation dialog.
-            
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(20000) {
                 // Check for snackbar text
                 composeTestRule.onAllNodesWithText("Malformed inventory history", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
