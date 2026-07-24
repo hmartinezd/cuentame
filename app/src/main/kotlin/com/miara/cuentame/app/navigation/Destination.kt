@@ -94,6 +94,13 @@ enum class Destination(val route: String) {
     STOCK_COUNT_START("count/start"),
     STOCK_COUNT_DRAFT("count/{countId}"),
     STOCK_COUNT_AREA("count/{countId}/area/{countAreaId}"),
-    STOCK_COUNT_DETAIL("count/{countId}/detail")
+    STOCK_COUNT_DETAIL("count/{countId}/detail"),
+
+    // Waste
+    WASTE_LIST("waste"),
+    WASTE_CREATE("waste/create"),
+    WASTE_DRAFT("waste/{wasteEventId}"),
+    WASTE_EDIT("waste/{wasteEventId}/edit"),
+    WASTE_DETAIL("waste/{wasteEventId}/detail")
 }
 

@@ -207,6 +207,8 @@
     <string name="purchase_items_count">%1$d items</string>
     <string name="posted_at">Posted at: %1$s</string>
     <string name="voided_at">Voided at: %1$s</string>
+    <string name="posted_label">Posted at</string>
+    <string name="voided_label">Voided at</string>
     <string name="purchase_line_desc">Edit purchase line for %1$s</string>
     <string name="delete_line_desc">Delete purchase line for %1$s</string>
     <string name="post_purchase_desc">Post purchase dated %1$s</string>
@@ -303,4 +305,58 @@
     <string name="complete_count_desc">Inventory adjustments will be created. The count becomes read-only. Opening balances may be created for items without prior area history.</string>
     <string name="void_count_desc">Original movements remain in history. Reversal movements will restore the prior inventory effect. The count remains visible as VOIDED.</string>
     <string name="delete_draft_desc">Delete this draft count? This action removes the unpublished draft and its lines.</string>
+
+    <!-- Waste Tracking -->
+    <string name="waste">Waste</string>
+    <string name="log_waste">Log Waste</string>
+    <string name="waste_history">Waste History</string>
+    <string name="waste_event">Waste Event</string>
+    <string name="draft_waste">Draft Waste</string>
+    <string name="posted_waste">Posted Waste</string>
+    <string name="voided_waste">Voided Waste</string>
+    <string name="waste_reason">Waste Reason</string>
+    <string name="quantity_wasted">Quantity Wasted</string>
+    <string name="effective_date">Effective Date</string>
+    <string name="effective_time">Effective Time</string>
+    <string name="current_balance">Current Balance</string>
+    <string name="remaining_balance">Remaining Balance</string>
+    <string name="estimated_waste_value">Estimated Waste Value</string>
+    <string name="negative_inventory_warning">This will create negative inventory.</string>
+    <string name="post_waste">Post Waste</string>
+    <string name="void_waste">Void Waste</string>
+    <string name="delete_waste_draft">Delete Waste Draft</string>
+    <string name="add_photo">Add Photo</string>
+    <string name="replace_photo">Replace Photo</string>
+    <string name="remove_photo">Remove Photo</string>
+    <string name="photo_unavailable">Photo unavailable</string>
+    <string name="waste_confirm_post">Post this waste event? Inventory will decrease. The event becomes read-only.</string>
+    <string name="waste_confirm_void">Void this waste event? A reversal movement will be created to restore the inventory effect. The event remains visible as VOIDED.</string>
+    <string name="waste_confirm_delete">Delete this draft waste? This action removes the unpublished draft.</string>
+    <string name="unknown_cost">Unknown Cost</string>
+    <string name="original_movement">Original Movement</string>
+    <string name="reversal_movement">Reversal Movement</string>
+
+    <!-- Waste Reasons -->
+    <string name="reason_expired">Expired</string>
+    <string name="reason_spoiled">Spoiled</string>
+    <string name="reason_preparation_error">Preparation Error</string>
+    <string name="reason_overproduction">Overproduction</string>
+    <string name="reason_dropped_or_damaged">Dropped or Damaged</string>
+    <string name="reason_customer_return">Customer Return</string>
+    <string name="reason_quality_rejection">Quality Rejection</string>
+    <string name="reason_other">Other</string>
+
+    <!-- Waste Errors -->
+    <string name="error_waste_not_found">Waste event not found</string>
+    <string name="error_waste_ownership">Waste event ownership mismatch</string>
+    <string name="error_waste_not_draft">Waste event is no longer a draft</string>
+    <string name="error_waste_already_posted">Waste event is already posted</string>
+    <string name="error_waste_already_voided">Waste event is already voided</string>
+    <string name="error_waste_immutable">Posted or voided waste event cannot be modified</string>
+    <string name="error_ingredient_inactive">Selected ingredient is archived</string>
+    <string name="error_area_inactive">Selected area is archived</string>
+    <string name="error_unit_inactive">Selected unit option is archived</string>
+    <string name="error_reason_required">A valid waste reason is required</string>
+    <string name="error_future_effective_time">Waste effective time cannot be in the future</string>
+    <string name="error_attachment_unavailable">The attached photo is no longer available</string>
 </resources>

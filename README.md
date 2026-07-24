@@ -2,30 +2,29 @@
 
 A local-first restaurant inventory application built with modern Android practices.
 
-## Current Status (Milestone 6 — Deadlock-Free Coordinator & Integrity Pass)
+## Current Status (Milestone 7 — Waste Tracking)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (86 tests)
+- `testDebugUnitTest`: PASSED (90 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: Locally verified (64 PASSED, 3 environment-related flaky UI timeouts; StockCountLifecycleTest and StockCountUiTest PASSED)
+- `connectedDebugAndroidTest`: Locally verified (66 PASSED; WasteLifecycleTest PASSED)
 
 ### Verification Summary
-- **JVM Tests:** 86 total (ViewModel, UseCase, Repository unit tests).
-- **Stock-count ViewModel Tests:** 28 total (Including deadlock-free coordinator and race coverage).
-- **Snapshot Tests:** 12 total (Core logic for history replay).
-- **Room Integration Tests:** 32 total (Lifecycle transitions and rollback verification).
-- **Compose Tests:** 12 total (E2E lifecycle with area-specific tags and exact text assertions).
+- **JVM Tests:** 90 total (ViewModel, UseCase, Repository unit tests).
+- **Waste ViewModel Tests:** 12 total.
+- **Room Integration Tests:** 34 total.
+- **Compose Tests:** 14 total (Waste E2E lifecycle and integrity).
 
-### Milestone 6 Highlights
-- **Deadlock-Free Operation Coordinator:** Replaced the mutex-and-join architecture with a per-ingredient `Channel`-based loop. All repository mutations (Save, Delete, Flush) are enqueued and processed sequentially, eliminating synchronization deadlocks.
-- **Strict Operation Ordering:** If a line is deleted while being created, the coordinator captures the generated ID and performs the deletion immediately after the CREATE completes, ensuring no invisible lines remain in Room.
-- **Flush & Navigation Integrity:** `flushPendingSaves()` enqueues a Flush operation in the coordinator loop and awaits its completion, ensuring all pending revisions are persisted before navigation or area completion.
-- **Robust Detail Ownership:** `StockCountDetailViewModel` enforces active-restaurant ownership, hiding all data and actions if a cross-restaurant count is requested.
-- **UI Integrity & Dynamic Unit Options:** Rebuilds unit-option state synchronously after selection; archived options are correctly displayed when selected but disabled for re-selection after changing away.
-- **Exact Lifecycle Verification:** `StockCountLifecycleTest` now asserts exact inventory values using area-specific tags, verifying that COMPLETED and VOIDED states correctly persist authoritative snapshots.
+### Milestone 7 Highlights
+- **Full Waste Lifecycle:** Implementation of DRAFT → POSTED → VOIDED states with strict immutability rules for historical records.
+- **Atomic Posting Transaction:** One Room transaction handles canonical quantity recalculation, WASTE movement insertion, projection rebuilding, and status update.
+- **Historical Cost Snapshots:** Waste events capture the weighted-average cost of the ingredient at the effective timestamp, ensuring accurate historical valuation.
+- **Retroactive Integrity:** Projections are rebuilt by chronologically replaying all movements (effectiveAt, createdAt, ID), correctly handling retroactive waste.
+- **Photo Attachments:** Support for one optional local photo per waste event using persistable URI permissions.
+- **Negative Inventory Support:** Waste can result in negative area balances, acting as a discrepancy signal rather than being silently clamped.
 
-### Current milestone: Milestone 6 — Stock Counts (Completed)
-### Next milestone: Milestone 7 — Waste Tracking
+### Current milestone: Milestone 7 — Waste Tracking (Completed)
+### Next milestone: Milestone 8 — Dashboard and Reports
 
 ## Tech Stack
 - **UI:** Jetpack Compose with Material 3.

@@ -11,7 +11,8 @@ import com.miara.cuentame.core.database.repository.RoomRestaurantRepository
 import com.miara.cuentame.core.database.repository.RoomStockCountRepository
 import com.miara.cuentame.core.database.repository.RoomSupplierRepository
 import com.miara.cuentame.core.database.repository.RoomUnitRepository
-import com.miara.cuentame.core.database.repository.RoomWasteDraftRepository
+import com.miara.cuentame.core.database.repository.RoomWasteRepository
+import com.miara.cuentame.core.domain.repository.WasteRepository
 import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
@@ -22,7 +23,6 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.domain.repository.SupplierRepository
 import com.miara.cuentame.core.domain.repository.UnitRepository
-import com.miara.cuentame.core.domain.repository.WasteDraftRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -79,5 +79,5 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindWasteDraftRepository(repo: RoomWasteDraftRepository): WasteDraftRepository
+    abstract fun bindWasteRepository(repo: RoomWasteRepository): WasteRepository
 }

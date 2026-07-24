@@ -26,6 +26,9 @@ interface IngredientUnitOptionDao {
     @Query("SELECT * FROM ingredient_unit_options WHERE id = :id")
     suspend fun getById(id: String): IngredientUnitOptionEntity?
 
+    @Query("SELECT * FROM ingredient_unit_options WHERE id = :id")
+    fun observeById(id: String): Flow<IngredientUnitOptionEntity?>
+
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isActive = 1 AND deletedAt IS NULL")
     suspend fun getActiveOptions(ingredientId: String): List<IngredientUnitOptionEntity>
 

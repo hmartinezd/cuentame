@@ -17,6 +17,7 @@ import com.miara.cuentame.core.database.repository.InventoryMovementValidator
 import com.miara.cuentame.core.database.repository.PurchaseMovementHistoryValidator
 import com.miara.cuentame.core.database.repository.PurchaseReferenceValidator
 import com.miara.cuentame.core.database.repository.StockCountMovementHistoryValidator
+import com.miara.cuentame.core.database.repository.WasteMovementHistoryValidator
 import com.miara.cuentame.core.database.repository.RoomInventorySnapshotService
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import dagger.Module
@@ -83,6 +84,12 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideStockCountMovementHistoryValidator(): StockCountMovementHistoryValidator = StockCountMovementHistoryValidator()
+
+    @Provides
+    @Singleton
+    fun provideWasteMovementHistoryValidator(
+        movementValidator: InventoryMovementValidator
+    ): WasteMovementHistoryValidator = WasteMovementHistoryValidator(movementValidator)
 
     @Provides
     @Singleton

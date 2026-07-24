@@ -16,6 +16,22 @@ import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 
 @Composable
+fun StatusChip(status: com.miara.cuentame.core.model.inventory.DocumentStatus) {
+    val color = when (status) {
+        com.miara.cuentame.core.model.inventory.DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
+        com.miara.cuentame.core.model.inventory.DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
+        com.miara.cuentame.core.model.inventory.DocumentStatus.VOIDED -> MaterialTheme.colorScheme.error
+    }
+    val text = when (status) {
+        com.miara.cuentame.core.model.inventory.DocumentStatus.DRAFT -> stringResource(R.string.status_draft)
+        com.miara.cuentame.core.model.inventory.DocumentStatus.POSTED -> stringResource(R.string.status_posted)
+        com.miara.cuentame.core.model.inventory.DocumentStatus.VOIDED -> stringResource(R.string.status_voided)
+    }
+    
+    StatusChipContent(text = text, color = color)
+}
+
+@Composable
 fun StatusChip(status: StockCountStatus) {
     val color = when (status) {
         StockCountStatus.DRAFT -> MaterialTheme.colorScheme.secondary

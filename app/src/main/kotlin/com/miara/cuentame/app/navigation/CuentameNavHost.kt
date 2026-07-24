@@ -18,6 +18,7 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.StockCountAreaId
 import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.common.ids.SupplierId
+import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.areas.ui.AreaManagementRoute
 import com.miara.cuentame.feature.categories.ui.CategoryManagementRoute
@@ -37,6 +38,9 @@ import com.miara.cuentame.feature.settings.ui.RestaurantProfileRoute
 import com.miara.cuentame.feature.settings.ui.SettingsRoute
 import com.miara.cuentame.feature.suppliers.ui.SupplierFormRoute
 import com.miara.cuentame.feature.suppliers.ui.SupplierListRoute
+import com.miara.cuentame.feature.waste.ui.WasteDetailRoute
+import com.miara.cuentame.feature.waste.ui.WasteFormRoute
+import com.miara.cuentame.feature.waste.ui.WasteListRoute
 
 @Composable
 fun CuentameNavHost(
@@ -51,7 +55,10 @@ fun CuentameNavHost(
         modifier = modifier
     ) {
         composable(route = TopLevelDestination.HOME.route) {
-            HomeRoute()
+            HomeRoute(
+                onLogWaste = { navController.navigate(Destination.WASTE_CREATE.route) },
+                onViewWaste = { navController.navigate(Destination.WASTE_LIST.route) }
+            )
         }
         composable(route = TopLevelDestination.INVENTORY.route) {
             IngredientListRoute(
@@ -215,6 +222,47 @@ fun CuentameNavHost(
                         navController.navigate("count/$cid/area/${aid.value}")
                     }
                 }
+            )
+        }
+
+        // Waste
+        composable(route = Destination.WASTE_LIST.route) {
+            WasteListRoute(
+                onBack = { navController.popBackStack() },
+                onAddWaste = { navController.navigate(Destination.WASTE_CREATE.route) },
+                onWasteClick = { id, status ->
+                    if (status == DocumentStatus.DRAFT) {
+                        navController.navigate("waste/${id.value}")
+                    } else {
+                        navController.navigate("waste/${id.value}/detail")
+                    }
+                }
+            )
+        }
+        composable(route = Destination.WASTE_CREATE.route) {
+            WasteFormRoute(
+                onBack = { navController.popBackStack() },
+                onSuccess = { id ->
+                    navController.navigate("waste/${id.value}")
+                }
+            )
+        }
+        composable(route = Destination.WASTE_DRAFT.route) {
+            WasteDetailRoute(
+                onBack = { navController.popBackStack() },
+                onEdit = { id -> navController.navigate("waste/${id.value}/edit") }
+            )
+        }
+        composable(route = Destination.WASTE_EDIT.route) {
+            WasteFormRoute(
+                onBack = { navController.popBackStack() },
+                onSuccess = { navController.popBackStack() }
+            )
+        }
+        composable(route = Destination.WASTE_DETAIL.route) {
+            WasteDetailRoute(
+                onBack = { navController.popBackStack() },
+                onEdit = {} // No edit for posted/voided
             )
         }
         

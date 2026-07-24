@@ -21,10 +21,11 @@ enum class CountAreaStatus {
 enum class WasteReason {
     EXPIRED,
     SPOILED,
-    DAMAGED,
-    DROPPED,
-    OVER_PORTIONED,
-    THEFT,
+    PREPARATION_ERROR,
+    OVERPRODUCTION,
+    DROPPED_OR_DAMAGED,
+    CUSTOMER_RETURN,
+    QUALITY_REJECTION,
     OTHER
 }
 

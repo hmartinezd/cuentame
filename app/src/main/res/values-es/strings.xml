@@ -207,6 +207,8 @@
     <string name="purchase_items_count">%1$d artículos</string>
     <string name="posted_at">Publicado el: %1$s</string>
     <string name="voided_at">Anulado el: %1$s</string>
+    <string name="posted_label">Publicado el</string>
+    <string name="voided_label">Anulado el</string>
     <string name="purchase_line_desc">Editar línea de compra para %1$s</string>
     <string name="delete_line_desc">Eliminar línea de compra para %1$s</string>
     <string name="post_purchase_desc">Publicar compra con fecha %1$s</string>
@@ -302,5 +304,59 @@
     <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explícitamente afectan el inventario.</string>
     <string name="complete_count_desc">Se crearán ajustes de inventario. El conteo pasará a ser de solo lectura. Se pueden crear saldos iniciales para artículos sin historial previo en el área.</string>
     <string name="void_count_desc">Los movimientos originales permanecen en el historial. Los movimientos de reversión restaurarán el efecto de inventario anterior. El conteo sigue siendo visible como ANULADO.</string>
-    <string name="delete_draft_desc">¿Eliminar este borrador de conteo? Esta acción elimina el borrador no publicado y sus líneas.</string>
+    <string name="delete_draft_desc">¿Eliminar este borrador de conteo? Esta action elimina el borrador no publicado y sus líneas.</string>
+
+    <!-- Waste Tracking -->
+    <string name="waste">Mermas</string>
+    <string name="log_waste">Registrar Merma</string>
+    <string name="waste_history">Historial de Mermas</string>
+    <string name="waste_event">Evento de Merma</string>
+    <string name="draft_waste">Merma en Borrador</string>
+    <string name="posted_waste">Merma Publicada</string>
+    <string name="voided_waste">Merma Anulada</string>
+    <string name="waste_reason">Razón de la Merma</string>
+    <string name="quantity_wasted">Cantidad Perdida</string>
+    <string name="effective_date">Fecha Efectiva</string>
+    <string name="effective_time">Hora Efectiva</string>
+    <string name="current_balance">Saldo Actual</string>
+    <string name="remaining_balance">Saldo Restante</string>
+    <string name="estimated_waste_value">Valor Estimado de Merma</string>
+    <string name="negative_inventory_warning">Esto creará inventario negativo.</string>
+    <string name="post_waste">Publicar Merma</string>
+    <string name="void_waste">Anular Merma</string>
+    <string name="delete_waste_draft">Eliminar Borrador de Merma</string>
+    <string name="add_photo">Añadir Foto</string>
+    <string name="replace_photo">Reemplazar Foto</string>
+    <string name="remove_photo">Eliminar Foto</string>
+    <string name="photo_unavailable">Foto no disponible</string>
+    <string name="waste_confirm_post">¿Publicar este evento de merma? El inventario disminuirá. El evento pasará a ser de solo lectura.</string>
+    <string name="waste_confirm_void">¿Anular este evento de merma? Se creará un movimiento de reversión para restaurar el efecto de inventario. El evento sigue siendo visible como ANULADO.</string>
+    <string name="waste_confirm_delete">¿Eliminar esta merma en borrador? Esta acción elimina el borrador no publicado.</string>
+    <string name="unknown_cost">Costo Desconocido</string>
+    <string name="original_movement">Movimiento Original</string>
+    <string name="reversal_movement">Movimiento de Reversión</string>
+
+    <!-- Waste Reasons -->
+    <string name="reason_expired">Expirado</string>
+    <string name="reason_spoiled">Dañado / Descompuesto</string>
+    <string name="reason_preparation_error">Error de preparación</string>
+    <string name="reason_overproduction">Sobreproducción</string>
+    <string name="reason_dropped_or_damaged">Caído o dañado</string>
+    <string name="reason_customer_return">Devolución de cliente</string>
+    <string name="reason_quality_rejection">Rechazo por calidad</string>
+    <string name="reason_other">Otro</string>
+
+    <!-- Waste Errors -->
+    <string name="error_waste_not_found">Evento de merma no encontrado</string>
+    <string name="error_waste_ownership">Error de pertenencia del evento de merma</string>
+    <string name="error_waste_not_draft">El evento de merma ya no es un borrador</string>
+    <string name="error_waste_already_posted">El evento de merma ya ha sido publicado</string>
+    <string name="error_waste_already_voided">El evento de merma ya ha sido anulado</string>
+    <string name="error_waste_immutable">Las mermas publicadas o anuladas no se pueden modificar</string>
+    <string name="error_ingredient_inactive">El ingrediente seleccionado está archivado</string>
+    <string name="error_area_inactive">El área seleccionada está archivada</string>
+    <string name="error_unit_inactive">La unidad seleccionada está archivada</string>
+    <string name="error_reason_required">Se requiere una razón de merma válida</string>
+    <string name="error_future_effective_time">La fecha de merma no puede ser futura</string>
+    <string name="error_attachment_unavailable">La foto adjunta ya no está disponible</string>
 </resources>

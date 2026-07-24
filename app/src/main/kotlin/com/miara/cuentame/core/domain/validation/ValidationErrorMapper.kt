@@ -63,6 +63,28 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.PendingCountSaves -> R.string.error_generic
             ValidationError.StockCountAreaAlreadyInDraft -> R.string.error_generic // Should use error_overlapping_area with args but toUserMessageRes is simple
 
+            // Waste Tracking
+            ValidationError.WasteEventNotFound -> R.string.error_waste_not_found
+            ValidationError.WasteEventOwnershipMismatch -> R.string.error_waste_ownership
+            ValidationError.WasteEventNotDraft -> R.string.error_waste_not_draft
+            ValidationError.WasteEventAlreadyPosted -> R.string.error_waste_already_posted
+            ValidationError.WasteEventAlreadyVoided -> R.string.error_waste_already_voided
+            ValidationError.WasteEventImmutable -> R.string.error_waste_immutable
+            ValidationError.WasteIngredientNotFound -> R.string.error_ingredient_required
+            ValidationError.WasteIngredientOwnershipMismatch -> R.string.error_waste_ownership
+            ValidationError.WasteIngredientInactive -> R.string.error_ingredient_inactive
+            ValidationError.WasteAreaNotFound -> R.string.error_area_required
+            ValidationError.WasteAreaOwnershipMismatch -> R.string.error_waste_ownership
+            ValidationError.WasteAreaInactive -> R.string.error_area_inactive
+            ValidationError.WasteUnitOptionNotFound -> R.string.error_unit_required
+            ValidationError.WasteUnitOptionOwnershipMismatch -> R.string.error_unit_required
+            ValidationError.WasteUnitOptionInactive -> R.string.error_unit_inactive
+            ValidationError.InvalidWasteQuantity -> R.string.error_quantity_positive
+            ValidationError.InvalidWasteReason -> R.string.error_reason_required
+            ValidationError.InvalidWasteEffectiveTime -> R.string.error_future_effective_time
+            ValidationError.MalformedWasteMovementHistory -> R.string.error_malformed_history
+            ValidationError.WasteAttachmentUnavailable -> R.string.error_attachment_unavailable
+
             else -> R.string.error_generic
         }
         else -> R.string.error_generic
