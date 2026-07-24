@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -73,7 +74,7 @@ fun WasteDetailRoute(
             when (event) {
                 is WasteDetailEvent.Deleted -> onBack()
                 is WasteDetailEvent.Posted -> {
-                    // Reactive update will handle UI
+                    // Reactive update will handle UI, but we can show success snackbar if needed
                 }
                 is WasteDetailEvent.Voided -> {
                     // Reactive update will handle UI
@@ -93,7 +94,12 @@ fun WasteDetailRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
-        onEdit = { uiState.details?.event?.id?.let { onEdit(it) } },
+        onEdit = { 
+            val state = uiState.screenState
+            if (state is WasteDetailScreenState.Ready) {
+                onEdit(state.details.event.id)
+            }
+        },
         onDelete = viewModel::onDelete,
         onPost = viewModel::onPost,
         onVoid = viewModel::onVoid
@@ -115,6 +121,15 @@ fun WasteDetailScreen(
     var showPostConfirm by remember { mutableStateOf(false) }
     var showVoidConfirm by remember { mutableStateOf(false) }
 
+    val readyState = uiState.screenState as? WasteDetailScreenState.Ready
+    val event = readyState?.details?.event
+    
+    // Close dialogs on success (when status changes)
+    LaunchedEffect(event?.status) {
+        if (event?.status == DocumentStatus.POSTED) showPostConfirm = false
+        if (event?.status == DocumentStatus.VOIDED) showVoidConfirm = false
+    }
+
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
@@ -128,7 +143,7 @@ fun WasteDetailScreen(
                     }
                 },
                 actions = {
-                    if (uiState.screenState == WasteDetailScreenState.Ready && uiState.details?.event?.status == DocumentStatus.DRAFT) {
+                    if (event?.status == DocumentStatus.DRAFT) {
                         IconButton(onClick = onEdit, enabled = !uiState.isDeleting) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
                         }
@@ -148,17 +163,17 @@ fun WasteDetailScreen(
             }
             is WasteDetailScreenState.NotFound -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.error_waste_not_found))
+                    Text(stringResource(R.string.error_waste_not_found), modifier = Modifier.testTag("not_found_text"))
                 }
             }
             is WasteDetailScreenState.InvalidRoute -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.error_generic))
+                    Text(stringResource(R.string.error_generic), modifier = Modifier.testTag("invalid_route_text"))
                 }
             }
             is WasteDetailScreenState.OwnershipMismatch -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.error_waste_ownership))
+                    Text(stringResource(R.string.error_waste_ownership), modifier = Modifier.testTag("ownership_mismatch_text"))
                 }
             }
             is WasteDetailScreenState.Error -> {
@@ -167,8 +182,8 @@ fun WasteDetailScreen(
                 }
             }
             is WasteDetailScreenState.Ready -> {
-                val details = uiState.details!!
-                val event = details.event
+                val details = state.details
+                val e = details.event
                 
                 Column(
                     modifier = Modifier
@@ -181,35 +196,55 @@ fun WasteDetailScreen(
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = details.ingredientName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text(text = details.areaName ?: "", style = MaterialTheme.typography.bodyMedium)
+                            Text(text = details.ingredientName ?: stringResource(R.string.error_ingredient_not_found), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(text = details.areaName ?: stringResource(R.string.unknown_area), style = MaterialTheme.typography.bodyMedium)
                         }
-                        StatusChip(status = event.status)
+                        StatusChip(status = e.status)
                     }
 
                     HorizontalDivider()
 
-                    DetailItem(label = stringResource(R.string.quantity_wasted), value = "${event.quantityEntered} ${details.unitLabel}")
-                    DetailItem(label = stringResource(R.string.base_unit), value = "${event.quantityBase} ${details.baseUnitSymbol ?: ""}")
-                    DetailItem(label = stringResource(R.string.waste_reason), value = stringResource(event.reason.toLabelRes()))
-                    DetailItem(label = stringResource(R.string.effective_date), value = dateFormatter.format(event.effectiveAt))
+                    DetailItem(label = stringResource(R.string.quantity_wasted), value = "${e.quantityEntered} ${details.unitLabel ?: ""}")
+                    DetailItem(label = stringResource(R.string.base_unit), value = "${e.quantityBase} ${details.baseUnitSymbol ?: ""}")
+                    DetailItem(label = stringResource(R.string.waste_reason), value = stringResource(e.reason.toLabelRes()))
+                    DetailItem(label = stringResource(R.string.effective_date), value = dateFormatter.format(e.effectiveAt))
 
-                    if (event.postedAt != null) {
-                        DetailItem(label = stringResource(R.string.posted_label), value = dateFormatter.format(event.postedAt))
-                    }
-                    if (event.voidedAt != null) {
-                        DetailItem(label = stringResource(R.string.voided_label), value = dateFormatter.format(event.voidedAt))
+                    if (e.status == DocumentStatus.DRAFT) {
+                        HorizontalDivider()
+                        if (details.currentAreaQuantityBase != null) {
+                            DetailItem(label = stringResource(R.string.current_balance), value = "${details.currentAreaQuantityBase} ${details.baseUnitSymbol ?: ""}")
+                        }
+                        if (details.remainingAreaQuantityBase != null) {
+                            DetailItem(
+                                label = stringResource(R.string.remaining_balance),
+                                value = "${details.remainingAreaQuantityBase} ${details.baseUnitSymbol ?: ""}",
+                                valueColor = if (details.createsNegativeBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        if (details.createsNegativeBalance) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                Text(text = stringResource(R.string.negative_inventory_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
 
-                    if (!event.notes.isNullOrBlank()) {
-                        DetailItem(label = stringResource(R.string.notes), value = event.notes)
+                    if (e.postedAt != null) {
+                        DetailItem(label = stringResource(R.string.posted_label), value = dateFormatter.format(e.postedAt))
+                    }
+                    if (e.voidedAt != null) {
+                        DetailItem(label = stringResource(R.string.voided_label), value = dateFormatter.format(e.voidedAt))
                     }
 
-                    if (event.attachmentPath != null) {
+                    if (!e.notes.isNullOrBlank()) {
+                        DetailItem(label = stringResource(R.string.notes), value = e.notes)
+                    }
+
+                    if (e.attachmentPath != null) {
                         Text(text = stringResource(R.string.add_photo), style = MaterialTheme.typography.titleMedium)
                         AsyncImage(
-                            model = event.attachmentPath,
-                            contentDescription = "Waste photo",
+                            model = e.attachmentPath,
+                            contentDescription = stringResource(R.string.add_photo),
                             modifier = Modifier.fillMaxWidth().size(200.dp),
                             contentScale = ContentScale.Crop
                         )
@@ -230,11 +265,11 @@ fun WasteDetailScreen(
                             text = "${stringResource(R.string.cost_per_base_unit, details.baseUnitSymbol ?: "")}: ${Formatters.formatCurrency(details.averageCostBase, uiState.currencyCode)}",
                             style = MaterialTheme.typography.bodySmall
                         )
-                    } else if (event.status != DocumentStatus.DRAFT) {
+                    } else if (e.status != DocumentStatus.DRAFT) {
                         Text(text = stringResource(R.string.unknown_cost), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
 
-                    if (event.status == DocumentStatus.DRAFT) {
+                    if (e.status == DocumentStatus.DRAFT) {
                         Button(
                             onClick = { showPostConfirm = true },
                             modifier = Modifier.fillMaxWidth().testTag("waste_post_button"),
@@ -245,7 +280,7 @@ fun WasteDetailScreen(
                             }
                             Text(stringResource(R.string.post_waste))
                         }
-                    } else if (event.status == DocumentStatus.POSTED) {
+                    } else if (e.status == DocumentStatus.POSTED) {
                         Button(
                             onClick = { showVoidConfirm = true },
                             modifier = Modifier.fillMaxWidth().testTag("waste_void_button"),
@@ -273,10 +308,33 @@ fun WasteDetailScreen(
         )
     }
 
-    if (showPostConfirm) {
+    if (showPostConfirm && readyState != null) {
+        val details = readyState.details
+        val message = buildString {
+            append(stringResource(R.string.waste_confirm_post))
+            append("\n\n")
+            append(stringResource(R.string.quantity_wasted))
+            append(": ${details.event.quantityEntered} ${details.unitLabel ?: ""}\n")
+            if (details.currentAreaQuantityBase != null) {
+                append(stringResource(R.string.current_balance))
+                append(": ${details.currentAreaQuantityBase} ${details.baseUnitSymbol ?: ""}\n")
+            }
+            if (details.remainingAreaQuantityBase != null) {
+                append(stringResource(R.string.remaining_balance))
+                append(": ${details.remainingAreaQuantityBase} ${details.baseUnitSymbol ?: ""}\n")
+            }
+            if (details.estimatedValue != null) {
+                append(stringResource(R.string.estimated_waste_value))
+                append(": ${Formatters.formatCurrency(details.estimatedValue, uiState.currencyCode)}\n")
+            }
+            if (details.createsNegativeBalance) {
+                append("\n⚠️ ")
+                append(stringResource(R.string.negative_inventory_warning))
+            }
+        }
         ArchiveConfirmDialog(
             title = stringResource(R.string.post_waste),
-            message = stringResource(R.string.waste_confirm_post),
+            message = message,
             confirmText = stringResource(R.string.action_confirm),
             isSaving = uiState.isPosting,
             onDismiss = { if (!uiState.isPosting) showPostConfirm = false },
@@ -297,9 +355,9 @@ fun WasteDetailScreen(
 }
 
 @Composable
-fun DetailItem(label: String, value: String) {
+fun DetailItem(label: String, value: String, valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-        Text(text = value, style = MaterialTheme.typography.bodyLarge)
+        Text(text = value, style = MaterialTheme.typography.bodyLarge, color = valueColor)
     }
 }

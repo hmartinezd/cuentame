@@ -53,7 +53,8 @@ class RoomWasteRepository @Inject constructor(
     private val historyValidator: WasteMovementHistoryValidator,
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val failureBoundary: IntegrationFailureBoundary = NoOpFailureBoundary()
 ) : WasteRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantId {
@@ -93,9 +94,9 @@ class RoomWasteRepository @Inject constructor(
 
                     WasteSummary(
                         event = entity.toDomainWaste(),
-                        ingredientName = ingredient?.name ?: "Unknown",
+                        ingredientName = ingredient?.name,
                         areaName = area?.name,
-                        unitLabel = unit?.shortLabel ?: "units",
+                        unitLabel = unit?.shortLabel,
                         estimatedValue = estimatedValue
                     )
                 }
@@ -104,8 +105,8 @@ class RoomWasteRepository @Inject constructor(
         }.map { summaries ->
             if (filter.query.isNullOrBlank()) summaries
             else summaries.filter { 
-                it.ingredientName.contains(filter.query, ignoreCase = true) ||
-                it.areaName?.contains(filter.query, ignoreCase = true) == true
+                (it.ingredientName?.contains(filter.query, ignoreCase = true) == true) ||
+                (it.areaName?.contains(filter.query, ignoreCase = true) == true)
             }
         }
     }
@@ -122,7 +123,30 @@ class RoomWasteRepository @Inject constructor(
                 val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, entity.id)
                 val wasteMovement = movements.find { it.movementType == InventoryMovementType.WASTE.name }
                 
-                val averageCost = wasteMovement?.unitCostBaseSnapshot?.let { parseHistoryDecimal(it) }
+                val averageCost: BigDecimal?
+                val currentAreaQuantityBase: BigDecimal?
+                val remainingAreaQuantityBase: BigDecimal?
+                val createsNegativeBalance: Boolean
+
+                if (entity.status == DocumentStatus.DRAFT.name) {
+                    val snapshot = snapshotService.calculateAt(
+                        restaurantId = RestaurantId(entity.restaurantId),
+                        ingredientId = IngredientId(entity.ingredientId),
+                        areaId = InventoryAreaId(entity.areaId),
+                        effectiveAt = Instant.ofEpochMilli(entity.effectiveAt)
+                    )
+                    averageCost = snapshot.ingredientAverageCostBase
+                    currentAreaQuantityBase = snapshot.areaQuantityBase
+                    val qtyBase = parseHistoryDecimal(entity.quantityBase)
+                    remainingAreaQuantityBase = currentAreaQuantityBase.subtract(qtyBase)
+                    createsNegativeBalance = remainingAreaQuantityBase < BigDecimal.ZERO
+                } else {
+                    averageCost = wasteMovement?.unitCostBaseSnapshot?.let { parseHistoryDecimal(it) }
+                    currentAreaQuantityBase = null
+                    remainingAreaQuantityBase = null
+                    createsNegativeBalance = false
+                }
+
                 val quantityBase = parseHistoryDecimal(entity.quantityBase)
                 
                 val baseUnit = if (ingredient != null) {
@@ -131,12 +155,15 @@ class RoomWasteRepository @Inject constructor(
 
                 WasteDetails(
                     event = entity.toDomainWaste(),
-                    ingredientName = ingredient?.name ?: "Unknown",
+                    ingredientName = ingredient?.name,
                     areaName = area?.name,
-                    unitLabel = unit?.shortLabel ?: "units",
+                    unitLabel = unit?.shortLabel,
                     baseUnitSymbol = baseUnit?.shortLabel,
+                    currentAreaQuantityBase = currentAreaQuantityBase,
+                    remainingAreaQuantityBase = remainingAreaQuantityBase,
                     averageCostBase = averageCost,
-                    estimatedValue = averageCost?.multiply(quantityBase, MathContext.DECIMAL128)
+                    estimatedValue = averageCost?.multiply(quantityBase, MathContext.DECIMAL128),
+                    createsNegativeBalance = createsNegativeBalance
                 )
             }
         }
@@ -278,11 +305,26 @@ class RoomWasteRepository @Inject constructor(
             if (existing.status != DocumentStatus.DRAFT.name) throw ValidationError.WasteEventAlreadyVoided
             historyValidator.validateDraftHistory(movements)
 
+            // Revalidate the entire graph
+            val ingredient = ingredientDao.getById(existing.ingredientId) ?: throw ValidationError.WasteIngredientNotFound
+            if (ingredient.restaurantId != existing.restaurantId) throw ValidationError.WasteIngredientOwnershipMismatch
+            
+            val area = areaDao.getById(existing.areaId) ?: throw ValidationError.WasteAreaNotFound
+            if (area.restaurantId != existing.restaurantId) throw ValidationError.WasteAreaOwnershipMismatch
+            
             val option = unitOptionDao.getById(existing.ingredientUnitOptionId) ?: throw ValidationError.WasteUnitOptionNotFound
+            if (option.ingredientId != existing.ingredientId) throw ValidationError.WasteUnitOptionOwnershipMismatch
+            if (option.factorToBase <= BigDecimal.ZERO) throw ValidationError.InvalidUnitFactor
+
             val qtyEntered = parseHistoryDecimal(existing.quantityEntered)
+            if (qtyEntered <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
+
             val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
+            if (canonicalQtyBase <= BigDecimal.ZERO) throw ValidationError.InvalidWasteQuantity
             
             if (commandEffectiveAtIsFuture(existing.effectiveAt)) throw ValidationError.InvalidWasteEffectiveTime
+            
+            if (existing.postedAt != null || existing.voidedAt != null) throw ValidationError.WasteEventImmutable
 
             val snapshot = snapshotService.calculateAt(
                 restaurantId = activeRestaurant,
@@ -292,13 +334,7 @@ class RoomWasteRepository @Inject constructor(
             )
 
             val now = timeProvider.now().toEpochMilli()
-            val postedEvent = existing.copy(
-                quantityBase = canonicalQtyBase.toPlainString(),
-                status = DocumentStatus.POSTED.name,
-                updatedAt = now,
-                postedAt = now
-            )
-
+            
             val totalValue = snapshot.ingredientAverageCostBase?.multiply(canonicalQtyBase, MathContext.DECIMAL128)
 
             val movement = InventoryMovementEntity(
@@ -319,9 +355,23 @@ class RoomWasteRepository @Inject constructor(
                 createdAt = now
             )
 
+            val affected = wasteDao.markPosted(
+                id = existing.id,
+                restaurantId = activeRestaurant.value,
+                postedAt = now,
+                quantityBase = canonicalQtyBase.toPlainString()
+            )
+            if (affected != 1) throw ValidationError.WasteEventNotFound
+            
+            failureBoundary.trigger("post-after-mark-posted")
+
             movementDao.insert(movement)
-            wasteDao.update(postedEvent)
+            
+            failureBoundary.trigger("post-after-movement")
+
             projectionRebuilder.rebuildForIngredient(IngredientId(existing.ingredientId))
+            
+            failureBoundary.trigger("post-after-projection")
         }
     }
 
@@ -338,7 +388,7 @@ class RoomWasteRepository @Inject constructor(
                 return@withTransaction
             }
 
-            if (existing.status != DocumentStatus.POSTED.name) throw ValidationError.WasteEventNotDraft
+            if (existing.status != DocumentStatus.POSTED.name) throw ValidationError.WasteEventNotPosted
             historyValidator.validatePostedHistory(existing, movements)
 
             val original = movements.find { it.movementType == InventoryMovementType.WASTE.name } 
@@ -365,15 +415,22 @@ class RoomWasteRepository @Inject constructor(
                 createdAt = now
             )
 
-            val voidedEvent = existing.copy(
-                status = DocumentStatus.VOIDED.name,
-                updatedAt = now,
+            val affected = wasteDao.markVoided(
+                id = existing.id,
+                restaurantId = activeRestaurant.value,
                 voidedAt = now
             )
+            if (affected != 1) throw ValidationError.WasteEventNotFound
+            
+            failureBoundary.trigger("void-after-mark-voided")
 
             movementDao.insert(reversal)
-            wasteDao.update(voidedEvent)
+            
+            failureBoundary.trigger("void-after-reversal")
+
             projectionRebuilder.rebuildForIngredient(IngredientId(existing.ingredientId))
+            
+            failureBoundary.trigger("void-after-projection")
         }
     }
 
@@ -389,11 +446,19 @@ class RoomWasteRepository @Inject constructor(
         ingredientUnitOptionId = IngredientUnitOptionId(ingredientUnitOptionId),
         quantityEntered = parseHistoryDecimal(quantityEntered),
         quantityBase = parseHistoryDecimal(quantityBase),
-        reason = com.miara.cuentame.core.model.inventory.WasteReason.valueOf(reason),
+        reason = try {
+            com.miara.cuentame.core.model.inventory.WasteReason.valueOf(reason)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedWasteMovementHistory
+        },
         effectiveAt = Instant.ofEpochMilli(effectiveAt),
         notes = notes,
         attachmentPath = attachmentPath,
-        status = com.miara.cuentame.core.model.inventory.DocumentStatus.valueOf(status),
+        status = try {
+            com.miara.cuentame.core.model.inventory.DocumentStatus.valueOf(status)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedWasteMovementHistory
+        },
         createdAt = Instant.ofEpochMilli(createdAt),
         updatedAt = Instant.ofEpochMilli(updatedAt),
         postedAt = postedAt?.let { Instant.ofEpochMilli(it) },

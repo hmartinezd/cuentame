@@ -1,5 +1,9 @@
 package com.miara.cuentame.core.di
 
+import com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
+import com.miara.cuentame.core.database.repository.NoOpFailureBoundary
+import com.miara.cuentame.core.common.attachment.AndroidLocalAttachmentPermissionManager
+import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.UuidIdGenerator
 import com.miara.cuentame.core.common.time.SystemTimeProvider
@@ -75,7 +79,17 @@ object CommonModule {
 
     @Provides
     @Singleton
+    fun provideIntegrationFailureBoundary(): IntegrationFailureBoundary = NoOpFailureBoundary()
+
+    @Provides
+    @Singleton
     fun providePurchaseLineCalculator(): PurchaseLineCalculator = PurchaseLineCalculator()
+
+    @Provides
+    @Singleton
+    fun provideLocalAttachmentPermissionManager(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+    ): LocalAttachmentPermissionManager = AndroidLocalAttachmentPermissionManager(context)
 
     @Provides
     @Singleton

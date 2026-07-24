@@ -26,7 +26,7 @@ import javax.inject.Inject
 
 sealed interface WasteDetailScreenState {
     data object Loading : WasteDetailScreenState
-    data object Ready : WasteDetailScreenState
+    data class Ready(val details: WasteDetails) : WasteDetailScreenState
     data object NotFound : WasteDetailScreenState
     data object InvalidRoute : WasteDetailScreenState
     data object OwnershipMismatch : WasteDetailScreenState
@@ -38,7 +38,6 @@ data class WasteDetailUiState(
     val isDeleting: Boolean = false,
     val isPosting: Boolean = false,
     val isVoiding: Boolean = false,
-    val details: WasteDetails? = null,
     val currencyCode: String = "USD",
     val error: Throwable? = null
 )
@@ -67,7 +66,6 @@ class WasteDetailViewModel @Inject constructor(
     private val _isPosting = MutableStateFlow(false)
     private val _isVoiding = MutableStateFlow(false)
     private val _error = MutableStateFlow<Throwable?>(null)
-    private val _hasLoadedOnce = MutableStateFlow(false)
 
     private val _events = Channel<WasteDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -79,8 +77,7 @@ class WasteDetailViewModel @Inject constructor(
         _isDeleting,
         _isPosting,
         _isVoiding,
-        _error,
-        _hasLoadedOnce
+        _error
     ) { args ->
         val restaurant = args[0] as com.miara.cuentame.core.model.restaurant.Restaurant?
         val details = args[1] as WasteDetails?
@@ -88,15 +85,14 @@ class WasteDetailViewModel @Inject constructor(
         val isPosting = args[3] as Boolean
         val isVoiding = args[4] as Boolean
         val error = args[5] as Throwable?
-        val hasLoadedOnce = args[6] as Boolean
 
         val screenState = when {
             wasteEventId == null || wasteEventIdStr.isNullOrBlank() -> WasteDetailScreenState.InvalidRoute
-            !hasLoadedOnce && error == null -> WasteDetailScreenState.Loading
+            restaurant == null -> WasteDetailScreenState.Loading
             error != null && details == null -> WasteDetailScreenState.Error(error)
             details == null -> WasteDetailScreenState.NotFound
-            restaurant == null || details.event.restaurantId != restaurant.id -> WasteDetailScreenState.OwnershipMismatch
-            else -> WasteDetailScreenState.Ready
+            details.event.restaurantId != restaurant.id -> WasteDetailScreenState.OwnershipMismatch
+            else -> WasteDetailScreenState.Ready(details)
         }
 
         WasteDetailUiState(
@@ -104,12 +100,10 @@ class WasteDetailViewModel @Inject constructor(
             isDeleting = isDeleting,
             isPosting = isPosting,
             isVoiding = isVoiding,
-            details = if (screenState == WasteDetailScreenState.Ready) details else null,
             currencyCode = restaurant?.currencyCode ?: "USD",
             error = error
         )
-    }.onEach { if (it.details != null) _hasLoadedOnce.value = true }
-    .stateIn(
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = WasteDetailUiState()
@@ -117,7 +111,7 @@ class WasteDetailViewModel @Inject constructor(
 
     fun onDelete() {
         val cid = wasteEventId ?: return
-        if (uiState.value.screenState != WasteDetailScreenState.Ready) return
+        if (uiState.value.screenState !is WasteDetailScreenState.Ready) return
         if (_isDeleting.value) return
         
         _isDeleting.value = true
@@ -136,7 +130,7 @@ class WasteDetailViewModel @Inject constructor(
 
     fun onPost() {
         val cid = wasteEventId ?: return
-        if (uiState.value.screenState != WasteDetailScreenState.Ready) return
+        if (uiState.value.screenState !is WasteDetailScreenState.Ready) return
         if (_isPosting.value) return
         
         _isPosting.value = true
@@ -155,7 +149,7 @@ class WasteDetailViewModel @Inject constructor(
 
     fun onVoid() {
         val cid = wasteEventId ?: return
-        if (uiState.value.screenState != WasteDetailScreenState.Ready) return
+        if (uiState.value.screenState !is WasteDetailScreenState.Ready) return
         if (_isVoiding.value) return
         
         _isVoiding.value = true

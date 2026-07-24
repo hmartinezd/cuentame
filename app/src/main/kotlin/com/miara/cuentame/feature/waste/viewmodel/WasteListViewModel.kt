@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.catch
 import javax.inject.Inject
 
 data class WasteListUiState(
@@ -24,6 +25,7 @@ data class WasteListUiState(
     val wasteEvents: List<WasteSummary> = emptyList(),
     val statusFilter: DocumentStatus? = null,
     val searchQuery: String = "",
+    val currencyCode: String = "USD",
     val error: Throwable? = null
 )
 
@@ -37,33 +39,39 @@ class WasteListViewModel @Inject constructor(
     private val _statusFilter = MutableStateFlow<DocumentStatus?>(null)
     private val _searchQuery = MutableStateFlow("")
 
-    val uiState: StateFlow<WasteListUiState> = combine(
-        restaurantRepository.observeRestaurant(),
-        _statusFilter,
-        _searchQuery
-    ) { restaurant, status, query ->
-        if (restaurant == null) return@combine flowOf(WasteListUiState(isLoading = false))
-        
-        observeWasteEventsUseCase(
-            WasteFilter(
-                restaurantId = restaurant.id,
-                status = status,
-                query = query
-            )
-        ).map { events ->
-            WasteListUiState(
-                isLoading = false,
-                wasteEvents = events,
-                statusFilter = status,
-                searchQuery = query
-            )
+    val uiState: StateFlow<WasteListUiState> = restaurantRepository.observeRestaurant()
+        .flatMapLatest { restaurant ->
+            if (restaurant == null) {
+                return@flatMapLatest flowOf(WasteListUiState(isLoading = false))
+            }
+            combine(
+                _statusFilter,
+                _searchQuery
+            ) { status, query ->
+                observeWasteEventsUseCase(
+                    WasteFilter(
+                        restaurantId = restaurant.id,
+                        status = status,
+                        query = query
+                    )
+                ).map { events ->
+                    WasteListUiState(
+                        isLoading = false,
+                        wasteEvents = events,
+                        statusFilter = status,
+                        searchQuery = query,
+                        currencyCode = restaurant.currencyCode
+                    )
+                }.catch { e ->
+                    emit(WasteListUiState(isLoading = false, error = e, currencyCode = restaurant.currencyCode))
+                }
+            }.flatMapLatest { it }
         }
-    }.flatMapLatest { it }
-    .stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = WasteListUiState()
-    )
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = WasteListUiState()
+        )
 
     fun onStatusFilterChanged(status: DocumentStatus?) {
         _statusFilter.value = status

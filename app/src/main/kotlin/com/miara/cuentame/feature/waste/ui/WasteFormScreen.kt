@@ -115,16 +115,6 @@ fun WasteFormRoute(
         onDateChanged = viewModel::onEffectiveAtChanged,
         onNotesChanged = viewModel::onNotesChanged,
         onAttachmentChanged = { uri ->
-            if (uri != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (e: Exception) {
-                    // Ignore if cannot take permission
-                }
-            }
             viewModel.onAttachmentChanged(uri?.toString())
         },
         onSave = viewModel::onSave
@@ -178,7 +168,7 @@ fun WasteFormScreen(
             )
         }
     ) { padding ->
-        when (uiState.screenState) {
+        when (val state = uiState.screenState) {
             is WasteFormScreenState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -189,9 +179,24 @@ fun WasteFormScreen(
                     Text(stringResource(R.string.error_waste_not_found))
                 }
             }
+            is WasteFormScreenState.InvalidRoute -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_generic))
+                }
+            }
             is WasteFormScreenState.OwnershipMismatch -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.error_waste_ownership))
+                }
+            }
+            is WasteFormScreenState.Immutable -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_waste_immutable))
+                }
+            }
+            is WasteFormScreenState.Error -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(state.throwable.toUserMessageRes()))
                 }
             }
             is WasteFormScreenState.Ready -> {
@@ -218,7 +223,7 @@ fun WasteFormScreen(
                             label = { Text(stringResource(R.string.ingredient_name)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ingredientExpanded) },
                             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                            enabled = !uiState.isSaving && uiState.wasteEventId == null
+                            enabled = !uiState.isSaving
                         )
                         ExposedDropdownMenu(
                             expanded = ingredientExpanded,
@@ -297,8 +302,9 @@ fun WasteFormScreen(
                                 onDismissRequest = { unitExpanded = false }
                             ) {
                                 uiState.unitOptions.forEach { option ->
+                                    val label = if (option.isActive) option.label else "${option.label} (${stringResource(R.string.archived_label)})"
                                     DropdownMenuItem(
-                                        text = { Text(option.label) },
+                                        text = { Text(label) },
                                         onClick = { onUnitOptionSelected(option.id); unitExpanded = false },
                                         enabled = option.isSelectable,
                                         modifier = Modifier.testTag("unit_item_${option.label}")
@@ -394,7 +400,7 @@ fun WasteFormScreen(
                             )
                             if (uiState.preview.estimatedWasteValue != null) {
                                 Text(
-                                    text = "${stringResource(R.string.estimated_waste_value)}: ${Formatters.formatCurrency(uiState.preview.estimatedWasteValue, "USD")}",
+                                    text = "${stringResource(R.string.estimated_waste_value)}: ${Formatters.formatCurrency(uiState.preview.estimatedWasteValue, uiState.currencyCode)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.testTag("estimated_value_preview")
@@ -428,9 +434,12 @@ fun WasteFormScreen(
                             Box(modifier = Modifier.fillMaxWidth().size(200.dp)) {
                                 AsyncImage(
                                     model = uiState.attachmentUri,
-                                    contentDescription = "Waste photo",
+                                    contentDescription = stringResource(R.string.add_photo),
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    contentScale = ContentScale.Crop,
+                                    onError = {
+                                        // Handle image unavailable if needed
+                                    }
                                 )
                                 IconButton(
                                     onClick = { onAttachmentChanged(null) },
@@ -465,7 +474,6 @@ fun WasteFormScreen(
                     }
                 }
             }
-            else -> {}
         }
     }
 

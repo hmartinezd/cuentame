@@ -44,20 +44,23 @@ data class WasteFilter(
 
 data class WasteSummary(
     val event: WasteEvent,
-    val ingredientName: String,
+    val ingredientName: String?,
     val areaName: String?,
-    val unitLabel: String,
+    val unitLabel: String?,
     val estimatedValue: BigDecimal?
 )
 
 data class WasteDetails(
     val event: WasteEvent,
-    val ingredientName: String,
+    val ingredientName: String?,
     val areaName: String?,
-    val unitLabel: String,
+    val unitLabel: String?,
     val baseUnitSymbol: String?,
+    val currentAreaQuantityBase: BigDecimal?,
+    val remainingAreaQuantityBase: BigDecimal?,
     val averageCostBase: BigDecimal?,
-    val estimatedValue: BigDecimal?
+    val estimatedValue: BigDecimal?,
+    val createsNegativeBalance: Boolean = false
 )
 
 interface WasteRepository {

@@ -16,6 +16,42 @@ interface WasteDao {
     @Update
     suspend fun update(event: WasteEventEntity): Int
 
+    @Query("""
+        UPDATE waste_events
+        SET status = 'POSTED',
+            postedAt = :postedAt,
+            updatedAt = :postedAt,
+            quantityBase = :quantityBase
+        WHERE id = :id
+          AND restaurantId = :restaurantId
+          AND status = 'DRAFT'
+          AND postedAt IS NULL
+          AND voidedAt IS NULL
+    """)
+    suspend fun markPosted(
+        id: String,
+        restaurantId: String,
+        postedAt: Long,
+        quantityBase: String
+    ): Int
+
+    @Query("""
+        UPDATE waste_events
+        SET status = 'VOIDED',
+            voidedAt = :voidedAt,
+            updatedAt = :voidedAt
+        WHERE id = :id
+          AND restaurantId = :restaurantId
+          AND status = 'POSTED'
+          AND postedAt IS NOT NULL
+          AND voidedAt IS NULL
+    """)
+    suspend fun markVoided(
+        id: String,
+        restaurantId: String,
+        voidedAt: Long
+    ): Int
+
     @Query("DELETE FROM waste_events WHERE id = :id AND status = 'DRAFT'")
     suspend fun deleteDraft(id: String): Int
 

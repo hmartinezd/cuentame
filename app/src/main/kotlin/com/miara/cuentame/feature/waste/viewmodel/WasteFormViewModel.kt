@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.waste.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
@@ -58,6 +59,8 @@ sealed interface WasteFormScreenState {
     data object NotFound : WasteFormScreenState
     data object InvalidRoute : WasteFormScreenState
     data object OwnershipMismatch : WasteFormScreenState
+    data object Immutable : WasteFormScreenState
+    data class Error(val throwable: Throwable) : WasteFormScreenState
 }
 
 data class WasteFormUiState(
@@ -66,6 +69,7 @@ data class WasteFormUiState(
     val isLoadingPreview: Boolean = false,
     val wasteEventId: WasteEventId? = null,
     val restaurantId: RestaurantId? = null,
+    val currencyCode: String = "USD",
     val selectedIngredientId: IngredientId? = null,
     val selectedAreaId: InventoryAreaId? = null,
     val selectedUnitOptionId: IngredientUnitOptionId? = null,
@@ -96,7 +100,8 @@ class WasteFormViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
     private val createWasteDraftUseCase: CreateWasteDraftUseCase,
     private val updateWasteDraftUseCase: UpdateWasteDraftUseCase,
-    private val previewWasteUseCase: PreviewWasteUseCase
+    private val previewWasteUseCase: PreviewWasteUseCase,
+    private val attachmentPermissionManager: LocalAttachmentPermissionManager
 ) : ViewModel() {
 
     private val wasteEventIdStr: String? = savedStateHandle["wasteEventId"]
@@ -115,19 +120,28 @@ class WasteFormViewModel @Inject constructor(
     private val _preview = MutableStateFlow<WastePreview?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
+    private val _screenStateOverride = MutableStateFlow<WasteFormScreenState?>(null)
 
     private val _events = MutableSharedFlow<WasteFormEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
     private var previewJob: Job? = null
 
+    private val _unitOptions = _selectedIngredientId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList())
+        else flowOf(ingredientRepository.getUnitOptions(id, true))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val uiState: StateFlow<WasteFormUiState> = restaurantRepository.observeRestaurant()
-        .filterNotNull()
         .flatMapLatest { restaurant ->
+            if (restaurant == null) {
+                return@flatMapLatest flowOf(WasteFormUiState(screenState = WasteFormScreenState.Loading))
+            }
             combine(
                 if (wasteEventId != null) wasteRepository.observeWasteEvent(wasteEventId) else flowOf(null),
                 ingredientRepository.observeIngredients(restaurant.id, false),
                 areaRepository.observeActiveAreas(),
+                _unitOptions,
                 _selectedIngredientId,
                 _selectedAreaId,
                 _selectedUnitOptionId,
@@ -140,28 +154,32 @@ class WasteFormViewModel @Inject constructor(
                 _isSaving,
                 _isLoadingPreview,
                 _error,
-                _hasLoadedOnce
+                _hasLoadedOnce,
+                _screenStateOverride
             ) { args ->
                 val existingDetails = args[0] as com.miara.cuentame.core.domain.repository.WasteDetails?
                 val activeIngredients = args[1] as List<Ingredient>
                 val activeAreas = args[2] as List<InventoryArea>
-                val selIngId = args[3] as IngredientId?
-                val selAreaId = args[4] as InventoryAreaId?
-                val selUnitId = args[5] as IngredientUnitOptionId?
-                val qtyText = args[6] as String
-                val reason = args[7] as WasteReason?
-                val effAt = args[8] as Instant
-                val notes = args[9] as String
-                val attUri = args[10] as String?
-                val preview = args[11] as WastePreview?
-                val isSaving = args[12] as Boolean
-                val isLoadingPreview = args[13] as Boolean
-                val error = args[14] as Throwable?
-                val hasLoadedOnce = args[15] as Boolean
+                val allUnitOptions = args[3] as List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>
+                val selIngId = args[4] as IngredientId?
+                val selAreaId = args[5] as InventoryAreaId?
+                val selUnitId = args[6] as IngredientUnitOptionId?
+                val qtyText = args[7] as String
+                val reason = args[8] as WasteReason?
+                val effAt = args[9] as Instant
+                val notes = args[10] as String
+                val attUri = args[11] as String?
+                val preview = args[12] as WastePreview?
+                val isSaving = args[13] as Boolean
+                val isLoadingPreview = args[14] as Boolean
+                val error = args[15] as Throwable?
+                val hasLoadedOnce = args[16] as Boolean
+                val screenStateOverride = args[17] as WasteFormScreenState?
 
                 val screenState = when {
-                    wasteEventId != null && !hasLoadedOnce && error == null -> WasteFormScreenState.Loading
-                    wasteEventId != null && existingDetails == null && error != null -> WasteFormScreenState.Ready
+                    screenStateOverride != null -> screenStateOverride
+                    !hasLoadedOnce && error == null -> WasteFormScreenState.Loading
+                    error != null && wasteEventId != null && existingDetails == null -> WasteFormScreenState.Error(error)
                     wasteEventId != null && existingDetails == null -> WasteFormScreenState.NotFound
                     wasteEventId != null && existingDetails?.event?.restaurantId != restaurant.id -> WasteFormScreenState.OwnershipMismatch
                     else -> WasteFormScreenState.Ready
@@ -171,21 +189,17 @@ class WasteFormViewModel @Inject constructor(
                               reason != null && DecimalParser.parse(qtyText)?.let { it > BigDecimal.ZERO } == true &&
                               !isSaving
 
-                // Rebuild unit options if ingredient is selected
-                val unitOptions = if (selIngId != null) {
-                    val options = ingredientRepository.getUnitOptions(selIngId, true)
-                    options.map { opt ->
-                        val isSelected = opt.id == selUnitId
-                        WasteUnitOptionUi(
-                            id = opt.id,
-                            label = opt.shortLabel,
-                            factorToBase = opt.factorToBase,
-                            isSelected = isSelected,
-                            isSelectable = (opt.isActive || isSelected) && opt.factorToBase > BigDecimal.ZERO,
-                            isActive = opt.isActive
-                        )
-                    }
-                } else emptyList()
+                val unitOptionsUi = allUnitOptions.map { opt ->
+                    val isSelected = opt.id == selUnitId
+                    WasteUnitOptionUi(
+                        id = opt.id,
+                        label = opt.shortLabel,
+                        factorToBase = opt.factorToBase,
+                        isSelected = isSelected,
+                        isSelectable = (opt.isActive || isSelected) && opt.factorToBase > BigDecimal.ZERO,
+                        isActive = opt.isActive
+                    )
+                }
 
                 WasteFormUiState(
                     screenState = screenState,
@@ -193,6 +207,7 @@ class WasteFormViewModel @Inject constructor(
                     isLoadingPreview = isLoadingPreview,
                     wasteEventId = wasteEventId,
                     restaurantId = restaurant.id,
+                    currencyCode = restaurant.currencyCode,
                     selectedIngredientId = selIngId,
                     selectedAreaId = selAreaId,
                     selectedUnitOptionId = selUnitId,
@@ -204,7 +219,7 @@ class WasteFormViewModel @Inject constructor(
                     preview = preview,
                     ingredients = activeIngredients,
                     areas = activeAreas,
-                    unitOptions = unitOptions,
+                    unitOptions = unitOptionsUi,
                     error = error,
                     canSave = canSave
                 )
@@ -216,24 +231,33 @@ class WasteFormViewModel @Inject constructor(
         )
 
     init {
-        if (wasteEventId != null) {
+        if (wasteEventIdStr != null && wasteEventIdStr.isBlank()) {
+            _screenStateOverride.value = WasteFormScreenState.InvalidRoute
+        } else if (wasteEventId != null) {
             viewModelScope.launch {
-                val existing = wasteRepository.getById(wasteEventId)
-                if (existing != null) {
-                    if (existing.status != DocumentStatus.DRAFT) {
-                        _error.value = ValidationError.WasteEventImmutable
+                try {
+                    val existing = wasteRepository.getById(wasteEventId)
+                    if (existing != null) {
+                        if (existing.status != DocumentStatus.DRAFT) {
+                            _screenStateOverride.value = WasteFormScreenState.Immutable
+                        } else {
+                            _selectedIngredientId.value = existing.ingredientId
+                            _selectedAreaId.value = existing.areaId
+                            _selectedUnitOptionId.value = existing.ingredientUnitOptionId
+                            _quantityText.value = existing.quantityEntered.toPlainString()
+                            _selectedReason.value = existing.reason
+                            _effectiveAt.value = existing.effectiveAt
+                            _notes.value = existing.notes ?: ""
+                            _attachmentUri.value = existing.attachmentPath
+                        }
                     } else {
-                        _selectedIngredientId.value = existing.ingredientId
-                        _selectedAreaId.value = existing.areaId
-                        _selectedUnitOptionId.value = existing.ingredientUnitOptionId
-                        _quantityText.value = existing.quantityEntered.toPlainString()
-                        _selectedReason.value = existing.reason
-                        _effectiveAt.value = existing.effectiveAt
-                        _notes.value = existing.notes ?: ""
-                        _attachmentUri.value = existing.attachmentPath
+                        _screenStateOverride.value = WasteFormScreenState.NotFound
                     }
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _hasLoadedOnce.value = true
                 }
-                _hasLoadedOnce.value = true
             }
         } else {
             _hasLoadedOnce.value = true
@@ -243,6 +267,8 @@ class WasteFormViewModel @Inject constructor(
     fun onIngredientSelected(id: IngredientId) {
         if (_selectedIngredientId.value == id) return
         _selectedIngredientId.value = id
+        _selectedUnitOptionId.value = null
+        _preview.value = null
         
         viewModelScope.launch {
             val options = ingredientRepository.getUnitOptions(id, true)
@@ -255,18 +281,21 @@ class WasteFormViewModel @Inject constructor(
     fun onAreaSelected(id: InventoryAreaId) {
         if (_selectedAreaId.value == id) return
         _selectedAreaId.value = id
+        _preview.value = null
         updatePreview()
     }
 
     fun onUnitOptionSelected(id: IngredientUnitOptionId) {
         if (_selectedUnitOptionId.value == id) return
         _selectedUnitOptionId.value = id
+        _preview.value = null
         updatePreview()
     }
 
     fun onQuantityChanged(text: String) {
         if (_quantityText.value == text) return
         _quantityText.value = text
+        _preview.value = null
         updatePreview()
     }
 
@@ -277,6 +306,7 @@ class WasteFormViewModel @Inject constructor(
     fun onEffectiveAtChanged(instant: Instant) {
         if (_effectiveAt.value == instant) return
         _effectiveAt.value = instant
+        _preview.value = null
         updatePreview()
     }
 
@@ -285,7 +315,22 @@ class WasteFormViewModel @Inject constructor(
     }
 
     fun onAttachmentChanged(uri: String?) {
-        _attachmentUri.value = uri
+        if (uri == null) {
+            _attachmentUri.value = null
+            return
+        }
+        
+        try {
+            val parsedUri = android.net.Uri.parse(uri)
+            val result = attachmentPermissionManager.persistReadPermission(parsedUri)
+            if (result.isSuccess) {
+                _attachmentUri.value = uri
+            } else {
+                _error.value = result.exceptionOrNull()
+            }
+        } catch (e: Exception) {
+            _error.value = e
+        }
     }
 
     private fun updatePreview() {
@@ -295,9 +340,11 @@ class WasteFormViewModel @Inject constructor(
         val areaId = _selectedAreaId.value ?: return
         val unitId = _selectedUnitOptionId.value ?: return
         val qtyText = _quantityText.value
-        val parsedQty = DecimalParser.parse(qtyText) ?: return
-        if (parsedQty <= BigDecimal.ZERO) {
+        val parsedQty = DecimalParser.parse(qtyText)
+        
+        if (parsedQty == null || parsedQty <= BigDecimal.ZERO) {
             _preview.value = null
+            _isLoadingPreview.value = false
             return
         }
 

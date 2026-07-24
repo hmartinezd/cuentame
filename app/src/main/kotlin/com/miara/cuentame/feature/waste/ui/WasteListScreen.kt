@@ -156,6 +156,7 @@ fun WasteListScreen(
                     items(uiState.wasteEvents) { summary ->
                         WasteItem(
                             summary = summary,
+                            currencyCode = uiState.currencyCode,
                             onClick = { onWasteClick(summary.event.id, summary.event.status) }
                         )
                         HorizontalDivider()
@@ -169,6 +170,7 @@ fun WasteListScreen(
 @Composable
 fun WasteItem(
     summary: WasteSummary,
+    currencyCode: String,
     onClick: () -> Unit
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
@@ -178,12 +180,12 @@ fun WasteItem(
         headlineContent = {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    text = summary.ingredientName,
+                    text = summary.ingredientName ?: stringResource(R.string.error_ingredient_not_found),
                     fontWeight = FontWeight.Bold
                 )
                 if (summary.estimatedValue != null) {
                     Text(
-                        text = Formatters.formatCurrency(summary.estimatedValue, "USD"), // TODO: Use real currency
+                        text = Formatters.formatCurrency(summary.estimatedValue, currencyCode),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -191,8 +193,8 @@ fun WasteItem(
         },
         supportingContent = {
             Column {
-                Text(text = "${summary.event.quantityEntered} ${summary.unitLabel}")
-                Text(text = summary.areaName ?: "")
+                Text(text = "${summary.event.quantityEntered} ${summary.unitLabel ?: stringResource(R.string.unknown_unit)}")
+                Text(text = summary.areaName ?: stringResource(R.string.unknown_area))
                 Text(text = dateFormatter.format(summary.event.effectiveAt), style = MaterialTheme.typography.labelSmall)
             }
         },

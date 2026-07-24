@@ -19,18 +19,31 @@ import com.miara.cuentame.core.domain.repository.CreateWasteDraftCommand
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.WasteReason
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.Instant
+import com.miara.cuentame.core.common.ids.WasteEventId
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import kotlinx.coroutines.runBlocking
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 
 class RoomWasteRepositoryTest {
 
     private lateinit var db: RestaurantInventoryDatabase
     private lateinit var repository: RoomWasteRepository
+    private var failurePoint: String? = null
     
+    private val failureBoundary = object : IntegrationFailureBoundary {
+        override fun trigger(point: String) {
+            if (point == failurePoint) throw ForcedFailureException()
+        }
+    }
+
     private val timeProvider = object : TimeProvider {
         var now = Instant.parse("2024-01-01T10:00:00Z")
         override fun now() = now
@@ -60,7 +73,8 @@ class RoomWasteRepositoryTest {
         repository = RoomWasteRepository(
             db, db.wasteDao(), db.inventoryMovementDao(), db.ingredientDao(), 
             db.inventoryAreaDao(), db.ingredientUnitOptionDao(), db.restaurantDao(),
-            snapshotService, historyValidator, projectionRebuilder, idGenerator, timeProvider
+            snapshotService, historyValidator, projectionRebuilder, idGenerator, timeProvider,
+            failureBoundary
         )
     }
 
@@ -165,6 +179,289 @@ class RoomWasteRepositoryTest {
             IngredientEntity(id, restaurantId.value, "Chicken", "chicken", null, unitId, null, null, null, null, true, 0L, 0L, null)
         )
         return IngredientId(id)
+    }
+
+    @Test
+    fun post_rollback_onFailureAfterMovement() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        val id = repository.createDraft(CreateWasteDraftCommand(
+            restaurantId = restaurantId,
+            ingredientId = ingredientId,
+            areaId = areaId,
+            ingredientUnitOptionId = unitOptionId,
+            quantityEntered = BigDecimal("3.0"),
+            reason = WasteReason.SPOILED,
+            effectiveAt = timeProvider.now(),
+            notes = null,
+            attachmentUri = null
+        ))
+
+        failurePoint = "post-after-movement"
+
+        try {
+            repository.post(id)
+        } catch (e: ForcedFailureException) {
+            // Expected
+        }
+
+        val event = repository.getById(id)
+        assertThat(event!!.status).isEqualTo(DocumentStatus.DRAFT)
+        assertThat(event.postedAt).isNull()
+
+        val movements = db.inventoryMovementDao().getByIngredient(ingredientId.value)
+        assertThat(movements).isEmpty()
+
+        val projection = db.inventoryProjectionDao().getBalance(ingredientId.value, areaId.value)
+        assertThat(projection).isNull()
+    }
+
+    @Test
+    fun void_rollback_onFailureAfterReversal() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        val id = repository.createDraft(CreateWasteDraftCommand(
+            restaurantId = restaurantId,
+            ingredientId = ingredientId,
+            areaId = areaId,
+            ingredientUnitOptionId = unitOptionId,
+            quantityEntered = BigDecimal("3.0"),
+            reason = WasteReason.SPOILED,
+            effectiveAt = timeProvider.now(),
+            notes = null,
+            attachmentUri = null
+        ))
+        repository.post(id)
+
+        failurePoint = "void-after-reversal"
+
+        try {
+            repository.void(id)
+        } catch (e: ForcedFailureException) {
+            // Expected
+        }
+
+        val event = repository.getById(id)
+        assertThat(event!!.status).isEqualTo(DocumentStatus.POSTED)
+        assertThat(event.voidedAt).isNull()
+
+        val movements = db.inventoryMovementDao().getByIngredient(ingredientId.value)
+        assertThat(movements).hasSize(1) // Only original WASTE
+        assertThat(movements[0].movementType).isEqualTo(InventoryMovementType.WASTE.name)
+
+        val projection = db.inventoryProjectionDao().getBalance(ingredientId.value, areaId.value)
+        assertThat(BigDecimal(projection!!.quantityBase).compareTo(BigDecimal("-3.0"))).isEqualTo(0)
+    }
+
+    @Test
+    fun post_revalidatesIngredientOwnership() = runTest {
+        val restaurantId = setupRestaurant()
+        val otherRestaurantId = RestaurantId("other-rest")
+        db.restaurantDao().insert(RestaurantEntity(otherRestaurantId.value, "Other", "USD", "en", 0L, 0L, null))
+        
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(otherRestaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        // Manually insert a draft that bypasses repository.createDraft validation (e.g. corrupted DB)
+        db.wasteDao().insert(com.miara.cuentame.core.database.entity.WasteEventEntity(
+            id = "corrupted-1",
+            restaurantId = restaurantId.value,
+            ingredientId = ingredientId.value,
+            areaId = areaId.value,
+            ingredientUnitOptionId = unitOptionId.value,
+            quantityEntered = "5.0",
+            quantityBase = "5.0",
+            reason = WasteReason.SPOILED.name,
+            effectiveAt = timeProvider.now().toEpochMilli(),
+            notes = null,
+            attachmentPath = null,
+            status = DocumentStatus.DRAFT.name,
+            createdAt = timeProvider.now().toEpochMilli(),
+            updatedAt = timeProvider.now().toEpochMilli(),
+            postedAt = null,
+            voidedAt = null
+        ))
+
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.WasteIngredientOwnershipMismatch::class.java) {
+            kotlinx.coroutines.runBlocking { repository.post(WasteEventId("corrupted-1")) }
+        }
+    }
+
+    @Test
+    fun createDraft_rejectsFutureEffectiveTime() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        val command = CreateWasteDraftCommand(
+            restaurantId = restaurantId,
+            ingredientId = ingredientId,
+            areaId = areaId,
+            ingredientUnitOptionId = unitOptionId,
+            quantityEntered = BigDecimal("5.0"),
+            reason = WasteReason.SPOILED,
+            effectiveAt = timeProvider.now().plusSeconds(3600),
+            notes = null,
+            attachmentUri = null
+        )
+
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.InvalidWasteEffectiveTime::class.java) {
+            runBlocking { repository.createDraft(command) }
+        }
+    }
+
+    @Test
+    fun post_calculatesHistoricalCostCorrectly() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        // Seed a purchase at T=0
+        db.inventoryMovementDao().insert(InventoryMovementEntity(
+            "mov-1", restaurantId.value, ingredientId.value, areaId.value, "PURCHASE", "10.0", "2.0", "20.0",
+            0L, "PURCHASE_RECEIPT", "doc-1", "line-1", "op-1", null, 0L
+        ))
+
+        // Create waste at T=1000
+        val id = repository.createDraft(CreateWasteDraftCommand(
+            restaurantId, ingredientId, areaId, unitOptionId, BigDecimal("2.0"), WasteReason.SPOILED,
+            Instant.ofEpochMilli(1000L), null, null
+        ))
+
+        // Seed a purchase at T=2000 (later)
+        db.inventoryMovementDao().insert(InventoryMovementEntity(
+            "mov-2", restaurantId.value, ingredientId.value, areaId.value, "PURCHASE", "10.0", "4.0", "40.0",
+            2000L, "PURCHASE_RECEIPT", "doc-2", "line-2", "op-2", null, 2000L
+        ))
+
+        repository.post(id)
+
+        val movements = db.inventoryMovementDao().getBySourceDocument("WASTE_EVENT", id.value)
+        val wasteMov = movements.find { it.movementType == "WASTE" }!!
+        
+        // Snapshot should be at T=1000, cost = 2.0
+        assertThat(BigDecimal(wasteMov.unitCostBaseSnapshot!!).compareTo(BigDecimal("2.0"))).isEqualTo(0)
+        assertThat(BigDecimal(wasteMov.totalValueSnapshot!!).compareTo(BigDecimal("-4.0"))).isEqualTo(0)
+    }
+
+    @Test
+    fun void_createsReversalAndRestoresBalance() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        // Seed 10 lb
+        db.inventoryMovementDao().insert(InventoryMovementEntity("mov-1", restaurantId.value, ingredientId.value, areaId.value, "PURCHASE", "10.0", "1.0", "10.0", 0L, "PURCHASE_RECEIPT", "d1", "l1", "o1", null, 0L))
+
+        // Post 3 lb waste
+        val id = repository.createDraft(CreateWasteDraftCommand(restaurantId, ingredientId, areaId, unitOptionId, BigDecimal("3.0"), WasteReason.SPOILED, Instant.ofEpochMilli(1000L), null, null))
+        repository.post(id)
+
+        // Verify balance 7 lb
+        assertThat(BigDecimal(db.inventoryProjectionDao().getBalance(ingredientId.value, areaId.value)!!.quantityBase).compareTo(BigDecimal("7.0"))).isEqualTo(0)
+
+        // Void
+        repository.void(id)
+
+        // Verify status
+        assertThat(repository.getById(id)!!.status).isEqualTo(DocumentStatus.VOIDED)
+
+        // Verify balance 10 lb
+        assertThat(BigDecimal(db.inventoryProjectionDao().getBalance(ingredientId.value, areaId.value)!!.quantityBase).compareTo(BigDecimal("10.0"))).isEqualTo(0)
+
+        val movements = db.inventoryMovementDao().getByIngredient(ingredientId.value)
+        assertThat(movements).hasSize(3) // PURCHASE, WASTE, REVERSAL
+        assertThat(movements.any { it.movementType == "REVERSAL" }).isTrue()
+    }
+
+    @Test
+    fun updateDraft_persistsChanges() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        val id = repository.createDraft(CreateWasteDraftCommand(restaurantId, ingredientId, areaId, unitOptionId, BigDecimal("5.0"), WasteReason.SPOILED, timeProvider.now(), null, null))
+        
+        repository.updateDraft(com.miara.cuentame.core.domain.repository.UpdateWasteDraftCommand(
+            wasteEventId = id,
+            ingredientId = ingredientId,
+            areaId = areaId,
+            ingredientUnitOptionId = unitOptionId,
+            quantityEntered = BigDecimal("10.0"),
+            reason = WasteReason.EXPIRED,
+            effectiveAt = timeProvider.now(),
+            notes = "updated notes",
+            attachmentUri = null
+        ))
+
+        val event = repository.getById(id)!!
+        assertThat(event.quantityEntered.compareTo(BigDecimal("10.0"))).isEqualTo(0)
+        assertThat(event.reason).isEqualTo(WasteReason.EXPIRED)
+        assertThat(event.notes).isEqualTo("updated notes")
+    }
+
+    @Test
+    fun post_rejectsZeroStoredQuantity() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        db.wasteDao().insert(com.miara.cuentame.core.database.entity.WasteEventEntity(
+            id = "corrupted-zero",
+            restaurantId = restaurantId.value,
+            ingredientId = ingredientId.value,
+            areaId = areaId.value,
+            ingredientUnitOptionId = unitOptionId.value,
+            quantityEntered = "0.0",
+            quantityBase = "0.0",
+            reason = WasteReason.SPOILED.name,
+            effectiveAt = timeProvider.now().toEpochMilli(),
+            notes = null,
+            attachmentPath = null,
+            status = DocumentStatus.DRAFT.name,
+            createdAt = timeProvider.now().toEpochMilli(),
+            updatedAt = timeProvider.now().toEpochMilli(),
+            postedAt = null,
+            voidedAt = null
+        ))
+
+        assertThrows(com.miara.cuentame.core.domain.validation.ValidationError.InvalidWasteQuantity::class.java) {
+            runBlocking { repository.post(WasteEventId("corrupted-zero")) }
+        }
+    }
+
+    @Test
+    fun deleteDraft_removesFromDb() = runTest {
+        val restaurantId = setupRestaurant()
+        val areaId = setupArea(restaurantId)
+        val unitId = setupBaseUnit()
+        val ingredientId = setupIngredient(restaurantId, unitId)
+        val unitOptionId = setupUnitOption(ingredientId)
+
+        val id = repository.createDraft(CreateWasteDraftCommand(restaurantId, ingredientId, areaId, unitOptionId, BigDecimal("5.0"), WasteReason.SPOILED, timeProvider.now(), null, null))
+        repository.deleteDraft(id)
+
+        assertThat(repository.getById(id)).isNull()
     }
 
     private suspend fun setupUnitOption(ingredientId: IngredientId): IngredientUnitOptionId {

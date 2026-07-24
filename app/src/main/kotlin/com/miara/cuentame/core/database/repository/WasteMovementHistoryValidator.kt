@@ -36,6 +36,12 @@ class WasteMovementHistoryValidator @Inject constructor(
         if (event.postedAt == null || event.voidedAt != null) {
             throw ValidationError.MalformedWasteMovementHistory
         }
+        if (event.updatedAt < event.postedAt) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (event.createdAt > event.updatedAt) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
 
         if (movements.size != 1) {
             throw ValidationError.MalformedWasteMovementHistory
@@ -43,10 +49,6 @@ class WasteMovementHistoryValidator @Inject constructor(
 
         val movement = movements.first()
         validateOriginalMovementMatchesEvent(event, movement)
-        
-        if (movement.reversalOfMovementId != null) {
-            throw ValidationError.MalformedWasteMovementHistory
-        }
     }
 
     fun validateVoidedHistory(
@@ -56,7 +58,10 @@ class WasteMovementHistoryValidator @Inject constructor(
         if (event.status != DocumentStatus.VOIDED.name) {
             throw ValidationError.MalformedWasteMovementHistory
         }
-        if (event.postedAt == null || event.voidedAt == null) {
+        if (event.postedAt == null || event.voidedAt == null || event.voidedAt < event.postedAt) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (event.updatedAt < event.voidedAt) {
             throw ValidationError.MalformedWasteMovementHistory
         }
 
@@ -70,12 +75,26 @@ class WasteMovementHistoryValidator @Inject constructor(
             ?: throw ValidationError.MalformedWasteMovementHistory
 
         validateOriginalMovementMatchesEvent(event, original)
-        movementValidator.validateReversal(original, reversal)
+        
+        try {
+            movementValidator.validateReversal(original, reversal)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
 
+        if (reversal.reversalOfMovementId != original.id) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
         if (reversal.sourceDocumentType != SourceDocumentType.WASTE_EVENT.name) {
             throw ValidationError.MalformedWasteMovementHistory
         }
         if (reversal.sourceDocumentId != event.id) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (reversal.sourceLineId != event.id) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (reversal.sourceOperationId != "reversal:${original.id}") {
             throw ValidationError.MalformedWasteMovementHistory
         }
         if (reversal.effectiveAt != event.voidedAt) {
@@ -84,15 +103,28 @@ class WasteMovementHistoryValidator @Inject constructor(
         if (reversal.createdAt != event.voidedAt) {
             throw ValidationError.MalformedWasteMovementHistory
         }
+
+        val revQty = parseHistoryDecimal(reversal.quantityBaseSigned)
+        val origQty = parseHistoryDecimal(original.quantityBaseSigned)
+        if (revQty.compareTo(origQty.negate()) != 0 || revQty <= BigDecimal.ZERO) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
     }
 
     private fun validateOriginalMovementMatchesEvent(
         event: WasteEventEntity,
         movement: InventoryMovementEntity
     ) {
-        movementValidator.validateMovement(movement)
+        try {
+            movementValidator.validateMovement(movement)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
 
         if (movement.movementType != InventoryMovementType.WASTE.name) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (movement.reversalOfMovementId != null) {
             throw ValidationError.MalformedWasteMovementHistory
         }
         if (movement.restaurantId != event.restaurantId) {
@@ -108,7 +140,10 @@ class WasteMovementHistoryValidator @Inject constructor(
         val eventQtyBase = parseHistoryDecimal(event.quantityBase)
         val movementQtyBase = parseHistoryDecimal(movement.quantityBaseSigned)
         
-        if (movementQtyBase.compareTo(eventQtyBase.negate()) != 0) {
+        if (eventQtyBase <= BigDecimal.ZERO) {
+            throw ValidationError.MalformedWasteMovementHistory
+        }
+        if (movementQtyBase.compareTo(eventQtyBase.negate()) != 0 || movementQtyBase >= BigDecimal.ZERO) {
             throw ValidationError.MalformedWasteMovementHistory
         }
 
@@ -130,6 +165,18 @@ class WasteMovementHistoryValidator @Inject constructor(
         }
         if (movement.createdAt != event.postedAt) {
             throw ValidationError.MalformedWasteMovementHistory
+        }
+
+        val cost = movement.unitCostBaseSnapshot?.let { parseHistoryDecimal(it) }
+        val total = movement.totalValueSnapshot?.let { parseHistoryDecimal(it) }
+
+        if (cost == null && total != null) throw ValidationError.MalformedWasteMovementHistory
+        if (cost != null && total == null) throw ValidationError.MalformedWasteMovementHistory
+        if (cost != null && total != null) {
+            val expectedTotal = movementQtyBase.multiply(cost, java.math.MathContext.DECIMAL128)
+            if (total.compareTo(expectedTotal) != 0 || total > BigDecimal.ZERO) {
+                throw ValidationError.MalformedWasteMovementHistory
+            }
         }
     }
 }
