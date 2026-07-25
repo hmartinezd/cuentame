@@ -144,7 +144,7 @@ fun WasteDetailScreen(
                 },
                 actions = {
                     if (event?.status == DocumentStatus.DRAFT) {
-                        IconButton(onClick = onEdit, enabled = !uiState.isDeleting) {
+                        IconButton(onClick = onEdit, enabled = !uiState.isDeleting, modifier = Modifier.testTag("waste_edit_button")) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
                         }
                         IconButton(onClick = { showDeleteConfirm = true }, enabled = !uiState.isDeleting) {

@@ -1,0 +1,26 @@
+# Milestone 7 — Zero-Failure Verification Pass Progress
+
+- [ ] **Test Isolation & Reliability**
+    - [ ] Implement `TestIsolationUtils` or similar for robust cleanup
+    - [ ] Update `WasteFailureUiTest` to use `createEmptyComposeRule` and isolated setup
+    - [ ] Update `WasteArchiveUiTest` to use `createEmptyComposeRule` and isolated setup
+    - [ ] Update `WasteLifecycleTest` to use `createEmptyComposeRule` and isolated setup
+    - [ ] Update `StockCountLifecycleTest` to use `createEmptyComposeRule` and isolated setup
+- [ ] **Waste Projection Rollback** (`WasteFailureUiTest.kt`)
+    - [ ] Extend `postFailure_provesRollback` with projection and status assertions
+    - [ ] Extend `voidFailure_provesRollback` with projection and status assertions
+- [ ] **Corrupted Reference Coverage** (`WasteArchiveUiTest.kt`)
+    - [ ] Add `missingIngredient_producesErrorState`
+    - [ ] Add `missingArea_producesErrorState`
+    - [ ] Add `missingUnitOption_producesErrorState`
+    - [ ] Add `crossIngredientUnitOption_producesErrorState`
+- [ ] **Archived Reference Persistence** (`WasteArchiveUiTest.kt`)
+    - [ ] Extend `draftWithArchivedReferences_fullFlow` with persistence and menu assertions
+- [ ] **Stock Count Lifecycle Restoration** (`StockCountLifecycleTest.kt`)
+    - [ ] Restore exact assertions for expected/adjustment values
+    - [ ] Verify read-only behavior and snapshots
+- [ ] **Waste Lifecycle Assertions** (`WasteLifecycleTest.kt`)
+    - [ ] Complete exact assertions for DRAFT, POSTED, and VOIDED states
+- [ ] **Verification**
+    - [ ] Run `./gradlew clean assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest`
+    - [ ] Truthfully update `README.md`

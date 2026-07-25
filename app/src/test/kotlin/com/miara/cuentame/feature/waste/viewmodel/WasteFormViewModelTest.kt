@@ -22,6 +22,7 @@ import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -53,12 +54,17 @@ class WasteFormViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(android.net.Uri::class)
+        every { android.net.Uri.parse(any()) } answers { mockk(relaxed = true) }
+
         every { restaurantRepository.observeRestaurant() } returns flowOf(restaurant)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
         every { areaRepository.observeAllAreas() } returns flowOf(emptyList())
         every { attachmentPermissionManager.persistReadPermission(any()) } returns Result.success(Unit)
     }
+
+
 
     @After
     fun teardown() {
@@ -82,7 +88,7 @@ class WasteFormViewModelTest {
         val ingId = IngredientId("ing-1")
         val option = IngredientUnitOption(IngredientUnitOptionId("opt-1"), ingId, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
         
-        coEvery { ingredientRepository.getUnitOptions(ingId, true) } returns listOf(option)
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
@@ -93,11 +99,15 @@ class WasteFormViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             
             var state = awaitItem()
-            while (state.selectedIngredientId != ingId) { state = awaitItem() }
+            while (state.selectedIngredientId != ingId || state.selectedUnitOptionId == null) { 
+                state = awaitItem() 
+            }
             assertThat(state.selectedIngredientId).isEqualTo(ingId)
             assertThat(state.selectedUnitOptionId).isEqualTo(option.id)
         }
     }
+
+
 
     @Test
     fun `attachment permission failure handles error and preserves existing`() = runTest {

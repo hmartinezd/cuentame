@@ -48,14 +48,21 @@ class StockCountLifecycleTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var failureBoundary: com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
+
+    @Inject
+    lateinit var attachmentPermissionManager: com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
+
     @Before
     fun setup() {
         hiltRule.inject()
+        (failureBoundary as? com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary)?.reset()
+        (attachmentPermissionManager as? com.miara.cuentame.core.di.ConfigurableAttachmentPermissionManager)?.shouldFail = false
         
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
-            preferencesRepository.clearOnboardingDraft()
+            preferencesRepository.clearAll()
 
             val now = Instant.now()
             database.restaurantDao().insert(Restaurant(RestaurantId("rest_lifecycle"), "Test Lifecycle Rest", "USD", "en-US", now, now, null).toEntity())
@@ -107,7 +114,7 @@ class StockCountLifecycleTest {
     fun teardown() {
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 
@@ -120,13 +127,13 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("nav_count").performClick()
             
             // 2. Start New Count (FAB)
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("start_count_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("start_count_fab").performClick()
             
             // 3. Enter count name
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("count_name_input").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("count_name_input").performTextReplacement("Monthly Count")
@@ -139,7 +146,7 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("start_count_button").performClick()
             
             // 6. Wait for detail and Verify
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("count_detail_name").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("count_detail_name").assertTextEquals("Monthly Count")
@@ -147,7 +154,7 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithText("Dry Storage").performClick()
             
             // 8. Enter quantity 75 lb
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             
@@ -157,20 +164,20 @@ class StockCountLifecycleTest {
             }).performTextReplacement("75")
             
             // Wait for autosave
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithContentDescription("Saved").fetchSemanticsNodes().isNotEmpty()
             }
             
             // 9. Navigate away and reopen
             composeTestRule.onNodeWithTag("count_back_button").performClick()
             
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Dry Storage").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Dry Storage").performClick()
             
             // 10. Verify 75 persisted
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodes(hasText("75") and hasSetTextAction()).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNode(hasText("75") and hasSetTextAction()).assertIsDisplayed()
@@ -179,23 +186,23 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("complete_area_button").performClick()
             
             // 12. Open Main Kitchen
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
             
             // 13. Search and Add Chicken Breast
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("ingredient_search").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_search").performTextReplacement("Chicken")
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onAllNodesWithText("Chicken Breast").onFirst().performClick()
             
             // 14. Enter 10 lb
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodes(hasSetTextAction() and SemanticsMatcher("") {
                     val tag = it.config.getOrNull(SemanticsProperties.TestTag)
                     tag != null && tag.startsWith("quantity_") && tag.contains("ing_chicken_life")
@@ -207,7 +214,7 @@ class StockCountLifecycleTest {
             }).performTextReplacement("10")
             
             // Wait for autosave
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithContentDescription("Saved").fetchSemanticsNodes().isNotEmpty()
             }
 
@@ -221,55 +228,123 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("complete_area_button").performClick()
             
             // 17. Open adjustment review
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("complete_count_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("complete_count_button").performClick()
             
             // 18. Verify review data exact values
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Adjustment Review").fetchSemanticsNodes().isNotEmpty()
             }
             
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().size >= 2
             }
             
-            composeTestRule.onNode(hasText("Expected: 80 lb") and hasAnyAncestor(SemanticsMatcher("") {
-                val tag = it.config.getOrNull(SemanticsProperties.TestTag)
-                tag != null && tag.startsWith("review_line_") && tag.contains("Dry Storage")
-            })).assertIsDisplayed()
+            // Dry Storage: 80 lb expected, 75 lb counted -> -5 lb adjustment
+            val dryStorageRow = SemanticsMatcher("") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("review_line_") && tag.contains("Dry Storage")
+                } ?: false
+            }
+            composeTestRule.onNode(hasText("Expected: 80", substring = true) and hasAnyAncestor(dryStorageRow)).assertExists()
+            composeTestRule.onNode(hasText("75 lb") and hasAnyAncestor(dryStorageRow)).assertExists()
+            composeTestRule.onNode(hasText("Adjustment: -5", substring = true) and hasAnyAncestor(dryStorageRow)).assertExists()
+
+            // Main Kitchen: 0 lb expected (newly added), 10 lb counted -> +10 lb adjustment
+            val kitchenRow = SemanticsMatcher("") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("review_line_") && tag.contains("Main Kitchen")
+                } ?: false
+            }
+            composeTestRule.onNode(hasText("Opening Balance") and hasAnyAncestor(kitchenRow)).assertExists()
+            composeTestRule.onNode(hasText("10 lb") and hasAnyAncestor(kitchenRow)).assertExists()
+            composeTestRule.onNode(hasText("Adjustment: +10", substring = true) and hasAnyAncestor(kitchenRow)).assertExists()
             
             // 19. Complete count
             composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
             
             // 20. Verify COMPLETED status
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Completed").fetchSemanticsNodes().isNotEmpty()
             }
             
-            // 21. Open completed areas and verify read-only
+            // 21. Open completed areas and verify read-only & snapshots
             composeTestRule.onNodeWithText("Dry Storage").performClick()
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodes(SemanticsMatcher("") {
                     it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("historical_expected_") == true
                 }).fetchSemanticsNodes().isNotEmpty()
             }
+            
+            composeTestRule.onNode(SemanticsMatcher("historical expected") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("historical_expected_") && tag.endsWith("_ing_chicken_life")
+                } ?: false
+            }).assertTextContains("Expected: 80", substring = true)
+
+            composeTestRule.onNode(SemanticsMatcher("historical adjustment") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("historical_adjustment_") && tag.endsWith("_ing_chicken_life")
+                } ?: false
+            }).assertTextContains("Adjustment: -5", substring = true)
+            
             composeTestRule.onNodeWithTag("ingredient_search").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("complete_area_button").assertDoesNotExist()
             
             composeTestRule.onNodeWithTag("count_back_button").performClick()
 
+            // Verify Main Kitchen snapshots
+            composeTestRule.onNodeWithText("Main Kitchen").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodes(SemanticsMatcher("") {
+                    it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("historical_expected_") == true
+                }).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            composeTestRule.onNode(SemanticsMatcher("historical expected kitchen") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("historical_expected_") && tag.endsWith("_ing_chicken_life")
+                } ?: false
+            }).assertTextContains("Opening Balance")
+
+            composeTestRule.onNode(SemanticsMatcher("historical adjustment kitchen") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("historical_adjustment_") && tag.endsWith("_ing_chicken_life")
+                } ?: false
+            }).assertTextContains("Adjustment: +10", substring = true)
+
+            composeTestRule.onNodeWithTag("count_back_button").performClick()
+
+
             // 22. Void count
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("void_count_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("void_count_button").performClick()
             composeTestRule.onNodeWithText("Confirm").performClick()
             
             // 23. Verify VOIDED status
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Voided").fetchSemanticsNodes().isNotEmpty()
             }
+            
+            // 24. Snapshots after reopening VOIDED
+            composeTestRule.onNodeWithText("Dry Storage").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodes(SemanticsMatcher("") {
+                    it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("historical_expected_") == true
+                }).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            composeTestRule.onNode(SemanticsMatcher("historical expected voided") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.let { tag ->
+                    tag.startsWith("historical_expected_") && tag.endsWith("_ing_chicken_life")
+                } ?: false
+            }).assertTextContains("Expected: 80", substring = true)
+            
+            composeTestRule.onNodeWithTag("count_back_button").performClick()
         }
     }
 

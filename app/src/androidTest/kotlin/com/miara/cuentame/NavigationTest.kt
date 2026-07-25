@@ -34,7 +34,7 @@ class NavigationTest {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 

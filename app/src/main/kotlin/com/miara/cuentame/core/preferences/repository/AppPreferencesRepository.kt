@@ -15,4 +15,5 @@ interface AppPreferencesRepository {
     suspend fun loadOnboardingDraft(): OnboardingDraft?
     suspend fun saveOnboardingDraft(draft: OnboardingDraft)
     suspend fun clearOnboardingDraft()
+    suspend fun clearAll()
 }

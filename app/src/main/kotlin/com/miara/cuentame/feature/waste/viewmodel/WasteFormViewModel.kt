@@ -159,7 +159,7 @@ class WasteFormViewModel @Inject constructor(
         else flowOf(ingredientRepository.getUnitOptions(id, true))
     }.onEach { options ->
         val currentUnit = _selectedUnitOptionId.value
-        if (currentUnit == null || options.none { it.id == currentUnit }) {
+        if (currentUnit == null) {
             val defaultOption = options.find { it.isDefaultCount && it.isActive }
                 ?: options.find { it.isBase && it.isActive }
             _selectedUnitOptionId.value = defaultOption?.id

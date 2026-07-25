@@ -201,7 +201,7 @@ fun WasteFormScreen(
             }
             is WasteFormScreenState.Error -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(state.throwable.toUserMessageRes()))
+                    Text(stringResource(state.throwable.toUserMessageRes()), modifier = Modifier.testTag("form_error_text"))
                 }
             }
             is WasteFormScreenState.Ready -> {

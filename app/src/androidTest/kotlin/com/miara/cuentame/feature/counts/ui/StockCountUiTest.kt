@@ -64,42 +64,38 @@ class StockCountUiTest {
                 IngredientUnitOption(IngredientUnitOptionId("opt_lb_ui"), ingId, "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, now, now, null).toEntity()
             )
             
-            // Verify DB state
-            assert(database.restaurantDao().getRestaurant() != null)
-            assert(database.inventoryAreaDao().getActiveCount("rest_ui_test") > 0)
-
-            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
+        }
+    }
+
+    @org.junit.After
+    fun teardown() {
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearOnboardingDraft()
         }
     }
 
     @Test
     fun start_count_flow() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitForIdle()
-            
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // 1. Open Count tab
             composeTestRule.onNodeWithTag("nav_count").performClick()
             composeTestRule.waitForIdle()
             
             // 2. Start New Count (FAB)
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("start_count_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("start_count_fab").performClick()
+            composeTestRule.waitForIdle()
             
             // 3. Enter count name
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("count_name_input").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("count_name_input").performTextReplacement("Monthly Count")
@@ -109,9 +105,10 @@ class StockCountUiTest {
             
             // 5. Save (Button at bottom)
             composeTestRule.onNodeWithTag("start_count_button").performClick()
+            composeTestRule.waitForIdle()
             
             // 6. Wait for detail and Verify
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("count_detail_name").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("count_detail_name").assertIsDisplayed()
@@ -119,9 +116,10 @@ class StockCountUiTest {
             
             // 7. Open area counting
             composeTestRule.onNodeWithText("Dry Storage").performClick()
+            composeTestRule.waitForIdle()
             
             // 8. Enter quantity
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNode(hasSetTextAction() and hasAnyAncestor(SemanticsMatcher("") {
@@ -130,33 +128,48 @@ class StockCountUiTest {
             })).performTextReplacement("10")
             
             // Wait for autosave
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithContentDescription("Saved").fetchSemanticsNodes().isNotEmpty()
             }
             
             // 9. Complete area
             composeTestRule.onNodeWithText("Complete Area").performClick()
+            composeTestRule.waitForIdle()
             
             // 10. Verify area status in detail
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Completed", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Completed", substring = true).assertIsDisplayed()
             
             // 11. Complete count (Opens Review)
             composeTestRule.onNodeWithTag("complete_count_button").performClick()
+            composeTestRule.waitForIdle()
             
             // 12. Confirm completion (In Review Sheet)
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("confirm_completion_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
+            composeTestRule.waitForIdle()
             
             // 13. Verify COMPLETED status
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Completed", substring = true).fetchSemanticsNodes().size >= 2
             }
             composeTestRule.onAllNodesWithText("Completed", substring = true).onFirst().assertIsDisplayed()
         }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitForIdle()
     }
 }

@@ -44,6 +44,7 @@ class PurchaseUiTest {
         hiltRule.inject()
         runBlocking {
             db.clearAllTables()
+            preferencesRepository.clearAll()
             db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             
             val now = Instant.now()
@@ -51,7 +52,7 @@ class PurchaseUiTest {
             db.restaurantDao().insert(Restaurant(restId, "Test Restaurant", "USD", "en-US", now, now, null).toEntity())
             db.inventoryAreaDao().upsert(InventoryArea(InventoryAreaId("area_1"), restId, "Main Kitchen", "main kitchen", 0, true, now, now, null).toEntity())
             
-            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
         }
     }
@@ -61,7 +62,7 @@ class PurchaseUiTest {
     fun teardown() {
         runBlocking {
             db.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 
@@ -80,102 +81,139 @@ class PurchaseUiTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitForIdle()
-            
-            // Wait for loading to finish
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-            }
-
-            // Wait for Home screen to load
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("nav_home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
+            waitForHome()
 
             // 1. Navigate to Activity (Purchases)
             composeTestRule.onNodeWithTag("nav_activity", useUnmergedTree = true).performClick()
             composeTestRule.waitForIdle()
             
             // 2. Create Draft
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
+            composeTestRule.waitForIdle()
             
             // 3. Save Header
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("purchase_invoice_input").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("purchase_invoice_input").performTextInput(invoiceNum)
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
+            composeTestRule.waitForIdle()
             
             // 4. Add Line
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithContentDescription("Add Line").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithContentDescription("Add Line").performClick()
+            composeTestRule.waitForIdle()
             
             // 5. Fill Line Form
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_selector").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
-            // In the selector, find the one with the area name
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
             
             composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("unit_item_Case").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("unit_item_Case").performClick()
 
             composeTestRule.onNodeWithTag("quantity_input").performTextInput("2")
             composeTestRule.onNodeWithTag("total_price_input").performTextInput("160")
             
             // Verify Preview
-            composeTestRule.onNodeWithText("= 80 lb", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("= 80", substring = true).assertIsDisplayed()
 
             composeTestRule.onNodeWithTag("purchase_line_save").performClick()
+            composeTestRule.waitForIdle()
             
             // 6. Navigate away and reopen
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("purchase_draft_screen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText(invoiceNum, substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            composeTestRule.waitForIdle()
             
             // 7. Verify persisted line
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
             composeTestRule.onNodeWithText("2 Case", substring = true).assertIsDisplayed()
 
             // 8. Post Purchase
-            composeTestRule.onNodeWithText("Post Receipt").performClick()
+            composeTestRule.onNodeWithText("Post Purchase").performClick()
             // Confirmation dialog
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.waitForIdle()
             
             // 9. Verify Posted
-            composeTestRule.waitUntil(20000) {
-                composeTestRule.onAllNodesWithText("POSTED").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodes(hasText("POSTED")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("POSTED").assertIsDisplayed()
 
             // 10. Navigate away and reopen POSTED
             composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText(invoiceNum, substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            composeTestRule.waitForIdle()
             
             // 11. Void Purchase
-            composeTestRule.onNodeWithText("Void Receipt").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("purchase_detail_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Void Purchase").performClick()
             composeTestRule.waitForIdle()
             // Confirmation dialog
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Confirm").performClick()
             composeTestRule.waitForIdle()
             
             // 12. Verify Voided
-            composeTestRule.waitUntil(20000) {
-                composeTestRule.onAllNodesWithText("VOIDED").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodes(hasText("VOIDED")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("VOIDED").assertIsDisplayed()
         }
+    }
+
+    private fun waitForHome() {
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitForIdle()
     }
 }

@@ -104,4 +104,8 @@ class DataStoreAppPreferencesRepository @Inject constructor(
     override suspend fun clearOnboardingDraft() {
         dataStore.edit { it.remove(Keys.ONBOARDING_DRAFT) }
     }
+
+    override suspend fun clearAll() {
+        dataStore.edit { it.clear() }
+    }
 }

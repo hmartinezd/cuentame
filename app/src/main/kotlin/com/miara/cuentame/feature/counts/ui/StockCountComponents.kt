@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.miara.cuentame.R
@@ -70,6 +71,7 @@ private fun StatusChipContent(text: String, color: Color) {
         modifier = Modifier.background(color.copy(alpha = 0.1f), MaterialTheme.shapes.small)
             .padding(horizontal = 8.dp, vertical = 4.dp)
             .testTag("status_chip")
+            .semantics(mergeDescendants = true) {}
     ) {
         Text(text = text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
     }

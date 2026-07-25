@@ -46,6 +46,7 @@ class PurchaseFailureUiTest {
         hiltRule.inject()
         runBlocking {
             db.clearAllTables()
+            preferencesRepository.clearAll()
             db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             
             val now = Instant.now()
@@ -53,7 +54,7 @@ class PurchaseFailureUiTest {
             db.restaurantDao().insert(Restaurant(restId, "Fail Rest", "USD", "en-US", now, now, null).toEntity())
             db.inventoryAreaDao().upsert(InventoryArea(InventoryAreaId("area_1"), restId, "Main Kitchen", "main kitchen", 0, true, now, now, null).toEntity())
 
-            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
         }
     }
@@ -62,7 +63,7 @@ class PurchaseFailureUiTest {
     fun teardown() {
         runBlocking {
             db.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 
@@ -85,23 +86,26 @@ class PurchaseFailureUiTest {
             composeTestRule.waitForIdle()
             
             // 2. Create Draft
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("purchase_header_save").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
+            composeTestRule.waitForIdle()
             
             // 3. Add Line
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithContentDescription("Add Line").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithContentDescription("Add Line").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(20000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("ingredient_selector").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
@@ -111,18 +115,26 @@ class PurchaseFailureUiTest {
             composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
             
             composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodesWithTag("unit_item_Pound").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("unit_item_Pound").performClick()
             
             composeTestRule.onNodeWithTag("quantity_input").performTextInput("1")
             composeTestRule.onNodeWithTag("total_price_input").performTextInput("10")
             composeTestRule.onNodeWithTag("purchase_line_save").performClick()
+            composeTestRule.waitForIdle()
             
             // 4. Inject malformed history via DAO to make POST fail
             runBlocking {
-                val receiptId = db.purchaseDao().observeFilteredReceipts(restId.value, null, null, null).first().first().id
+                val receipts = db.purchaseDao().observeFilteredReceipts(restId.value, null, null, null).first()
+                val receiptId = receipts.first().id
                 db.inventoryMovementDao().insert(InventoryMovementEntity(
                     "mov_bad_fail", restId.value, ingId.value, "area_1", InventoryMovementType.PURCHASE.name,
                     "1", "10", "10", now.toEpochMilli(), SourceDocumentType.PURCHASE_RECEIPT.name,
@@ -131,18 +143,22 @@ class PurchaseFailureUiTest {
             }
 
             // 5. Try to Post
-            composeTestRule.waitUntil(20000) {
-                composeTestRule.onAllNodesWithText("Post Receipt").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Post Purchase").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Post Receipt").performClick()
+            composeTestRule.onNodeWithText("Post Purchase").performClick()
             composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Confirm").performClick()
             composeTestRule.waitForIdle()
             
             // 6. Verify Dialog remains or error is shown
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 // Check for snackbar text
-                composeTestRule.onAllNodesWithText("Malformed inventory history", substring = true).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithText("Malformed movement history", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             
             // 7. Verify we are still DRAFT
@@ -151,11 +167,14 @@ class PurchaseFailureUiTest {
     }
 
     private fun waitForHome() {
+        composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {
             composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {
             composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.waitForIdle()
     }
 }

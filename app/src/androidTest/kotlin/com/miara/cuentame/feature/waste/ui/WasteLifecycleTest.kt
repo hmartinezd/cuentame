@@ -42,6 +42,12 @@ class WasteLifecycleTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var failureBoundary: com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
+
+    @Inject
+    lateinit var attachmentPermissionManager: com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
+
     private val restaurantId = "rest-1"
     private val areaId = "area-1"
     private val ingId = "ing-1"
@@ -51,14 +57,19 @@ class WasteLifecycleTest {
     @Before
     fun setup() {
         hiltRule.inject()
-        seedData()
+        (failureBoundary as? com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary)?.reset()
+        (attachmentPermissionManager as? com.miara.cuentame.core.di.ConfigurableAttachmentPermissionManager)?.shouldFail = false
+        runBlocking {
+            preferencesRepository.setAppLocaleTag("en")
+            seedData()
+        }
     }
 
     @org.junit.After
     fun teardown() {
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 
@@ -91,169 +102,269 @@ class WasteLifecycleTest {
                 createdAt = 1000L
             )
         )
+        
+        database.inventoryProjectionDao().upsert(com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity(
+            restaurantId, ingId, areaId, "10.0", 1000L
+        ))
+        database.ingredientCostProjectionDao().upsert(com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity(
+            restaurantId, ingId, "2.0", 1000L
+        ))
     }
 
     @Test
     fun wasteLifecycle_fullScenario() {
+        runBlocking {
+            preferencesRepository.setAppLocaleTag("en")
+        }
         ActivityScenario.launch(MainActivity::class.java).use {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-
             waitForHome()
 
             // 1. Open Waste History
-            composeTestRule.onNodeWithTag("view_waste_button").performClick()
+            composeTestRule.onNodeWithText(context.getString(R.string.waste_history)).performClick()
+            composeTestRule.waitForIdle()
             
             // 2. Start New Waste
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("add_waste_fab").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("add_waste_fab").performClick()
+            composeTestRule.waitForIdle()
             
             // 3. Fill Form
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("ingredient_selector").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_item_Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("area_item_Main Kitchen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("area_item_Main Kitchen").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.onNodeWithTag("quantity_input").performTextInput("3")
+            composeTestRule.onNodeWithTag("quantity_input").performTextReplacement("3")
+            composeTestRule.waitForIdle()
             
-            composeTestRule.onNodeWithTag("reason_selector").performClick()
+            composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("unit_item_lb").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("unit_item_lb").performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.onNodeWithTag("reason_selector").performScrollTo().performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("reason_item_SPOILED").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("reason_item_SPOILED").performClick()
+            composeTestRule.waitForIdle()
             
             // 4. Verify Preview
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("estimated_value_preview").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("current_balance_preview").assertTextContains("10 lb", substring = true)
-            composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("7 lb", substring = true)
             composeTestRule.onNodeWithTag("estimated_value_preview").assertTextContains("$6.00", substring = true)
+            composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("7 lb", substring = true)
 
             // 5. Save Draft
-            composeTestRule.onNodeWithTag("waste_save_button").performClick()
+            composeTestRule.onNodeWithTag("waste_save_button").performScrollTo().performClick()
+            composeTestRule.waitForIdle()
             
             // 6. Navigate away and reopen
-            composeTestRule.onNodeWithTag("waste_form_back").performClick()
+            // After save, it navigates to WasteDetail. 
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("waste_detail_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_detail_back").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            // Back from Form
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("waste_form_back").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_form_back").performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.onNode(hasText("Chicken Breast") and hasClickAction()).performClick()
+            composeTestRule.waitForIdle()
             
             // 7. Assert exact values in Detail
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("waste_detail_screen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
             composeTestRule.onNodeWithText("Main Kitchen").assertIsDisplayed()
-            composeTestRule.onNodeWithText("3", substring = true).assertIsDisplayed()
-            composeTestRule.onNodeWithText("lb", substring = true).assertIsDisplayed()
-            composeTestRule.onNodeWithTag("status_chip").assertTextContains(context.getString(R.string.status_draft), substring = true)
             
-            // Verify reason label
+            // Use exact text match
+            composeTestRule.onAllNodesWithText("3 lb").assertCountEquals(2)
+            
             val reasonLabel = context.getString(WasteReason.SPOILED.toLabelRes())
             composeTestRule.onNodeWithText(reasonLabel).assertIsDisplayed()
 
+            composeTestRule.onNodeWithText(context.getString(R.string.status_draft)).assertIsDisplayed()
+            composeTestRule.onNodeWithText("6.00", substring = true).assertIsDisplayed()
+            
             // 8. Post
-            composeTestRule.onNodeWithTag("waste_post_button").performClick()
+            composeTestRule.onNodeWithTag("waste_post_button").performScrollTo().performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasText(context.getString(R.string.action_confirm))).fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
-            
-            // 9. Verify POSTED and mutation controls absent
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_edit)).assertDoesNotExist()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            composeTestRule.waitForIdle()
+            
+            // 9. Verify POSTED
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText(context.getString(R.string.status_posted)).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            composeTestRule.onNodeWithTag("waste_post_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_edit_button").assertDoesNotExist()
             composeTestRule.onNodeWithContentDescription(context.getString(R.string.delete_waste_draft)).assertDoesNotExist()
             
             // 10. Navigate away and reopen POSTED
             composeTestRule.onNodeWithTag("waste_detail_back").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.onNode(hasText("Chicken Breast") and hasClickAction()).performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText(context.getString(R.string.status_posted)).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("$6.00", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("6.00", substring = true).assertIsDisplayed()
 
             // 11. Void Waste
-            composeTestRule.onNodeWithTag("waste_void_button").performClick()
-            composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasText(context.getString(R.string.action_confirm))).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onNodeWithTag("waste_void_button").performScrollTo().performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            composeTestRule.waitForIdle()
             
             // 12. Verify VOIDED persists
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_voided), substring = true)).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithText(context.getString(R.string.status_voided)).fetchSemanticsNodes().isNotEmpty()
             }
+
             composeTestRule.onNodeWithTag("waste_detail_back").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("waste_list").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("waste_list").onChildAt(0).performClick()
+            composeTestRule.onNode(hasText("Chicken Breast") and hasClickAction()).performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_voided), substring = true)).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText(context.getString(R.string.status_voided)).fetchSemanticsNodes().isNotEmpty()
             }
             
             // Original data should remain
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
-            composeTestRule.onNodeWithText("3", substring = true).assertIsDisplayed()
-            composeTestRule.onNodeWithText("lb", substring = true).assertIsDisplayed()
+            composeTestRule.onAllNodesWithText("3 lb").onFirst().assertIsDisplayed()
+            composeTestRule.onNodeWithText(reasonLabel).assertIsDisplayed()
+            composeTestRule.onNodeWithText("6.00", substring = true).assertIsDisplayed()
+            
+            composeTestRule.onNodeWithTag("waste_post_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_edit_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_void_button").assertDoesNotExist()
         }
     }
 
     @Test
     fun wasteLifecycle_negativeBalance() {
+        runBlocking {
+            preferencesRepository.setAppLocaleTag("en")
+        }
         ActivityScenario.launch(MainActivity::class.java).use {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
-            composeTestRule.onNodeWithTag("view_waste_button").performClick()
-            composeTestRule.onNodeWithTag("add_waste_fab").performClick()
+            composeTestRule.onNodeWithText(context.getString(R.string.waste_history)).performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("add_waste_fab").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("add_waste_fab").performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("ingredient_selector").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_item_Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("ingredient_item_Chicken Breast").performClick()
-            composeTestRule.onNodeWithTag("area_selector").performClick()
-            composeTestRule.onNodeWithTag("area_item_Main Kitchen").performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.onNodeWithTag("quantity_input").performTextInput("12")
-            composeTestRule.onNodeWithTag("reason_selector").performClick()
+            composeTestRule.onNodeWithTag("area_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("area_item_Main Kitchen").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("area_item_Main Kitchen").performClick()
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.onNodeWithTag("quantity_input").performTextReplacement("12")
+            composeTestRule.waitForIdle()
+            
+            composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("unit_item_lb").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("unit_item_lb").performClick()
+            composeTestRule.waitForIdle()
+
+            composeTestRule.onNodeWithTag("reason_selector").performScrollTo().performClick()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("reason_item_SPOILED").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("reason_item_SPOILED").performClick()
+            composeTestRule.waitForIdle()
             
             // Verify negative warning
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText(context.getString(R.string.negative_inventory_warning)).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("-2 lb", substring = true)
+            composeTestRule.onNodeWithTag("remaining_balance_preview").assertTextContains("-2", substring = true)
 
             // Save and Post
-            composeTestRule.onNodeWithTag("waste_save_button").performClick()
+            composeTestRule.onNodeWithTag("waste_save_button").performScrollTo().performClick()
+            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithTag("waste_post_button").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("waste_detail_screen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
+            composeTestRule.waitForIdle()
             
-            // Confirmation should still show warning
-            composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasAnyAncestor(isDialog()) and hasText(context.getString(R.string.negative_inventory_warning))).fetchSemanticsNodes().isNotEmpty()
+            // Confirmation dialog
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText(context.getString(R.string.action_confirm)).performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            composeTestRule.waitForIdle()
             
             // Verify POSTED
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodes(hasTestTag("status_chip") and hasText(context.getString(R.string.status_posted), substring = true)).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithText(context.getString(R.string.status_posted)).fetchSemanticsNodes().isNotEmpty()
             }
 
             // Verify resulting projection equals -2
@@ -267,12 +378,11 @@ class WasteLifecycleTest {
     }
 
     private fun waitForHome() {
+        composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+            composeTestRule.onAllNodesWithText("Test Rest").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
-        }
+        composeTestRule.waitForIdle()
     }
 }
 

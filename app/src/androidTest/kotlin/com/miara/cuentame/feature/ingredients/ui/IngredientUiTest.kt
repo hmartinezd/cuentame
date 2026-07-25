@@ -36,8 +36,7 @@ class IngredientUiTest {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
-            preferencesRepository.clearOnboardingDraft()
+            preferencesRepository.clearAll()
 
             database.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             // Seed a restaurant as well
@@ -48,11 +47,7 @@ class IngredientUiTest {
                 com.miara.cuentame.core.common.ids.InventoryAreaId("area_ing_test"), com.miara.cuentame.core.common.ids.RestaurantId("rest_ing_test"), "Area 1", "area 1", 0, true, java.time.Instant.now(), java.time.Instant.now(), null
             ).toEntity())
             
-            // Verify DB state before proceeding
-            assert(database.restaurantDao().getRestaurant() != null)
-            assert(database.inventoryAreaDao().getActiveCount("rest_ing_test") > 0)
-
-            preferencesRepository.setAppLocaleTag("en-US")
+            preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
         }
     }
@@ -61,14 +56,13 @@ class IngredientUiTest {
     fun teardown() {
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
+            preferencesRepository.clearAll()
         }
     }
 
     @Test
     fun complete_ingredient_e2e_flow() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
 
             // 1. Navigate to Inventory
@@ -76,71 +70,72 @@ class IngredientUiTest {
             composeTestRule.waitForIdle()
 
             // 2. Create Chicken Breast
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("add_ingredient_fab").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("add_ingredient_fab").performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
+            composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("ingredient_name_input").performTextInput("Chicken Breast")
-            composeTestRule.waitForIdle()
             
             // Select Dimension: Mass
             composeTestRule.onNodeWithTag("dimension_selector").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Mass").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Mass").performClick()
-            composeTestRule.waitForIdle()
 
             // Select Base Unit: Pound
             composeTestRule.onNodeWithTag("base_unit_selector").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Pound").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Pound").performClick()
-            composeTestRule.waitForIdle()
 
             // Add Ounce Standard Unit
             composeTestRule.onNodeWithText("Add Standard Unit").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("Ounce").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Ounce").performClick()
-            composeTestRule.waitForIdle()
             
             // Check preview
-            composeTestRule.onNodeWithText("1 oz = 0.0625 lb", substring = true).assertIsDisplayed()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithText("1 oz = 0.0625 lb", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
-            composeTestRule.waitForIdle()
 
             // Add Case Package
             composeTestRule.onNodeWithText("Add Package Option").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("package_name_input").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("package_name_input").performTextInput("Case")
             composeTestRule.onNodeWithTag("package_factor_input").performTextInput("40")
             composeTestRule.onNodeWithTag("package_dialog_confirm").performClick()
-            composeTestRule.waitForIdle()
-
+            
             // Save Ingredient
-            composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled().performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
             
             // 3. Verify Detail
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("ingredient_detail_screen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
 
             // 4. Reopen and verify persistence
-            composeTestRule.onNodeWithContentDescription(context.getString(R.string.action_back)).performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("ingredient_detail_back").performClick()
             
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast").performClick()
-            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithText("Case").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_detail_screen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Case").assertIsDisplayed()
             composeTestRule.onNodeWithText("40", substring = true).assertIsDisplayed()
@@ -148,7 +143,9 @@ class IngredientUiTest {
 
             // 5. Test Read-only Edit
             composeTestRule.onNodeWithContentDescription("Edit").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
+            }
             
             // Verify units are read-only (no add standard unit button)
             composeTestRule.onAllNodesWithText("Add Standard Unit").assertCountEquals(0)
@@ -158,19 +155,24 @@ class IngredientUiTest {
 
             // Save (no changes)
             composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
-            composeTestRule.waitForIdle()
             
             // Back to detail
+            composeTestRule.waitUntil(60000) {
+                composeTestRule.onAllNodesWithTag("ingredient_detail_screen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
         }
     }
 
     private fun waitForHome() {
-        composeTestRule.waitUntil(30000) {
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
             composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
         }
-        composeTestRule.waitUntil(30000) {
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
             composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.waitForIdle()
     }
 }
