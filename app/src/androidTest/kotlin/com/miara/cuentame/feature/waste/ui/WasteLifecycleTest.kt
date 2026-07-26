@@ -185,22 +185,28 @@ class WasteLifecycleTest {
 
             composeTestRule.onNodeWithTag("waste_status_chip").assertTextContains(context.getString(R.string.status_draft), substring = true, ignoreCase = true)
             composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("6.00", substring = true)
+            composeTestRule.onNodeWithTag("waste_detail_current_balance").assertTextContains("10 lb", substring = true)
+            composeTestRule.onNodeWithTag("waste_detail_remaining_balance").assertTextContains("7 lb", substring = true)
             
             // 8. Post
             composeTestRule.onNodeWithTag("waste_post_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitForTag("archive_confirm_button")
+            composeTestRule.waitForTag("waste_post_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 9. Verify POSTED
-            composeTestRule.waitForTag("waste_status_chip")
-            composeTestRule.onNodeWithTag("waste_status_chip").assertTextContains(context.getString(R.string.status_posted), substring = true)
+            composeTestRule.waitForWasteStatus(context.getString(R.string.status_posted))
             
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertDoesNotExist()
             composeTestRule.onNodeWithTag("waste_post_button").assertDoesNotExist()
             composeTestRule.onNodeWithTag("waste_edit_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_delete_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_void_button").assertIsDisplayed()
             
+            composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("$6.00", substring = true)
+
             // 10. Navigate away and reopen POSTED
             composeTestRule.onNodeWithTag("waste_detail_back").performClick()
             composeTestRule.waitForTag("waste_list")
@@ -208,19 +214,19 @@ class WasteLifecycleTest {
             composeTestRule.openWasteEvent(eventId)
             
             composeTestRule.onNodeWithTag("waste_status_chip").assertTextContains(context.getString(R.string.status_posted), substring = true)
-            composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("6.00", substring = true)
+            composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("$6.00", substring = true)
 
             // 11. Void Waste
             composeTestRule.onNodeWithTag("waste_void_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitForTag("archive_confirm_button")
+            composeTestRule.waitForTag("waste_void_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
-            // 12. Verify VOIDED persists
-            composeTestRule.waitForTag("waste_status_chip")
-            composeTestRule.onNodeWithTag("waste_status_chip").assertTextContains(context.getString(R.string.status_voided), substring = true)
+            // 12. Verify VOIDED
+            composeTestRule.waitForWasteStatus(context.getString(R.string.status_voided))
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertDoesNotExist()
 
             composeTestRule.onNodeWithTag("waste_detail_back").performClick()
             composeTestRule.waitForTag("waste_list")
@@ -232,10 +238,11 @@ class WasteLifecycleTest {
             // Original data should remain
             composeTestRule.onNodeWithTag("waste_detail_quantity").assertTextContains("3 lb", substring = true)
             composeTestRule.onNodeWithTag("waste_detail_reason").assertTextContains(reasonLabel, substring = true)
-            composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("6.00", substring = true)
+            composeTestRule.onNodeWithTag("waste_detail_estimated_value").assertTextContains("$6.00", substring = true)
             
             composeTestRule.onNodeWithTag("waste_post_button").assertDoesNotExist()
             composeTestRule.onNodeWithTag("waste_edit_button").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_delete_button").assertDoesNotExist()
             composeTestRule.onNodeWithTag("waste_void_button").assertDoesNotExist()
         }
     }
@@ -288,14 +295,14 @@ class WasteLifecycleTest {
             composeTestRule.onNodeWithTag("waste_post_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
-            // Confirmation dialog
-            composeTestRule.waitForTag("archive_confirm_button")
+            // Confirmation dialog with negative warning
+            composeTestRule.waitForTag("waste_post_confirm_dialog")
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertTextContains(context.getString(R.string.negative_inventory_warning), substring = true)
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // Verify POSTED
-            composeTestRule.waitForTag("waste_status_chip")
-            composeTestRule.onNodeWithTag("waste_status_chip").assertTextContains(context.getString(R.string.status_posted), substring = true)
+            composeTestRule.waitForWasteStatus(context.getString(R.string.status_posted))
 
             // Verify resulting projection equals -2
             val projection = runBlocking { database.inventoryProjectionDao().getBalance(ingId, areaId) }

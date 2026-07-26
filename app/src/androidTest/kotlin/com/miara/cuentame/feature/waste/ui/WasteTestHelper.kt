@@ -24,7 +24,11 @@ fun ComposeTestRule.waitForTag(
         }
         waitForIdle()
     } catch (error: Throwable) {
-        val tree = onRoot(useUnmergedTree = true).printToString()
+        val tree = try {
+            onAllNodes(isRoot(), useUnmergedTree = true).onFirst().printToString()
+        } catch (e: Exception) {
+            "Could not print tree: ${e.message}"
+        }
         Log.e("WasteTestHelper", "TIMEOUT waiting for tag: $tag")
         Log.e("WasteTestHelper", "Tree: $tree")
         println("TIMEOUT waiting for tag: $tag")
@@ -55,6 +59,30 @@ fun ComposeTestRule.openWasteEvent(eventId: String) {
 fun ComposeTestRule.waitForWasteDetail() {
     waitForTag("waste_detail_screen")
     waitForTag("waste_detail_content")
+}
+
+fun ComposeTestRule.waitForWasteStatus(
+    expectedText: String,
+    timeoutMillis: Long = 20_000
+) {
+    try {
+        waitUntil(timeoutMillis) {
+            onAllNodes(
+                hasTestTag("waste_status_chip") and
+                    hasText(expectedText, substring = true, ignoreCase = true)
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+    } catch (error: Throwable) {
+        val tree = try {
+            onAllNodes(isRoot(), useUnmergedTree = true).onFirst().printToString()
+        } catch (e: Exception) {
+            "Could not print tree: ${e.message}"
+        }
+        println("TIMEOUT waiting for waste status: $expectedText")
+        println(tree)
+        throw error
+    }
+    waitForIdle()
 }
 
 fun ComposeTestRule.openWasteEdit() {

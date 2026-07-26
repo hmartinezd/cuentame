@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -102,6 +103,7 @@ fun PurchaseDetailScreen(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
+        modifier = Modifier.testTag("purchase_detail_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -219,6 +221,7 @@ fun PurchaseDetailScreen(
             title = stringResource(R.string.void_purchase),
             message = stringResource(R.string.voiding_warning),
             isSaving = uiState.isVoiding,
+            modifier = Modifier.testTag("purchase_void_confirm_dialog"),
             onDismiss = { if (!uiState.isVoiding) showVoidConfirm = false },
             onConfirm = {
                 onVoid()

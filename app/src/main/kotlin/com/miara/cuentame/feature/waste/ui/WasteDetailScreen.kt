@@ -131,7 +131,7 @@ fun WasteDetailScreen(
 
     Scaffold(
         modifier = Modifier.testTag("waste_detail_screen"),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.testTag("waste_error_snackbar")) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.waste_event)) },
@@ -217,20 +217,32 @@ fun WasteDetailScreen(
 
                     val unitLabel = details.unitLabel ?: ""
                     val finalUnitLabel = if (details.isUnitActive) unitLabel else "$unitLabel (${stringResource(R.string.archived_label)})"
-                    DetailItem(label = stringResource(R.string.quantity_wasted), value = "${e.quantityEntered} $finalUnitLabel", modifier = Modifier.testTag("waste_detail_quantity"))
-                    DetailItem(label = stringResource(R.string.base_unit), value = "${e.quantityBase} ${details.baseUnitSymbol ?: ""}", modifier = Modifier.testTag("waste_detail_base_quantity"))
+                    DetailItem(
+                        label = stringResource(R.string.quantity_wasted),
+                        value = Formatters.formatQuantity(e.quantityEntered, finalUnitLabel),
+                        modifier = Modifier.testTag("waste_detail_quantity")
+                    )
+                    DetailItem(
+                        label = stringResource(R.string.base_unit),
+                        value = Formatters.formatQuantity(e.quantityBase, details.baseUnitSymbol),
+                        modifier = Modifier.testTag("waste_detail_base_quantity")
+                    )
                     DetailItem(label = stringResource(R.string.waste_reason), value = stringResource(e.reason.toLabelRes()), modifier = Modifier.testTag("waste_detail_reason"))
                     DetailItem(label = stringResource(R.string.effective_date), value = dateFormatter.format(e.effectiveAt))
 
                     if (e.status == DocumentStatus.DRAFT) {
                         HorizontalDivider()
                         if (details.currentAreaQuantityBase != null) {
-                            DetailItem(label = stringResource(R.string.current_balance), value = "${details.currentAreaQuantityBase} ${details.baseUnitSymbol ?: ""}", modifier = Modifier.testTag("waste_detail_current_balance"))
+                            DetailItem(
+                                label = stringResource(R.string.current_balance),
+                                value = Formatters.formatQuantity(details.currentAreaQuantityBase, details.baseUnitSymbol),
+                                modifier = Modifier.testTag("waste_detail_current_balance")
+                            )
                         }
                         if (details.remainingAreaQuantityBase != null) {
                             DetailItem(
                                 label = stringResource(R.string.remaining_balance),
-                                value = "${details.remainingAreaQuantityBase} ${details.baseUnitSymbol ?: ""}",
+                                value = Formatters.formatQuantity(details.remainingAreaQuantityBase, details.baseUnitSymbol),
                                 valueColor = if (details.createsNegativeBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.testTag("waste_detail_remaining_balance")
                             )
@@ -290,7 +302,10 @@ fun WasteDetailScreen(
                             enabled = !uiState.isPosting
                         ) {
                             if (uiState.isPosting) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(
+                                    modifier = Modifier.padding(end = 8.dp).size(20.dp).testTag("waste_post_progress"),
+                                    strokeWidth = 2.dp
+                                )
                             }
                             Text(stringResource(R.string.post_waste))
                         }
@@ -302,7 +317,11 @@ fun WasteDetailScreen(
                             enabled = !uiState.isVoiding
                         ) {
                             if (uiState.isVoiding) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+                                CircularProgressIndicator(
+                                    modifier = Modifier.padding(end = 8.dp).size(20.dp).testTag("waste_void_progress"),
+                                    color = MaterialTheme.colorScheme.onError,
+                                    strokeWidth = 2.dp
+                                )
                             }
                             Text(stringResource(R.string.void_waste))
                         }
@@ -316,6 +335,7 @@ fun WasteDetailScreen(
         ArchiveConfirmDialog(
             title = stringResource(R.string.delete_waste_draft),
             message = stringResource(R.string.waste_confirm_delete),
+            modifier = Modifier.testTag("waste_delete_confirm_dialog"),
             isSaving = uiState.isDeleting,
             onDismiss = { if (!uiState.isDeleting) showDeleteConfirm = false },
             onConfirm = onDelete
@@ -349,6 +369,7 @@ fun WasteDetailScreen(
         ArchiveConfirmDialog(
             title = stringResource(R.string.post_waste),
             message = message,
+            modifier = Modifier.testTag("waste_post_confirm_dialog"),
             confirmText = stringResource(R.string.action_confirm),
             isSaving = uiState.isPosting,
             onDismiss = { if (!uiState.isPosting) showPostConfirm = false },
@@ -360,6 +381,7 @@ fun WasteDetailScreen(
         ArchiveConfirmDialog(
             title = stringResource(R.string.void_waste),
             message = stringResource(R.string.waste_confirm_void),
+            modifier = Modifier.testTag("waste_void_confirm_dialog"),
             confirmText = stringResource(R.string.action_confirm),
             isSaving = uiState.isVoiding,
             onDismiss = { if (!uiState.isVoiding) showVoidConfirm = false },

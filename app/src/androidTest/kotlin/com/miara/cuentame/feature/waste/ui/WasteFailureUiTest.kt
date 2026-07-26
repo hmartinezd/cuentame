@@ -131,12 +131,14 @@ class WasteFailureUiTest {
             composeTestRule.onNodeWithTag("waste_post_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
-            composeTestRule.waitForTag("archive_confirm_button")
+            composeTestRule.waitForTag("waste_post_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
-            composeTestRule.waitForIdle()
-
-            // Verify Error appeared
-            composeTestRule.waitForTag("archive_confirm_button") // Dialog still there
+            
+            // Wait for authoritative completion
+            composeTestRule.waitUntil(10_000) { boundary.triggerCount == 1 }
+            composeTestRule.onNodeWithTag("dialog_progress").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
 
             // Prove Rollback
             runBlocking {
@@ -147,7 +149,7 @@ class WasteFailureUiTest {
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)
                 assertThat(movements.size).isEqualTo(beforeMovementCount)
                 
-                assertThat(boundary.triggerCount).isAtLeast(1)
+                assertThat(boundary.triggerCount).isEqualTo(1)
 
                 // Projections must remain equal to before-state
                 val afterFailBalance = BigDecimal(database.inventoryProjectionDao().getBalance(ingId, areaId)?.quantityBase ?: "0")
@@ -159,12 +161,12 @@ class WasteFailureUiTest {
             // Retry after clearing failure
             boundary.reset()
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
-            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_status_chip") and hasText(context.getString(R.string.status_posted), substring = true))
-                    .fetchSemanticsNodes().isNotEmpty()
-            }
+            composeTestRule.waitForWasteStatus(context.getString(R.string.status_posted))
+            
+            // Verify dialog closed
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("archive_confirm_button").assertDoesNotExist()
 
             // Verify Post success state
             runBlocking {
@@ -174,6 +176,7 @@ class WasteFailureUiTest {
 
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)
                 assertThat(movements).hasSize(1)
+                assertThat(movements[0].movementType).isEqualTo(InventoryMovementType.WASTE.name)
 
                 val afterRetryBalance = BigDecimal(database.inventoryProjectionDao().getBalance(ingId, areaId)?.quantityBase ?: "0")
                 val afterRetryCost = BigDecimal(database.ingredientCostProjectionDao().getCost(ingId)?.averageUnitCostBase ?: "0")
@@ -222,14 +225,15 @@ class WasteFailureUiTest {
             composeTestRule.openWasteEvent(eventId)
 
             composeTestRule.onNodeWithTag("waste_void_button").performScrollTo().performClick()
-            composeTestRule.waitForIdle()
             
-            composeTestRule.waitForTag("archive_confirm_button")
+            composeTestRule.waitForTag("waste_void_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
-            composeTestRule.waitForIdle()
             
-            // Verify failure state
-            composeTestRule.waitForTag("archive_confirm_button")
+            // Wait for authoritative completion
+            composeTestRule.waitUntil(10_000) { boundary.triggerCount == 1 }
+            composeTestRule.onNodeWithTag("dialog_progress").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
             
             // Prove Rollback
             runBlocking {
@@ -241,7 +245,7 @@ class WasteFailureUiTest {
                 assertThat(movements.size).isEqualTo(beforeMovementCount) // Only original WASTE remains
                 assertThat(movements[0].movementType).isEqualTo(InventoryMovementType.WASTE.name)
                 
-                assertThat(boundary.triggerCount).isAtLeast(1)
+                assertThat(boundary.triggerCount).isEqualTo(1)
 
                 // Projections must remain equal to before-state
                 val afterFailBalance = BigDecimal(database.inventoryProjectionDao().getBalance(ingId, areaId)?.quantityBase ?: "0")
@@ -253,12 +257,12 @@ class WasteFailureUiTest {
             // Retry after clearing failure
             boundary.reset()
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
-            composeTestRule.waitForIdle()
             
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_status_chip") and hasText(context.getString(R.string.status_voided), substring = true))
-                    .fetchSemanticsNodes().isNotEmpty()
-            }
+            composeTestRule.waitForWasteStatus(context.getString(R.string.status_voided))
+            
+            // Verify dialog closed
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("archive_confirm_button").assertDoesNotExist()
 
             // Verify Void success state
             runBlocking {
@@ -268,6 +272,7 @@ class WasteFailureUiTest {
 
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)
                 assertThat(movements).hasSize(2) // WASTE + REVERSAL
+                assertThat(movements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isTrue()
 
                 val afterRetryBalance = BigDecimal(database.inventoryProjectionDao().getBalance(ingId, areaId)?.quantityBase ?: "0")
                 val afterRetryCost = BigDecimal(database.ingredientCostProjectionDao().getCost(ingId)?.averageUnitCostBase ?: "0")
@@ -301,18 +306,20 @@ class WasteFailureUiTest {
             composeTestRule.openWasteEvent(eventId)
 
             composeTestRule.onNodeWithTag("waste_delete_button").performClick()
-            composeTestRule.waitForIdle()
             
-            composeTestRule.waitForTag("archive_confirm_button")
+            composeTestRule.waitForTag("waste_delete_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
-            composeTestRule.waitForIdle()
-
-            composeTestRule.waitForTag("archive_confirm_button")
+            
+            // Wait for authoritative completion
+            composeTestRule.waitUntil(10_000) { boundary.triggerCount == 1 }
+            composeTestRule.onNodeWithTag("dialog_progress").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
             
             // Verify event still exists
             runBlocking {
                 assertThat(database.wasteDao().getById(eventId)).isNotNull()
-                assertThat(boundary.triggerCount).isAtLeast(1)
+                assertThat(boundary.triggerCount).isEqualTo(1)
             }
 
             // Retry
@@ -323,6 +330,7 @@ class WasteFailureUiTest {
             // Should be back at list and item gone
             composeTestRule.waitForTag("waste_list_screen")
             composeTestRule.onNodeWithTag("waste_item_$eventId").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertDoesNotExist()
         }
     }
 }

@@ -69,6 +69,15 @@ data class WasteUnitOptionUi(
     val isActive: Boolean
 )
 
+sealed interface UnitOptionsLoadState {
+    data object Loading : UnitOptionsLoadState
+    data class Loaded(
+        val ingredientId: IngredientId,
+        val options: List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>
+    ) : UnitOptionsLoadState
+    data class Failed(val error: Throwable) : UnitOptionsLoadState
+}
+
 sealed interface WasteFormScreenState {
     data object Loading : WasteFormScreenState
     data object Ready : WasteFormScreenState
@@ -154,17 +163,24 @@ class WasteFormViewModel @Inject constructor(
     private val _events = MutableSharedFlow<WasteFormEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
-    private val _unitOptions = _selectedIngredientId.flatMapLatest { id ->
-        if (id == null) flowOf(emptyList())
-        else flowOf(ingredientRepository.getUnitOptions(id, true))
-    }.onEach { options ->
-        val currentUnit = _selectedUnitOptionId.value
-        if (currentUnit == null) {
-            val defaultOption = options.find { it.isDefaultCount && it.isActive }
-                ?: options.find { it.isBase && it.isActive }
-            _selectedUnitOptionId.value = defaultOption?.id
+    private val _unitOptionsLoadState = _selectedIngredientId.flatMapLatest { id ->
+        if (id == null) flowOf(UnitOptionsLoadState.Loaded(IngredientId(""), emptyList()))
+        else {
+            _selectedUnitOptionId.value = null // Clear when changing ingredient
+            flowOf(UnitOptionsLoadState.Loading)
+                .flatMapLatest { flowOf(UnitOptionsLoadState.Loaded(id, ingredientRepository.getUnitOptions(id, true))) }
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.onEach { state ->
+        if (state is UnitOptionsLoadState.Loaded && state.ingredientId.value.isNotEmpty()) {
+            val options = state.options
+            val currentUnit = _selectedUnitOptionId.value
+            if (currentUnit == null) {
+                val defaultOption = options.find { it.isDefaultCount && it.isActive }
+                    ?: options.find { it.isBase && it.isActive }
+                _selectedUnitOptionId.value = defaultOption?.id
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, UnitOptionsLoadState.Loading)
 
     val uiState: StateFlow<WasteFormUiState> = restaurantRepository.observeRestaurant()
         .flatMapLatest { restaurant ->
@@ -175,7 +191,7 @@ class WasteFormViewModel @Inject constructor(
                 if (wasteEventId != null) wasteRepository.observeWasteEvent(wasteEventId) else flowOf(null),
                 ingredientRepository.observeIngredients(restaurant.id, true),
                 areaRepository.observeAllAreas(),
-                _unitOptions,
+                _unitOptionsLoadState,
                 _selectedIngredientId,
                 _selectedAreaId,
                 _selectedUnitOptionId,
@@ -195,7 +211,7 @@ class WasteFormViewModel @Inject constructor(
                 val existingDetails = args[0] as com.miara.cuentame.core.domain.repository.WasteDetails?
                 val allIngredients = args[1] as List<Ingredient>
                 val allAreas = args[2] as List<InventoryArea>
-                val allUnitOptions = args[3] as List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>
+                val unitLoadState = args[3] as UnitOptionsLoadState
                 val selIngId = args[4] as IngredientId?
                 val selAreaId = args[5] as InventoryAreaId?
                 val selUnitId = args[6] as IngredientUnitOptionId?
@@ -213,19 +229,20 @@ class WasteFormViewModel @Inject constructor(
                 val screenStateOverride = args[18] as WasteFormScreenState?
 
                 val isHydrated = if (wasteEventId != null) hasLoadedOnce else true
+                
+                val allUnitOptions = (unitLoadState as? UnitOptionsLoadState.Loaded)?.options ?: emptyList()
+                val isUnitLoading = unitLoadState is UnitOptionsLoadState.Loading
+                
+                // Authoritative cross-ingredient or missing check
+                val invalidUnitReference = selUnitId != null && unitLoadState is UnitOptionsLoadState.Loaded && (
+                    unitLoadState.ingredientId != selIngId || allUnitOptions.none { it.id == selUnitId }
+                )
 
                 val missingReference = isHydrated && wasteEventId != null && (
                     (selIngId != null && allIngredients.none { it.id == selIngId }) ||
                     (selAreaId != null && allAreas.none { it.id == selAreaId }) ||
-                    (selUnitId != null && allUnitOptions.isNotEmpty() && allUnitOptions.none { it.id == selUnitId })
+                    invalidUnitReference
                 )
-                
-                if (missingReference && isHydrated) {
-                    android.util.Log.e("WasteFormViewModel", "Missing reference: ing=${selIngId != null && allIngredients.none { it.id == selIngId }}, area=${selAreaId != null && allAreas.none { it.id == selAreaId }}, unit=${selUnitId != null && allUnitOptions.isNotEmpty() && allUnitOptions.none { it.id == selUnitId }}")
-                    android.util.Log.e("WasteFormViewModel", "Ings: ${allIngredients.map { it.id }}")
-                    android.util.Log.e("WasteFormViewModel", "Areas: ${allAreas.map { it.id }}")
-                    android.util.Log.e("WasteFormViewModel", "Units: ${allUnitOptions.map { it.id }}")
-                }
 
                 val screenState = when {
                     screenStateOverride != null -> screenStateOverride
@@ -278,7 +295,7 @@ class WasteFormViewModel @Inject constructor(
                 val parsedQty = DecimalParser.parse(qtyText)
                 val canSave = selIngId != null && selAreaId != null && selUnitId != null && 
                               reason != null && parsedQty != null && parsedQty > BigDecimal.ZERO &&
-                              !isSaving && !missingReference &&
+                              !isSaving && !missingReference && !isUnitLoading &&
                               ingredientOptions.any { it.id == selIngId } &&
                               areaOptions.any { it.id == selAreaId } &&
                               unitOptionsUi.any { it.id == selUnitId }
@@ -320,7 +337,8 @@ class WasteFormViewModel @Inject constructor(
                 _selectedUnitOptionId,
                 _quantityText,
                 _effectiveAt,
-                _previewRevision
+                _previewRevision,
+                _unitOptionsLoadState
             ) { args ->
                 val selIngId = args[0] as IngredientId?
                 val selAreaId = args[1] as InventoryAreaId?
@@ -328,13 +346,14 @@ class WasteFormViewModel @Inject constructor(
                 val qtyText = args[3] as String
                 val effAt = args[4] as Instant
                 val revision = args[5] as Long
+                val unitLoadState = args[6] as UnitOptionsLoadState
 
                 val restId = restaurantRepository.getRestaurant()?.id
                 if (restId == null || selIngId == null || selAreaId == null || selUnitId == null || qtyText.isBlank()) {
                     return@combine null
                 }
                 val parsedQty = DecimalParser.parse(qtyText)
-                if (parsedQty == null || parsedQty <= BigDecimal.ZERO) {
+                if (parsedQty == null || parsedQty <= BigDecimal.ZERO || unitLoadState is UnitOptionsLoadState.Loading) {
                     return@combine null
                 }
                 WastePreviewRequest(revision, restId, selIngId, selAreaId, selUnitId, parsedQty, effAt)

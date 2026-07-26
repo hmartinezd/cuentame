@@ -1,23 +1,23 @@
-# Waste Instrumentation Tests — Targeted Diagnosis Progress
+# Tasks - Milestone 7 Final Verification
 
-- [ ] **Infrastructure & Cleanup**
-    - [ ] Disable animations in `app/build.gradle.kts`
-    - [ ] Remove `debug_checkFormState` from `WasteArchiveUiTest.kt`
-    - [ ] Finalize `WasteTestHelper.kt` with required methods
-- [ ] **Stabilize WasteArchiveUiTest**
-    - [ ] Update `draftWithArchivedReferences_fullFlow`
-    - [ ] Update `missingIngredient_producesErrorState`
-    - [ ] Update `missingArea_producesErrorState`
-    - [ ] Update `missingUnitOption_producesErrorState`
-    - [ ] Update `crossIngredientUnitOption_producesErrorState`
-- [ ] **Stabilize WasteFailureUiTest**
-    - [ ] Update `postFailure_provesRollback`
-    - [ ] Update `voidFailure_provesRollback`
-    - [ ] Update `deleteFailure_provesIntegrity`
-- [ ] **Stabilize WasteLifecycleTest**
-    - [ ] Update `wasteLifecycle_fullScenario`
-    - [ ] Update `wasteLifecycle_negativeBalance`
-- [ ] **Verification**
-    - [ ] Run diagnostic sequence
-    - [ ] Run Waste package tests
-    - [ ] Run full instrumented suite
+- [ ] **Phase 1: ViewModel & State Refactor**
+    - [ ] Refactor `WasteFormViewModel` with `UnitOptionsLoadState`
+    - [ ] Remove production logs in `WasteFormViewModel`
+    - [ ] Update `WasteDetailViewModel` with authoritative loading states
+- [ ] **Phase 2: UI Updates**
+    - [ ] Add distinct dialog tags to `WasteDetailScreen`
+    - [ ] Ensure progress indicators are verifiable
+- [ ] **Phase 3: Instrumentation Test Refactor**
+    - [ ] Implement `waitForWasteStatus` in `WasteTestHelper`
+    - [ ] Update `WasteFailureUiTest` with authoritative completion and retries
+    - [ ] Restore full archived-reference coverage in `WasteArchiveUiTest`
+    - [ ] Strengthen corrupted-reference tests in `WasteArchiveUiTest`
+    - [ ] Refine lifecycle assertions in `WasteLifecycleTest`
+- [ ] **Phase 4: Suite Diagnosis & Fix**
+    - [ ] Diagnose `IngredientUiTest` failure
+    - [ ] Diagnose `PurchaseFailureUiTest` failure
+    - [ ] Diagnose `PurchaseUiTest` failure
+- [ ] **Phase 5: Final Verification**
+    - [ ] Run Waste package tests independently
+    - [ ] Run full build & verification pipe
+    - [ ] Update `README.md` truthfully

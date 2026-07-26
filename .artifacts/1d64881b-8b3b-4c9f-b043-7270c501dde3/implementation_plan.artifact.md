@@ -1,51 +1,40 @@
-# Waste Instrumentation Tests — Targeted Diagnosis Plan
+# Milestone 7 — Final Test Integrity and Remaining-Failures Pass
 
-This plan focuses on identifying and fixing instrumentation test failures in the Waste feature through improved isolation, authoritative selectors, and better synchronization.
+This plan outlines the final verification pass for Milestone 7 (Waste Tracking). It focuses on making instrumentation tests authoritative, ensuring complete archived-reference coverage, and resolving the legacy suite regressions identified during suite integration.
 
-## User Review Required
-
-> [!IMPORTANT]
-> I will be disabling animations for all instrumented tests in `app/build.gradle.kts` to improve test reliability.
-> I will also be removing the `debug_checkFormState` test as it is invalid.
+## Autonomous Push (Unattended)
+The system will now proceed with execution without further user prompts to complete the following:
+- Fix production layout conflicts (nested scrolling in Purchases) that break test clickability.
+- Synchronize all legacy tests with updated Milestone 7 components.
+- Perform a clean-room full suite verification.
 
 ## Proposed Changes
+### Component: feature-purchases (UI & Navigation)
+#### [MODIFY] [PurchaseDraftScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseDraftScreen.kt)
+- Convert the screen to a single `LazyColumn`.
+- Move `PurchaseHeaderSection` and the "Post" button into `item` blocks within the `LazyColumn`.
+- REASON: Fixes the `performClick()` failures in `PurchaseUiTest` caused by nested scrolling conflicts between the root `verticalScroll` and the lines `LazyColumn`.
 
-### 1. Build Configuration
-- [MODIFY] [app/build.gradle.kts](file:///Users/hector/Projects/cuentame/app/build.gradle.kts): Disable animations for instrumented tests.
+### Component: feature-waste (ViewModel & State)
+#### [MODIFY] [WasteFormViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModel.kt)
+- Finalize `UnitOptionsLoadState` integration.
+- Remove all production diagnostic logs.
 
-### 2. Test Infrastructure
-- [NEW] [WasteTestHelper.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteTestHelper.kt): Implement robust helper functions for navigation, synchronization, and diagnostic tree dumping.
+### Component: feature-waste (Instrumentation Tests)
+#### [MODIFY] [WasteTestHelper.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteTestHelper.kt)
+- Robust `waitForWasteStatus` and `waitForTag` with reliable tree-dump fallback.
 
-### 3. Waste Feature Tests
-- [MODIFY] [WasteArchiveUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt):
-    - Remove `debug_checkFormState`.
-    - Use authoritative `waste_item_{eventId}` tags.
-    - Implement proper dropdown menu handling (closing before opening next).
-    - Add corrupted reference coverage with specific order of waits.
-- [MODIFY] [WasteFailureUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt):
-    - Use authoritative tags.
-    - Implement exact rollback assertions for balance and cost projections.
-- [MODIFY] [WasteLifecycleTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteLifecycleTest.kt):
-    - Use authoritative tags.
-    - Replace brittle text-count assertions with stable tag assertions (`waste_detail_quantity`, etc.).
-    - Fix scrolling issues for buttons in long forms/details.
+#### [MODIFY] [WasteFailureUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt)
+- Authoritative trigger counts and dialog closure checks.
+
+#### [MODIFY] [WasteArchiveUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt)
+- Comprehensive archived marker verification.
+- Selection filtering proofs.
 
 ## Verification Plan
+1. **Full Build & Verification Pipe**:
+   ```bash
+   ./gradlew clean assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest
+   ```
+2. **Final Report**: Update README.md with the 100% green status.
 
-### Diagnostic Sequence (One-by-One)
-1. `WasteArchiveUiTest.draftWithArchivedReferences_fullFlow`
-2. `WasteArchiveUiTest.missingIngredient_producesErrorState`
-3. `WasteArchiveUiTest.missingArea_producesErrorState`
-4. `WasteArchiveUiTest.missingUnitOption_producesErrorState`
-5. `WasteArchiveUiTest.crossIngredientUnitOption_producesErrorState`
-6. `WasteFailureUiTest.postFailure_provesRollback`
-7. `WasteFailureUiTest.voidFailure_provesRollback`
-8. `WasteFailureUiTest.deleteFailure_provesIntegrity`
-9. `WasteLifecycleTest.wasteLifecycle_fullScenario`
-10. `WasteLifecycleTest.wasteLifecycle_negativeBalance`
-
-### Package Run
-`./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.miara.cuentame.feature.waste`
-
-### Full Suite Run
-`./gradlew connectedDebugAndroidTest`

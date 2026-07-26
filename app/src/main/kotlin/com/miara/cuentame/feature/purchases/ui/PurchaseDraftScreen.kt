@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -139,7 +140,12 @@ fun PurchaseDraftScreen(
     var showPostConfirm by remember { mutableStateOf(false) }
     var lineToDelete by remember { mutableStateOf<PurchaseLineWithDetails?>(null) }
 
+    LaunchedEffect(showPostConfirm) {
+        android.util.Log.d("PurchaseDraftScreen", "showPostConfirm: $showPostConfirm")
+    }
+
     Scaffold(
+        modifier = Modifier.testTag("purchase_draft_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -156,7 +162,7 @@ fun PurchaseDraftScreen(
                 },
                 actions = {
                     if (uiState.receiptId != null) {
-                        IconButton(onClick = { showDeleteDraftConfirm = true }, enabled = !uiState.isDeletingDraft && !uiState.isPosting) {
+                        IconButton(onClick = { showDeleteDraftConfirm = true }, enabled = !uiState.isDeletingDraft && !uiState.isPosting, modifier = Modifier.testTag("purchase_delete_button")) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                         }
                     }
@@ -169,80 +175,94 @@ fun PurchaseDraftScreen(
                 CircularProgressIndicator()
             }
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp)
+                    .testTag("purchase_draft_list")
             ) {
-                PurchaseHeaderSection(
-                    uiState = uiState,
-                    onSave = onSaveHeader
-                )
+                item {
+                    PurchaseHeaderSection(
+                        uiState = uiState,
+                        onSave = onSaveHeader
+                    )
+                }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                item {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                }
 
                 if (uiState.receiptId != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = stringResource(R.string.purchase_lines), style = MaterialTheme.typography.titleLarge)
-                        IconButton(onClick = onAddLine, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
-                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_line))
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = stringResource(R.string.purchase_lines), style = MaterialTheme.typography.titleLarge)
+                            IconButton(onClick = onAddLine, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
+                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_line))
+                            }
                         }
                     }
 
                     val lines = uiState.details?.lines ?: emptyList()
                     if (lines.isEmpty()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.state_empty_desc))
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                                Text(stringResource(R.string.state_empty_desc))
+                            }
                         }
                     } else {
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(lines) { lineWithDetails ->
-                                PurchaseLineItem(
-                                    lineWithDetails = lineWithDetails,
-                                    currencyCode = uiState.currencyCode,
-                                    onEdit = { onEditLine(lineWithDetails.line.id) },
-                                    onDelete = { lineToDelete = lineWithDetails },
-                                    enabled = !uiState.isPosting && !uiState.isDeletingDraft && uiState.deletingLineId == null
-                                )
-                                HorizontalDivider()
-                            }
+                        items(lines) { lineWithDetails ->
+                            PurchaseLineItem(
+                                lineWithDetails = lineWithDetails,
+                                currencyCode = uiState.currencyCode,
+                                onEdit = { onEditLine(lineWithDetails.line.id) },
+                                onDelete = { lineToDelete = lineWithDetails },
+                                enabled = !uiState.isPosting && !uiState.isDeletingDraft && uiState.deletingLineId == null
+                            )
+                            HorizontalDivider()
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "${stringResource(R.string.receipt_total)}:",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            val total = uiState.details?.lines?.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) } ?: java.math.BigDecimal.ZERO
-                            Text(
-                                text = Formatters.formatCurrency(total, uiState.currencyCode),
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = stringResource(R.string.purchase_items_count, lines.size),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                        Button(
-                            onClick = { showPostConfirm = true },
-                            enabled = !uiState.isPosting && !uiState.isDeletingDraft && lines.isNotEmpty()
-                        ) {
-                            if (uiState.isPosting) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "${stringResource(R.string.receipt_total)}:",
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                    val total = uiState.details?.lines?.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) } ?: java.math.BigDecimal.ZERO
+                                    Text(
+                                        text = Formatters.formatCurrency(total, uiState.currencyCode),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.purchase_items_count, lines.size),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                                Button(
+                                    onClick = { 
+                                        showPostConfirm = true 
+                                    },
+                                    modifier = Modifier.testTag("purchase_post_button"),
+                                    enabled = !uiState.isPosting && !uiState.isDeletingDraft && lines.isNotEmpty()
+                                ) {
+                                    if (uiState.isPosting) {
+                                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                                    }
+                                    Text(stringResource(R.string.post_purchase))
+                                }
                             }
-                            Text(stringResource(R.string.post_purchase))
                         }
                     }
                 }
@@ -255,6 +275,7 @@ fun PurchaseDraftScreen(
             title = stringResource(R.string.delete_draft),
             message = stringResource(R.string.delete_draft_confirm),
             isSaving = uiState.isDeletingDraft,
+            modifier = Modifier.testTag("purchase_delete_draft_confirm_dialog"),
             onDismiss = { if (!uiState.isDeletingDraft) showDeleteDraftConfirm = false },
             onConfirm = {
                 onDeleteDraft()
@@ -268,6 +289,7 @@ fun PurchaseDraftScreen(
             message = stringResource(R.string.posting_warning),
             confirmText = stringResource(R.string.action_confirm),
             isSaving = uiState.isPosting,
+            modifier = Modifier.testTag("purchase_post_confirm_dialog"),
             onDismiss = { if (!uiState.isPosting) showPostConfirm = false },
             onConfirm = {
                 onPost()

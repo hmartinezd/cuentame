@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -23,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.miara.cuentame.R
@@ -53,7 +56,9 @@ fun StandardUnitDialog(
                         ListItem(
                             headlineContent = { Text(unit.name) },
                             trailingContent = { Text(unit.symbol) },
-                            modifier = Modifier.clickable(enabled = !isSaving) { selectedUnit = unit }
+                            modifier = Modifier
+                                .testTag("unit_item_${unit.name}")
+                                .clickable(enabled = !isSaving) { selectedUnit = unit }
                         )
                     }
                 }
@@ -151,6 +156,7 @@ fun AddPackageDialog(
 fun ArchiveConfirmDialog(
     title: String,
     message: String,
+    modifier: Modifier = Modifier,
     confirmText: String = stringResource(R.string.archive_confirm_action),
     isSaving: Boolean = false,
     onDismiss: () -> Unit,
@@ -160,12 +166,19 @@ fun ArchiveConfirmDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(title) },
         text = { Text(message) },
+        modifier = modifier.semantics(mergeDescendants = true) {},
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
                 enabled = !isSaving,
                 modifier = Modifier.testTag("archive_confirm_button")
             ) {
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp).size(16.dp).testTag("dialog_progress"),
+                        strokeWidth = 2.dp
+                    )
+                }
                 Text(confirmText)
             }
         },

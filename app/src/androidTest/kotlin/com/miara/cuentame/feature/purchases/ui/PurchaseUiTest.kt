@@ -118,18 +118,21 @@ class PurchaseUiTest {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("unit_selector").performClick()
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("unit_item_Case").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("unit_item_Case").performClick()
+            composeTestRule.waitForIdle()
 
             composeTestRule.onNodeWithTag("quantity_input").performTextInput("2")
             composeTestRule.onNodeWithTag("total_price_input").performTextInput("160")
@@ -137,7 +140,7 @@ class PurchaseUiTest {
             // Verify Preview
             composeTestRule.onNodeWithText("= 80", substring = true).assertIsDisplayed()
 
-            composeTestRule.onNodeWithTag("purchase_line_save").performClick()
+            composeTestRule.onNodeWithTag("purchase_line_save").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
             // 6. Navigate away and reopen
@@ -161,12 +164,13 @@ class PurchaseUiTest {
             composeTestRule.onNodeWithText("2 Case", substring = true).assertIsDisplayed()
 
             // 8. Post Purchase
-            composeTestRule.onNodeWithText("Post Purchase").performClick()
+            composeTestRule.onNodeWithTag("purchase_draft_list").performScrollToNode(hasTestTag("purchase_post_button"))
+            composeTestRule.onNodeWithTag("purchase_post_button").performClick()
             // Confirmation dialog
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("purchase_post_confirm_dialog").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 9. Verify Posted
@@ -188,13 +192,14 @@ class PurchaseUiTest {
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("purchase_detail_screen").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Void Purchase").performClick()
+            // Use a scroll explicitly if the button is at the bottom
+            composeTestRule.onNodeWithText("Void Purchase").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             // Confirmation dialog
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("purchase_void_confirm_dialog").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 12. Verify Voided

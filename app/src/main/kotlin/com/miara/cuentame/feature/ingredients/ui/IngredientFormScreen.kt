@@ -171,7 +171,7 @@ fun IngredientFormScreen(
                     value = uiState.name,
                     onValueChange = onNameChanged,
                     label = { Text(stringResource(R.string.ingredient_name)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("ingredient_name_input"),
                     isError = uiState.fieldErrors.containsKey("name"),
                     supportingText = uiState.fieldErrors["name"]?.let { { Text(stringResource(it)) } },
                     keyboardOptions = KeyboardOptions(
@@ -427,8 +427,18 @@ fun UnitOptionsSection(
             Text(text = stringResource(R.string.unit_options), style = MaterialTheme.typography.titleMedium)
             if (!isEditMode) {
                 Row {
-                    TextButton(onClick = onAddStandard) { Text(stringResource(R.string.standard_unit)) }
-                    TextButton(onClick = onAddPackage) { Text(stringResource(R.string.package_option)) }
+                    TextButton(
+                        onClick = onAddStandard,
+                        modifier = Modifier.testTag("add_standard_unit_button")
+                    ) { 
+                        Text(stringResource(R.string.standard_unit)) 
+                    }
+                    TextButton(
+                        onClick = onAddPackage,
+                        modifier = Modifier.testTag("add_package_option_button")
+                    ) { 
+                        Text(stringResource(R.string.package_option)) 
+                    }
                 }
             }
         }

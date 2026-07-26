@@ -55,6 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -218,7 +219,7 @@ fun WasteFormScreen(
                     ExposedDropdownMenuBox(
                         expanded = ingredientExpanded,
                         onExpandedChange = { if (!uiState.isSaving) ingredientExpanded = !ingredientExpanded },
-                        modifier = Modifier.testTag("ingredient_selector")
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         val selectedIngredient = uiState.ingredients.find { it.id == uiState.selectedIngredientId }
                         val label = selectedIngredient?.let {
@@ -230,7 +231,7 @@ fun WasteFormScreen(
                             readOnly = true,
                             label = { Text(stringResource(R.string.ingredient_name)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ingredientExpanded) },
-                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag("ingredient_selector"),
                             enabled = !uiState.isSaving
                         )
                         ExposedDropdownMenu(
@@ -253,7 +254,7 @@ fun WasteFormScreen(
                     ExposedDropdownMenuBox(
                         expanded = areaExpanded,
                         onExpandedChange = { if (!uiState.isSaving) areaExpanded = !areaExpanded },
-                        modifier = Modifier.testTag("area_selector")
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         val selectedArea = uiState.areas.find { it.id == uiState.selectedAreaId }
                         val label = selectedArea?.let {
@@ -265,7 +266,7 @@ fun WasteFormScreen(
                             readOnly = true,
                             label = { Text(stringResource(R.string.receiving_area)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = areaExpanded) },
-                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag("area_selector"),
                             enabled = !uiState.isSaving
                         )
                         ExposedDropdownMenu(
@@ -298,7 +299,7 @@ fun WasteFormScreen(
                         ExposedDropdownMenuBox(
                             expanded = unitExpanded,
                             onExpandedChange = { if (uiState.selectedIngredientId != null && !uiState.isSaving) unitExpanded = !unitExpanded },
-                            modifier = Modifier.weight(1f).testTag("unit_selector")
+                            modifier = Modifier.weight(1f)
                         ) {
                             val selectedUnit = uiState.unitOptions.find { it.id == uiState.selectedUnitOptionId }
                             val label = selectedUnit?.let {
@@ -310,7 +311,7 @@ fun WasteFormScreen(
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.field_unit)) },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
-                                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag("unit_selector"),
                                 enabled = uiState.selectedIngredientId != null && !uiState.isSaving
                             )
                             ExposedDropdownMenu(
@@ -335,7 +336,7 @@ fun WasteFormScreen(
                     ExposedDropdownMenuBox(
                         expanded = reasonExpanded,
                         onExpandedChange = { if (!uiState.isSaving) reasonExpanded = !reasonExpanded },
-                        modifier = Modifier.testTag("reason_selector")
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedTextField(
                             value = uiState.selectedReason?.let { stringResource(it.toLabelRes()) } ?: "",
@@ -343,7 +344,7 @@ fun WasteFormScreen(
                             readOnly = true,
                             label = { Text(stringResource(R.string.waste_reason)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reasonExpanded) },
-                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag("reason_selector"),
                             enabled = !uiState.isSaving
                         )
                         ExposedDropdownMenu(

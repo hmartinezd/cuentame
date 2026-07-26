@@ -113,18 +113,22 @@ class PurchaseFailureUiTest {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Chicken Breast", useUnmergedTree = true).performClick()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("area_selector").performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithText("Main Kitchen").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithText("Main Kitchen").performClick()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("unit_selector").performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithTag("unit_item_Pound").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("unit_item_Pound").performClick()
+            composeTestRule.waitForIdle()
+            composeTestRule.waitForIdle()
             
             composeTestRule.onNodeWithTag("quantity_input").performTextInput("1")
             composeTestRule.onNodeWithTag("total_price_input").performTextInput("10")
@@ -144,15 +148,15 @@ class PurchaseFailureUiTest {
 
             // 5. Try to Post
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Post Purchase").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("purchase_post_button").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Post Purchase").performClick()
+            composeTestRule.onNodeWithTag("purchase_post_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 6. Verify Dialog remains or error is shown
