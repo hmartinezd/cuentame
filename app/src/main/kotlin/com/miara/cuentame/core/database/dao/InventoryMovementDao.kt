@@ -5,10 +5,82 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import com.miara.cuentame.core.database.model.TopWasteRow
+import com.miara.cuentame.core.database.model.WasteValueRow
+import com.miara.cuentame.core.database.model.RecentWasteActivityRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InventoryMovementDao {
+    @Query("""
+        SELECT 
+            im.sourceDocumentId as wasteEventId,
+            im.ingredientId,
+            we.effectiveAt,
+            im.quantityBaseSigned,
+            im.totalValueSnapshot
+        FROM inventory_movements im
+        JOIN waste_events we ON im.sourceDocumentId = we.id
+        WHERE im.restaurantId = :restaurantId
+        AND im.sourceDocumentType = 'WASTE_EVENT'
+        AND im.movementType = 'WASTE'
+        AND we.status = 'POSTED'
+        AND we.effectiveAt >= :startInclusive
+        AND we.effectiveAt < :endExclusive
+    """)
+    fun observeWasteValueRows(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<WasteValueRow>>
+
+    @Query("""
+        SELECT 
+            im.ingredientId,
+            i.name as ingredientName,
+            u.symbol as baseUnitSymbol,
+            im.quantityBaseSigned as totalQuantityBase,
+            im.totalValueSnapshot as totalWasteValue,
+            1 as eventCount
+        FROM inventory_movements im
+        JOIN waste_events we ON im.sourceDocumentId = we.id
+        JOIN ingredients i ON im.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
+        WHERE im.restaurantId = :restaurantId
+        AND im.sourceDocumentType = 'WASTE_EVENT'
+        AND im.movementType = 'WASTE'
+        AND we.status = 'POSTED'
+        AND we.effectiveAt >= :startInclusive
+        AND we.effectiveAt < :endExclusive
+    """)
+    fun observeTopWasteRows(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<TopWasteRow>>
+
+    @Query("""
+        SELECT 
+            we.id,
+            we.status,
+            COALESCE(we.voidedAt, we.postedAt) as timestamp,
+            i.name as ingredientName,
+            im.totalValueSnapshot as totalValue
+        FROM waste_events we
+        JOIN inventory_movements im ON we.id = im.sourceDocumentId
+        JOIN ingredients i ON we.ingredientId = i.id
+        WHERE we.restaurantId = :restaurantId
+        AND we.status IN ('POSTED', 'VOIDED')
+        AND im.sourceDocumentType = 'WASTE_EVENT'
+        AND im.movementType = 'WASTE'
+        ORDER BY timestamp DESC
+        LIMIT :limit
+    """)
+    fun observeRecentWasteActivity(
+        restaurantId: String,
+        limit: Int
+    ): Flow<List<RecentWasteActivityRow>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(movement: InventoryMovementEntity)
 

@@ -1,23 +1,29 @@
-# Tasks - Milestone 7 Final Verification
+# Task List - Milestone 8 Phase 1: Local Dashboard and Reports Foundation
 
-- [x] **Phase 1: ViewModel & State Refactor**
-    - [x] Refactor `WasteFormViewModel` with `UnitOptionsLoadState`
-    - [x] Remove production logs in `WasteFormViewModel`
-    - [x] Update `WasteDetailViewModel` with authoritative loading states
-- [x] **Phase 2: UI Updates**
-    - [x] Add distinct dialog tags to `WasteDetailScreen`
-    - [x] Ensure progress indicators are verifiable
-- [x] **Phase 3: Instrumentation Test Refactor**
-    - [x] Implement `waitForWasteStatus` in `WasteTestHelper`
-    - [x] Update `WasteFailureUiTest` with authoritative completion and retries
-    - [x] Restore full archived-reference coverage in `WasteArchiveUiTest`
-    - [x] Strengthen corrupted-reference tests in `WasteArchiveUiTest`
-    - [x] Refine lifecycle assertions in `WasteLifecycleTest`
-- [x] **Phase 4: Suite Diagnosis & Fix**
-    - [x] Diagnose `IngredientUiTest` failure
-    - [x] Diagnose `PurchaseFailureUiTest` failure
-    - [x] Diagnose `PurchaseUiTest` failure
-- [x] **Phase 5: Final Verification**
-    - [x] Run Waste package tests independently
-    - [x] Run full build & verification pipe
-    - [x] Update `README.md` truthfully
+- [ ] **Phase 1: Domain Models & Repository Interface**
+    - [ ] Create `DashboardModels.kt` in `core.domain.model`
+    - [ ] Create `DashboardRepository.kt` in `core.domain.repository`
+- [ ] **Phase 2: Database Layer Enhancements**
+    - [ ] Update `InventoryProjectionDao.kt` with valuation aggregates
+    - [ ] Update `PurchaseDao.kt` with spend queries
+    - [ ] Update `InventoryMovementDao.kt` with waste queries
+    - [ ] Update `StockCountDao.kt` if needed for adjustment summaries
+- [ ] **Phase 3: Repository Implementation**
+    - [ ] Implement `RoomDashboardRepository.kt`
+    - [ ] Add `RoomDashboardRepositoryTest.kt` (JVM/Room)
+- [ ] **Phase 4: UI Implementation - Home**
+    - [ ] Refactor `HomeViewModel.kt` to use real data
+    - [ ] Update `HomeScreen.kt` with KPI cards and summaries
+    - [ ] Add `HomeViewModelTest.kt`
+- [ ] **Phase 5: UI Implementation - Reports**
+    - [ ] Create `ReportsViewModel.kt`
+    - [ ] Create `ReportsScreen.kt`
+    - [ ] Add `ReportsViewModelTest.kt`
+- [ ] **Phase 6: Infrastructure & Strings**
+    - [ ] Update `RepositoryModule.kt`
+    - [ ] Add English/Spanish strings for dashboard/reports
+- [ ] **Phase 7: Final Verification**
+    - [ ] Add `HomeUiTest.kt` (Instrumentation)
+    - [ ] Add `ReportsUiTest.kt` (Instrumentation)
+    - [ ] Run full suite and regression check
+    - [ ] Update `README.md`

@@ -4,10 +4,22 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
+import com.miara.cuentame.core.database.model.InventoryValuationRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InventoryProjectionDao {
+    @Query("""
+        SELECT 
+            ibp.ingredientId, 
+            ibp.quantityBase, 
+            icp.averageUnitCostBase
+        FROM inventory_balance_projection ibp
+        LEFT JOIN ingredient_cost_projection icp ON ibp.ingredientId = icp.ingredientId
+        WHERE ibp.restaurantId = :restaurantId
+    """)
+    fun observeValuationRows(restaurantId: String): Flow<List<InventoryValuationRow>>
+
     @Query("SELECT * FROM inventory_balance_projection")
     fun observeAllBalances(): Flow<List<InventoryBalanceProjectionEntity>>
 

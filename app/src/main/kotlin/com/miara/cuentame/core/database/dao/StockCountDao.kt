@@ -9,10 +9,49 @@ import androidx.room.Update
 import com.miara.cuentame.core.database.entity.StockCountAreaEntity
 import com.miara.cuentame.core.database.entity.StockCountEntity
 import com.miara.cuentame.core.database.entity.StockCountLineEntity
+import com.miara.cuentame.core.database.model.CompletedCountLineRow
+import com.miara.cuentame.core.database.model.RecentCountActivityRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StockCountDao {
+    @Query("""
+        SELECT 
+            sc.id as stockCountId,
+            sc.completedAt,
+            scl.ingredientId,
+            scl.adjustmentQuantityBase
+        FROM stock_counts sc
+        JOIN stock_count_areas sca ON sc.id = sca.stockCountId
+        JOIN stock_count_lines scl ON sca.id = scl.stockCountAreaId
+        WHERE sc.restaurantId = :restaurantId
+        AND sc.status = 'COMPLETED'
+        AND sc.completedAt >= :startInclusive
+        AND sc.completedAt < :endExclusive
+    """)
+    fun observeCompletedCountLines(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<CompletedCountLineRow>>
+
+    @Query("""
+        SELECT 
+            id,
+            status,
+            completedAt,
+            name
+        FROM stock_counts
+        WHERE restaurantId = :restaurantId
+        AND status = 'COMPLETED'
+        ORDER BY completedAt DESC
+        LIMIT :limit
+    """)
+    fun observeRecentCountActivity(
+        restaurantId: String,
+        limit: Int
+    ): Flow<List<RecentCountActivityRow>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCount(count: StockCountEntity)
 

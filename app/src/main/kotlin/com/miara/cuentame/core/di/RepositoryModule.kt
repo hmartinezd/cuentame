@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.di
 
+import com.miara.cuentame.core.database.repository.RoomDashboardRepository
 import com.miara.cuentame.core.database.repository.RoomIngredientCategoryRepository
 import com.miara.cuentame.core.database.repository.RoomIngredientRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryAreaRepository
@@ -80,4 +81,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWasteRepository(repo: RoomWasteRepository): WasteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDashboardRepository(repo: RoomDashboardRepository): com.miara.cuentame.core.domain.repository.DashboardRepository
 }

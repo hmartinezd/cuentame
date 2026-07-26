@@ -32,6 +32,15 @@ interface IngredientDao {
     @Query("SELECT * FROM ingredients WHERE restaurantId = :restaurantId AND normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
     suspend fun findByNormalizedName(restaurantId: String, normalizedName: String): IngredientEntity?
 
+    @Query("""
+        SELECT COUNT(*) FROM ingredients 
+        WHERE restaurantId = :restaurantId 
+        AND isActive = 1 
+        AND deletedAt IS NULL
+        AND id NOT IN (SELECT ingredientId FROM ingredient_unit_options WHERE isActive = 1 AND deletedAt IS NULL)
+    """)
+    fun observeActiveIngredientsMissingOptionsCount(restaurantId: String): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(ingredient: IngredientEntity)
 

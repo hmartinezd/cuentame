@@ -9,10 +9,54 @@ import androidx.room.Update
 import androidx.room.Upsert
 import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
+import com.miara.cuentame.core.database.model.PurchaseSpendRow
+import com.miara.cuentame.core.database.model.RecentPurchaseActivityRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PurchaseDao {
+    @Query("""
+        SELECT 
+            pr.id as receiptId,
+            pr.purchaseDate,
+            pl.lineTotal
+        FROM purchase_receipts pr
+        JOIN purchase_lines pl ON pr.id = pl.purchaseReceiptId
+        WHERE pr.restaurantId = :restaurantId 
+        AND pr.status = 'POSTED'
+        AND pr.purchaseDate >= :startInclusive
+        AND pr.purchaseDate < :endExclusive
+    """)
+    fun observeSpendRows(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<PurchaseSpendRow>>
+
+    @Query("""
+        SELECT 
+            pr.id,
+            pr.status,
+            pr.postedAt,
+            s.name as supplierName,
+            pl.lineTotal
+        FROM purchase_receipts pr
+        JOIN purchase_lines pl ON pr.id = pl.purchaseReceiptId
+        LEFT JOIN suppliers s ON pr.supplierId = s.id
+        WHERE pr.id IN (
+            SELECT id FROM purchase_receipts 
+            WHERE restaurantId = :restaurantId 
+            AND status = 'POSTED' 
+            ORDER BY postedAt DESC 
+            LIMIT :limit
+        )
+        ORDER BY pr.postedAt DESC
+    """)
+    fun observeRecentPurchaseActivity(
+        restaurantId: String,
+        limit: Int
+    ): Flow<List<RecentPurchaseActivityRow>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertReceipt(receipt: PurchaseReceiptEntity)
 
