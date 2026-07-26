@@ -73,7 +73,7 @@ interface InventoryMovementDao {
         AND we.status IN ('POSTED', 'VOIDED')
         AND im.sourceDocumentType = 'WASTE_EVENT'
         AND im.movementType = 'WASTE'
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, we.id ASC
         LIMIT :limit
     """)
     fun observeRecentWasteActivity(

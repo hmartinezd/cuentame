@@ -113,6 +113,7 @@ class PurchaseUiTest {
                 composeTestRule.onAllNodesWithTag("purchase_invoice_input").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("purchase_invoice_input").performTextInput(invoiceNum)
+            composeTestRule.waitForIdle()
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
             composeTestRule.waitForIdle()
             

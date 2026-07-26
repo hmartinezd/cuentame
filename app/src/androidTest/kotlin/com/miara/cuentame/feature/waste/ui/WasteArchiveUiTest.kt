@@ -94,6 +94,7 @@ class WasteArchiveUiTest {
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(activeOptId, activeIngId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
         
         preferencesRepository.setOnboardingCompleted(true)
+        preferencesRepository.setAppLocaleTag("en")
     }
 
     @Test

@@ -115,6 +115,54 @@
     <string name="state_empty_desc">Nada que mostrar todavía.</string>
     <string name="state_error_desc">Algo salió mal.</string>
     <string name="action_retry_desc">Reintentar</string>
+    <string name="status_label">Estado</string>
+
+    <!-- Dashboard & Reports -->
+    <string name="dashboard_title">Panel de Control</string>
+    <string name="range_7_days">7 días</string>
+    <string name="range_30_days">30 días</string>
+    <string name="range_90_days">90 días</string>
+    <string name="inventory_value_label">Valor Actual del Inventario</string>
+    <string name="purchase_spend_label">Gasto en Compras</string>
+    <string name="waste_value_label">Valor de Mermas</string>
+    <string name="negative_balances_label">Saldos Negativos</string>
+    <string name="data_completeness_label">Integridad de datos</string>
+    <string name="valuation_coverage_label">Cobertura de valoración</string>
+    <string name="missing_costs_label">Costos faltantes</string>
+    <string name="missing_unit_options_label">Opciones de unidad faltantes</string>
+    <string name="stock_counts">Conteos de stock</string>
+    <string name="completed_counts_label">Conteos completados</string>
+    <string name="adjusted_lines_label">Líneas ajustadas</string>
+    <string name="most_recent_count_label">Último conteo</string>
+    <string name="top_waste_label">Principales Mermas</string>
+    <string name="recent_activity_label">Actividad Reciente</string>
+    <string name="no_posted_waste_period">Sin mermas publicadas en este periodo</string>
+    <string name="no_recent_activity">Sin actividad reciente</string>
+    <string name="comparison_new">Nuevo</string>
+    <string name="comparison_no_change">Sin cambios</string>
+    <string name="not_applicable">N/D</string>
+    <string name="activity_type_purchase">Compra</string>
+    <string name="activity_type_waste">Merma</string>
+    <string name="activity_type_stock_count">Conteo</string>
+    <string name="log_waste_action">Registrar Merma</string>
+    <string name="new_purchase_action">Nueva Compra</string>
+    <string name="start_count_action">Iniciar Conteo</string>
+    <string name="view_reports_action">Ver Reportes</string>
+    <string name="coverage_format">%1$d / %2$d</string>
+    <string name="trend_increase">Aumento del %1$s%%</string>
+    <string name="trend_decrease">Disminución del %1$s%%</string>
+    <string name="trend_no_change">Sin cambios</string>
+    <string name="missing_costs_desc">Ingredientes con stock pero sin proyección de costo</string>
+    <string name="missing_unit_options_desc">Ingredientes activos sin opciones de unidad</string>
+    <string name="setup_required_title">Configuración Requerida</string>
+    <string name="setup_required_desc">Por favor, complete la configuración del restaurante para ver el panel de control.</string>
+    <string name="dashboard_error_title">Error del Panel</string>
+    <string name="dashboard_error_desc">No pudimos cargar sus datos. Por favor, verifique su conexión o intente de nuevo.</string>
+    <string name="activity_status_posted">Publicado</string>
+    <string name="activity_status_voided">Anulado</string>
+    <string name="activity_status_completed">Completado</string>
+    <string name="from_previous_period">vs periodo anterior</string>
+    <string name="items_count_format">%1$d artículos</string>
 
     <!-- Accessibility -->
     <string name="move_up">Mover %1$s arriba</string>

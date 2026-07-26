@@ -115,6 +115,54 @@
     <string name="state_empty_desc">Nothing to show yet.</string>
     <string name="state_error_desc">Something went wrong.</string>
     <string name="action_retry_desc">Retry</string>
+    <string name="status_label">Status</string>
+
+    <!-- Dashboard & Reports -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="range_7_days">7 days</string>
+    <string name="range_30_days">30 days</string>
+    <string name="range_90_days">90 days</string>
+    <string name="inventory_value_label">Current Inventory Value</string>
+    <string name="purchase_spend_label">Purchase Spend</string>
+    <string name="waste_value_label">Waste Value</string>
+    <string name="negative_balances_label">Negative Balances</string>
+    <string name="data_completeness_label">Data completeness</string>
+    <string name="valuation_coverage_label">Valuation coverage</string>
+    <string name="missing_costs_label">Missing costs</string>
+    <string name="missing_unit_options_label">Missing unit options</string>
+    <string name="stock_counts">Stock counts</string>
+    <string name="completed_counts_label">Completed counts</string>
+    <string name="adjusted_lines_label">Adjusted lines</string>
+    <string name="most_recent_count_label">Most recent count</string>
+    <string name="top_waste_label">Top Waste</string>
+    <string name="recent_activity_label">Recent Activity</string>
+    <string name="no_posted_waste_period">No posted Waste in this period</string>
+    <string name="no_recent_activity">No recent activity</string>
+    <string name="comparison_new">New</string>
+    <string name="comparison_no_change">No change</string>
+    <string name="not_applicable">N/A</string>
+    <string name="activity_type_purchase">Purchase</string>
+    <string name="activity_type_waste">Waste</string>
+    <string name="activity_type_stock_count">Stock count</string>
+    <string name="log_waste_action">Log Waste</string>
+    <string name="new_purchase_action">New Purchase</string>
+    <string name="start_count_action">Start Stock Count</string>
+    <string name="view_reports_action">View Reports</string>
+    <string name="coverage_format">%1$d / %2$d</string>
+    <string name="trend_increase">Increase of %1$s%%</string>
+    <string name="trend_decrease">Decrease of %1$s%%</string>
+    <string name="trend_no_change">No change</string>
+    <string name="missing_costs_desc">Ingredients with stock but no cost projection</string>
+    <string name="missing_unit_options_desc">Active ingredients with no unit options</string>
+    <string name="setup_required_title">Setup Required</string>
+    <string name="setup_required_desc">Please complete the restaurant setup to view the dashboard.</string>
+    <string name="dashboard_error_title">Dashboard Error</string>
+    <string name="dashboard_error_desc">We couldn\'t load your data. Please check your connection or try again.</string>
+    <string name="activity_status_posted">Posted</string>
+    <string name="activity_status_voided">Voided</string>
+    <string name="activity_status_completed">Completed</string>
+    <string name="from_previous_period">vs previous period</string>
+    <string name="items_count_format">%1$d items</string>
 
     <!-- Accessibility -->
     <string name="move_up">Move %1$s up</string>

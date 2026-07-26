@@ -1,29 +1,25 @@
-# Task List - Milestone 8 Phase 1: Local Dashboard and Reports Foundation
+# Task List - Milestone 8 Phase 1: Home Dashboard UI
 
-- [ ] **Phase 1: Domain Models & Repository Interface**
-    - [ ] Create `DashboardModels.kt` in `core.domain.model`
-    - [ ] Create `DashboardRepository.kt` in `core.domain.repository`
-- [ ] **Phase 2: Database Layer Enhancements**
-    - [ ] Update `InventoryProjectionDao.kt` with valuation aggregates
-    - [ ] Update `PurchaseDao.kt` with spend queries
-    - [ ] Update `InventoryMovementDao.kt` with waste queries
-    - [ ] Update `StockCountDao.kt` if needed for adjustment summaries
-- [ ] **Phase 3: Repository Implementation**
-    - [ ] Implement `RoomDashboardRepository.kt`
-    - [ ] Add `RoomDashboardRepositoryTest.kt` (JVM/Room)
-- [ ] **Phase 4: UI Implementation - Home**
-    - [ ] Refactor `HomeViewModel.kt` to use real data
-    - [ ] Update `HomeScreen.kt` with KPI cards and summaries
+- [ ] **Phase 1: Data Layer (Deterministic Ordering)**
+    - [ ] Update `PurchaseDao.kt`
+    - [ ] Update `InventoryMovementDao.kt`
+    - [ ] Update `StockCountDao.kt`
+    - [ ] Add tests to `DashboardDaoTest.kt` for ordering
+- [ ] **Phase 2: UI Models & Localization**
+    - [ ] Create `HomeUiModels.kt`
+    - [ ] Update `strings.xml` (EN & ES)
+- [ ] **Phase 3: Home ViewModel**
+    - [ ] Refactor `HomeViewModel.kt`
     - [ ] Add `HomeViewModelTest.kt`
-- [ ] **Phase 5: UI Implementation - Reports**
-    - [ ] Create `ReportsViewModel.kt`
-    - [ ] Create `ReportsScreen.kt`
-    - [ ] Add `ReportsViewModelTest.kt`
-- [ ] **Phase 6: Infrastructure & Strings**
-    - [ ] Update `RepositoryModule.kt`
-    - [ ] Add English/Spanish strings for dashboard/reports
-- [ ] **Phase 7: Final Verification**
-    - [ ] Add `HomeUiTest.kt` (Instrumentation)
-    - [ ] Add `ReportsUiTest.kt` (Instrumentation)
-    - [ ] Run full suite and regression check
+- [ ] **Phase 4: Home Screen Implementation**
+    - [ ] Implement `DashboardHeader` and `RangeSelector`
+    - [ ] Implement `KpiCard` and `MetricTrend` components
+    - [ ] Implement `DataCompleteness` section
+    - [ ] Implement `StockCountSummary` section
+    - [ ] Implement `TopWasteList` and `RecentActivityList`
+    - [ ] Update `HomeScreen` with full layout
+    - [ ] Update `CuentameNavHost.kt` navigation wiring
+- [ ] **Phase 5: Verification**
+    - [ ] Run JVM tests
+    - [ ] Add and run `HomeUiTest.kt` (Instrumentation)
     - [ ] Update `README.md`

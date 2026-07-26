@@ -152,6 +152,27 @@ class DashboardDaoTest {
         }
     }
 
+    @Test
+    fun recentActivity_deterministicOrdering() {
+        runBlocking {
+            val restId = "rest-1"
+            seedDependencies(restId)
+            
+            // Two purchases with SAME postedAt
+            val now = 1000L
+            db.purchaseDao().insertReceipt(createReceipt("p2", restId, now, DocumentStatus.POSTED.name).copy(postedAt = now))
+            db.purchaseDao().insertLine(createLine("l2", "p2", "10"))
+            db.purchaseDao().insertReceipt(createReceipt("p1", restId, now, DocumentStatus.POSTED.name).copy(postedAt = now))
+            db.purchaseDao().insertLine(createLine("l1", "p1", "10"))
+            
+            val purchases = db.purchaseDao().observeRecentPurchaseActivity(restId, 10).first()
+            
+            assertThat(purchases).hasSize(2)
+            assertThat(purchases[0].id).isEqualTo("p1") // p1 before p2 because of id ASC
+            assertThat(purchases[1].id).isEqualTo("p2")
+        }
+    }
+
     private fun createReceipt(id: String, restId: String, date: Long, status: String) = PurchaseReceiptEntity(
         id, restId, null, null, date, status, null, null, 0L, 0L, if(status=="POSTED") date else null, null
     )

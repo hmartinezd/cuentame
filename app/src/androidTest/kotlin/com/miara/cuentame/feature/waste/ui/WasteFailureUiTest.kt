@@ -86,6 +86,9 @@ class WasteFailureUiTest {
         database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Fail Ingredient", "fail ingredient", null, unitId, null, null, null, null, true, 0L, 0L, null))
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
+        preferencesRepository.setOnboardingCompleted(true)
+        preferencesRepository.setAppLocaleTag("en")
+
         // Seed 10 lb at $2/lb for projection rollback tests
         database.inventoryMovementDao().insert(InventoryMovementEntity(
             "seed-mov", restaurantId, ingId, areaId, InventoryMovementType.PURCHASE.name, "10.0", "2.0", "20.0",

@@ -1,127 +1,83 @@
-# Implementation Plan — Milestone 8 Phase 1: Local Dashboard and Reports Foundation
+# Implementation Plan — Milestone 8 Phase 1: Home Dashboard UI
 
-Implement a real, data-backed Home dashboard and a corresponding Reports overview using local data from Room.
+Implement the Home Dashboard UI with real data-backed summaries, KPI cards, and recent activity tracking.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> This phase uses exclusively local data. Food cost metrics requiring sales or recipe data are intentionally deferred.
+> The dashboard will exclusively use local data. External integrations and food cost percentages are deferred to later phases.
 
 ## Proposed Changes
 
-### Domain
-
-#### [NEW] [DashboardModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/domain/model/DashboardModels.kt)
-- Define `DashboardDateRange`: Enum (7, 30, 90 days).
-- Define `MetricComparison`: current, previous, absoluteChange, `percentageChange: BigDecimal?`.
-- Define `InventoryValuationSummary`: totalValue, valuedIngredientCount, stockedIngredientCount, missingCostCount.
-- Define `WasteReportItem`: ingredientId, name, quantityBase, unitSymbol, totalValue, eventCount.
-- Define `DashboardActivityItem`: id, type, status, timestamp, description, optional value.
-- Define `DashboardSnapshot`: Aggregated data for a specific range.
-
-#### [NEW] [DashboardRepository.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/domain/repository/DashboardRepository.kt)
-- `observeDashboard(restaurantId: RestaurantId, range: DashboardDateRange): Flow<DashboardSnapshot>`
-
-#### Date-range calculator
-- Inject `Clock` into the repository.
-- Intervals: Current `[now - N, now)`, Previous `[now - 2N, now - N)`.
-
-#### Decimal Policy
-- Parse TEXT columns in Repository.
-- Math using `BigDecimal` with `MathContext.DECIMAL128`.
-- Round percentages to 1 decimal place.
-
----
-
-### Data
-
-#### [MODIFY] [InventoryProjectionDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/InventoryProjectionDao.kt)
-- Add `observeValuationRows(restaurantId: String): Flow<List<InventoryValuationRow>>`.
-- Join `inventory_balance_projection` and `ingredient_cost_projection`.
+### Data Layer (Deterministic Activity Ordering)
 
 #### [MODIFY] [PurchaseDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/PurchaseDao.kt)
-- Add `observeSpendRows(restaurantId: String, start: Long, end: Long): Flow<List<PurchaseSpendRow>>`.
-- Filter `status = 'POSTED'` and `purchaseDate` in range.
+- Update `observeRecentPurchaseActivity`: Change `ORDER BY pr.postedAt DESC` to `ORDER BY pr.postedAt DESC, pr.id ASC`.
 
 #### [MODIFY] [InventoryMovementDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/InventoryMovementDao.kt)
-- Add `observeWasteRows(restaurantId: String, start: Long, end: Long): Flow<List<WasteValueRow>>`.
-- Join `inventory_movements` and `waste_events`.
-- Filter `movementType = 'WASTE'` and `wasteEvent.status = 'POSTED'`.
+- Update `observeRecentWasteActivity`: Change `ORDER BY timestamp DESC` to `ORDER BY timestamp DESC, we.id ASC`.
 
 #### [MODIFY] [StockCountDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/StockCountDao.kt)
-- Add `observeCompletedCountLines(restaurantId: String, start: Long, end: Long): Flow<List<CompletedCountLineRow>>`.
-- Filter `status = 'COMPLETED'` and `completedAt` in range.
-
-#### [NEW] [RoomDashboardRepository.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepository.kt)
-- Combine flows from DAOs.
-- Aggregate using `BigDecimal`.
-- Implement comparison logic and top-waste ranking.
-
-#### [MODIFY] [RepositoryModule.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/di/RepositoryModule.kt)
-- Bind `RoomDashboardRepository`.
+- Update `observeRecentCountActivity`: Change `ORDER BY completedAt DESC` to `ORDER BY completedAt DESC, id ASC`.
 
 ---
 
-### Home
+### UI Layer (Home Feature)
+
+#### [NEW] [HomeUiModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeUiModels.kt)
+- Define `DashboardMetricUiModel` and `MetricComparisonState` (INCREASE, DECREASE, NO_CHANGE, NEW, UNAVAILABLE).
+- Define `DashboardUiModel` for use in `HomeScreenState`.
 
 #### [MODIFY] [HomeViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeViewModel.kt)
-- Use `DashboardRepository.observeDashboard`.
+- Replace placeholder logic with `DashboardRepository` and `RestaurantRepository`.
+- Use `flatMapLatest` to switch repository flows when the date range changes.
+- Map `DashboardSnapshot` to `DashboardUiModel`.
 - Handle `HomeScreenState`: `Loading`, `SetupRequired`, `Ready`, `Error`.
-- Handle date-range switching with `flatMapLatest`.
 
 #### [MODIFY] [HomeScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeScreen.kt)
-- Scrollable layout with KPI cards.
-- Add sections: Data completeness, Top Waste, Recent Activity.
-- Add Quick Actions: Log Waste, New Purchase, Start Stock Count, View Reports.
-- Navigation wiring in `CuentameNavHost`.
+- Implement vertically scrollable layout.
+- Sections:
+    - **Header**: Restaurant name, Dashboard title, selected range.
+    - **Date-range Selector**: 7, 30, 90 days.
+    - **KPI Section**: Current Inventory Value, Purchase Spend, Waste Value, Negative Balances.
+    - **Data Completeness**: Coverage stats.
+    - **Stock-count Summary**: Completed counts, adjusted lines, most recent count date.
+    - **Top Waste**: Top 5 ingredients.
+    - **Recent Activity**: 10 most recent finalized documents.
+    - **Quick Actions**: Log Waste, New Purchase, Start Stock Count, View Reports.
+
+#### [MODIFY] [CuentameNavHost.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/app/navigation/CuentameNavHost.kt)
+- Update `HomeRoute` callbacks to handle new actions.
 
 ---
 
-### Reports
+### Localization & Infrastructure
 
-#### [NEW] [ReportsViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ReportsViewModel.kt)
-- Manage `DashboardDateRange` and expose `DashboardSnapshot`.
+#### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml)
+- Add all required strings in English and Spanish for new dashboard labels and activity types.
 
-#### [NEW] [ReportsScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ReportsScreen.kt)
-- Replace placeholder with overview based on KPI definitions.
-- Date-range selector.
-
----
-
-### Localization and accessibility
-
-- **Strings**: English and Spanish for all new labels (Purchase Spend, Inventory Value, Waste, Coverage, etc.).
-- **Content Descriptions**: For date-range selector and action buttons.
-- **Accessibility**: Support large text, high-contrast labels.
-- **Test Tags**: Authoritative tags for all KPI values and lists (e.g., `dashboard_inventory_value`).
-
----
-
-### Verification
-
-#### Repository Tests
-- Unit tests for `RoomDashboardRepository` using fixed `Clock`.
-- Scenarios: No data, negative balance, missing cost, voided documents exclusion, period boundaries, percentage changes.
-
-#### ViewModel Tests
-- `HomeViewModelTest` and `ReportsViewModelTest`.
-- Test: Loading state, error handling, date-range switching, currency mapping.
-
-#### Instrumentation Tests
-- `HomeUiTest` and `ReportsUiTest`.
-- Test: Populated vs Empty states, date switching, quick-action navigation.
-- Regression check of existing features.
+#### [MODIFY] [Formatters.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/designsystem/util/Formatters.kt)
+- Ensure existing formatters meet dashboard precision requirements.
 
 ---
 
 ## Verification Plan
 
 ### Automated Tests
-- JVM: `./gradlew testDebugUnitTest --tests "*Dashboard*" --tests "*HomeViewModelTest*" --tests "*ReportsViewModelTest*"`
-- Instrumented: Run `HomeUiTest` and `ReportsUiTest` individually.
-- Full Pipe: `./gradlew clean assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest`
+- **HomeViewModelTest** (JVM):
+    - Verify initial `Loading` and `SetupRequired` (missing restaurant).
+    - Verify `Ready` state with populated and empty snapshots.
+    - Verify range changes trigger new flow collection.
+    - Verify currency mapping.
+- **HomeUiTest** (Instrumentation):
+    - Verify state rendering (Loading, Error, Populated, Empty).
+    - Verify date-range switching updates UI.
+    - Verify navigation to quick actions.
+- **DashboardDaoTest** (Instrumentation):
+    - Verify deterministic ordering of recent activity.
 
 ### Manual Verification
-- Verify Home and Reports alignment.
-- Verify currency symbols match restaurant profile.
-- Verify "New Purchase" and "Start Stock Count" open correct forms.
+- Deploy to emulator.
+- Toggle between 7, 30, and 90 day ranges and verify values update.
+- Verify quick actions navigate to correct screens.
+- Check accessibility tags with a screen reader.

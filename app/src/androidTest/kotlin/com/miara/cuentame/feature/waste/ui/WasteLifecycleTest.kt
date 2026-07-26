@@ -81,6 +81,9 @@ class WasteLifecycleTest {
         database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken Breast", "chicken breast", null, unitId, null, null, null, null, true, 0L, 0L, null))
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
+        preferencesRepository.setOnboardingCompleted(true)
+        preferencesRepository.setAppLocaleTag("en")
+
         // Seed 10 lb at $2/lb
         database.inventoryMovementDao().insert(
             InventoryMovementEntity(

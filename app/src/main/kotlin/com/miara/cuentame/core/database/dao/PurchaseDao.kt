@@ -47,10 +47,10 @@ interface PurchaseDao {
             SELECT id FROM purchase_receipts 
             WHERE restaurantId = :restaurantId 
             AND status = 'POSTED' 
-            ORDER BY postedAt DESC 
+            ORDER BY postedAt DESC, id ASC
             LIMIT :limit
         )
-        ORDER BY pr.postedAt DESC
+        ORDER BY pr.postedAt DESC, pr.id ASC
     """)
     fun observeRecentPurchaseActivity(
         restaurantId: String,

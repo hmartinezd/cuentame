@@ -60,7 +60,7 @@ interface StockCountDao {
         FROM stock_counts
         WHERE restaurantId = :restaurantId
         AND status = 'COMPLETED'
-        ORDER BY completedAt DESC
+        ORDER BY completedAt DESC, id ASC
         LIMIT :limit
     """)
     fun observeRecentCountActivity(

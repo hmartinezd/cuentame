@@ -39,11 +39,11 @@ fun ComposeTestRule.waitForTag(
 
 fun ComposeTestRule.waitForHomeReady() {
     waitForIdle()
-    waitForTag("view_waste_button")
+    waitForTag("home_date_range_selector")
 }
 
 fun ComposeTestRule.openWasteHistory() {
-    onNodeWithTag("view_waste_button").performClick()
+    onNodeWithTag("view_waste_button").performScrollTo().performClick()
     waitForIdle()
     waitForTag("waste_list_screen")
 }
