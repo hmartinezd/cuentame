@@ -15,7 +15,9 @@ interface InventoryProjectionDao {
             ibp.quantityBase, 
             icp.averageUnitCostBase
         FROM inventory_balance_projection ibp
-        LEFT JOIN ingredient_cost_projection icp ON ibp.ingredientId = icp.ingredientId
+        LEFT JOIN ingredient_cost_projection icp 
+            ON ibp.restaurantId = icp.restaurantId 
+            AND ibp.ingredientId = icp.ingredientId
         WHERE ibp.restaurantId = :restaurantId
     """)
     fun observeValuationRows(restaurantId: String): Flow<List<InventoryValuationRow>>

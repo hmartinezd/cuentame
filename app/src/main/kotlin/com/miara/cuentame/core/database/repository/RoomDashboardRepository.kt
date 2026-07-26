@@ -33,18 +33,18 @@ class RoomDashboardRepository @Inject constructor(
         restaurantId: RestaurantId,
         range: DashboardDateRange
     ): Flow<DashboardSnapshot> {
-        val currentPeriod = periodCalculator.calculateCurrentPeriod(range)
-        val previousPeriod = periodCalculator.calculatePreviousPeriod(range)
+        val periods = periodCalculator.calculatePeriods(range)
 
         return combine(
             inventoryProjectionDao.observeValuationRows(restaurantId.value),
-            purchaseDao.observeSpendRows(restaurantId.value, currentPeriod.startInclusive.toEpochMilli(), currentPeriod.endExclusive.toEpochMilli()),
-            purchaseDao.observeSpendRows(restaurantId.value, previousPeriod.startInclusive.toEpochMilli(), previousPeriod.endExclusive.toEpochMilli()),
-            movementDao.observeWasteValueRows(restaurantId.value, currentPeriod.startInclusive.toEpochMilli(), currentPeriod.endExclusive.toEpochMilli()),
-            movementDao.observeWasteValueRows(restaurantId.value, previousPeriod.startInclusive.toEpochMilli(), previousPeriod.endExclusive.toEpochMilli()),
-            stockCountDao.observeCompletedCountLines(restaurantId.value, currentPeriod.startInclusive.toEpochMilli(), currentPeriod.endExclusive.toEpochMilli()),
+            purchaseDao.observeSpendRows(restaurantId.value, periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()),
+            purchaseDao.observeSpendRows(restaurantId.value, periods.previous.startInclusive.toEpochMilli(), periods.previous.endExclusive.toEpochMilli()),
+            movementDao.observeWasteValueRows(restaurantId.value, periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()),
+            movementDao.observeWasteValueRows(restaurantId.value, periods.previous.startInclusive.toEpochMilli(), periods.previous.endExclusive.toEpochMilli()),
+            stockCountDao.observeCompletedCountSummaries(restaurantId.value, periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()),
+            stockCountDao.observeCompletedCountLines(restaurantId.value, periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()),
             ingredientDao.observeActiveIngredientsMissingOptionsCount(restaurantId.value),
-            movementDao.observeTopWasteRows(restaurantId.value, currentPeriod.startInclusive.toEpochMilli(), currentPeriod.endExclusive.toEpochMilli()),
+            movementDao.observeTopWasteRows(restaurantId.value, periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()),
             purchaseDao.observeRecentPurchaseActivity(restaurantId.value, 10),
             movementDao.observeRecentWasteActivity(restaurantId.value, 10),
             stockCountDao.observeRecentCountActivity(restaurantId.value, 10)
@@ -54,21 +54,25 @@ class RoomDashboardRepository @Inject constructor(
             val previousSpendRows = args[2] as List<PurchaseSpendRow>
             val currentWasteRows = args[3] as List<WasteValueRow>
             val previousWasteRows = args[4] as List<WasteValueRow>
-            val currentCountLines = args[5] as List<CompletedCountLineRow>
-            val missingOptionsCount = args[6] as Int
-            val topWasteRows = args[7] as List<TopWasteRow>
-            val recentPurchases = args[8] as List<RecentPurchaseActivityRow>
-            val recentWaste = args[9] as List<RecentWasteActivityRow>
-            val recentCounts = args[10] as List<RecentCountActivityRow>
+            val currentCountSummaries = args[5] as List<CompletedCountSummaryRow>
+            val currentCountLines = args[6] as List<CompletedCountLineRow>
+            val missingOptionsCount = args[7] as Int
+            val topWasteRows = args[8] as List<TopWasteRow>
+            val recentPurchases = args[9] as List<RecentPurchaseActivityRow>
+            val recentWaste = args[10] as List<RecentWasteActivityRow>
+            val recentCounts = args[11] as List<RecentCountActivityRow>
 
             DashboardSnapshot(
                 inventory = calculateInventoryValuation(valuationRows),
                 purchases = calculateSpendComparison(currentSpendRows, previousSpendRows),
                 waste = calculateWasteComparison(currentWasteRows, previousWasteRows),
-                negativeBalanceCount = valuationRows.count { (parseDecimal(it.quantityBase) ?: BigDecimal.ZERO) < BigDecimal.ZERO },
-                completedCountCount = currentCountLines.map { it.stockCountId }.distinct().size,
-                mostRecentCompletedCountAt = currentCountLines.maxOfOrNull { it.completedAt }?.let { Instant.ofEpochMilli(it) },
-                adjustedLineCount = currentCountLines.count { (parseDecimal(it.adjustmentQuantityBase) ?: BigDecimal.ZERO).compareTo(BigDecimal.ZERO) != 0 },
+                negativeBalanceCount = valuationRows.count { requireDecimal(it.quantityBase) < BigDecimal.ZERO },
+                completedCountCount = currentCountSummaries.size,
+                mostRecentCompletedCountAt = currentCountSummaries.maxOfOrNull { it.completedAt }?.let { Instant.ofEpochMilli(it) },
+                adjustedLineCount = currentCountLines.count { 
+                    val adj = parseOptionalDecimal(it.adjustmentQuantityBase)
+                    adj != null && adj.compareTo(BigDecimal.ZERO) != 0 
+                },
                 activeIngredientsMissingOptionsCount = missingOptionsCount,
                 topWasteItems = aggregateTopWaste(topWasteRows),
                 recentActivity = combineRecentActivity(recentPurchases, recentWaste, recentCounts)
@@ -79,7 +83,7 @@ class RoomDashboardRepository @Inject constructor(
     private fun calculateInventoryValuation(rows: List<InventoryValuationRow>): InventoryValuationSummary {
         val balances = rows.groupBy { it.ingredientId }
             .mapValues { (_, ingRows) ->
-                ingRows.sumOf { parseDecimal(it.quantityBase) ?: BigDecimal.ZERO }
+                ingRows.sumOf { requireDecimal(it.quantityBase) }
             }
         
         val stockedIngredients = balances.filter { it.value.compareTo(BigDecimal.ZERO) != 0 }.keys
@@ -91,13 +95,15 @@ class RoomDashboardRepository @Inject constructor(
         stockedIngredients.forEach { ingId ->
             val balance = balances[ingId]!!
             val costStr = rows.first { it.ingredientId == ingId }.averageUnitCostBase
-            val cost = parseDecimal(costStr)
             
-            if (cost != null && cost >= BigDecimal.ZERO) {
+            if (costStr == null) {
+                missingCostCount++
+            } else {
+                val cost = requireDecimal(costStr)
+                if (cost < BigDecimal.ZERO) throw ValidationError.InvalidDecimal
+                
                 totalValue = totalValue.add(balance.multiply(cost, mathContext))
                 valuedCount++
-            } else {
-                missingCostCount++
             }
         }
         
@@ -110,14 +116,14 @@ class RoomDashboardRepository @Inject constructor(
     }
 
     private fun calculateSpendComparison(current: List<PurchaseSpendRow>, previous: List<PurchaseSpendRow>): MetricComparison {
-        val currentTotal = current.sumOf { parseDecimal(it.lineTotal) ?: BigDecimal.ZERO }
-        val previousTotal = previous.sumOf { parseDecimal(it.lineTotal) ?: BigDecimal.ZERO }
+        val currentTotal = current.sumOf { requireDecimal(it.lineTotal) }
+        val previousTotal = previous.sumOf { requireDecimal(it.lineTotal) }
         return calculateComparison(currentTotal, previousTotal)
     }
 
     private fun calculateWasteComparison(current: List<WasteValueRow>, previous: List<WasteValueRow>): MetricComparison {
-        val currentTotal = current.sumOf { (parseDecimal(it.totalValueSnapshot) ?: BigDecimal.ZERO).abs() }
-        val previousTotal = previous.sumOf { (parseDecimal(it.totalValueSnapshot) ?: BigDecimal.ZERO).abs() }
+        val currentTotal = current.sumOf { requireDecimal(it.totalValueSnapshot).abs() }
+        val previousTotal = previous.sumOf { requireDecimal(it.totalValueSnapshot).abs() }
         return calculateComparison(currentTotal, previousTotal)
     }
 
@@ -140,9 +146,9 @@ class RoomDashboardRepository @Inject constructor(
                 WasteReportItem(
                     ingredientId = IngredientId(id),
                     name = first.ingredientName,
-                    quantityBase = ingRows.sumOf { (parseDecimal(it.totalQuantityBase) ?: BigDecimal.ZERO).abs() },
+                    quantityBase = ingRows.sumOf { requireDecimal(it.totalQuantityBase).abs() },
                     unitSymbol = first.baseUnitSymbol,
-                    totalValue = ingRows.sumOf { (parseDecimal(it.totalWasteValue) ?: BigDecimal.ZERO).abs() },
+                    totalValue = ingRows.sumOf { requireDecimal(it.totalWasteValue).abs() },
                     eventCount = ingRows.size
                 )
             }
@@ -168,8 +174,8 @@ class RoomDashboardRepository @Inject constructor(
                 type = DashboardActivityType.PURCHASE,
                 status = first.status,
                 timestamp = Instant.ofEpochMilli(first.postedAt),
-                description = first.supplierName ?: "Purchase",
-                value = lines.sumOf { parseDecimal(it.lineTotal) ?: BigDecimal.ZERO }
+                displayName = first.supplierName,
+                value = lines.sumOf { requireDecimal(it.lineTotal) }
             ))
         }
         
@@ -179,8 +185,8 @@ class RoomDashboardRepository @Inject constructor(
                 type = DashboardActivityType.WASTE,
                 status = it.status,
                 timestamp = Instant.ofEpochMilli(it.timestamp),
-                description = it.ingredientName,
-                value = parseDecimal(it.totalValue)?.abs()
+                displayName = it.ingredientName,
+                value = requireDecimal(it.totalValue).abs()
             ))
         }
         
@@ -190,7 +196,7 @@ class RoomDashboardRepository @Inject constructor(
                 type = DashboardActivityType.STOCK_COUNT,
                 status = it.status,
                 timestamp = Instant.ofEpochMilli(it.completedAt),
-                description = it.name
+                displayName = it.name
             ))
         }
         
@@ -201,7 +207,16 @@ class RoomDashboardRepository @Inject constructor(
         ).take(10)
     }
 
-    private fun parseDecimal(value: String?): BigDecimal? {
+    private fun requireDecimal(value: String?): BigDecimal {
+        if (value == null) throw ValidationError.MalformedInventoryMovementHistory
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw ValidationError.InvalidDecimal
+        }
+    }
+
+    private fun parseOptionalDecimal(value: String?): BigDecimal? {
         if (value == null) return null
         return try {
             BigDecimal(value)

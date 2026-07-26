@@ -10,6 +10,7 @@ import com.miara.cuentame.core.database.entity.StockCountAreaEntity
 import com.miara.cuentame.core.database.entity.StockCountEntity
 import com.miara.cuentame.core.database.entity.StockCountLineEntity
 import com.miara.cuentame.core.database.model.CompletedCountLineRow
+import com.miara.cuentame.core.database.model.CompletedCountSummaryRow
 import com.miara.cuentame.core.database.model.RecentCountActivityRow
 import kotlinx.coroutines.flow.Flow
 
@@ -17,8 +18,23 @@ import kotlinx.coroutines.flow.Flow
 interface StockCountDao {
     @Query("""
         SELECT 
+            id as stockCountId,
+            completedAt
+        FROM stock_counts
+        WHERE restaurantId = :restaurantId
+        AND status = 'COMPLETED'
+        AND completedAt >= :startInclusive
+        AND completedAt < :endExclusive
+    """)
+    fun observeCompletedCountSummaries(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<CompletedCountSummaryRow>>
+
+    @Query("""
+        SELECT 
             sc.id as stockCountId,
-            sc.completedAt,
             scl.ingredientId,
             scl.adjustmentQuantityBase
         FROM stock_counts sc

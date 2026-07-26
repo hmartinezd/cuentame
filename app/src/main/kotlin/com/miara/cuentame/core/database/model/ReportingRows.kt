@@ -22,9 +22,13 @@ data class WasteValueRow(
 
 data class CompletedCountLineRow(
     val stockCountId: String,
-    val completedAt: Long,
     val ingredientId: String,
     val adjustmentQuantityBase: String?
+)
+
+data class CompletedCountSummaryRow(
+    val stockCountId: String,
+    val completedAt: Long
 )
 
 data class TopWasteRow(

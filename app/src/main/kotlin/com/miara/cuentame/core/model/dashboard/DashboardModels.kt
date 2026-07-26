@@ -45,7 +45,7 @@ data class DashboardActivityItem(
     val type: DashboardActivityType,
     val status: String, // String representation of domain status
     val timestamp: Instant,
-    val description: String,
+    val displayName: String?,
     val value: BigDecimal? = null
 )
 

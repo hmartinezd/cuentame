@@ -11,32 +11,34 @@ data class ReportingPeriod(
     val endExclusive: Instant
 )
 
+data class ReportingPeriods(
+    val current: ReportingPeriod,
+    val previous: ReportingPeriod
+)
+
 class ReportingPeriodCalculator @Inject constructor(
     private val timeProvider: TimeProvider
 ) {
-    fun calculateCurrentPeriod(range: DashboardDateRange): ReportingPeriod {
+    fun calculatePeriods(range: DashboardDateRange): ReportingPeriods {
         val now = timeProvider.now()
         val days = when (range) {
             DashboardDateRange.LAST_7_DAYS -> 7L
             DashboardDateRange.LAST_30_DAYS -> 30L
             DashboardDateRange.LAST_90_DAYS -> 90L
         }
-        return ReportingPeriod(
-            startInclusive = now.minus(days, ChronoUnit.DAYS),
-            endExclusive = now
-        )
-    }
+        
+        val currentStart = now.minus(days, ChronoUnit.DAYS)
+        val previousStart = currentStart.minus(days, ChronoUnit.DAYS)
 
-    fun calculatePreviousPeriod(range: DashboardDateRange): ReportingPeriod {
-        val current = calculateCurrentPeriod(range)
-        val days = when (range) {
-            DashboardDateRange.LAST_7_DAYS -> 7L
-            DashboardDateRange.LAST_30_DAYS -> 30L
-            DashboardDateRange.LAST_90_DAYS -> 90L
-        }
-        return ReportingPeriod(
-            startInclusive = current.startInclusive.minus(days, ChronoUnit.DAYS),
-            endExclusive = current.startInclusive
+        return ReportingPeriods(
+            current = ReportingPeriod(
+                startInclusive = currentStart,
+                endExclusive = now
+            ),
+            previous = ReportingPeriod(
+                startInclusive = previousStart,
+                endExclusive = currentStart
+            )
         )
     }
 }
