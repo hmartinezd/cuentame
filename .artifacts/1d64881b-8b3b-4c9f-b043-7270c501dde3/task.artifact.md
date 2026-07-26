@@ -1,26 +1,23 @@
-# Milestone 7 — Zero-Failure Verification Pass Progress
+# Waste Instrumentation Tests — Targeted Diagnosis Progress
 
-- [ ] **Test Isolation & Reliability**
-    - [ ] Implement `TestIsolationUtils` or similar for robust cleanup
-    - [ ] Update `WasteFailureUiTest` to use `createEmptyComposeRule` and isolated setup
-    - [ ] Update `WasteArchiveUiTest` to use `createEmptyComposeRule` and isolated setup
-    - [ ] Update `WasteLifecycleTest` to use `createEmptyComposeRule` and isolated setup
-    - [ ] Update `StockCountLifecycleTest` to use `createEmptyComposeRule` and isolated setup
-- [ ] **Waste Projection Rollback** (`WasteFailureUiTest.kt`)
-    - [ ] Extend `postFailure_provesRollback` with projection and status assertions
-    - [ ] Extend `voidFailure_provesRollback` with projection and status assertions
-- [ ] **Corrupted Reference Coverage** (`WasteArchiveUiTest.kt`)
-    - [ ] Add `missingIngredient_producesErrorState`
-    - [ ] Add `missingArea_producesErrorState`
-    - [ ] Add `missingUnitOption_producesErrorState`
-    - [ ] Add `crossIngredientUnitOption_producesErrorState`
-- [ ] **Archived Reference Persistence** (`WasteArchiveUiTest.kt`)
-    - [ ] Extend `draftWithArchivedReferences_fullFlow` with persistence and menu assertions
-- [ ] **Stock Count Lifecycle Restoration** (`StockCountLifecycleTest.kt`)
-    - [ ] Restore exact assertions for expected/adjustment values
-    - [ ] Verify read-only behavior and snapshots
-- [ ] **Waste Lifecycle Assertions** (`WasteLifecycleTest.kt`)
-    - [ ] Complete exact assertions for DRAFT, POSTED, and VOIDED states
+- [ ] **Infrastructure & Cleanup**
+    - [ ] Disable animations in `app/build.gradle.kts`
+    - [ ] Remove `debug_checkFormState` from `WasteArchiveUiTest.kt`
+    - [ ] Finalize `WasteTestHelper.kt` with required methods
+- [ ] **Stabilize WasteArchiveUiTest**
+    - [ ] Update `draftWithArchivedReferences_fullFlow`
+    - [ ] Update `missingIngredient_producesErrorState`
+    - [ ] Update `missingArea_producesErrorState`
+    - [ ] Update `missingUnitOption_producesErrorState`
+    - [ ] Update `crossIngredientUnitOption_producesErrorState`
+- [ ] **Stabilize WasteFailureUiTest**
+    - [ ] Update `postFailure_provesRollback`
+    - [ ] Update `voidFailure_provesRollback`
+    - [ ] Update `deleteFailure_provesIntegrity`
+- [ ] **Stabilize WasteLifecycleTest**
+    - [ ] Update `wasteLifecycle_fullScenario`
+    - [ ] Update `wasteLifecycle_negativeBalance`
 - [ ] **Verification**
-    - [ ] Run `./gradlew clean assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest`
-    - [ ] Truthfully update `README.md`
+    - [ ] Run diagnostic sequence
+    - [ ] Run Waste package tests
+    - [ ] Run full instrumented suite

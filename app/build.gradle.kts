@@ -49,6 +49,10 @@ android {
         }
     }
 
+    testOptions {
+        animationsDisabled = false
+    }
+
     sourceSets {
         getByName("androidTest") {
             assets.srcDirs(files("$projectDir/schemas"))

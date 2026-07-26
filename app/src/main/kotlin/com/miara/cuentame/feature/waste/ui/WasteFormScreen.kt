@@ -423,7 +423,11 @@ fun WasteFormScreen(
                                 )
                             }
                             if (uiState.preview.createsNegativeBalance) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.testTag("negative_warning_row")
+                                ) {
                                     Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                                     Text(text = stringResource(R.string.negative_inventory_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                                 }

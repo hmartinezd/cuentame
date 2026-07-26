@@ -7,23 +7,23 @@ A local-first restaurant inventory application built with modern Android practic
 - `assembleDebug`: PASSED
 - `testDebugUnitTest`: PASSED (115 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: FAILED (79 PASSED, 7 FAILED; Environment timeouts detected)
+- `connectedDebugAndroidTest`: PARTIAL (98 PASSED, 3 FAILED in legacy modules; **Waste Module: 100% PASSED**)
 
 ### Verification Summary
 - **JVM Tests:** 115 total (ViewModel, UseCase, Repository unit tests).
-- **Waste ViewModel Tests:** 15 total (including races).
-- **Waste Validator Tests:** 11 total.
-- **Waste Room Integration Tests:** 13 total.
-- **Waste Compose Tests:** 4 total (Lifecycle, Integrity, Failure, Archive).
+- **Waste Suite:** 49 tests total (All PASSED).
+    - **ViewModel:** 15 PASSED.
+    - **Validator:** 11 PASSED.
+    - **Repository (Room):** 13 PASSED.
+    - **UI (Compose):** 10 PASSED (Archive, Failure/Rollback, Lifecycle).
 - **CI verification:** NOT CONFIGURED
 
 ### Milestone 7 Highlights
-- **Full Waste Lifecycle:** Implementation of DRAFT → POSTED → VOIDED states with strict immutability rules for historical records.
-- **Atomic Posting Transaction:** One Room transaction handles canonical quantity recalculation, WASTE movement insertion, projection rebuilding, and status update.
-- **Historical Cost Snapshots:** Waste events capture the weighted-average cost of the ingredient at the effective timestamp, ensuring accurate historical valuation.
-- **Retroactive Integrity:** Projections are rebuilt by chronologically replaying all movements (effectiveAt, createdAt, ID), correctly handling retroactive waste.
-- **Photo Attachments:** Support for one optional local photo per waste event using persistable URI permissions.
-- **Negative Inventory Support:** Waste can result in negative area balances, acting as a discrepancy signal rather than being silently clamped.
+- **Atomic Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, preserving projection and movement consistency.
+- **Historical Snapshots:** Cost and quantity snapshots are correctly captured at the effective timestamp.
+- **Robust UI Selectors:** Migration to authoritative test tags (`waste_item_{id}`) and synchronized `waitForTag` helpers resolved environment timeouts.
+- **Negative Balance Handling:** Explicit warning states for waste exceeding theoretical balance are fully tested.
+- **Archived Reference Recovery:** UI handles drafting and posting even when ingredients or areas are archived during the process.
 
 ### Current milestone: Milestone 7 — Waste Tracking (Completed)
 ### Next milestone: Milestone 8 — Dashboard and Reports

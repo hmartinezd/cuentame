@@ -54,7 +54,7 @@ class RoomWasteRepository @Inject constructor(
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider,
-    private val failureBoundary: IntegrationFailureBoundary = NoOpFailureBoundary()
+    private val failureBoundary: IntegrationFailureBoundary
 ) : WasteRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantId {

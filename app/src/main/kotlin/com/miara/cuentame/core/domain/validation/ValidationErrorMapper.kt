@@ -25,6 +25,7 @@ fun Throwable.toUserMessageRes(): Int {
             ValidationError.InvalidPackageQuantity -> R.string.error_invalid_package_qty
             ValidationError.InvalidDefaultUnitOption -> R.string.error_default_selection
             ValidationError.IncompatibleUnitDimensions -> R.string.error_dimension_mismatch
+            ValidationError.RecordNotFound -> R.string.error_generic
             
             // Suppliers
             ValidationError.SupplierNotFound -> R.string.error_supplier_not_found

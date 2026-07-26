@@ -217,8 +217,15 @@ class WasteFormViewModel @Inject constructor(
                 val missingReference = isHydrated && wasteEventId != null && (
                     (selIngId != null && allIngredients.none { it.id == selIngId }) ||
                     (selAreaId != null && allAreas.none { it.id == selAreaId }) ||
-                    (selUnitId != null && allUnitOptions.none { it.id == selUnitId })
+                    (selUnitId != null && allUnitOptions.isNotEmpty() && allUnitOptions.none { it.id == selUnitId })
                 )
+                
+                if (missingReference && isHydrated) {
+                    android.util.Log.e("WasteFormViewModel", "Missing reference: ing=${selIngId != null && allIngredients.none { it.id == selIngId }}, area=${selAreaId != null && allAreas.none { it.id == selAreaId }}, unit=${selUnitId != null && allUnitOptions.isNotEmpty() && allUnitOptions.none { it.id == selUnitId }}")
+                    android.util.Log.e("WasteFormViewModel", "Ings: ${allIngredients.map { it.id }}")
+                    android.util.Log.e("WasteFormViewModel", "Areas: ${allAreas.map { it.id }}")
+                    android.util.Log.e("WasteFormViewModel", "Units: ${allUnitOptions.map { it.id }}")
+                }
 
                 val screenState = when {
                     screenStateOverride != null -> screenStateOverride

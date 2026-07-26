@@ -47,6 +47,7 @@ sealed interface WasteDetailEvent {
     data object Deleted : WasteDetailEvent
     data object Posted : WasteDetailEvent
     data object Voided : WasteDetailEvent
+    data class Error(val throwable: Throwable) : WasteDetailEvent
 }
 
 @HiltViewModel
@@ -122,6 +123,7 @@ class WasteDetailViewModel @Inject constructor(
                 deleteWasteDraftUseCase(cid)
                 _events.send(WasteDetailEvent.Deleted)
             } catch (e: Exception) {
+                _events.send(WasteDetailEvent.Error(e))
                 _error.value = e
             } finally {
                 _isDeleting.value = false
@@ -141,6 +143,7 @@ class WasteDetailViewModel @Inject constructor(
                 postWasteEventUseCase(cid)
                 _events.send(WasteDetailEvent.Posted)
             } catch (e: Exception) {
+                _events.send(WasteDetailEvent.Error(e))
                 _error.value = e
             } finally {
                 _isPosting.value = false
@@ -160,6 +163,7 @@ class WasteDetailViewModel @Inject constructor(
                 voidWasteEventUseCase(cid)
                 _events.send(WasteDetailEvent.Voided)
             } catch (e: Exception) {
+                _events.send(WasteDetailEvent.Error(e))
                 _error.value = e
             } finally {
                 _isVoiding.value = false

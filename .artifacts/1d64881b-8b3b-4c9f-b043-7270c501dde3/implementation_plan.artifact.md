@@ -1,66 +1,51 @@
-# Milestone 7 — Zero-Failure Verification Pass Implementation Plan
+# Waste Instrumentation Tests — Targeted Diagnosis Plan
 
-This plan addresses the final verification of Milestone 7, focusing on test stabilization, projection rollback proof, and complete coverage of edge cases like corrupted references.
+This plan focuses on identifying and fixing instrumentation test failures in the Waste feature through improved isolation, authoritative selectors, and better synchronization.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> I will be migrating several instrumented tests from `createAndroidComposeRule<MainActivity>` to `createEmptyComposeRule` to ensure that database seeding occurs **before** the Activity launches, which is a key requirement for test isolation and reliability.
+> I will be disabling animations for all instrumented tests in `app/build.gradle.kts` to improve test reliability.
+> I will also be removing the `debug_checkFormState` test as it is invalid.
 
 ## Proposed Changes
 
-### 1. Test Isolation & Reliability
-- Update all instrumented test classes to use `createEmptyComposeRule()`.
-- Use `ActivityScenario.launch(MainActivity::class.java)` inside test methods or a manual setup to ensure seeding happens before launch.
-- Implement a robust `clearRoomTables` and `resetDataStore` utility.
-- Explicitly close `ActivityScenario` after each test.
+### 1. Build Configuration
+- [MODIFY] [app/build.gradle.kts](file:///Users/hector/Projects/cuentame/app/build.gradle.kts): Disable animations for instrumented tests.
 
-### 2. Waste Projection Rollback (`WasteFailureUiTest.kt`)
-- Extend `postFailure_provesRollback` to assert:
-    - `balance projection` and `cost projection` before and after failure.
-    - `event status` remains `DRAFT`.
-    - `postedAt` remains null.
-    - `WASTE` movement count is zero.
-    - `failure boundary triggerCount == 1`.
-- Extend `voidFailure_provesRollback` to assert:
-    - `event status` remains `POSTED`.
-    - `voidedAt` remains null.
-    - `original WASTE` remains.
-    - `REVERSAL` count is zero.
-    - `balance projection` and `cost projection` before and after failure.
-    - `failure boundary triggerCount == 1`.
+### 2. Test Infrastructure
+- [NEW] [WasteTestHelper.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteTestHelper.kt): Implement robust helper functions for navigation, synchronization, and diagnostic tree dumping.
 
-### 3. Corrupted Reference Coverage (`WasteArchiveUiTest.kt`)
-- Add/Refine separate tests for:
-    - `missing ingredient`.
-    - `missing area`.
-    - `missing unit option`.
-    - `unit option belonging to another ingredient`.
-- Verify each shows `Error` state, hides `Save`, and prevents mutation.
-
-### 4. Archived Reference Persistence (`WasteArchiveUiTest.kt`)
-- Extend `draftWithArchivedReferences_fullFlow` to:
-    1. Select active ingredient, area, unit.
-    2. Save as DRAFT.
-    3. Navigate away and reopen.
-    4. Assert active selections persisted and are NOT labeled "Archived".
-    5. Assert archived references are no longer in menus.
-
-### 5. Stock Count Lifecycle Restoration (`StockCountLifecycleTest.kt`)
-- Restore exact assertions for expected/adjustment values.
-- Verify read-only behavior for `COMPLETED` and `VOIDED` states.
-- Ensure snapshots (Expected/Adjustment) are visible after reopening.
-
-### 6. Waste Lifecycle Assertions (`WasteLifecycleTest.kt`)
-- Assert exact values (Chicken Breast, Main Kitchen, 3 lb, Spoiled, balance, value) after reopening DRAFT.
-- Assert UI state after POST (status, snapshots visible, mutation buttons gone).
-- Assert UI state after VOID (status, original data remains, mutation buttons gone).
+### 3. Waste Feature Tests
+- [MODIFY] [WasteArchiveUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt):
+    - Remove `debug_checkFormState`.
+    - Use authoritative `waste_item_{eventId}` tags.
+    - Implement proper dropdown menu handling (closing before opening next).
+    - Add corrupted reference coverage with specific order of waits.
+- [MODIFY] [WasteFailureUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt):
+    - Use authoritative tags.
+    - Implement exact rollback assertions for balance and cost projections.
+- [MODIFY] [WasteLifecycleTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteLifecycleTest.kt):
+    - Use authoritative tags.
+    - Replace brittle text-count assertions with stable tag assertions (`waste_detail_quantity`, etc.).
+    - Fix scrolling issues for buttons in long forms/details.
 
 ## Verification Plan
 
-### Automated Tests
-- Run full suite: `./gradlew clean assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest`.
-- Ensure `connectedDebugAndroidTest` passes with 0 failures.
+### Diagnostic Sequence (One-by-One)
+1. `WasteArchiveUiTest.draftWithArchivedReferences_fullFlow`
+2. `WasteArchiveUiTest.missingIngredient_producesErrorState`
+3. `WasteArchiveUiTest.missingArea_producesErrorState`
+4. `WasteArchiveUiTest.missingUnitOption_producesErrorState`
+5. `WasteArchiveUiTest.crossIngredientUnitOption_producesErrorState`
+6. `WasteFailureUiTest.postFailure_provesRollback`
+7. `WasteFailureUiTest.voidFailure_provesRollback`
+8. `WasteFailureUiTest.deleteFailure_provesIntegrity`
+9. `WasteLifecycleTest.wasteLifecycle_fullScenario`
+10. `WasteLifecycleTest.wasteLifecycle_negativeBalance`
 
-### Manual Verification
-- Truthfully update `README.md` with final test counts and status.
+### Package Run
+`./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.miara.cuentame.feature.waste`
+
+### Full Suite Run
+`./gradlew connectedDebugAndroidTest`

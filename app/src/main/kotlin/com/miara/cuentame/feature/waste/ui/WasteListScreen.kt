@@ -86,6 +86,7 @@ fun WasteListScreen(
     var showFilterMenu by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = Modifier.testTag("waste_list_screen"),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.waste_history)) },

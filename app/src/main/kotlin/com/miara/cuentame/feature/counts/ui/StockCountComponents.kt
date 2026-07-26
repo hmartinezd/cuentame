@@ -18,7 +18,7 @@ import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 
 @Composable
-fun StatusChip(status: com.miara.cuentame.core.model.inventory.DocumentStatus) {
+fun StatusChip(status: com.miara.cuentame.core.model.inventory.DocumentStatus, modifier: Modifier = Modifier) {
     val color = when (status) {
         com.miara.cuentame.core.model.inventory.DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         com.miara.cuentame.core.model.inventory.DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
@@ -30,11 +30,11 @@ fun StatusChip(status: com.miara.cuentame.core.model.inventory.DocumentStatus) {
         com.miara.cuentame.core.model.inventory.DocumentStatus.VOIDED -> stringResource(R.string.status_voided)
     }
     
-    StatusChipContent(text = text, color = color)
+    StatusChipContent(text = text, color = color, modifier = modifier)
 }
 
 @Composable
-fun StatusChip(status: StockCountStatus) {
+fun StatusChip(status: StockCountStatus, modifier: Modifier = Modifier) {
     val color = when (status) {
         StockCountStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         StockCountStatus.COMPLETED -> MaterialTheme.colorScheme.primary
@@ -46,11 +46,11 @@ fun StatusChip(status: StockCountStatus) {
         StockCountStatus.VOIDED -> stringResource(R.string.status_voided)
     }
     
-    StatusChipContent(text = text, color = color)
+    StatusChipContent(text = text, color = color, modifier = modifier)
 }
 
 @Composable
-fun AreaStatusChip(status: CountAreaStatus) {
+fun AreaStatusChip(status: CountAreaStatus, modifier: Modifier = Modifier) {
     val color = when (status) {
         CountAreaStatus.NOT_STARTED -> MaterialTheme.colorScheme.outline
         CountAreaStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondary
@@ -62,15 +62,14 @@ fun AreaStatusChip(status: CountAreaStatus) {
         CountAreaStatus.COMPLETED -> stringResource(R.string.area_completed)
     }
     
-    StatusChipContent(text = text, color = color)
+    StatusChipContent(text = text, color = color, modifier = modifier)
 }
 
 @Composable
-private fun StatusChipContent(text: String, color: Color) {
+private fun StatusChipContent(text: String, color: Color, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier.background(color.copy(alpha = 0.1f), MaterialTheme.shapes.small)
+        modifier = modifier.background(color.copy(alpha = 0.1f), MaterialTheme.shapes.small)
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .testTag("status_chip")
             .semantics(mergeDescendants = true) {}
     ) {
         Text(text = text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)

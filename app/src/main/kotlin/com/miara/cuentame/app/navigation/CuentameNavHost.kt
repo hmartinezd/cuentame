@@ -13,11 +13,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
-import com.miara.cuentame.core.common.ids.StockCountAreaId
-import com.miara.cuentame.core.common.ids.StockCountId
-import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.areas.ui.AreaManagementRoute
@@ -83,8 +79,6 @@ fun CuentameNavHost(
                 onBack = { navController.popBackStack() },
                 onAddPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
                 onPurchaseClick = { id -> 
-                    // We need to decide if we navigate to Draft or Detail based on status.
-                    // But for now let's just go to a generic route that handles it or just Detail.
                     navController.navigate("purchase/${id.value}/detail")
                 }
             )
@@ -144,7 +138,7 @@ fun CuentameNavHost(
                         popUpTo(Destination.PURCHASE_CREATE.route) { inclusive = true }
                     }
                 },
-                onAddLine = {}, // Not used when purchaseId is null
+                onAddLine = {},
                 onEditLine = { _, _ -> },
                 onPostSuccess = {}
             )
