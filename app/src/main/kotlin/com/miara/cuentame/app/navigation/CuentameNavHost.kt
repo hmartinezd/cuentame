@@ -78,8 +78,13 @@ fun CuentameNavHost(
             PurchaseListRoute(
                 onBack = { navController.popBackStack() },
                 onAddPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
-                onPurchaseClick = { id -> 
-                    navController.navigate("purchase/${id.value}/detail")
+                onPurchaseClick = { id, status -> 
+                    when (status) {
+                        DocumentStatus.DRAFT ->
+                            navController.navigate("purchase/${id.value}")
+                        DocumentStatus.POSTED, DocumentStatus.VOIDED ->
+                            navController.navigate("purchase/${id.value}/detail")
+                    }
                 }
             )
         }
@@ -237,7 +242,9 @@ fun CuentameNavHost(
             WasteFormRoute(
                 onBack = { navController.popBackStack() },
                 onSuccess = { id ->
-                    navController.navigate("waste/${id.value}")
+                    navController.navigate("waste/${id.value}") {
+                        popUpTo(Destination.WASTE_CREATE.route) { inclusive = true }
+                    }
                 }
             )
         }

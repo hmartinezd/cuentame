@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -160,18 +161,19 @@ fun IngredientDetailScreen(
     getStandardPreview: (UnitOfMeasure) -> UnitConversionChoiceUiModel?
 ) {
     Scaffold(
+        modifier = Modifier.testTag("ingredient_detail_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(uiState.ingredient?.name ?: "") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("ingredient_detail_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     if (uiState.ingredient?.isActive == true) {
-                        IconButton(onClick = onEditClick) {
+                        IconButton(onClick = onEditClick, modifier = Modifier.testTag("ingredient_edit_button")) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
                         }
                         IconButton(onClick = { onSetShowArchiveConfirm(true) }) {
@@ -203,7 +205,8 @@ fun IngredientDetailScreen(
                 Text(
                     text = if (ingredient.isActive) stringResource(R.string.active) else stringResource(R.string.archived_label),
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (ingredient.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    color = if (ingredient.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("ingredient_status")
                 )
                 
                 Text(
@@ -229,7 +232,7 @@ fun IngredientDetailScreen(
                     }
                 }
 
-                LazyColumn(modifier = Modifier.weight(1f)) {
+                LazyColumn(modifier = Modifier.weight(1f).testTag("ingredient_unit_options_list")) {
                     items(uiState.options) { option ->
                         UnitOptionItem(
                             option = option,
@@ -238,7 +241,8 @@ fun IngredientDetailScreen(
                             onSetDefaultCount = { onSetDefaultCount(option.id) },
                             onSetDefaultPurchase = { onSetDefaultPurchase(option.id) },
                             onEditPackage = { onSetPackageToEdit(option) },
-                            onArchive = { onSetOptionToArchive(option) }
+                            onArchive = { onSetOptionToArchive(option) },
+                            modifier = Modifier.testTag("ingredient_detail_option_${option.id.value}")
                         )
                         HorizontalDivider()
                     }
@@ -305,16 +309,19 @@ fun UnitOptionItem(
     onSetDefaultCount: () -> Unit,
     onSetDefaultPurchase: () -> Unit,
     onEditPackage: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     ListItem(
+        modifier = modifier,
         headlineContent = { 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = option.displayName,
-                    color = if (option.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (option.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("ingredient_option_name_${option.id.value}")
                 )
                 if (option.isBase) {
                     Text(
@@ -337,7 +344,10 @@ fun UnitOptionItem(
         supportingContent = {
             Column {
                 val factorStr = if (option.isBase) "1" else option.factorToBase.stripTrailingZeros().toPlainString()
-                Text(stringResource(R.string.unit_conversion_format, option.shortLabel, factorStr, baseSymbol))
+                Text(
+                    text = stringResource(R.string.unit_conversion_format, option.shortLabel, factorStr, baseSymbol),
+                    modifier = Modifier.testTag("ingredient_option_factor_${option.id.value}")
+                )
                 
                 Row(modifier = Modifier.padding(top = 4.dp)) {
                     if (option.isDefaultCount) {

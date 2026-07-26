@@ -115,6 +115,7 @@ fun AddPackageDialog(
     
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
+        modifier = Modifier.testTag("package_dialog"),
         title = { Text(stringResource(R.string.package_option)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -122,12 +123,14 @@ fun AddPackageDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.package_name)) },
+                    modifier = Modifier.fillMaxWidth().testTag("package_name_input"),
                     enabled = !isSaving
                 )
                 OutlinedTextField(
                     value = qtyText,
                     onValueChange = { qtyText = it },
                     label = { Text(stringResource(R.string.contains_quantity)) },
+                    modifier = Modifier.fillMaxWidth().testTag("package_factor_input"),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     enabled = !isSaving
                 )

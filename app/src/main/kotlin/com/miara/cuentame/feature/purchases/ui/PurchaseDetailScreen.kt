@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -109,7 +110,7 @@ fun PurchaseDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.purchases)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("purchase_detail_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
@@ -191,7 +192,7 @@ fun PurchaseDetailScreen(
                             }
                             Button(
                                 onClick = { showVoidConfirm = true },
-                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("purchase_void_button"),
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                 enabled = !uiState.isVoiding
                             ) {
@@ -238,7 +239,7 @@ fun PurchaseDetailScreen(
 }
 
 @Composable
-fun StatusChip(status: DocumentStatus) {
+fun StatusChip(status: DocumentStatus, modifier: Modifier = Modifier) {
     val color = when (status) {
         DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
@@ -251,8 +252,10 @@ fun StatusChip(status: DocumentStatus) {
     }
     
     Box(
-        modifier = Modifier.background(color.copy(alpha = 0.1f), MaterialTheme.shapes.small)
+        modifier = modifier.background(color.copy(alpha = 0.1f), MaterialTheme.shapes.small)
             .padding(horizontal = 8.dp, vertical = 4.dp)
+            .testTag("purchase_status_chip")
+            .semantics(mergeDescendants = true) {}
     ) {
         Text(text = text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
     }

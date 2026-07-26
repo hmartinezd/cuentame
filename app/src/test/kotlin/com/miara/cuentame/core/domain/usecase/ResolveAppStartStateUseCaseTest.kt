@@ -34,6 +34,7 @@ class ResolveAppStartStateUseCaseTest {
         override suspend fun loadOnboardingDraft(): OnboardingDraft? = null
         override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {}
         override suspend fun clearOnboardingDraft() {}
+        override suspend fun clearAll() {}
     }
 
     private val fakeSetupRepository = object : LocalSetupRepository {

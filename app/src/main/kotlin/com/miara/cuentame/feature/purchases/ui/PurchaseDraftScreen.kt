@@ -140,13 +140,9 @@ fun PurchaseDraftScreen(
     var showPostConfirm by remember { mutableStateOf(false) }
     var lineToDelete by remember { mutableStateOf<PurchaseLineWithDetails?>(null) }
 
-    LaunchedEffect(showPostConfirm) {
-        android.util.Log.d("PurchaseDraftScreen", "showPostConfirm: $showPostConfirm")
-    }
-
     Scaffold(
         modifier = Modifier.testTag("purchase_draft_screen"),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.testTag("purchase_error_snackbar")) },
         topBar = {
             TopAppBar(
                 title = { 
@@ -156,7 +152,7 @@ fun PurchaseDraftScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("purchase_draft_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -339,6 +335,10 @@ fun PurchaseHeaderSection(
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            StatusChip(status = uiState.details?.receipt?.status ?: DocumentStatus.DRAFT)
+        }
+        
         // Supplier Selector
         var supplierExpanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(

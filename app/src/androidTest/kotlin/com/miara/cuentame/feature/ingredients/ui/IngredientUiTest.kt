@@ -1,7 +1,7 @@
 package com.miara.cuentame.feature.ingredients.ui
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.feature.waste.ui.waitForTag
 import com.miara.cuentame.R
@@ -17,6 +17,7 @@ import org.junit.Test
 import javax.inject.Inject
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.common.ids.IngredientId
 
 @HiltAndroidTest
 class IngredientUiTest {
@@ -25,7 +26,7 @@ class IngredientUiTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createEmptyComposeRule()
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -64,103 +65,124 @@ class IngredientUiTest {
 
     @Test
     fun complete_ingredient_e2e_flow() {
-        ActivityScenario.launch(MainActivity::class.java).use {
-            waitForHome()
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        waitForHome()
 
-            // 1. Navigate to Inventory
-            composeTestRule.onNodeWithTag("nav_inventory", useUnmergedTree = true).performClick()
-            composeTestRule.waitForIdle()
+        // 1. Navigate to Inventory
+        composeTestRule.onNodeWithTag("nav_inventory", useUnmergedTree = true).performClick()
+        composeTestRule.waitForIdle()
 
-            // 2. Create Chicken Breast
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("add_ingredient_fab").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("add_ingredient_fab").performClick()
-            composeTestRule.waitForIdle()
-            
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("ingredient_name_input").performTextInput("Chicken Breast")
-            
-            // Select Dimension: Mass
-            composeTestRule.onNodeWithTag("dimension_selector").performScrollTo().performClick()
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Mass").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("Mass").performClick()
-            composeTestRule.waitForIdle()
-
-            // Select Base Unit: Pound
-            composeTestRule.onNodeWithTag("base_unit_selector").performScrollTo().performClick()
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Pound").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("Pound").performClick()
-            composeTestRule.waitForIdle()
-
-            // Add Ounce Standard Unit
-            composeTestRule.onNodeWithTag("add_standard_unit_button").performScrollTo().performClick()
-            composeTestRule.waitForTag("unit_item_Ounce")
-            composeTestRule.onNodeWithTag("unit_item_Ounce").performClick()
-            
-            // Check preview
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("1 oz = 0.0625 lb", substring = true).fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
-            composeTestRule.waitForIdle()
-
-            // Add Case Package
-            composeTestRule.onNodeWithTag("add_package_option_button").performScrollTo().performClick()
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("package_name_input").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("package_name_input").performTextInput("Case")
-            composeTestRule.onNodeWithTag("package_factor_input").performTextInput("40")
-            composeTestRule.onNodeWithTag("package_dialog_confirm").performClick()
-            composeTestRule.waitForIdle()
-            
-            // Save Ingredient
-            composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().performClick()
-            composeTestRule.waitForIdle()
-            
-            // 3. Verify Detail
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("ingredient_detail_screen").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
-
-            // 4. Reopen and verify persistence
-            composeTestRule.onNodeWithTag("ingredient_detail_back").performClick()
-            composeTestRule.waitForIdle()
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("Chicken Breast").performClick()
-            composeTestRule.waitForIdle()
-            
-            // 5. Test Read-only Edit
-            composeTestRule.onNodeWithContentDescription("Edit").performClick()
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
-            }
-            
-            // Verify units are read-only (no add standard unit button)
-            composeTestRule.onAllNodesWithText("Add Standard Unit").assertCountEquals(0)
-            
-            // Verify delete buttons are absent
-            composeTestRule.onAllNodes(hasContentDescription("Remove", substring = true)).assertCountEquals(0)
-
-            // Save (no changes)
-            composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
-            
-            // Back to detail
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("ingredient_detail_screen").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
+        // 2. Create Chicken Breast
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("add_ingredient_fab").fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.onNodeWithTag("add_ingredient_fab").performClick()
+        composeTestRule.waitForIdle()
+        
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("ingredient_name_input").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ingredient_name_input").performTextInput("Chicken Breast")
+        
+        // Select Dimension: Mass
+        composeTestRule.onNodeWithTag("dimension_selector").performScrollTo().performClick()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("dimension_item_MASS").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("dimension_item_MASS").performClick()
+        composeTestRule.waitForIdle()
+
+        // Select Base Unit: Pound
+        composeTestRule.onNodeWithTag("base_unit_selector").performScrollTo().performClick()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("base_unit_item_mass_lb").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("base_unit_item_mass_lb").performClick()
+        composeTestRule.waitForIdle()
+
+        // Add Ounce Standard Unit
+        composeTestRule.onNodeWithTag("add_standard_unit_button").performScrollTo().performClick()
+        composeTestRule.waitForTag("unit_item_Ounce")
+        composeTestRule.onNodeWithTag("unit_item_Ounce").performClick()
+        
+        // Check preview
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithText("1 oz = 0.0625 lb", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("standard_unit_dialog_confirm").performClick()
+        composeTestRule.waitForIdle()
+
+        // Add Case Package
+        composeTestRule.onNodeWithTag("add_package_option_button").performScrollTo().performClick()
+        composeTestRule.waitForTag("package_dialog")
+        composeTestRule.onNodeWithTag("package_name_input").performTextInput("Case")
+        composeTestRule.onNodeWithTag("package_factor_input").performTextInput("40")
+        
+        composeTestRule.onNodeWithTag("package_name_input").assertTextContains("Case")
+        composeTestRule.onNodeWithTag("package_factor_input").assertTextContains("40")
+        
+        composeTestRule.onNodeWithTag("package_dialog_confirm").assertIsEnabled().performClick()
+        composeTestRule.waitForIdle()
+        
+        // Save Ingredient
+        composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+        
+        // 3. Verify Detail
+        composeTestRule.waitForTag("ingredient_detail_screen")
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodes(hasText("Chicken Breast") and hasAnyAncestor(hasTestTag("ingredient_detail_screen")))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ingredient_status").assertTextContains(context.getString(R.string.active))
+        
+        // Verify units persisted
+        val ingredients = runBlocking { database.ingredientDao().getActiveIngredients("rest_ing_test") }
+        val ingIdString = ingredients.first().id
+        val options = runBlocking { database.ingredientUnitOptionDao().getActiveOptions(ingIdString) }
+        
+        // Base unit is Pound, symbol lb -> displayName is lb
+        val lbOpt = options.find { it.displayName == "lb" }
+            ?: throw AssertionError("lb option not found. Options: ${options.map { it.displayName }}")
+        // oz standard unit added -> displayName is oz (symbol)
+        val ozOpt = options.find { it.displayName == "oz" }
+            ?: throw AssertionError("oz option not found. Options: ${options.map { it.displayName }}")
+        // Case package unit added -> displayName is Case
+        val caseOpt = options.find { it.displayName == "Case" }
+            ?: throw AssertionError("Case option not found. Options: ${options.map { it.displayName }}")
+        
+        composeTestRule.onNodeWithTag("ingredient_option_name_${lbOpt.id}", useUnmergedTree = true).assertTextContains("lb")
+        composeTestRule.onNodeWithTag("ingredient_option_name_${ozOpt.id}", useUnmergedTree = true).assertTextContains("oz")
+        composeTestRule.onNodeWithTag("ingredient_option_name_${caseOpt.id}", useUnmergedTree = true).assertTextContains("Case")
+        composeTestRule.onNodeWithTag("ingredient_option_factor_${caseOpt.id}", useUnmergedTree = true).assertTextContains("40", substring = true)
+
+        // 4. Reopen and verify persistence
+        composeTestRule.onNodeWithTag("ingredient_detail_back").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("ingredient_item_$ingIdString").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ingredient_item_$ingIdString").performClick()
+        composeTestRule.waitForIdle()
+        
+        // 5. Test Read-only Edit
+        composeTestRule.waitForTag("ingredient_detail_screen")
+        composeTestRule.onNodeWithTag("ingredient_edit_button").performClick()
+        composeTestRule.waitForTag("ingredient_form_screen")
+        
+        // Verify units are read-only (no add standard unit button)
+        composeTestRule.onNodeWithTag("add_standard_unit_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("add_package_option_button").assertDoesNotExist()
+        
+        // Verify base unit selector is disabled or name is displayed read-only
+        composeTestRule.onNodeWithTag("base_unit_selector").assertDoesNotExist()
+
+        // Save (no changes)
+        composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().performClick()
+        
+        // Back to detail
+        composeTestRule.waitForTag("ingredient_detail_screen")
+        composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
     }
 
     private fun waitForHome() {

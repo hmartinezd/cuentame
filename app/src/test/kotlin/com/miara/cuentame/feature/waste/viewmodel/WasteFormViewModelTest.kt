@@ -84,18 +84,29 @@ class WasteFormViewModelTest {
     }
 
     @Test
-    fun `selecting ingredient updates unit options`() = runTest {
+    fun `selecting ingredient updates unit options and handles loading state`() = runTest {
         val ingId = IngredientId("ing-1")
-        val option = IngredientUnitOption(IngredientUnitOptionId("opt-1"), ingId, "lb", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
+        val option = IngredientUnitOption(IngredientUnitOptionId("opt-1"), ingId, "Pound", "lb", null, BigDecimal.ONE, true, true, false, true, Instant.now(), Instant.now())
         
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
+        // Delay to observe loading
+        coEvery { ingredientRepository.getUnitOptions(ingId, true) } coAnswers {
+            kotlinx.coroutines.delay(100)
+            listOf(option)
+        }
         
         val viewModel = createViewModel()
         viewModel.uiState.test {
             testDispatcher.scheduler.advanceUntilIdle()
-            skipItems(1) // Loading
+            skipItems(1) // Loading initial
 
             viewModel.onIngredientSelected(ingId)
+            
+            // Advance small amount but not enough for the 100ms delay
+            testDispatcher.scheduler.advanceTimeBy(50)
+            
+            // Save/Preview should be disabled while loading
+            assertThat(viewModel.uiState.value.canSave).isFalse()
+
             testDispatcher.scheduler.advanceUntilIdle()
             
             var state = awaitItem()
@@ -104,6 +115,26 @@ class WasteFormViewModelTest {
             }
             assertThat(state.selectedIngredientId).isEqualTo(ingId)
             assertThat(state.selectedUnitOptionId).isEqualTo(option.id)
+            assertThat(state.unitOptions.size).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `unit option repository failure produces error and disables save`() = runTest {
+        val ingId = IngredientId("ing-1")
+        coEvery { ingredientRepository.getUnitOptions(ingId, true) } throws RuntimeException("Repo fail")
+        
+        val viewModel = createViewModel()
+        viewModel.uiState.test {
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            viewModel.onIngredientSelected(ingId)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            var state = awaitItem()
+            while (state.error == null) { state = awaitItem() }
+            assertThat(state.error).isNotNull()
+            assertThat(state.canSave).isFalse()
         }
     }
 

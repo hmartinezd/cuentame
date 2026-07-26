@@ -237,7 +237,7 @@ fun IngredientItem(
             }
         },
         modifier = Modifier
-            .testTag("ingredient_item_${ingredient.name}")
+            .testTag("ingredient_item_${ingredient.id.value}")
             .clickable(onClick = onClick)
     )
 }

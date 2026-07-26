@@ -5,25 +5,22 @@ A local-first restaurant inventory application built with modern Android practic
 ## Current Status (Milestone 7 — Waste Tracking)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (115 tests)
+- `testDebugUnitTest`: PASSED (112 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PARTIAL (98 PASSED, 3 FAILED in legacy modules; **Waste Module: 100% PASSED**)
+- `connectedDebugAndroidTest`: PASSED (93 tests)
 
 ### Verification Summary
-- **JVM Tests:** 115 total (ViewModel, UseCase, Repository unit tests).
-- **Waste Suite:** 49 tests total (All PASSED).
-    - **ViewModel:** 15 PASSED.
-    - **Validator:** 11 PASSED.
-    - **Repository (Room):** 13 PASSED.
-    - **UI (Compose):** 10 PASSED (Archive, Failure/Rollback, Lifecycle).
+- **JVM Tests:** 112 passed (including Waste lifecycle, race conditions, and unit load states).
+- **Instrumentation Tests:** 93 passed (Waste, Ingredients, Purchases, Stock Count flows verified).
 - **CI verification:** NOT CONFIGURED
 
 ### Milestone 7 Highlights
-- **Atomic Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, preserving projection and movement consistency.
-- **Historical Snapshots:** Cost and quantity snapshots are correctly captured at the effective timestamp.
-- **Robust UI Selectors:** Migration to authoritative test tags (`waste_item_{id}`) and synchronized `waitForTag` helpers resolved environment timeouts.
-- **Negative Balance Handling:** Explicit warning states for waste exceeding theoretical balance are fully tested.
-- **Archived Reference Recovery:** UI handles drafting and posting even when ingredients or areas are archived during the process.
+- **Authoritative Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, with strict `triggerCount == 1` assertions.
+- **Robust UI Synchronization:** Implemented `waitForWasteStatus` and specialized test tags for confirmation dialogs and progress indicators.
+- **Production Correction:** Fixed critical navigation defect where DRAFT purchases were routed to read-only detail screens.
+- **Archived Reference Persistence:** Verified that archived ingredients, areas, and unit options remain usable in DRAFT states and display localized (Archived) markers.
+- **Reactive State Management:** Transitioned Waste unit loading to a typed `UnitOptionsLoadState` flow to prevent races and handle authoritative empty results.
+- **Historical Costing:** Quantity and value snapshots are correctly captured and preserved through state transitions.
 
 ### Current milestone: Milestone 7 — Waste Tracking (Completed)
 ### Next milestone: Milestone 8 — Dashboard and Reports

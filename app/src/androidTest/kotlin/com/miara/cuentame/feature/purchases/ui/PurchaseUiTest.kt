@@ -13,8 +13,10 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.feature.waste.ui.waitForTag
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -66,10 +68,21 @@ class PurchaseUiTest {
         }
     }
 
+    private fun waitForPurchaseStatus(expected: String) {
+        composeTestRule.waitUntil(20_000) {
+            composeTestRule.onAllNodes(
+                hasTestTag("purchase_status_chip") and
+                    hasText(expected, substring = true, ignoreCase = true)
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     @Test
     fun complete_purchase_lifecycle() {
         val testId = UUID.randomUUID().toString().take(8)
         val invoiceNum = "INV-$testId"
+        
+        var receiptId: PurchaseReceiptId? = null
         
         runBlocking {
             val restId = RestaurantId("rest_1")
@@ -81,6 +94,7 @@ class PurchaseUiTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use {
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
 
             // 1. Navigate to Activity (Purchases)
@@ -102,6 +116,10 @@ class PurchaseUiTest {
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
             composeTestRule.waitForIdle()
             
+            // Capture receiptId
+            val entityId = runBlocking { db.purchaseDao().observeFilteredReceipts("rest_1", null, null, null).first().first().id }
+            receiptId = PurchaseReceiptId(entityId)
+
             // 4. Add Line
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithContentDescription("Add Line").fetchSemanticsNodes().isNotEmpty()
@@ -147,66 +165,61 @@ class PurchaseUiTest {
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithTag("purchase_draft_screen").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("purchase_draft_back").performClick()
             composeTestRule.waitForIdle()
             
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText(invoiceNum, substring = true).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("purchase_item_${receiptId!!.value}").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            composeTestRule.onNodeWithTag("purchase_item_${receiptId!!.value}").performClick()
             composeTestRule.waitForIdle()
             
             // 7. Verify persisted line
+            composeTestRule.waitForTag("purchase_draft_screen")
+            composeTestRule.waitForTag("purchase_draft_list")
+            
             composeTestRule.waitUntil(60000) {
                 composeTestRule.onAllNodesWithText("Chicken Breast").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText("Chicken Breast").assertIsDisplayed()
-            composeTestRule.onNodeWithText("2 Case", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithText("Chicken Breast").performScrollTo().assertIsDisplayed()
+            composeTestRule.onNodeWithText("2 Case", substring = true).performScrollTo().assertIsDisplayed()
 
             // 8. Post Purchase
             composeTestRule.onNodeWithTag("purchase_draft_list").performScrollToNode(hasTestTag("purchase_post_button"))
-            composeTestRule.onNodeWithTag("purchase_post_button").performClick()
+            composeTestRule.onNodeWithTag("purchase_post_button").assertIsEnabled().performClick()
+            
             // Confirmation dialog
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("purchase_post_confirm_dialog").fetchSemanticsNodes().isNotEmpty()
-            }
+            composeTestRule.waitForTag("purchase_post_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 9. Verify Posted
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodes(hasText("POSTED")).fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("POSTED").assertIsDisplayed()
+            composeTestRule.waitForTag("purchase_detail_screen")
+            waitForPurchaseStatus(context.getString(R.string.status_posted))
+            composeTestRule.onNodeWithTag("purchase_post_confirm_dialog").assertDoesNotExist()
 
             // 10. Navigate away and reopen POSTED
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("purchase_detail_back").performClick()
             composeTestRule.waitForIdle()
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText(invoiceNum, substring = true).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("purchase_item_${receiptId!!.value}").fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithText(invoiceNum, substring = true).performClick()
+            composeTestRule.onNodeWithTag("purchase_item_${receiptId!!.value}").performClick()
             composeTestRule.waitForIdle()
             
             // 11. Void Purchase
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("purchase_detail_screen").fetchSemanticsNodes().isNotEmpty()
-            }
-            // Use a scroll explicitly if the button is at the bottom
-            composeTestRule.onNodeWithText("Void Purchase").performScrollTo().performClick()
+            composeTestRule.waitForTag("purchase_detail_screen")
+            composeTestRule.onNodeWithTag("purchase_void_button").performClick()
             composeTestRule.waitForIdle()
+            
             // Confirmation dialog
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("purchase_void_confirm_dialog").fetchSemanticsNodes().isNotEmpty()
-            }
+            composeTestRule.waitForTag("purchase_void_confirm_dialog")
             composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
             composeTestRule.waitForIdle()
             
             // 12. Verify Voided
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodes(hasText("VOIDED")).fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithText("VOIDED").assertIsDisplayed()
+            waitForPurchaseStatus(context.getString(R.string.status_voided))
+            composeTestRule.onNodeWithTag("purchase_void_confirm_dialog").assertDoesNotExist()
         }
     }
 

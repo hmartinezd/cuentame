@@ -55,7 +55,7 @@ import java.time.format.DateTimeFormatter
 fun PurchaseListRoute(
     onBack: () -> Unit,
     onAddPurchase: () -> Unit,
-    onPurchaseClick: (PurchaseReceiptId) -> Unit,
+    onPurchaseClick: (PurchaseReceiptId, DocumentStatus) -> Unit,
     viewModel: PurchaseListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -77,7 +77,7 @@ fun PurchaseListScreen(
     uiState: PurchaseListUiState,
     onBack: () -> Unit,
     onAddPurchase: () -> Unit,
-    onPurchaseClick: (PurchaseReceiptId) -> Unit,
+    onPurchaseClick: (PurchaseReceiptId, DocumentStatus) -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onStatusFilterChanged: (DocumentStatus?) -> Unit,
     onSupplierFilterChanged: (com.miara.cuentame.core.common.ids.SupplierId?) -> Unit
@@ -147,11 +147,11 @@ fun PurchaseListScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.fillMaxSize().testTag("purchase_list")) {
                     items(uiState.purchases) { summary ->
                         PurchaseItem(
                             summary = summary,
-                            onClick = { onPurchaseClick(summary.receipt.id) }
+                            onClick = { onPurchaseClick(summary.receipt.id, summary.receipt.status) }
                         )
                         HorizontalDivider()
                     }
@@ -211,6 +211,8 @@ fun PurchaseItem(
                 )
             }
         },
-        modifier = Modifier.clickable { onClick() }
+        modifier = Modifier
+            .testTag("purchase_item_${summary.receipt.id.value}")
+            .clickable { onClick() }
     )
 }

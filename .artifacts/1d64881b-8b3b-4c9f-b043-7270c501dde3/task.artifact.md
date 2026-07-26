@@ -1,23 +1,23 @@
 # Tasks - Milestone 7 Final Verification
 
-- [ ] **Phase 1: ViewModel & State Refactor**
-    - [ ] Refactor `WasteFormViewModel` with `UnitOptionsLoadState`
-    - [ ] Remove production logs in `WasteFormViewModel`
-    - [ ] Update `WasteDetailViewModel` with authoritative loading states
-- [ ] **Phase 2: UI Updates**
-    - [ ] Add distinct dialog tags to `WasteDetailScreen`
-    - [ ] Ensure progress indicators are verifiable
-- [ ] **Phase 3: Instrumentation Test Refactor**
-    - [ ] Implement `waitForWasteStatus` in `WasteTestHelper`
-    - [ ] Update `WasteFailureUiTest` with authoritative completion and retries
-    - [ ] Restore full archived-reference coverage in `WasteArchiveUiTest`
-    - [ ] Strengthen corrupted-reference tests in `WasteArchiveUiTest`
-    - [ ] Refine lifecycle assertions in `WasteLifecycleTest`
-- [ ] **Phase 4: Suite Diagnosis & Fix**
-    - [ ] Diagnose `IngredientUiTest` failure
-    - [ ] Diagnose `PurchaseFailureUiTest` failure
-    - [ ] Diagnose `PurchaseUiTest` failure
-- [ ] **Phase 5: Final Verification**
-    - [ ] Run Waste package tests independently
-    - [ ] Run full build & verification pipe
-    - [ ] Update `README.md` truthfully
+- [x] **Phase 1: ViewModel & State Refactor**
+    - [x] Refactor `WasteFormViewModel` with `UnitOptionsLoadState`
+    - [x] Remove production logs in `WasteFormViewModel`
+    - [x] Update `WasteDetailViewModel` with authoritative loading states
+- [x] **Phase 2: UI Updates**
+    - [x] Add distinct dialog tags to `WasteDetailScreen`
+    - [x] Ensure progress indicators are verifiable
+- [x] **Phase 3: Instrumentation Test Refactor**
+    - [x] Implement `waitForWasteStatus` in `WasteTestHelper`
+    - [x] Update `WasteFailureUiTest` with authoritative completion and retries
+    - [x] Restore full archived-reference coverage in `WasteArchiveUiTest`
+    - [x] Strengthen corrupted-reference tests in `WasteArchiveUiTest`
+    - [x] Refine lifecycle assertions in `WasteLifecycleTest`
+- [x] **Phase 4: Suite Diagnosis & Fix**
+    - [x] Diagnose `IngredientUiTest` failure
+    - [x] Diagnose `PurchaseFailureUiTest` failure
+    - [x] Diagnose `PurchaseUiTest` failure
+- [x] **Phase 5: Final Verification**
+    - [x] Run Waste package tests independently
+    - [x] Run full build & verification pipe
+    - [x] Update `README.md` truthfully

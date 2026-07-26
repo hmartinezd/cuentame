@@ -137,6 +137,7 @@ fun IngredientFormScreen(
     var showPackageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = Modifier.testTag("ingredient_form_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -360,7 +361,8 @@ fun DimensionSelector(
                     onClick = {
                         onSelected(dim)
                         expanded = false
-                    }
+                    },
+                    modifier = Modifier.testTag("dimension_item_${dim.name}")
                 )
             }
         }
@@ -400,7 +402,8 @@ fun BaseUnitSelector(
                     onClick = {
                         onSelected(unit)
                         expanded = false
-                    }
+                    },
+                    modifier = Modifier.testTag("base_unit_item_${unit.id.value}")
                 )
             }
         }

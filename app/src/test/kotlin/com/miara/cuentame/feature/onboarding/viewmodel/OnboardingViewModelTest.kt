@@ -48,6 +48,7 @@ class OnboardingViewModelTest {
             draftValue = draft 
         }
         override suspend fun clearOnboardingDraft() { draftValue = null }
+        override suspend fun clearAll() {}
     }
 
     private val fakeSetupRepository = object : LocalSetupRepository {

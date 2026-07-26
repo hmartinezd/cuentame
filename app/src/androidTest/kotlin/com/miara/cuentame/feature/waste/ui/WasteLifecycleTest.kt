@@ -161,15 +161,11 @@ class WasteLifecycleTest {
             composeTestRule.waitForIdle()
             
             // 6. Navigate away and reopen
-            // After save, it navigates to WasteDetail. 
+            // After save, it navigates to WasteDetail and pops the Create Form.
             composeTestRule.waitForWasteDetail()
             composeTestRule.onNodeWithTag("waste_detail_back").performClick()
             
-            // Back from Detail goes to Form (because we came from Create)
-            composeTestRule.waitForTag("waste_form_back")
-            composeTestRule.onNodeWithTag("waste_form_back").performClick()
-            
-            // Now we should be back at List
+            // Back from Detail now goes straight to List
             composeTestRule.waitForTag("waste_list_screen")
             
             // Get eventId from database (only one exists)

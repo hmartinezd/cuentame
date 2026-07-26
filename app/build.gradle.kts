@@ -50,7 +50,7 @@ android {
     }
 
     testOptions {
-        animationsDisabled = true
+        animationsDisabled = false
     }
 
     sourceSets {

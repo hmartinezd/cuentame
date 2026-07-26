@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -70,12 +71,17 @@ data class WasteUnitOptionUi(
 )
 
 sealed interface UnitOptionsLoadState {
-    data object Loading : UnitOptionsLoadState
+    val ingredientId: IngredientId?
+    
+    data class Loading(override val ingredientId: IngredientId) : UnitOptionsLoadState
     data class Loaded(
-        val ingredientId: IngredientId,
+        override val ingredientId: IngredientId?,
         val options: List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>
     ) : UnitOptionsLoadState
-    data class Failed(val error: Throwable) : UnitOptionsLoadState
+    data class Failed(
+        override val ingredientId: IngredientId,
+        val error: Throwable
+    ) : UnitOptionsLoadState
 }
 
 sealed interface WasteFormScreenState {
@@ -163,24 +169,35 @@ class WasteFormViewModel @Inject constructor(
     private val _events = MutableSharedFlow<WasteFormEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
-    private val _unitOptionsLoadState = _selectedIngredientId.flatMapLatest { id ->
-        if (id == null) flowOf(UnitOptionsLoadState.Loaded(IngredientId(""), emptyList()))
-        else {
-            _selectedUnitOptionId.value = null // Clear when changing ingredient
-            flowOf(UnitOptionsLoadState.Loading)
-                .flatMapLatest { flowOf(UnitOptionsLoadState.Loaded(id, ingredientRepository.getUnitOptions(id, true))) }
-        }
-    }.onEach { state ->
-        if (state is UnitOptionsLoadState.Loaded && state.ingredientId.value.isNotEmpty()) {
-            val options = state.options
-            val currentUnit = _selectedUnitOptionId.value
-            if (currentUnit == null) {
-                val defaultOption = options.find { it.isDefaultCount && it.isActive }
-                    ?: options.find { it.isBase && it.isActive }
-                _selectedUnitOptionId.value = defaultOption?.id
+    private val _unitOptionsLoadState = _selectedIngredientId.flatMapLatest { ingredientId ->
+        if (ingredientId == null) {
+            flowOf<UnitOptionsLoadState>(UnitOptionsLoadState.Loaded(null, emptyList()))
+        } else {
+            flow<UnitOptionsLoadState> {
+                emit(UnitOptionsLoadState.Loading(ingredientId))
+                try {
+                    val options = ingredientRepository.getUnitOptions(ingredientId, true)
+                    emit(UnitOptionsLoadState.Loaded(ingredientId, options))
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    emit(UnitOptionsLoadState.Failed(ingredientId, e))
+                }
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, UnitOptionsLoadState.Loading)
+    }.onEach { state ->
+        if (state is UnitOptionsLoadState.Loaded) {
+            val ingredientId = state.ingredientId
+            if (ingredientId != null && ingredientId.value.isNotEmpty()) {
+                val options = state.options
+                val currentUnit = _selectedUnitOptionId.value
+                if (currentUnit == null) {
+                    val defaultOption = options.find { it.isDefaultCount && it.isActive }
+                        ?: options.find { it.isBase && it.isActive }
+                    _selectedUnitOptionId.value = defaultOption?.id
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, UnitOptionsLoadState.Loaded(null, emptyList()))
 
     val uiState: StateFlow<WasteFormUiState> = restaurantRepository.observeRestaurant()
         .flatMapLatest { restaurant ->
@@ -300,6 +317,8 @@ class WasteFormViewModel @Inject constructor(
                               areaOptions.any { it.id == selAreaId } &&
                               unitOptionsUi.any { it.id == selUnitId }
 
+                val unitLoadError = (unitLoadState as? UnitOptionsLoadState.Failed)?.error
+
                 WasteFormUiState(
                     screenState = screenState,
                     isSaving = isSaving,
@@ -319,7 +338,7 @@ class WasteFormViewModel @Inject constructor(
                     ingredients = ingredientOptions,
                     areas = areaOptions,
                     unitOptions = unitOptionsUi,
-                    error = error ?: previewError,
+                    error = error ?: previewError ?: unitLoadError,
                     canSave = canSave
                 )
             }
