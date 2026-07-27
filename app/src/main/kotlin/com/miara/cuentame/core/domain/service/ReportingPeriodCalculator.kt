@@ -28,7 +28,6 @@ class ReportingPeriodCalculator @Inject constructor(
         }
         
         val currentStart = now.minus(days, ChronoUnit.DAYS)
-        val previousStart = currentStart.minus(days, ChronoUnit.DAYS)
 
         return ReportingPeriods(
             current = ReportingPeriod(
@@ -36,7 +35,7 @@ class ReportingPeriodCalculator @Inject constructor(
                 endExclusive = now
             ),
             previous = ReportingPeriod(
-                startInclusive = previousStart,
+                startInclusive = currentStart.minus(days, ChronoUnit.DAYS),
                 endExclusive = currentStart
             )
         )

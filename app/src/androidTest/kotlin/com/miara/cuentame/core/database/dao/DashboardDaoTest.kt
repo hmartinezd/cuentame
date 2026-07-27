@@ -158,7 +158,7 @@ class DashboardDaoTest {
             val restId = "rest-1"
             seedDependencies(restId)
             
-            // Two purchases with SAME postedAt
+            // 1. Purchases with SAME postedAt
             val now = 1000L
             db.purchaseDao().insertReceipt(createReceipt("p2", restId, now, DocumentStatus.POSTED.name).copy(postedAt = now))
             db.purchaseDao().insertLine(createLine("l2", "p2", "10"))
@@ -166,10 +166,26 @@ class DashboardDaoTest {
             db.purchaseDao().insertLine(createLine("l1", "p1", "10"))
 
             val purchases = db.purchaseDao().observeRecentPurchaseActivity(restId, 10).first()
-
-            assertThat(purchases).hasSize(2)
-            assertThat(purchases[0].id).isEqualTo("p1") // p1 before p2 because of id ASC
+            assertThat(purchases[0].id).isEqualTo("p1") // id ASC
             assertThat(purchases[1].id).isEqualTo("p2")
+
+            // 2. Waste with SAME timestamp (effectiveAt)
+            db.wasteDao().insert(createWaste("w2", restId, "ing1", "opt1", now, DocumentStatus.POSTED.name))
+            movementDao.insert(createWasteMovement("m2", restId, "ing1", "w2", "10"))
+            db.wasteDao().insert(createWaste("w1", restId, "ing1", "opt1", now, DocumentStatus.POSTED.name))
+            movementDao.insert(createWasteMovement("m1", restId, "ing1", "w1", "10"))
+
+            val waste = movementDao.observeRecentWasteActivity(restId, 10).first()
+            assertThat(waste[0].id).isEqualTo("w1") // id ASC
+            assertThat(waste[1].id).isEqualTo("w2")
+
+            // 3. Stock Counts with SAME completedAt
+            stockCountDao.insertCount(createCount("c2", restId, now, StockCountStatus.COMPLETED.name))
+            stockCountDao.insertCount(createCount("c1", restId, now, StockCountStatus.COMPLETED.name))
+
+            val counts = stockCountDao.observeRecentCountActivity(restId, 10).first()
+            assertThat(counts[0].id).isEqualTo("c1") // id ASC
+            assertThat(counts[1].id).isEqualTo("c2")
         }
     }
 

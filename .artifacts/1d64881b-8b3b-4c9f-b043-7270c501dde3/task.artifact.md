@@ -1,24 +1,24 @@
 # Task List - Milestone 8 Phase 1: Home Dashboard Corrections
 
-- [ ] **Phase 1: Data & Models Correction**
-    - [ ] Update `DashboardModels.kt` (Counts in summary)
-    - [ ] Update `ReportingPeriodCalculator.kt` (Atomic periods)
-    - [ ] Update Activity DAOs (Deterministic ordering)
-    - [ ] Add Room tests for ordering in `DashboardDaoTest.kt`
-- [ ] **Phase 2: UI Logic & Formatting**
-    - [ ] Refactor `Formatters.kt` (Locale support)
-    - [ ] Refactor `HomeViewModel.kt` (Mapping and strict parsing)
-    - [ ] Add `HomeViewModelTest.kt` (Stale results, Retry, Coverage)
-    - [ ] Add `FormattersTest.kt` (JVM)
-- [ ] **Phase 3: Home Screen Refactor**
-    - [ ] Remove duplicate `TopAppBar` in `HomeScreen.kt`
-    - [ ] Move header into `LazyColumn`
-    - [ ] Update `MetricTrend` formatting
-    - [ ] Localize Activity statuses and type fallbacks
-    - [ ] Complete Data Completeness section
-    - [ ] Update `strings.xml` (EN & ES)
-- [ ] **Phase 4: Final Verification**
-    - [ ] Refactor `HomeUiTest.kt` with real data seeding
-    - [ ] Add quick-action navigation tests
-    - [ ] Run full build & verification pipe
-    - [ ] Update `README.md`
+- [x] **Phase 1: Data & Models Correction**
+    - [x] Update `DashboardModels.kt` (Counts in summary)
+    - [x] Update `ReportingPeriodCalculator.kt` (Atomic periods)
+    - [x] Update Activity DAOs (Deterministic ordering)
+    - [x] Add Room tests for ordering in `DashboardDaoTest.kt`
+- [x] **Phase 2: UI Logic & Formatting**
+    - [x] Refactor `Formatters.kt` (Locale support and currency fallback)
+    - [x] Refactor `HomeViewModel.kt` (Mapping and strict parsing)
+    - [x] Add `HomeViewModelTest.kt` (Stale results, Retry, Coverage)
+    - [x] Add `FormattersTest.kt` (JVM)
+- [x] **Phase 3: Home Screen Refactor**
+    - [x] Remove duplicate `TopAppBar` in `HomeScreen.kt`
+    - [x] Move header into `LazyColumn`
+    - [x] Update `MetricTrend` formatting
+    - [x] Localize Activity statuses and type fallbacks
+    - [x] Complete Data Completeness section
+    - [x] Update `strings.xml` (EN & ES)
+- [x] **Phase 4: Final Verification**
+    - [x] Refactor `HomeUiTest.kt` with real data seeding and navigation
+    - [x] Add focused `HomeScreenStateTest.kt` for UI rendering
+    - [x] Run full build & verification pipe
+    - [x] Update `README.md`

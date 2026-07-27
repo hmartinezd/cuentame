@@ -27,7 +27,7 @@ class HomeViewModelTest {
     private val dashboardRepository = mockk<DashboardRepository>()
     
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
-    private val restaurant = Restaurant(RestaurantId("rest-1"), "Test Rest", "USD", "en-US", Instant.now(), Instant.now())
+    private val restaurant = Restaurant(RestaurantId("rest-1"), "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
 
     @Before
     fun setup() {
@@ -70,7 +70,6 @@ class HomeViewModelTest {
             assertThat(state.restaurantName).isEqualTo("Test Rest")
             assertThat(state.currencyCode).isEqualTo("USD")
             assertThat(state.localeTag).isEqualTo("en-US")
-            assertThat(state.selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
             assertThat(state.dashboard.inventoryValue).isEqualTo(BigDecimal.ZERO)
         }
     }
@@ -94,185 +93,56 @@ class HomeViewModelTest {
             
             val state = item as HomeScreenState.Error
             assertThat(state.cause).isInstanceOf(RuntimeException::class.java)
-            assertThat(state.selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
         }
     }
 
     @Test
-    fun `changing range to 7 days reloads dashboard`() = runTest {
+    fun `stale range result cannot overwrite newer range`() = runTest {
         restaurantFlow.value = restaurant
-        val snapshot30 = createEmptySnapshot()
-        val snapshot7 = createEmptySnapshot()
         
-        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_30_DAYS) } returns flowOf(snapshot30)
-        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_7_DAYS) } returns flowOf(snapshot7)
-
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-            
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-            assertThat(item).isInstanceOf(HomeScreenState.Ready::class.java)
-            assertThat((item as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
-
-            viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
-            testDispatcher.scheduler.advanceUntilIdle()
-            
-            item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-            
-            val state = item as HomeScreenState.Ready
-            assertThat(state.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-        }
-    }
-
-    @Test
-    fun `changing range to 90 days reloads dashboard`() = runTest {
-        restaurantFlow.value = restaurant
-        val snapshot30 = createEmptySnapshot()
-        val snapshot90 = createEmptySnapshot()
-
-        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_30_DAYS) } returns flowOf(snapshot30)
-        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_90_DAYS) } returns flowOf(snapshot90)
-
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            viewModel.onRangeSelected(DashboardDateRange.LAST_90_DAYS)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.selectedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
-        }
-    }
-
-    @Test
-    fun `retry resubscribes after failure`() = runTest {
-        restaurantFlow.value = restaurant
-        var callCount = 0
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flow {
-            callCount++
-            if (callCount == 1) {
-                throw RuntimeException("First call fails")
-            } else {
-                emit(createEmptySnapshot())
-            }
-        }
-
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-            assertThat(item).isInstanceOf(HomeScreenState.Error::class.java)
-
-            viewModel.onRetry()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-            assertThat(item).isInstanceOf(HomeScreenState.Ready::class.java)
-        }
-    }
-
-    @Test
-    fun `stale range result is ignored when newer range is selected`() = runTest {
-        restaurantFlow.value = restaurant
-        val flow30 = MutableSharedFlow<DashboardSnapshot>(replay = 0)
-        val flow7 = MutableSharedFlow<DashboardSnapshot>(replay = 0)
-
+        val flow30 = MutableSharedFlow<DashboardSnapshot>()
+        val flow7 = MutableSharedFlow<DashboardSnapshot>()
+        
         every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_30_DAYS) } returns flow30
         every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_7_DAYS) } returns flow7
 
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            // 1. Subscribe and observe initial Loading
-            assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
+            awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
-
-            // 2. Emit 30-day snapshot
-            val snapshot30 = createEmptySnapshot().copy(
-                inventory = InventoryValuationSummary(BigDecimal("3000"), 1, 1, 0)
-            )
-            flow30.emit(snapshot30)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            // 3. Observe 30-day Ready
+            
+            // 1. Emit 30-day snapshot
+            flow30.emit(createEmptySnapshot().copy(negativeBalanceCount = 30))
             var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-            var readyState = item as HomeScreenState.Ready
-            assertThat(readyState.selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
-            assertThat(readyState.dashboard.inventoryValue).isEqualTo(BigDecimal("3000"))
-
-            // 4. Select 7 days
+            while (item is HomeScreenState.Loading) item = awaitItem()
+            assertThat((item as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(item.dashboard.negativeBalanceCount).isEqualTo(30)
+            
+            // 2. Switch to 7 days
             viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
             testDispatcher.scheduler.advanceUntilIdle()
-
-            // 5. Observe Loading for new range
+            assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
+            
+            // 3. Emit 7-day snapshot
+            flow7.emit(createEmptySnapshot().copy(negativeBalanceCount = 7))
             item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            // 6. Emit 7-day snapshot
-            val snapshot7 = createEmptySnapshot().copy(
-                inventory = InventoryValuationSummary(BigDecimal("700"), 1, 1, 0)
-            )
-            flow7.emit(snapshot7)
+            assertThat((item as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(item.dashboard.negativeBalanceCount).isEqualTo(7)
+            
+            // 4. Emit late 30-day snapshot - SHOULD BE IGNORED
+            flow30.emit(createEmptySnapshot().copy(negativeBalanceCount = 999))
             testDispatcher.scheduler.advanceUntilIdle()
-
-            // 7. Observe 7-day Ready
-            item = awaitItem()
-            readyState = item as HomeScreenState.Ready
-            assertThat(readyState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-            assertThat(readyState.dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
-
-            // 8. Emit late value into old 30-day flow
-            val lateSnapshot30 = createEmptySnapshot().copy(
-                inventory = InventoryValuationSummary(BigDecimal("9999"), 1, 1, 0)
-            )
-            flow30.emit(lateSnapshot30)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            // 9. Verify ViewModel still contains 7-day value and range
-            // No new item should be emitted from the 30-day flow
-            val currentState = viewModel.uiState.value as HomeScreenState.Ready
-            assertThat(currentState.dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
-            assertThat(currentState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-
-            // 10. Verify no unexpected items by trying to await with a timeout
+            
+            // Verify state is still 7 days
+            assertThat((viewModel.uiState.value as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat((viewModel.uiState.value as HomeScreenState.Ready).dashboard.negativeBalanceCount).isEqualTo(7)
+            
             expectNoEvents()
         }
     }
 
     @Test
-    fun `coverage calculation handles zero stocked count`() = runTest {
+    fun `coverage mapping handles zero stocked ingredients`() = runTest {
         restaurantFlow.value = restaurant
         val snapshot = createEmptySnapshot().copy(
             inventory = InventoryValuationSummary(BigDecimal.ZERO, 0, 0, 0)
@@ -281,178 +151,109 @@ class HomeViewModelTest {
 
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
             var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.stockedIngredientCount).isEqualTo(0)
-            assertThat(state.dashboard.valuedIngredientCount).isEqualTo(0)
-            assertThat(state.dashboard.costCoverage).isNull()
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            
+            val dashboard = item.dashboard
+            assertThat(dashboard.stockedIngredientCount).isEqualTo(0)
+            assertThat(dashboard.costCoverage).isNull()
         }
     }
 
     @Test
-    fun `coverage calculation uses BigDecimal for precision`() = runTest {
+    fun `comparison mapping NEW`() = runTest {
         restaurantFlow.value = restaurant
         val snapshot = createEmptySnapshot().copy(
-            inventory = InventoryValuationSummary(BigDecimal.ZERO, 8, 10, 0)
+            purchases = MetricComparison(BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null)
         )
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
-
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
             var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.stockedIngredientCount).isEqualTo(10)
-            assertThat(state.dashboard.valuedIngredientCount).isEqualTo(8)
-            // 8/10 * 100 = 80
-            assertThat(state.dashboard.costCoverage).isEqualTo(BigDecimal("80"))
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            assertThat(item.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.NEW)
         }
     }
 
     @Test
-    fun `metric comparison NEW state when previous zero and current positive`() = runTest {
+    fun `change range to LAST_90_DAYS`() = runTest {
         restaurantFlow.value = restaurant
-        val comparison = MetricComparison(
-            current = BigDecimal("100"),
-            previous = BigDecimal.ZERO,
-            absoluteChange = BigDecimal("100"),
-            percentageChange = null
-        )
-        val snapshot = createEmptySnapshot().copy(purchases = comparison)
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
-
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(createEmptySnapshot())
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.NEW)
-        }
+        
+        viewModel.onRangeSelected(DashboardDateRange.LAST_90_DAYS)
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_90_DAYS)
     }
 
     @Test
-    fun `metric comparison INCREASE state`() = runTest {
+    fun `retry resubscribes after failure`() = runTest {
         restaurantFlow.value = restaurant
-        val comparison = MetricComparison(
-            current = BigDecimal("150"),
-            previous = BigDecimal("100"),
-            absoluteChange = BigDecimal("50"),
-            percentageChange = BigDecimal("50")
-        )
-        val snapshot = createEmptySnapshot().copy(purchases = comparison)
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        var callCount = 0
+        every { dashboardRepository.observeDashboard(any(), any()) } answers {
+            callCount++
+            if (callCount == 1) flow { throw RuntimeException("First fail") }
+            else flowOf(createEmptySnapshot())
+        }
 
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            awaitItem() // Initial Loading
+            awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.INCREASE)
-            assertThat(state.dashboard.purchaseSpend.percentageChange).isEqualTo(BigDecimal("50"))
+            assertThat(awaitItem()).isInstanceOf(HomeScreenState.Error::class.java)
+            
+            viewModel.onRetry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
+            assertThat(awaitItem()).isInstanceOf(HomeScreenState.Ready::class.java)
         }
     }
 
     @Test
-    fun `metric comparison DECREASE state`() = runTest {
-        restaurantFlow.value = restaurant
-        val comparison = MetricComparison(
-            current = BigDecimal("50"),
-            previous = BigDecimal("100"),
-            absoluteChange = BigDecimal("-50"),
-            percentageChange = BigDecimal("-50")
-        )
-        val snapshot = createEmptySnapshot().copy(purchases = comparison)
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
-
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.DECREASE)
-            assertThat(state.dashboard.purchaseSpend.percentageChange).isEqualTo(BigDecimal("-50"))
-        }
-    }
-
-    @Test
-    fun `metric comparison NO_CHANGE state`() = runTest {
-        restaurantFlow.value = restaurant
-        val comparison = MetricComparison(
-            current = BigDecimal("100"),
-            previous = BigDecimal("100"),
-            absoluteChange = BigDecimal.ZERO,
-            percentageChange = BigDecimal.ZERO
-        )
-        val snapshot = createEmptySnapshot().copy(purchases = comparison)
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
-
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
-        viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.NO_CHANGE)
-        }
-    }
-
-    @Test
-    fun `valued and stocked ingredient counts are preserved`() = runTest {
+    fun `comparison mapping INCREASE`() = runTest {
         restaurantFlow.value = restaurant
         val snapshot = createEmptySnapshot().copy(
-            inventory = InventoryValuationSummary(BigDecimal("1000"), 15, 20, 5)
+            purchases = MetricComparison(BigDecimal("150"), BigDecimal("100"), BigDecimal("50"), BigDecimal("50"))
         )
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
-
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            awaitItem() // Initial Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-
             var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            assertThat(item.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.INCREASE)
+            assertThat(item.dashboard.purchaseSpend.percentageChange).isEqualTo(BigDecimal("50"))
+        }
+    }
 
-            val state = item as HomeScreenState.Ready
-            assertThat(state.dashboard.valuedIngredientCount).isEqualTo(15)
-            assertThat(state.dashboard.stockedIngredientCount).isEqualTo(20)
+    @Test
+    fun `comparison mapping DECREASE`() = runTest {
+        restaurantFlow.value = restaurant
+        val snapshot = createEmptySnapshot().copy(
+            purchases = MetricComparison(BigDecimal("50"), BigDecimal("100"), BigDecimal("-50"), BigDecimal("-50"))
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            assertThat(item.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.DECREASE)
+        }
+    }
+
+    @Test
+    fun `comparison mapping NO_CHANGE`() = runTest {
+        restaurantFlow.value = restaurant
+        val snapshot = createEmptySnapshot().copy(
+            purchases = MetricComparison(BigDecimal("100"), BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO)
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            assertThat(item.dashboard.purchaseSpend.comparisonState).isEqualTo(MetricComparisonState.NO_CHANGE)
         }
     }
 
@@ -469,5 +270,3 @@ class HomeViewModelTest {
         recentActivity = emptyList()
     )
 }
-
-

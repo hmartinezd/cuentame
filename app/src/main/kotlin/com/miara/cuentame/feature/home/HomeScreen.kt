@@ -55,8 +55,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
-import java.time.FormatStyle
-import java.time.FormatStyle
+import java.time.format.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -207,7 +206,8 @@ private fun DashboardHeader(restaurantName: String) {
             text = restaurantName,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("dashboard_restaurant_name")
         )
         Text(
             text = stringResource(R.string.dashboard_title),
@@ -308,26 +308,8 @@ private fun KpiCard(
     locale: Locale = Locale.getDefault(),
     valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    val trendDescription = if (comparison != null) {
-        when (comparison.comparisonState) {
-            MetricComparisonState.INCREASE -> {
-                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
-                stringResource(R.string.trend_increase, percentText)
-            }
-            MetricComparisonState.DECREASE -> {
-                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
-                stringResource(R.string.trend_decrease, percentText)
-            }
-            MetricComparisonState.NEW -> stringResource(R.string.comparison_new)
-            MetricComparisonState.NO_CHANGE -> stringResource(R.string.trend_no_change)
-            MetricComparisonState.UNAVAILABLE -> stringResource(R.string.not_applicable)
-        } + " " + stringResource(R.string.from_previous_period)
-    } else ""
-
     Card(
-        modifier = modifier.semantics(mergeDescendants = true) {
-            contentDescription = "$title: $value. $trendDescription"
-        }
+        modifier = modifier
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
@@ -466,7 +448,7 @@ private fun DataQualityRow(label: String, value: String) {
 @Composable
 private fun StockCountSummarySection(state: HomeScreenState.Ready, locale: Locale) {
     val dateFormatter = remember(locale) {
-        DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
     }
@@ -518,7 +500,7 @@ private fun TopWasteSection(state: HomeScreenState.Ready, locale: Locale) {
 @Composable
 private fun RecentActivitySection(state: HomeScreenState.Ready, locale: Locale) {
     val dateTimeFormatter = remember(locale) {
-        DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT, java.time.format.FormatStyle.SHORT)
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT, FormatStyle.SHORT)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
     }

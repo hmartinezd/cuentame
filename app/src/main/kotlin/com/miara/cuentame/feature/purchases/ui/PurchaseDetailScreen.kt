@@ -135,80 +135,84 @@ fun PurchaseDetailScreen(
             }
             is PurchaseDetailState.Ready -> {
                 val details = state.details
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
                         .padding(16.dp)
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(
-                                text = details.supplierName ?: stringResource(R.string.no_supplier),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = dateFormatter.format(details.receipt.purchaseDate),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            if (!details.receipt.invoiceNumber.isNullOrBlank()) {
-                                Text(
-                                    text = "${stringResource(R.string.invoice_number)}: ${details.receipt.invoiceNumber}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                        StatusChip(status = details.receipt.status)
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(details.lines) { line ->
-                            ReadOnlyPurchaseLineItem(line, uiState.currencyCode)
-                            HorizontalDivider()
-                        }
-                    }
-
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                        val total = details.lines.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }
+                    item {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                text = Formatters.formatCurrency(total, uiState.currencyCode),
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        if (details.receipt.status == DocumentStatus.POSTED) {
-                            details.receipt.postedAt?.let {
+                            Column {
                                 Text(
-                                    text = stringResource(R.string.posted_at, timeFormatter.format(it)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    text = details.supplierName ?: stringResource(R.string.no_supplier),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
                                 )
-                            }
-                            Button(
-                                onClick = { showVoidConfirm = true },
-                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("purchase_void_button"),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                enabled = !uiState.isVoiding
-                            ) {
-                                if (uiState.isVoiding) {
-                                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+                                Text(
+                                    text = dateFormatter.format(details.receipt.purchaseDate),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                if (!details.receipt.invoiceNumber.isNullOrBlank()) {
+                                    Text(
+                                        text = "${stringResource(R.string.invoice_number)}: ${details.receipt.invoiceNumber}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
-                                Text(stringResource(R.string.void_purchase))
                             }
-                        } else if (details.receipt.status == DocumentStatus.VOIDED) {
-                            details.receipt.voidedAt?.let {
+                            StatusChip(status = details.receipt.status)
+                        }
+                    }
+
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    }
+
+                    items(details.lines) { line ->
+                        ReadOnlyPurchaseLineItem(line, uiState.currencyCode)
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                            val total = details.lines.fold(java.math.BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleLarge)
                                 Text(
-                                    text = stringResource(R.string.voided_at, timeFormatter.format(it)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    text = Formatters.formatCurrency(total, uiState.currencyCode),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
+                            }
+
+                            if (details.receipt.status == DocumentStatus.POSTED) {
+                                details.receipt.postedAt?.let {
+                                    Text(
+                                        text = stringResource(R.string.posted_at, timeFormatter.format(it)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                }
+                                Button(
+                                    onClick = { showVoidConfirm = true },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("purchase_void_button"),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    enabled = !uiState.isVoiding
+                                ) {
+                                    if (uiState.isVoiding) {
+                                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), color = MaterialTheme.colorScheme.onError, strokeWidth = 2.dp)
+                                    }
+                                    Text(stringResource(R.string.void_purchase))
+                                }
+                            } else if (details.receipt.status == DocumentStatus.VOIDED) {
+                                details.receipt.voidedAt?.let {
+                                    Text(
+                                        text = stringResource(R.string.voided_at, timeFormatter.format(it)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }

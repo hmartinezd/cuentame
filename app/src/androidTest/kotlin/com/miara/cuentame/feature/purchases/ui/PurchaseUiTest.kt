@@ -210,6 +210,8 @@ class PurchaseUiTest {
             
             // 11. Void Purchase
             composeTestRule.waitForTag("purchase_detail_screen")
+            val detailScrollable = composeTestRule.onNode(hasScrollAction())
+            detailScrollable.performScrollToNode(hasTestTag("purchase_void_button"))
             composeTestRule.onNodeWithTag("purchase_void_button").performClick()
             composeTestRule.waitForIdle()
             

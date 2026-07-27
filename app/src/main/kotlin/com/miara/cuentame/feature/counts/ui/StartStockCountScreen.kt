@@ -123,6 +123,7 @@ fun StartStockCountScreen(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()) }
 
     Scaffold(
+        modifier = Modifier.testTag("stock_count_start_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(

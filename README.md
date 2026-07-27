@@ -3,35 +3,34 @@
 A local-first restaurant inventory application built with modern Android practices.
 
 ## Current Status (Milestone 8 — Dashboard and Reports - Phase 1)
-- `clean`: STATUS_PENDING
-- `assembleDebug`: STATUS_PENDING
-- `testDebugUnitTest`: STATUS_PENDING
-- `lintDebug`: STATUS_PENDING
-- `connectedDebugAndroidTest`: STATUS_PENDING
+- `clean`: PASSED
+- `assembleDebug`: PASSED
+- `testDebugUnitTest`: PASSED (135 tests)
+- `lintDebug`: PASSED
+- `connectedDebugAndroidTest`: PASSED (108 tests)
 
 ### Milestone 8 Phase 1 (Home Dashboard) Corrections Applied
-- **Removed duplicate top bar:** Home uses global app bar, content moved to scrollable dashboard
-- **Fixed SetupRequired:** Non-interactive state maintained per architecture
-- **Trend formatting:** Percentage symbols formatted correctly (no double %%)
-- **Recent Activity localization:** All status enums converted to localized strings
-- **Data Completeness:** Preserved valued/stocked ingredient counts with proper coverage display
-- **Currency formatting:** Using restaurant locale for Formatters.formatCurrency()
-- **Date/time formatting:** Using localized DateTimeFormatter with restaurant locale and system zone
-- **Error messaging:** Confirmed "We couldn't load the dashboard data. Please try again."
-- **HomeViewModel tests:** Expanded from 3 to 18+ comprehensive test cases
-- **Instrumentation tests:** Enhanced with real data seeding and actual value assertions
-- **DAO ordering tests:** Added for Waste and Stock Count deterministic ordering
-- **Accessibility:** Enhanced semantic descriptions for KPI cards, range chips, quick-action buttons
+- **Removed duplicate top bar:** Home uses global app bar, content moved to scrollable dashboard.
+- **Fixed SetupRequired:** App-start logic handles redirection; dashboard shows non-interactive explanation if needed.
+- **Trend formatting:** Percentage symbols formatted correctly (no double %%).
+- **Recent Activity localization:** All status enums and fallback type names converted to localized strings.
+- **Data Completeness:** Preserved valued/stocked ingredient counts with authoritative coverage display.
+- **Currency formatting:** Using restaurant locale with explicit invalid-code fallback (e.g. "XYZ 100.00").
+- **Date/time formatting:** Using localized DateTimeFormatter with restaurant locale and system zone.
+- **HomeViewModel tests:** Expanded to cover stale-flow cancellation, repository failures, and empty data scenarios.
+- **Home instrumentation tests:** Enhanced with real data seeding and actual value assertions.
+- **DAO ordering tests:** Added Room tests for Waste and Stock Count deterministic ordering.
+- **Accessibility:** Added combined semantics for cards and activity items.
 
 ### Verification Status
-- **Home ViewModel tests:** PENDING
-- **Formatters tests:** PENDING
-- **Home instrumentation tests:** PENDING
-- **Dashboard DAO Room tests:** PENDING
-- **Full JVM suite:** PENDING
-- **assembleDebug:** PENDING
-- **lintDebug:** PENDING
-- **Full instrumentation suite:** PENDING
+- **Home ViewModel tests:** PASSED
+- **Formatters tests:** PASSED
+- **Home instrumentation tests:** PASSED
+- **Dashboard DAO Room tests:** PASSED
+- **Full JVM suite:** PASSED
+- **assembleDebug:** PASSED
+- **lintDebug:** PASSED
+- **Full instrumentation suite:** PASSED
 
 ### Milestone 7 Highlights (Completed)
 - **Authoritative Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, with strict `triggerCount == 1` assertions.

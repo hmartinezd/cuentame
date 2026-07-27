@@ -82,7 +82,8 @@ class HomeViewModel @Inject constructor(
         // Use BigDecimal for coverage calculation to avoid Double precision issues
         val coverage = if (stockedCount > 0) {
             BigDecimal(valuedCount).divide(BigDecimal(stockedCount), 3, java.math.RoundingMode.HALF_UP)
-                .multiply(BigDecimal("100")) // Convert to percentage (e.g., 0.8 -> 80)
+                .multiply(BigDecimal("100"))
+                .setScale(1, java.math.RoundingMode.HALF_UP)
         } else null
 
         return DashboardUiModel(

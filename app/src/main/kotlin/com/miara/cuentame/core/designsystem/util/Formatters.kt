@@ -13,14 +13,22 @@ object Formatters {
         locale: Locale = Locale.getDefault()
     ): String {
         val formatter = NumberFormat.getCurrencyInstance(locale)
-        try {
-            formatter.currency = Currency.getInstance(currencyCode)
+        val currency = try {
+            Currency.getInstance(currencyCode)
         } catch (e: Exception) {
-            // Fallback: use generic symbol if currency code is invalid
+            null
         }
-        // Rounding is usually handled by the currency instance, but we enforce 2 places for safety
-        // unless the currency requires more/less (handled by NumberFormat).
-        return formatter.format(amount)
+
+        return if (currency != null) {
+            formatter.currency = currency
+            formatter.format(amount)
+        } else {
+            // Fallback: preserve the requested code and use a generic decimal format
+            val decimalFormatter = NumberFormat.getNumberInstance(locale)
+            decimalFormatter.minimumFractionDigits = 2
+            decimalFormatter.maximumFractionDigits = 2
+            "$currencyCode ${decimalFormatter.format(amount)}"
+        }
     }
 
     fun formatQuantity(

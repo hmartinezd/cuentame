@@ -152,6 +152,7 @@ fun WasteFormScreen(
     }
 
     Scaffold(
+        modifier = Modifier.testTag("waste_form_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
