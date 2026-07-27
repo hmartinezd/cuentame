@@ -454,6 +454,7 @@
     <string name="settings_data_backup_section">Data and backup</string>
     <string name="create_backup_title">Create backup</string>
     <string name="create_backup_desc">Creates a complete copy of your local Cuentame data that you choose where to save.</string>
+    <string name="backup_waiting_for_destination">Waiting for destination…</string>
     <string name="backup_creating">Creating backup…</string>
     <string name="backup_validating">Validating backup…</string>
     <string name="backup_success_message">Backup created successfully.</string>

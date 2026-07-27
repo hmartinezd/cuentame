@@ -10,10 +10,10 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
-import com.miara.cuentame.core.model.backup.BackupResult
-import com.miara.cuentame.core.model.backup.BackupSnapshot
+import com.miara.cuentame.core.model.backup.*
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -31,6 +31,7 @@ class AndroidBackupRepositoryTest {
     private lateinit var context: Context
     private val contentResolver = mockk<ContentResolver>()
     private val backupDao = mockk<BackupDao>()
+    private val restaurantRepository = mockk<RestaurantRepository>()
     private val preferencesRepository = mockk<AppPreferencesRepository>()
     private val timeProvider = mockk<TimeProvider>()
     private val appVersionProvider = mockk<AppVersionProvider>()
@@ -45,6 +46,7 @@ class AndroidBackupRepositoryTest {
         repository = AndroidBackupRepository(
             context,
             backupDao,
+            restaurantRepository,
             preferencesRepository,
             timeProvider,
             appVersionProvider,
@@ -77,6 +79,7 @@ class AndroidBackupRepositoryTest {
         every { contentResolver.openFileDescriptor(any(), "w") } returns pfd
         every { contentResolver.openInputStream(any()) } answers { tempFile.inputStream() }
         every { contentResolver.getType(any()) } returns "application/zip"
+        every { contentResolver.query(any(), any(), any(), any(), any()) } returns null
         
         val now = Instant.parse("2026-01-01T12:00:00Z")
         every { timeProvider.now() } returns now
@@ -86,8 +89,12 @@ class AndroidBackupRepositoryTest {
         every { appVersionProvider.versionCode } returns 1L
         every { appVersionProvider.databaseSchemaVersion } returns 1
         
-        coEvery { backupDao.createSnapshot() } returns BackupSnapshot(
-            restaurants = emptyList(),
+        val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+
+        coEvery { backupDao.createSnapshot(any()) } returns BackupSnapshot(
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
             inventoryAreas = emptyList(),
             ingredientCategories = emptyList(),
             units = emptyList(),

@@ -64,9 +64,9 @@ Detailed instructions for every feature:
 ### Automated Test Summary
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (174 tests)
+- `testDebugUnitTest`: PASSED (187 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (161 tests)
+- `connectedDebugAndroidTest`: PASSED (162 tests)
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.

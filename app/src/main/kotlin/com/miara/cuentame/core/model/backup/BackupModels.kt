@@ -17,8 +17,8 @@ data class BackupManifest(
     val localeTag: String?,
     val currencyCode: String?,
     val tableMetadata: Map<String, TableMetadata>,
-    val attachments: List<AttachmentMetadata>,
-    val preferences: Map<String, String>,
+    val attachments: List<BackupAttachmentMetadata>,
+    val includedSections: List<String>,
     val checksumAlgorithm: String = "SHA-256"
 )
 
@@ -29,13 +29,20 @@ data class TableMetadata(
 )
 
 @Serializable
-data class AttachmentMetadata(
+data class BackupAttachmentMetadata(
+    val attachmentId: String,
     val archivePath: String,
-    val originalUri: String,
     val displayName: String?,
     val mimeType: String?,
     val sizeBytes: Long,
-    val checksum: String
+    val checksumSha256: String,
+    val referencedBy: List<BackupAttachmentReference>
+)
+
+@Serializable
+data class BackupAttachmentReference(
+    val recordType: String,
+    val recordId: String
 )
 
 data class BackupSnapshot(
@@ -64,13 +71,14 @@ sealed interface BackupResult {
         data object PermissionDenied : Error
         data object InsufficientStorage : Error
         data class SerializationFailure(val cause: Throwable) : Error
-        data class DatabaseReadFailure(val cause: Throwable) : Error
-        data class MissingAttachment(val uri: String) : Error
-        data class UnreadableAttachment(val uri: String, val cause: Throwable) : Error
+        data class DatabaseSnapshotFailure(val cause: Throwable) : Error
+        data class MissingAttachment(val attachmentId: String) : Error
+        data class UnreadableAttachment(val attachmentId: String, val cause: Throwable) : Error
         data class ChecksumFailure(val entryName: String) : Error
         data class ArchiveValidationFailure(val reason: String) : Error
         data object UnsupportedPersistentData : Error
         data object OperationCancelled : Error
+        data object UnexpectedInternalFailure : Error
         data class Unknown(val cause: Throwable) : Error
     }
 }

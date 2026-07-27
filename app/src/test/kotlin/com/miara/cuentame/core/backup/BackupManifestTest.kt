@@ -28,7 +28,7 @@ class BackupManifestTest {
             currencyCode = "USD",
             tableMetadata = mapOf("ingredients" to TableMetadata(10, false)),
             attachments = emptyList(),
-            preferences = mapOf("theme" to "DARK")
+            includedSections = listOf("data", "preferences")
         )
 
         val serialized = json.encodeToString(manifest)

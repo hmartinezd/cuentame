@@ -28,6 +28,7 @@ class BackupRoundTripTest {
 
     private lateinit var context: Context
     private val backupDao = mockk<BackupDao>()
+    private val restaurantRepository = mockk<com.miara.cuentame.core.domain.repository.RestaurantRepository>()
     private val preferencesRepository = mockk<AppPreferencesRepository>()
     private val timeProvider = mockk<TimeProvider>()
     private val appVersionProvider = mockk<AppVersionProvider>()
@@ -41,6 +42,7 @@ class BackupRoundTripTest {
         repository = AndroidBackupRepository(
             context,
             backupDao,
+            restaurantRepository,
             preferencesRepository,
             timeProvider,
             appVersionProvider,
@@ -63,9 +65,13 @@ class BackupRoundTripTest {
         every { appVersionProvider.versionCode } returns 1L
         every { appVersionProvider.databaseSchemaVersion } returns 1
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
+        
+        val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
-        coEvery { backupDao.createSnapshot() } returns BackupSnapshot(
-            restaurants = emptyList(),
+        coEvery { backupDao.createSnapshot(any()) } returns BackupSnapshot(
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
             inventoryAreas = emptyList(),
             ingredientCategories = emptyList(),
             units = emptyList(),

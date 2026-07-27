@@ -2,6 +2,7 @@ package com.miara.cuentame.feature.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.backup.BackupFilenameGenerator
 import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
@@ -15,19 +16,23 @@ import javax.inject.Inject
 
 sealed interface BackupUiState {
     data object Idle : BackupUiState
+    data object WaitingForDestination : BackupUiState
     data object Creating : BackupUiState
     data object Validating : BackupUiState
     data class Success(val manifest: BackupManifest) : BackupUiState
     data class Error(val result: BackupResult.Error) : BackupUiState
+    data object Cancelled : BackupUiState
 }
 
 sealed interface BackupUiEvent {
-    data object LaunchFilePicker : BackupUiEvent
+    data class LaunchFilePicker(val suggestedName: String) : BackupUiEvent
 }
 
 @HiltViewModel
 class BackupViewModel @Inject constructor(
-    private val backupRepository: BackupRepository
+    private val backupRepository: BackupRepository,
+    private val restaurantRepository: com.miara.cuentame.core.domain.repository.RestaurantRepository,
+    private val timeProvider: com.miara.cuentame.core.common.time.TimeProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
@@ -37,9 +42,13 @@ class BackupViewModel @Inject constructor(
     val events = _events.asSharedFlow()
 
     fun onCreateBackupRequested() {
-        if (_uiState.value is BackupUiState.Creating || _uiState.value is BackupUiState.Validating) return
+        if (_uiState.value is BackupUiState.Creating || _uiState.value is BackupUiState.Validating || _uiState.value is BackupUiState.WaitingForDestination) return
+        
         viewModelScope.launch {
-            _events.emit(BackupUiEvent.LaunchFilePicker)
+            _uiState.value = BackupUiState.WaitingForDestination
+            val restaurant = restaurantRepository.getRestaurant()
+            val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
+            _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
         }
     }
 
@@ -52,14 +61,18 @@ class BackupViewModel @Inject constructor(
                     _uiState.value = BackupUiState.Success(result.manifest)
                 }
                 is BackupResult.Error -> {
-                    _uiState.value = BackupUiState.Error(result)
+                    if (result is BackupResult.Error.OperationCancelled) {
+                        _uiState.value = BackupUiState.Cancelled
+                    } else {
+                        _uiState.value = BackupUiState.Error(result)
+                    }
                 }
             }
         }
     }
 
     fun onPickerCancelled() {
-        _uiState.value = BackupUiState.Idle
+        _uiState.value = BackupUiState.Cancelled
     }
 
     fun resetStatus() {

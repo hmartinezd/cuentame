@@ -42,8 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,10 +91,7 @@ fun SettingsRoute(
         backupViewModel.events.collect { event ->
             when (event) {
                 is BackupUiEvent.LaunchFilePicker -> {
-                    // Suggested filename: Cuentame_<restaurant-name>_<yyyy-MM-dd_HHmm>.cuentame-backup
-                    // For simplicity in P1, we'll use a fixed suggested name if we can't get restaurant name easily here.
-                    // But we can get it from preferences or a separate call.
-                    backupLauncher.launch("Cuentame_Backup.cuentame-backup")
+                    backupLauncher.launch(event.suggestedName)
                 }
             }
         }
@@ -113,9 +112,11 @@ fun SettingsRoute(
             }
             is BackupUiState.Error -> {
                 val message = context.getString(state.result.toUserMessageRes())
-                // Handle arguments if any (MissingAttachment, UnreadableAttachment, etc.)
-                // For P1, we'll just show the base message or a formatted one if we have the info.
                 snackbarHostState.showSnackbar(context.getString(R.string.backup_error_message, message))
+                backupViewModel.resetStatus()
+            }
+            is BackupUiState.Cancelled -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.backup_cancelled_message))
                 backupViewModel.resetStatus()
             }
             else -> {}
@@ -194,11 +195,12 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SettingsHeader(stringResource(R.string.settings_data_backup_section))
             
-            val isBackupActive = backupUiState is BackupUiState.Creating || backupUiState is BackupUiState.Validating
+            val isBackupActive = backupUiState is BackupUiState.Creating || backupUiState is BackupUiState.Validating || backupUiState is BackupUiState.WaitingForDestination
             ListItem(
                 headlineContent = { Text(stringResource(R.string.create_backup_title)) },
                 supportingContent = {
                     val desc = when (backupUiState) {
+                        is BackupUiState.WaitingForDestination -> stringResource(R.string.backup_waiting_for_destination)
                         is BackupUiState.Creating -> stringResource(R.string.backup_creating)
                         is BackupUiState.Validating -> stringResource(R.string.backup_validating)
                         else -> stringResource(R.string.create_backup_desc)
@@ -208,10 +210,21 @@ fun SettingsScreen(
                 leadingContent = { Icon(Icons.Default.Backup, contentDescription = null) },
                 trailingContent = {
                     if (isBackupActive) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp).testTag(when(backupUiState) {
+                            BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
+                            BackupUiState.Creating -> "backup_creating_indicator"
+                            BackupUiState.Validating -> "backup_validating_indicator"
+                            else -> "backup_active_indicator"
+                        }))
                     }
                 },
-                modifier = Modifier.clickable(enabled = !isBackupActive) { onCreateBackup() }
+                modifier = Modifier
+                    .testTag("create_backup_button")
+                    .clickable(enabled = !isBackupActive) { onCreateBackup() }
+                    .semantics(mergeDescendants = true) {
+                        // Custom accessibility announcements can be handled via side effects or live regions if needed,
+                        // but ListItem with merged descendants usually handles the text content well.
+                    }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

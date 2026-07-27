@@ -36,7 +36,7 @@ class BackupDaoTest {
         // Seed some data
         db.restaurantDao().insert(RestaurantEntity("rest-1", "Test Restaurant", "USD", "en", 0L, 0L, null))
         
-        val snapshot = dao.createSnapshot()
+        val snapshot = dao.createSnapshot("rest-1")
         
         assertThat(snapshot.restaurants).hasSize(1)
         assertThat(snapshot.restaurants[0].name).isEqualTo("Test Restaurant")

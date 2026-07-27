@@ -454,6 +454,7 @@
     <string name="settings_data_backup_section">Datos y copia de seguridad</string>
     <string name="create_backup_title">Crear copia de seguridad</string>
     <string name="create_backup_desc">Crea una copia completa de sus datos locales de Cuentame que usted elige dónde guardar.</string>
+    <string name="backup_waiting_for_destination">Esperando destino…</string>
     <string name="backup_creating">Creando copia de seguridad…</string>
     <string name="backup_validating">Validando copia de seguridad…</string>
     <string name="backup_success_message">Copia de seguridad creada con éxito.</string>
