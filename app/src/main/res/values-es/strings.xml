@@ -451,6 +451,26 @@
     <string name="original_movement">Movimiento Original</string>
     <string name="reversal_movement">Movimiento de Reversión</string>
 
+    <string name="settings_data_backup_section">Datos y copia de seguridad</string>
+    <string name="create_backup_title">Crear copia de seguridad</string>
+    <string name="create_backup_desc">Crea una copia completa de sus datos locales de Cuentame que usted elige dónde guardar.</string>
+    <string name="backup_creating">Creando copia de seguridad…</string>
+    <string name="backup_validating">Validando copia de seguridad…</string>
+    <string name="backup_success_message">Copia de seguridad creada con éxito.</string>
+    <string name="backup_error_message">Error al crear la copia de seguridad: %1$s</string>
+    <string name="backup_cancelled_message">Creación de copia de seguridad cancelada.</string>
+    <string name="backup_error_destination">Destino no disponible.</string>
+    <string name="backup_error_permission">Permiso denegado.</string>
+    <string name="backup_error_storage">Espacio insuficiente.</string>
+    <string name="backup_error_serialization">Error al serializar los datos.</string>
+    <string name="backup_error_database">Error al leer la base de datos.</string>
+    <string name="backup_error_attachment_missing">Falta el adjunto: %1$s</string>
+    <string name="backup_error_attachment_unreadable">Adjunto ilegible: %1$s</string>
+    <string name="backup_error_checksum">Error de suma de comprobación: %1$s</string>
+    <string name="backup_error_validation">Error al validar el archivo: %1$s</string>
+    <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
+    <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
+
     <!-- Waste Reasons -->
     <string name="reason_expired">Expirado</string>
     <string name="reason_spoiled">Dañado / Descompuesto</string>

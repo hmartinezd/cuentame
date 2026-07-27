@@ -82,13 +82,27 @@ You can drill down into each section of the Reports Overview to see the exact re
 *   **POSTED:** Finalized and active.
 *   **VOIDED:** Cancelled after posting. Excluded from active totals.
 
-## 6. Local Data and Security
+## 6. Data and Backup
+
+Cuentame stores all your data locally on your device for maximum privacy and offline availability.
+
+### Creating a Backup
+We recommend creating regular backups to protect your data against device loss or damage.
+1.  Go to **Settings** -> **Data and backup**.
+2.  Tap **Create backup**.
+3.  Choose a destination where you want to save the backup file (e.g., Google Drive, an SD card, or another folder on your device).
+4.  The file will have a `.cuentame-backup` extension and contains all your ingredients, history, and attachments.
+5.  **Validation:** After creation, the app automatically validates the backup archive to ensure it was written correctly.
+
+**Important Security Note:** Backups contain confidential business data and are not encrypted by the app. Store them in a secure location.
+
+## 7. Local Data and Security
 
 *   **Privacy:** All your business data is stored only on this device.
 *   **Internet:** No internet connection is required.
-*   **Backups:** There is currently no cloud backup. If you lose your device or delete the app, your data will be lost. We recommend keeping physical copies of critical invoices.
+*   **Restoration:** Backup restoration is currently under development and will be available in a future update. Keep your backup files safe.
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 *   **Missing Costs:** If an ingredient shows "$0.00" value, ensure you have posted at least one purchase with a valid cost for that item.
 *   **Negative Balances:** This happens if you log more waste or post more sales than you have recorded in purchases. Perform a **Stock Count** to reset to the correct level.

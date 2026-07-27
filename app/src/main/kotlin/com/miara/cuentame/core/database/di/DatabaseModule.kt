@@ -92,6 +92,9 @@ object DatabaseModule {
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase): IngredientCostProjectionDao = db.ingredientCostProjectionDao()
 
     @Provides
+    fun provideBackupDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.BackupDao = db.backupDao()
+
+    @Provides
     fun provideDetailedReportsRepository(
         inventoryProjectionDao: InventoryProjectionDao,
         purchaseDao: PurchaseDao,

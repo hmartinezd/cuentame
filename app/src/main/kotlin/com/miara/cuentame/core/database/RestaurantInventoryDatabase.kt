@@ -70,4 +70,5 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun inventoryMovementDao(): InventoryMovementDao
     abstract fun inventoryProjectionDao(): InventoryProjectionDao
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
+    abstract fun backupDao(): com.miara.cuentame.core.database.dao.BackupDao
 }

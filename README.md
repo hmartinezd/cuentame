@@ -53,17 +53,20 @@ Detailed instructions for every feature:
 
 ## Development & Status
 
-### Current Status (Milestone 8 — Dashboard and Reports)
-*   **Milestone 8 Phase 1:** PASSED
-*   **Phase 2 — Detailed Reports:** PASSED
+### Current Status (Milestone 9 — Backup and Export)
+*   **Milestone 8 — Dashboard and Reports:** COMPLETE
+*   **Milestone 9 — Backup and Export:** IN PROGRESS
+*   **Backup creation:** PASSED
+*   **Backup restore:** NOT STARTED
+*   **Customer data export:** NOT STARTED
 *   **CI verification:** NOT CONFIGURED
 
 ### Automated Test Summary
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (171 tests)
+- `testDebugUnitTest`: PASSED (174 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (154 tests)
+- `connectedDebugAndroidTest`: PASSED (161 tests)
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.

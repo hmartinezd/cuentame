@@ -82,13 +82,27 @@ Puede profundizar en cada sección del Resumen de Reportes para ver los registro
 *   **PUBLICADO (POSTED):** Finalizado y activo.
 *   **ANULADO (VOIDED):** Cancelado después de ser publicado. Excluido de los totales activos.
 
-## 6. Datos Locales y Seguridad
+## 6. Datos y Copias de Seguridad
+
+Cuentame guarda todos sus datos localmente en su dispositivo para máxima privacidad y disponibilidad sin conexión.
+
+### Crear una Copia de Seguridad
+Recomendamos crear copias de seguridad periódicas para proteger sus datos contra la pérdida o daño del dispositivo.
+1.  Vaya a **Configuración** -> **Datos y copia de seguridad**.
+2.  Toque **Crear copia de seguridad**.
+3.  Elija un destino donde desee guardar el archivo de respaldo (ej. Google Drive, una tarjeta SD u otra carpeta en su dispositivo).
+4.  El archivo tendrá la extensión `.cuentame-backup` y contiene todos sus ingredientes, historial y archivos adjuntos.
+5.  **Validación:** Después de la creación, la aplicación valida automáticamente el archivo de respaldo para asegurar que se escribió correctamente.
+
+**Nota importante de seguridad:** Las copias de seguridad contienen datos comerciales confidenciales y no están cifradas por la aplicación. Guárdelas en un lugar seguro.
+
+## 7. Datos Locales y Seguridad
 
 *   **Privacidad:** Todos sus datos comerciales se guardan únicamente en este dispositivo.
 *   **Internet:** No se requiere conexión a internet para operar.
-*   **Respaldos:** Actualmente no hay respaldo en la nube. Si pierde su dispositivo o borra la aplicación, sus datos se perderán. Recomendamos conservar copias físicas de facturas críticas.
+*   **Restauración:** La restauración de copias de seguridad está actualmente en desarrollo y estará disponible en una futura actualización. Mantenga sus archivos de respaldo seguros.
 
-## 7. Solución de Problemas
+## 8. Solución de Problemas
 
 *   **Costos Faltantes:** Si un ingrediente muestra un valor de "$0.00", asegúrese de haber publicado al menos una compra con un costo válido para ese artículo.
 *   **Saldos Negativos:** Esto sucede si registra más mermas o ventas de las que ha registrado en compras. Realice un **Conteo de Stock** para restablecer el nivel correcto.

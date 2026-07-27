@@ -1,5 +1,7 @@
 package com.miara.cuentame.feature.settings.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.AlertDialog
@@ -46,7 +49,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.model.backup.toUserMessageRes
 import com.miara.cuentame.core.preferences.model.ThemeMode
+import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
+import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
+import com.miara.cuentame.feature.settings.viewmodel.BackupViewModel
 import com.miara.cuentame.feature.settings.viewmodel.SettingsViewModel
 
 @Composable
@@ -55,13 +62,41 @@ fun SettingsRoute(
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
     onNavigateToSuppliers: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
+    backupViewModel: BackupViewModel = hiltViewModel()
 ) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    
+    val backupUiState by backupViewModel.uiState.collectAsStateWithLifecycle()
+    
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    val backupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip"),
+        onResult = { uri ->
+            if (uri != null) {
+                backupViewModel.onFileSelected(uri.toString())
+            } else {
+                backupViewModel.onPickerCancelled()
+            }
+        }
+    )
+
+    LaunchedEffect(backupViewModel.events) {
+        backupViewModel.events.collect { event ->
+            when (event) {
+                is BackupUiEvent.LaunchFilePicker -> {
+                    // Suggested filename: Cuentame_<restaurant-name>_<yyyy-MM-dd_HHmm>.cuentame-backup
+                    // For simplicity in P1, we'll use a fixed suggested name if we can't get restaurant name easily here.
+                    // But we can get it from preferences or a separate call.
+                    backupLauncher.launch("Cuentame_Backup.cuentame-backup")
+                }
+            }
+        }
+    }
 
     LaunchedEffect(error) {
         error?.let {
@@ -70,15 +105,34 @@ fun SettingsRoute(
         }
     }
 
+    LaunchedEffect(backupUiState) {
+        when (val state = backupUiState) {
+            is BackupUiState.Success -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.backup_success_message))
+                backupViewModel.resetStatus()
+            }
+            is BackupUiState.Error -> {
+                val message = context.getString(state.result.toUserMessageRes())
+                // Handle arguments if any (MissingAttachment, UnreadableAttachment, etc.)
+                // For P1, we'll just show the base message or a formatted one if we have the info.
+                snackbarHostState.showSnackbar(context.getString(R.string.backup_error_message, message))
+                backupViewModel.resetStatus()
+            }
+            else -> {}
+        }
+    }
+
     SettingsScreen(
         themeMode = preferences.themeMode,
         dynamicColorEnabled = preferences.dynamicColorEnabled,
         appLocaleTag = preferences.appLocaleTag,
         isSaving = isSaving,
+        backupUiState = backupUiState,
         snackbarHostState = snackbarHostState,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
         onLocaleChanged = viewModel::setAppLocaleTag,
+        onCreateBackup = backupViewModel::onCreateBackupRequested,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
@@ -92,10 +146,12 @@ fun SettingsScreen(
     dynamicColorEnabled: Boolean,
     appLocaleTag: String,
     isSaving: Boolean,
+    backupUiState: BackupUiState,
     snackbarHostState: SnackbarHostState,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
     onLocaleChanged: (String) -> Unit,
+    onCreateBackup: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -133,6 +189,29 @@ fun SettingsScreen(
                 title = stringResource(R.string.suppliers),
                 icon = Icons.Default.Store,
                 onClick = onNavigateToSuppliers
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsHeader(stringResource(R.string.settings_data_backup_section))
+            
+            val isBackupActive = backupUiState is BackupUiState.Creating || backupUiState is BackupUiState.Validating
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.create_backup_title)) },
+                supportingContent = {
+                    val desc = when (backupUiState) {
+                        is BackupUiState.Creating -> stringResource(R.string.backup_creating)
+                        is BackupUiState.Validating -> stringResource(R.string.backup_validating)
+                        else -> stringResource(R.string.create_backup_desc)
+                    }
+                    Text(desc)
+                },
+                leadingContent = { Icon(Icons.Default.Backup, contentDescription = null) },
+                trailingContent = {
+                    if (isBackupActive) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                },
+                modifier = Modifier.clickable(enabled = !isBackupActive) { onCreateBackup() }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

@@ -42,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -120,7 +121,7 @@ dependencies {
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.turbine)
-    androidTestImplementation(libs.mockk)
+    androidTestImplementation(libs.mockk.android)
     kspAndroidTest(libs.hilt.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

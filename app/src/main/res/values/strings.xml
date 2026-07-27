@@ -451,6 +451,26 @@
     <string name="original_movement">Original Movement</string>
     <string name="reversal_movement">Reversal Movement</string>
 
+    <string name="settings_data_backup_section">Data and backup</string>
+    <string name="create_backup_title">Create backup</string>
+    <string name="create_backup_desc">Creates a complete copy of your local Cuentame data that you choose where to save.</string>
+    <string name="backup_creating">Creating backup…</string>
+    <string name="backup_validating">Validating backup…</string>
+    <string name="backup_success_message">Backup created successfully.</string>
+    <string name="backup_error_message">Backup creation failed: %1$s</string>
+    <string name="backup_cancelled_message">Backup creation cancelled.</string>
+    <string name="backup_error_destination">Destination unavailable.</string>
+    <string name="backup_error_permission">Permission denied.</string>
+    <string name="backup_error_storage">Insufficient storage.</string>
+    <string name="backup_error_serialization">Failed to serialize data.</string>
+    <string name="backup_error_database">Failed to read database.</string>
+    <string name="backup_error_attachment_missing">Missing attachment: %1$s</string>
+    <string name="backup_error_attachment_unreadable">Unreadable attachment: %1$s</string>
+    <string name="backup_error_checksum">Checksum failure: %1$s</string>
+    <string name="backup_error_validation">Archive validation failed: %1$s</string>
+    <string name="backup_error_unsupported">Unsupported persistent data.</string>
+    <string name="backup_error_unknown">An unknown error occurred: %1$s</string>
+
     <!-- Waste Reasons -->
     <string name="reason_expired">Expired</string>
     <string name="reason_spoiled">Spoiled</string>

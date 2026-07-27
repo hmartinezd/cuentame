@@ -68,6 +68,9 @@ object TestDatabaseModule {
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase) = db.ingredientCostProjectionDao()
 
     @Provides
+    fun provideBackupDao(db: RestaurantInventoryDatabase) = db.backupDao()
+
+    @Provides
     fun provideDetailedReportsRepository(
         inventoryProjectionDao: InventoryProjectionDao,
         purchaseDao: PurchaseDao,
