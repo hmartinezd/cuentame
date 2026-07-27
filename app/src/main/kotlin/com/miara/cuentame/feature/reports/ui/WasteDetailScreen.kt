@@ -102,7 +102,7 @@ private fun WasteDetailContent(
                     testTag = "waste_report_range_selector"
                 )
 
-                if (state.selectedRange != null && state.loadedRange != null && state.selectedRange != state.loadedRange) {
+                if (state.selectedRange != null && state.loadedRange != null && state.selectedRange != state.loadedRange && !state.refreshError) {
                     val loadedLabel = stringResource(when(state.loadedRange) {
                         DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
                         DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
@@ -114,16 +114,10 @@ private fun WasteDetailContent(
                         DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
                     })
                     
-                    val contextMessage = if (state.refreshError) {
-                        stringResource(R.string.refresh_context_error, selectedLabel, loadedLabel)
-                    } else {
-                        stringResource(R.string.refresh_context_updating, loadedLabel, selectedLabel)
-                    }
-                    
                     Text(
-                        text = contextMessage,
+                        text = stringResource(R.string.refresh_context_updating, loadedLabel, selectedLabel),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (state.refreshError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(horizontal = 4.dp).testTag("waste_report_range_context")
                     )
                 }

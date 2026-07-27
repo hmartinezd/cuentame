@@ -59,11 +59,43 @@ class PurchaseDetailViewModelTest {
     }
 
     @Test
-    fun `initial range from SavedStateHandle`() = runTest {
+    fun `navigation-provided 7-day range`() = runTest {
         val savedStateHandle = SavedStateHandle(mapOf("range" to DashboardDateRange.LAST_7_DAYS.name))
         val viewModel = PurchaseDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository, periodCalculator)
         
         assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+    }
+
+    @Test
+    fun `navigation-provided 90-day range`() = runTest {
+        val savedStateHandle = SavedStateHandle(mapOf("range" to DashboardDateRange.LAST_90_DAYS.name))
+        val viewModel = PurchaseDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository, periodCalculator)
+        
+        assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+    }
+
+    @Test
+    fun `missing range defaults to 30 days`() = runTest {
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+    }
+
+    @Test
+    fun `malformed range defaults to 30 days`() = runTest {
+        val savedStateHandle = SavedStateHandle(mapOf("range" to "INVALID"))
+        val viewModel = PurchaseDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository, periodCalculator)
+        
+        assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+    }
+
+    @Test
+    fun `initial state is Loading then SetupRequired when no restaurant`() = runTest {
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        viewModel.uiState.test {
+            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.SetupRequired)
+        }
     }
 
     @Test
@@ -81,6 +113,45 @@ class PurchaseDetailViewModelTest {
             assertThat(state.restaurantId).isEqualTo(restaurantId)
             assertThat(state.report.period).isEqualTo(period30)
             assertThat(state.isRefreshing).isFalse()
+        }
+    }
+
+    @Test
+    fun `initial repository failure triggers Error state`() = runTest {
+        restaurantFlow.value = restaurant
+        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } returns flow {
+            throw RuntimeException("Fail")
+        }
+
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Error::class.java)
+        }
+    }
+
+    @Test
+    fun `initial retry resubscribes`() = runTest {
+        restaurantFlow.value = restaurant
+        var callCount = 0
+        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } answers {
+            callCount++
+            if (callCount == 1) flow { throw RuntimeException("Fail") }
+            else flowOf(PurchaseDetailReport(emptyList(), period30, BigDecimal.ZERO, 0))
+        }
+
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Error::class.java)
+            
+            viewModel.onRetry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
+            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Ready::class.java)
         }
     }
 

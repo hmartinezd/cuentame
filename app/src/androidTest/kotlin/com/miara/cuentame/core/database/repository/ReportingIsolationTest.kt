@@ -71,16 +71,16 @@ class ReportingIsolationTest {
         db.restaurantDao().insert(RestaurantEntity(rest1.value, "Rest 1", "USD", "en", 0L, 0L, null))
         db.restaurantDao().insert(RestaurantEntity(rest2.value, "Rest 2", "USD", "en", 0L, 0L, null))
 
-        // Valid metadata for Rest 1
+        // Valid metadata for Rest 1 (to satisfy FKs if any)
         db.inventoryAreaDao().upsert(InventoryAreaEntity("area1", rest1.value, "Area 1", "area 1", 1, true, 0L, 0L, null))
         db.ingredientDao().insert(IngredientEntity("ing1", rest1.value, "Ing 1", "ing 1", null, "u1", null, null, null, null, true, 0L, 0L, null))
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt1", "ing1", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
         // Supplier belongs to Rest 2
-        db.supplierDao().insert(SupplierEntity("s1", rest2.value, "SECRET", "secret", null, null, null, true, 0L, 0L, null))
+        db.supplierDao().insert(SupplierEntity("s2", rest2.value, "SECRET", "secret", null, null, null, true, 0L, 0L, null))
 
-        // Purchase belongs to Rest 1 but references Supplier 1 (malformed cross-restaurant link)
-        val receipt = PurchaseReceiptEntity("p1", rest1.value, "s1", null, 1000L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 1000L, null)
+        // Purchase belongs to Rest 1 but references Supplier 2 (malformed cross-restaurant link)
+        val receipt = PurchaseReceiptEntity("p1", rest1.value, "s2", null, 1000L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 1000L, null)
         db.purchaseDao().insertReceipt(receipt)
         db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing1", "area1", "opt1", "1", "1", "100.0", "1", null, 0L, 0L))
 
@@ -99,18 +99,40 @@ class ReportingIsolationTest {
         db.restaurantDao().insert(RestaurantEntity(rest2.value, "Rest 2", "USD", "en", 0L, 0L, null))
 
         // Ingredient and Area belong to Rest 2
-        db.ingredientDao().insert(IngredientEntity("ing1", rest2.value, "SECRET", "secret", null, "u1", null, null, null, null, true, 0L, 0L, null))
-        db.inventoryAreaDao().upsert(InventoryAreaEntity("area1", rest2.value, "SECRET", "secret", 1, true, 0L, 0L, null))
-        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt1", "ing1", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
+        db.ingredientDao().insert(IngredientEntity("ing2", rest2.value, "SECRET", "secret", null, "u1", null, null, null, null, true, 0L, 0L, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area2", rest2.value, "SECRET", "secret", 1, true, 0L, 0L, null))
+        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt2", "ing2", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
         // Waste event and Movement belong to Rest 1 (CORRUPTION: reference Rest 2 metadata)
-        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing1", "area1", "opt1", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
-        db.inventoryMovementDao().insert(InventoryMovementEntity("m1", rest1.value, "ing1", "area1", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
+        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
+        db.inventoryMovementDao().insert(InventoryMovementEntity("m1", rest1.value, "ing2", "area2", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
 
         val period = com.miara.cuentame.core.domain.service.ReportingPeriod(java.time.Instant.ofEpochMilli(500), java.time.Instant.ofEpochMilli(1500))
         val report = repository.observeWasteDetails(rest1, period).first()
         
         // Hardened JOINs on i.restaurantId, ia.restaurantId, we.restaurantId must match im.restaurantId
         assertThat(report.rows).isEmpty()
+    }
+
+    @Test
+    fun recentWasteActivity_hardenedIsolation_excludesCrossRestaurantMetadata() = runBlocking {
+        seedBasicUnits()
+        db.restaurantDao().insert(RestaurantEntity(rest1.value, "Rest 1", "USD", "en", 0L, 0L, null))
+        db.restaurantDao().insert(RestaurantEntity(rest2.value, "Rest 2", "USD", "en", 0L, 0L, null))
+
+        // Metadata belongs to Rest 2
+        db.ingredientDao().insert(IngredientEntity("ing2", rest2.value, "SECRET", "secret", null, "u1", null, null, null, null, true, 0L, 0L, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area2", rest2.value, "SECRET", "secret", 1, true, 0L, 0L, null))
+        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt2", "ing2", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
+
+        // Waste event and Movement belong to Rest 1 (CORRUPTION: reference Rest 2 metadata)
+        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
+        db.inventoryMovementDao().insert(InventoryMovementEntity("m1", rest1.value, "ing2", "area2", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
+
+        val activity = db.inventoryMovementDao().observeRecentWasteActivity(rest1.value, 10).first()
+        
+        // Hardened JOIN on i.restaurantId must match we.restaurantId (rest1)
+        // But i.restaurantId is rest2.
+        assertThat(activity).isEmpty()
     }
 }

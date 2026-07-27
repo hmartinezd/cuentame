@@ -27,7 +27,8 @@ class InventoryDetailViewModelTest {
     private val detailedReportsRepository = mockk<DetailedReportsRepository>()
     
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
-    private val restaurant = Restaurant(RestaurantId("rest-1"), "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+    private val restaurantId = RestaurantId("rest-1")
+    private val restaurant = Restaurant(restaurantId, "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
 
     @Before
     fun setup() {
@@ -51,60 +52,96 @@ class InventoryDetailViewModelTest {
     }
 
     @Test
-    fun `Ready state when restaurant and report success`() = runTest {
+    fun `Ready state refresh sequence`() = runTest {
         restaurantFlow.value = restaurant
-        val report = InventoryDetailReport(emptyList(), BigDecimal.ZERO, 0, 0, 0, 0, 0)
-        every { detailedReportsRepository.observeInventoryDetails(any()) } returns flowOf(report)
+        val flow1 = MutableSharedFlow<InventoryDetailReport>()
+        every { detailedReportsRepository.observeInventoryDetails(restaurantId) } returns flow1
 
         val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
         viewModel.uiState.test {
-            awaitItem() // Loading
+            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val state = awaitItem() as DetailReportScreenState.Ready
-            assertThat(state.restaurantName).isEqualTo("Test Rest")
-            assertThat(state.report.totalValue).isEqualTo(BigDecimal.ZERO)
-        }
-    }
-
-    @Test
-    fun `Error state when repository fails`() = runTest {
-        restaurantFlow.value = restaurant
-        every { detailedReportsRepository.observeInventoryDetails(any()) } returns flow {
-            throw RuntimeException("Fail")
-        }
-
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
-        viewModel.uiState.test {
-            awaitItem() // Loading
-            testDispatcher.scheduler.advanceUntilIdle()
+            // 1. Initial load
+            flow1.emit(InventoryDetailReport(emptyList(), BigDecimal.ZERO, 0, 0, 0, 0, 0))
+            var item = awaitItem()
+            while (item !is DetailReportScreenState.Ready) item = awaitItem()
+            assertThat((item as DetailReportScreenState.Ready).isRefreshing).isFalse()
             
-            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Error::class.java)
-        }
-    }
-
-    @Test
-    fun `retry resubscribes`() = runTest {
-        restaurantFlow.value = restaurant
-        var callCount = 0
-        every { detailedReportsRepository.observeInventoryDetails(any()) } answers {
-            callCount++
-            if (callCount == 1) flow { throw RuntimeException("Fail") }
-            else flowOf(InventoryDetailReport(emptyList(), BigDecimal.ZERO, 0, 0, 0, 0, 0))
-        }
-
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
-        viewModel.uiState.test {
-            awaitItem() // Loading
-            testDispatcher.scheduler.advanceUntilIdle()
-            
-            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Error::class.java)
-            
+            // 2. Refresh (via retry while ready)
             viewModel.onRetry()
             testDispatcher.scheduler.advanceUntilIdle()
             
+            val refreshing = awaitItem() as DetailReportScreenState.Ready
+            assertThat(refreshing.isRefreshing).isTrue()
+            
+            // 3. New data
+            flow1.emit(InventoryDetailReport(emptyList(), BigDecimal.TEN, 1, 1, 1, 0, 0))
+            val finalReady = awaitItem() as DetailReportScreenState.Ready
+            assertThat(finalReady.isRefreshing).isFalse()
+            assertThat(finalReady.report.totalValue).isEqualTo(BigDecimal.TEN)
+        }
+    }
+
+    @Test
+    fun `account switch resets to full Loading and hides old data`() = runTest {
+        restaurantFlow.value = restaurant
+        val flow1 = MutableSharedFlow<InventoryDetailReport>(replay = 1)
+        every { detailedReportsRepository.observeInventoryDetails(RestaurantId("rest-1")) } returns flow1
+        
+        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            flow1.emit(InventoryDetailReport(emptyList(), BigDecimal.TEN, 1, 1, 1, 0, 0))
+            var item = awaitItem()
+            while (item !is DetailReportScreenState.Ready) item = awaitItem()
+            assertThat((item as DetailReportScreenState.Ready).restaurantId).isEqualTo(RestaurantId("rest-1"))
+            
+            // Switch to Rest 2
+            val restaurant2 = Restaurant(RestaurantId("rest-2"), "Rest 2", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+            every { detailedReportsRepository.observeInventoryDetails(RestaurantId("rest-2")) } returns flowOf(
+                InventoryDetailReport(emptyList(), BigDecimal.ZERO, 0, 0, 0, 0, 0)
+            )
+            restaurantFlow.value = restaurant2
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            // MUST emit Loading, NOT Ready(isRefreshing=true) because restaurantId changed
             assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
-            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Ready::class.java)
+            
+            val finalItem = awaitItem() as DetailReportScreenState.Ready
+            assertThat(finalItem.restaurantId).isEqualTo(RestaurantId("rest-2"))
+            assertThat(finalItem.report.totalValue).isEqualTo(BigDecimal.ZERO)
+        }
+    }
+
+    @Test
+    fun `refresh failure preserves old data`() = runTest {
+        restaurantFlow.value = restaurant
+        val flow1 = MutableSharedFlow<InventoryDetailReport>(replay = 1)
+        
+        // Initial success
+        every { detailedReportsRepository.observeInventoryDetails(restaurantId) } returns flow1
+
+        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            flow1.emit(InventoryDetailReport(emptyList(), BigDecimal("123"), 1, 1, 1, 0, 0))
+            awaitItem() // Ready
+            
+            // Fail on next subscription
+            every { detailedReportsRepository.observeInventoryDetails(restaurantId) } returns flow { throw RuntimeException("Fail") }
+            viewModel.onRetry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat((awaitItem() as DetailReportScreenState.Ready).isRefreshing).isTrue()
+            
+            val errorItem = awaitItem() as DetailReportScreenState.Ready
+            assertThat(errorItem.refreshError).isTrue()
+            assertThat(errorItem.report.totalValue).isEqualTo(BigDecimal("123"))
         }
     }
 }

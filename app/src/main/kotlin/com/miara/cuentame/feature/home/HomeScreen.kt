@@ -170,7 +170,7 @@ private fun DashboardContent(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
 
-                if (state.selectedRange != state.loadedRange) {
+                if (state.selectedRange != state.loadedRange && !state.refreshError) {
                     val loadedLabel = stringResource(when(state.loadedRange) {
                         DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
                         DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
@@ -182,16 +182,10 @@ private fun DashboardContent(
                         DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
                     })
                     
-                    val contextMessage = if (state.refreshError) {
-                        stringResource(R.string.refresh_context_error_dashboard, selectedLabel, loadedLabel)
-                    } else {
-                        stringResource(R.string.refresh_context_updating_dashboard, loadedLabel, selectedLabel)
-                    }
-                    
                     Text(
-                        text = contextMessage,
+                        text = stringResource(R.string.refresh_context_updating_dashboard, loadedLabel, selectedLabel),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (state.refreshError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(horizontal = 4.dp).testTag("home_range_context")
                     )
                 }

@@ -52,6 +52,49 @@ class ReportsViewModelTest {
     }
 
     @Test
+    fun `initial repository failure triggers Error state`() = runTest {
+        restaurantFlow.value = restaurant
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flow {
+            throw RuntimeException("Fail")
+        }
+
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            var item = awaitItem()
+            while (item is ReportsScreenState.Loading) item = awaitItem()
+            
+            assertThat(item).isInstanceOf(ReportsScreenState.Error::class.java)
+        }
+    }
+
+    @Test
+    fun `retry after initial failure resubscribes`() = runTest {
+        restaurantFlow.value = restaurant
+        var callCount = 0
+        every { dashboardRepository.observeDashboard(any(), any()) } answers {
+            callCount++
+            if (callCount == 1) flow { throw RuntimeException("Fail") }
+            else flowOf(createEmptySnapshot())
+        }
+
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertThat(awaitItem()).isInstanceOf(ReportsScreenState.Error::class.java)
+            
+            viewModel.onRetry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat(awaitItem()).isEqualTo(ReportsScreenState.Loading)
+            assertThat(awaitItem()).isInstanceOf(ReportsScreenState.Ready::class.java)
+        }
+    }
+
+    @Test
     fun `Ready state refresh sequence`() = runTest {
         restaurantFlow.value = restaurant
         val flow30 = MutableSharedFlow<DashboardSnapshot>(replay = 1)
@@ -88,23 +131,54 @@ class ReportsViewModelTest {
     }
 
     @Test
-    fun `account switch resets to full Loading`() = runTest {
+    fun `account switch resets to full Loading and hides old data`() = runTest {
         restaurantFlow.value = restaurant
-        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(createEmptySnapshot())
+        val flow1 = MutableSharedFlow<DashboardSnapshot>(replay = 1)
+        every { dashboardRepository.observeDashboard(RestaurantId("rest-1"), any()) } returns flow1
         
         val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
-            awaitItem() // Ready Rest 1
             
+            flow1.emit(createEmptySnapshot())
+            var item = awaitItem()
+            while (item !is ReportsScreenState.Ready) item = awaitItem()
+            assertThat((item as ReportsScreenState.Ready).restaurantId).isEqualTo(RestaurantId("rest-1"))
+            
+            // Switch to Rest 2
             val restaurant2 = Restaurant(RestaurantId("rest-2"), "Rest 2", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+            every { dashboardRepository.observeDashboard(RestaurantId("rest-2"), any()) } returns flowOf(createEmptySnapshot())
             restaurantFlow.value = restaurant2
             testDispatcher.scheduler.advanceUntilIdle()
             
+            // MUST emit Loading, NOT Ready(isRefreshing=true) because restaurantId changed
             assertThat(awaitItem()).isEqualTo(ReportsScreenState.Loading)
-            val ready2 = awaitItem() as ReportsScreenState.Ready
-            assertThat(ready2.restaurantId).isEqualTo(RestaurantId("rest-2"))
+            
+            val finalItem = awaitItem() as ReportsScreenState.Ready
+            assertThat(finalItem.restaurantId).isEqualTo(RestaurantId("rest-2"))
+        }
+    }
+
+    @Test
+    fun `mapping coverage and fields`() = runTest {
+        restaurantFlow.value = restaurant
+        val snapshot = createEmptySnapshot().copy(
+            inventory = InventoryValuationSummary(BigDecimal("100"), 8, 10, 2),
+            negativeBalanceCount = 5,
+            activeIngredientsMissingOptionsCount = 3
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is ReportsScreenState.Ready) item = awaitItem()
+            val report = item.report
+            assertThat(report.inventory.totalValue).isEqualTo(BigDecimal("100"))
+            assertThat(report.inventory.costCoverage).isEqualTo(BigDecimal("80.0"))
+            assertThat(report.alerts.negativeBalanceCount).isEqualTo(5)
+            assertThat(report.alerts.missingOptionsCount).isEqualTo(3)
         }
     }
 
