@@ -34,6 +34,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
+import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+
 @Composable
 fun ReportsRoute(
     onNavigateToInventory: () -> Unit,
@@ -103,6 +107,7 @@ fun ReportsScreen(
                 ReportsContent(
                     state = uiState,
                     onRangeSelected = onRangeSelected,
+                    onRetry = onRetry,
                     onNavigateToInventory = onNavigateToInventory,
                     onNavigateToPurchases = onNavigateToPurchases,
                     onNavigateToWaste = onNavigateToWaste
@@ -116,23 +121,41 @@ fun ReportsScreen(
 private fun ReportsContent(
     state: ReportsScreenState.Ready,
     onRangeSelected: (DashboardDateRange) -> Unit,
+    onRetry: () -> Unit,
     onNavigateToInventory: () -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    val scrollState = rememberLazyListState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         item {
-            ReportsHeader(state.restaurantName, state.selectedRange)
+            ReportsHeader(state.restaurantName, state.loadedRange)
         }
 
         item {
-            RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+                if (state.isRefreshing) {
+                    RefreshIndicator(
+                        testTag = "reports_refreshing",
+                        label = stringResource(R.string.updating_report)
+                    )
+                }
+                if (state.refreshError) {
+                    RefreshErrorBanner(
+                        testTag = "reports_refresh_error",
+                        onRetry = onRetry,
+                        message = stringResource(R.string.refresh_error_message)
+                    )
+                }
+            }
         }
 
         item {
@@ -181,6 +204,7 @@ private fun ReportsContent(
         }
     }
 }
+
 
 @Composable
 private fun ReportsHeader(restaurantName: String, range: DashboardDateRange) {

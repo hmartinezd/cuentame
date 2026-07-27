@@ -115,7 +115,11 @@ class ReportsViewModelTest {
             // 2. Switch to 7 days
             viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
             testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(awaitItem()).isEqualTo(ReportsScreenState.Loading)
+            
+            val refreshingItem = awaitItem() as ReportsScreenState.Ready
+            assertThat(refreshingItem.isRefreshing).isTrue()
+            assertThat(refreshingItem.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(refreshingItem.loadedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
             
             // 3. Emit 7-day
             flow7.emit(createEmptySnapshot().copy(negativeBalanceCount = 7))
@@ -128,8 +132,9 @@ class ReportsViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             
             // Still on 7-day
-            assertThat((viewModel.uiState.value as ReportsScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-            assertThat((viewModel.uiState.value as ReportsScreenState.Ready).report.alerts.negativeBalanceCount).isEqualTo(7)
+            val finalState = viewModel.uiState.value as ReportsScreenState.Ready
+            assertThat(finalState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(finalState.report.alerts.negativeBalanceCount).isEqualTo(7)
         }
     }
 

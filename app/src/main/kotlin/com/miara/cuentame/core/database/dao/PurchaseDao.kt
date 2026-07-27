@@ -24,7 +24,7 @@ interface PurchaseDao {
             pl.lineTotal
         FROM purchase_receipts pr
         JOIN purchase_lines pl ON pr.id = pl.purchaseReceiptId
-        LEFT JOIN suppliers s ON pr.supplierId = s.id
+        LEFT JOIN suppliers s ON pr.supplierId = s.id AND s.restaurantId = pr.restaurantId
         WHERE pr.restaurantId = :restaurantId 
         AND pr.status = 'POSTED'
         AND pr.purchaseDate >= :startInclusive

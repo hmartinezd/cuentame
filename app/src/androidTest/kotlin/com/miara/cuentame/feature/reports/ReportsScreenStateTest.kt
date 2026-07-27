@@ -79,6 +79,7 @@ class ReportsScreenStateTest {
             currencyCode = "USD",
             localeTag = "en-US",
             selectedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
+            loadedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
             report = ReportsUiModel(
                 inventory = ReportsInventoryUiModel(BigDecimal("1234.56"), 8, 10, BigDecimal("80.0"), 2),
                 purchases = DashboardMetricUiModel(BigDecimal("500"), BigDecimal("400"), BigDecimal("100"), BigDecimal("25"), MetricComparisonState.INCREASE),
@@ -177,6 +178,7 @@ class ReportsScreenStateTest {
             currencyCode = "USD",
             localeTag = "en-US",
             selectedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
+            loadedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
             report = ReportsUiModel(
                 inventory = ReportsInventoryUiModel(BigDecimal.ZERO, 0, 0, null, 0),
                 purchases = DashboardMetricUiModel(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, MetricComparisonState.NO_CHANGE),

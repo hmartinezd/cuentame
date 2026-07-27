@@ -37,8 +37,22 @@ class InventoryDetailViewModel @Inject constructor(
                         report = report
                     ) as DetailReportScreenState<InventoryDetailReport>
                 }
-                .onStart { emit(DetailReportScreenState.Loading) }
-                .catch { emit(DetailReportScreenState.Error(it)) }
+                .onStart {
+                    val current = uiState.value
+                    if (current is DetailReportScreenState.Ready) {
+                        emit(current.copy(isRefreshing = true, refreshError = false))
+                    } else {
+                        emit(DetailReportScreenState.Loading)
+                    }
+                }
+                .catch { cause ->
+                    val current = uiState.value
+                    if (current is DetailReportScreenState.Ready) {
+                        emit(current.copy(isRefreshing = false, refreshError = true))
+                    } else {
+                        emit(DetailReportScreenState.Error(cause))
+                    }
+                }
         }
     }.stateIn(
         scope = viewModelScope,

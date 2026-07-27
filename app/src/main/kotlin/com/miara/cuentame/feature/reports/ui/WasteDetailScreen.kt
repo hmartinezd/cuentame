@@ -28,17 +28,20 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
+import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+import com.miara.cuentame.feature.waste.ui.toLabelRes
+
 @Composable
 fun WasteDetailRoute(
     modifier: Modifier = Modifier,
     viewModel: WasteDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
 
     WasteDetailScreen(
         uiState = uiState,
-        selectedRange = selectedRange,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
         modifier = modifier
@@ -48,7 +51,6 @@ fun WasteDetailRoute(
 @Composable
 fun WasteDetailScreen(
     uiState: DetailReportScreenState<WasteDetailReport>,
-    selectedRange: DashboardDateRange,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
@@ -61,8 +63,8 @@ fun WasteDetailScreen(
             is DetailReportScreenState.Ready -> {
                 WasteDetailContent(
                     state = uiState,
-                    selectedRange = selectedRange,
-                    onRangeSelected = onRangeSelected
+                    onRangeSelected = onRangeSelected,
+                    onRetry = onRetry
                 )
             }
         }
@@ -72,13 +74,15 @@ fun WasteDetailScreen(
 @Composable
 private fun WasteDetailContent(
     state: DetailReportScreenState.Ready<WasteDetailReport>,
-    selectedRange: DashboardDateRange,
-    onRangeSelected: (DashboardDateRange) -> Unit
+    onRangeSelected: (DashboardDateRange) -> Unit,
+    onRetry: () -> Unit
 ) {
     val locale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    val scrollState = rememberLazyListState()
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("waste_report_list"),
+        state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -91,11 +95,22 @@ private fun WasteDetailContent(
         }
 
         item {
-            RangeSelector(
-                selected = selectedRange,
-                onSelected = onRangeSelected,
-                testTag = "waste_report_range_selector"
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RangeSelector(
+                    selected = state.selectedRange ?: DashboardDateRange.LAST_30_DAYS,
+                    onSelected = onRangeSelected,
+                    testTag = "waste_report_range_selector"
+                )
+                if (state.isRefreshing) {
+                    RefreshIndicator(testTag = "waste_report_refreshing")
+                }
+                if (state.refreshError) {
+                    RefreshErrorBanner(
+                        testTag = "waste_report_refresh_error",
+                        onRetry = onRetry
+                    )
+                }
+            }
         }
 
         item {
@@ -154,8 +169,17 @@ private fun WasteDetailRow(
     val formattedDateTime = dateTimeFormatter.format(item.timestamp)
     val formattedQuantity = Formatters.formatQuantity(item.quantityBase, item.baseUnitSymbol)
     val formattedValue = Formatters.formatCurrency(item.historicalValue, currencyCode, locale)
+    val reasonLabel = stringResource(item.reason.toLabelRes())
     
-    val semanticsDesc = "${item.ingredientName}. Area: ${item.areaName}. Reason: ${item.reason}. Quantity: $formattedQuantity. Value: $formattedValue. Date: $formattedDateTime"
+    val semanticsDesc = stringResource(
+        R.string.waste_row_semantics,
+        item.ingredientName,
+        item.areaName,
+        reasonLabel,
+        formattedQuantity,
+        formattedValue,
+        formattedDateTime
+    ) + (item.notes?.let { stringResource(R.string.waste_row_notes_semantics, it) } ?: "")
 
     Card(
         modifier = Modifier
@@ -177,7 +201,7 @@ private fun WasteDetailRow(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text(stringResource(R.string.area_label) + ": " + item.areaName, style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.reason_label) + ": " + item.reason, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.reason_label) + ": " + reasonLabel, style = MaterialTheme.typography.bodySmall)
                 }
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                     Text(formattedQuantity, style = MaterialTheme.typography.bodySmall)
@@ -196,6 +220,7 @@ private fun WasteDetailRow(
         }
     }
 }
+
 
 @Composable
 private fun RangeSelector(

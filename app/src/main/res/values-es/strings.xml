@@ -215,6 +215,17 @@
     <string name="area_label">Área</string>
     <string name="reason_label">Razón</string>
     <string name="notes_label">Notas</string>
+    <string name="updating_report">Actualizando informe</string>
+    <string name="updating_dashboard">Actualizando panel</string>
+    <string name="refresh_error_message">No se pudo actualizar el informe. Se muestran los resultados anteriores.</string>
+    <string name="refresh_error_dashboard">No se pudo actualizar el panel. Se muestran los resultados anteriores.</string>
+
+    <string name="inventory_row_semantics">%1$s. Cantidad: %2$s. Costo: %3$s. Valor: %4$s</string>
+    <string name="inventory_row_missing_cost_warning">. Falta costo actual</string>
+    <string name="inventory_row_negative_areas_warning">. %1$d saldos de área negativos</string>
+    <string name="purchase_row_semantics">%1$s. Fecha: %2$s. Líneas: %3$d. Total: %4$s. Estado: %5$s</string>
+    <string name="waste_row_semantics">%1$s. Área: %2$s. Razón: %3$s. Cantidad: %4$s. Valor: %5$s. Fecha: %6$s</string>
+    <string name="waste_row_notes_semantics">. Notas: %1$s</string>
 
     <!-- Accessibility -->
     <string name="move_up">Mover %1$s arriba</string>

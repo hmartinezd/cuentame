@@ -18,7 +18,7 @@ interface InventoryProjectionDao {
             icp.averageUnitCostBase,
             ibp.areaId
         FROM inventory_balance_projection ibp
-        JOIN ingredients i ON ibp.ingredientId = i.id
+        JOIN ingredients i ON ibp.ingredientId = i.id AND i.restaurantId = ibp.restaurantId
         JOIN units u ON i.baseUnitId = u.id
         LEFT JOIN ingredient_cost_projection icp 
             ON ibp.restaurantId = icp.restaurantId 

@@ -154,4 +154,82 @@ class DetailedReportsUiTest {
             .assertTextContains("$50.00", substring = true)
         composeTestRule.onNodeWithTag("waste_report_item_w1").assertIsDisplayed()
     }
+
+    @Test
+    fun purchaseDetail_rangeRefresh_noFlicker() {
+        runBlocking {
+            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", restId, null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
+        }
+
+        navigateToReports()
+        val scrollable = composeTestRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasTestTag("reports_view_purchase_details"))
+        composeTestRule.onNodeWithTag("reports_view_purchase_details").performClick()
+
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodes(hasTestTag("purchase_report_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // 1. Initial data visible
+        composeTestRule.onNodeWithTag("purchase_report_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("purchase_report_item_p1").assertIsDisplayed()
+
+        // 2. Change range
+        composeTestRule.onNodeWithTag("purchase_report_range_7").performClick()
+
+        // 3. Verify elements remain (proving no full-screen flicker)
+        composeTestRule.onNodeWithTag("purchase_report_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("purchase_report_range_selector").assertIsDisplayed()
+        
+        // 4. Verify full-screen loading does NOT appear
+        composeTestRule.onNodeWithTag("purchase_report_loading").assertDoesNotExist()
+
+        // 5. Wait for refresh to complete
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("purchase_report_item_p1").assertIsDisplayed()
+    }
+
+    @Test
+    fun wasteDetail_rangeRefresh_noFlicker() {
+        runBlocking {
+            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+
+            val waste = WasteEventEntity("w1", restId, "ing-1", "area-1", "opt-1", "10", "1", "SPOILED", testNow.toEpochMilli(), null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null)
+            db.wasteDao().insert(waste)
+            
+            val movement = InventoryMovementEntity("m1", restId, "ing-1", "area-1", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 0L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L)
+            db.inventoryMovementDao().insert(movement)
+        }
+
+        navigateToReports()
+        val scrollable = composeTestRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasTestTag("reports_view_waste_details"))
+        composeTestRule.onNodeWithTag("reports_view_waste_details").performClick()
+
+        composeTestRule.waitUntil(10_000) {
+            composeTestRule.onAllNodes(hasTestTag("waste_report_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // 1. Initial data visible
+        composeTestRule.onNodeWithTag("waste_report_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("waste_report_item_w1").assertIsDisplayed()
+
+        // 2. Change range
+        composeTestRule.onNodeWithTag("waste_report_range_7").performClick()
+
+        // 3. Verify elements remain (proving no full-screen flicker)
+        composeTestRule.onNodeWithTag("waste_report_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("waste_report_range_selector").assertIsDisplayed()
+        
+        // 4. Verify full-screen loading does NOT appear
+        composeTestRule.onNodeWithTag("waste_report_loading").assertDoesNotExist()
+
+        // 5. Wait for refresh to complete
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("waste_report_item_w1").assertIsDisplayed()
+    }
 }

@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.home
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
@@ -169,6 +170,42 @@ class HomeUiTest {
             composeTestRule.waitUntil(20_000) {
                 composeTestRule.onAllNodes(hasTestTag("waste_form_screen")).fetchSemanticsNodes().isNotEmpty()
             }
+        }
+    }
+
+    @Test
+    fun dashboard_rangeRefresh_noFlicker() {
+        seedReadyState("Flicker Test")
+        runBlocking {
+            db.ingredientDao().insert(IngredientEntity("ing-1", "rest-1", "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "rest-1", null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(20_000) {
+                composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            // 1. Initial data visible
+            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
+            
+            // 2. Change range
+            composeTestRule.onNodeWithTag("home_range_7").performClick()
+
+            // 3. Verify elements remain (proving no full-screen flicker)
+            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("home_date_range_selector").assertIsDisplayed()
+            
+            // 4. Verify full-screen loading does NOT appear after being Ready
+            composeTestRule.onNodeWithTag("home_loading").assertDoesNotExist()
+
+            // 5. Wait for refresh to complete (if it hasn't already)
+            composeTestRule.waitForIdle()
+            
+            // Verify new data can be loaded
+            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
         }
     }
 }

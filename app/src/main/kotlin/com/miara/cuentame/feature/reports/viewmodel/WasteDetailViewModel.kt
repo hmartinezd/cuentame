@@ -48,11 +48,27 @@ class WasteDetailViewModel @Inject constructor(
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
-                        report = report
+                        report = report,
+                        selectedRange = range,
+                        loadedRange = range
                     ) as DetailReportScreenState<WasteDetailReport>
                 }
-                .onStart { emit(DetailReportScreenState.Loading) }
-                .catch { emit(DetailReportScreenState.Error(it)) }
+                .onStart {
+                    val current = uiState.value
+                    if (current is DetailReportScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = true, refreshError = false))
+                    } else {
+                        emit(DetailReportScreenState.Loading)
+                    }
+                }
+                .catch { cause ->
+                    val current = uiState.value
+                    if (current is DetailReportScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = false, refreshError = true))
+                    } else {
+                        emit(DetailReportScreenState.Error(cause))
+                    }
+                }
         }
     }.stateIn(
         scope = viewModelScope,

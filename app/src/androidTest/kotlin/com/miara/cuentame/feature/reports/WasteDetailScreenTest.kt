@@ -11,6 +11,7 @@ import com.miara.cuentame.core.model.dashboard.WasteDetailItem
 import com.miara.cuentame.core.model.dashboard.WasteDetailReport
 import com.miara.cuentame.feature.reports.ui.WasteDetailScreen
 import com.miara.cuentame.feature.reports.viewmodel.DetailReportScreenState
+import com.miara.cuentame.core.model.inventory.WasteReason
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,7 +39,7 @@ class WasteDetailScreenTest {
                         ingredientId = IngredientId("ing1"),
                         ingredientName = "Chicken",
                         areaName = "Freezer",
-                        reason = "SPOILED",
+                        reason = WasteReason.SPOILED,
                         timestamp = now,
                         quantityBase = BigDecimal("10.0"),
                         baseUnitSymbol = "lb",
@@ -49,13 +50,14 @@ class WasteDetailScreenTest {
                 period = period,
                 totalWasteValue = BigDecimal("50.00"),
                 recordCount = 1
-            )
+            ),
+            selectedRange = DashboardDateRange.LAST_30_DAYS,
+            loadedRange = DashboardDateRange.LAST_30_DAYS
         )
 
         composeTestRule.setContent {
             WasteDetailScreen(
                 uiState = readyState,
-                selectedRange = DashboardDateRange.LAST_30_DAYS,
                 onRangeSelected = {},
                 onRetry = {}
             )
@@ -71,7 +73,7 @@ class WasteDetailScreenTest {
         row.assertTextContains("Chicken", substring = true)
         row.assertTextContains("$50.00", substring = true)
         row.assertTextContains("Freezer", substring = true)
-        row.assertTextContains("SPOILED", substring = true)
+        row.assertTextContains("SPOILED", substring = true, ignoreCase = true)
         row.assertTextContains("10 lb", substring = true)
         row.assertTextContains("Smells bad", substring = true)
     }

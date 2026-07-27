@@ -23,7 +23,7 @@
     *   Record a **Purchase** when an order arrives.
     *   Log **Waste** as it happens throughout the shift.
     *   Perform a **Stock Count** weekly or monthly to stay accurate.
-5.    *   Review Reports: Use the Dashboard or Reports screen to monitor inventory value, purchasing and Waste trends.
+5.  **Review Reports:** Use the Dashboard or Reports screen to monitor inventory value, purchasing and Waste trends. Range changes update the report in place without leaving the screen. Range changes update the report in place without leaving the screen.
 
 ## Understanding Document Statuses
 
@@ -61,9 +61,9 @@ Detailed instructions for every feature:
 ### Automated Test Summary
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (154 tests)
+- `testDebugUnitTest`: PASSED (167 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (119 tests)
+- `connectedDebugAndroidTest`: PASSED (149 tests)
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.

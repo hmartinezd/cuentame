@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -26,16 +27,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Straighten
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -55,6 +47,8 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
+import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
+import com.miara.cuentame.feature.reports.ui.RefreshIndicator
 import java.time.format.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -116,7 +110,6 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(stringResource(R.string.setup_required_title), style = MaterialTheme.typography.headlineSmall)
                         Text(stringResource(R.string.setup_required_desc), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                        // Navigation handled by app-start logic usually, but keep a non-interactive state as per plan
                     }
                 }
             }
@@ -137,6 +130,7 @@ fun HomeScreen(
                 DashboardContent(
                     state = uiState,
                     onRangeSelected = onRangeSelected,
+                    onRetry = onRetry,
                     onLogWaste = onLogWaste,
                     onViewWaste = onViewWaste,
                     onNewPurchase = onNewPurchase,
@@ -152,6 +146,7 @@ fun HomeScreen(
 private fun DashboardContent(
     state: HomeScreenState.Ready,
     onRangeSelected: (DashboardDateRange) -> Unit,
+    onRetry: () -> Unit,
     onLogWaste: () -> Unit,
     onViewWaste: () -> Unit,
     onNewPurchase: () -> Unit,
@@ -159,9 +154,11 @@ private fun DashboardContent(
     onViewReports: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    val scrollState = rememberLazyListState()
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
@@ -170,7 +167,22 @@ private fun DashboardContent(
         }
         
         item {
-            RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+                if (state.isRefreshing) {
+                    RefreshIndicator(
+                        testTag = "home_refreshing",
+                        label = stringResource(R.string.updating_dashboard)
+                    )
+                }
+                if (state.refreshError) {
+                    RefreshErrorBanner(
+                        testTag = "home_refresh_error",
+                        onRetry = onRetry,
+                        message = stringResource(R.string.refresh_error_dashboard)
+                    )
+                }
+            }
         }
 
         item {

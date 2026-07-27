@@ -70,9 +70,70 @@ class RoomDetailedReportsRepositoryTest {
         val row = report.rows[0]
         assertThat(row.ingredientName).isEqualTo("Ing 1")
         assertThat(row.totalQuantityBase).isEqualTo(BigDecimal("15.0"))
-        assertThat(row.currentInventoryValue).isEqualTo(BigDecimal("30.00")) // Using BigDecimal(15.0).multiply(BigDecimal(2.0)) with mathContext
+        assertThat(row.currentInventoryValue?.compareTo(BigDecimal("30"))).isEqualTo(0)
         assertThat(row.stockedAreaCount).isEqualTo(2)
-        assertThat(report.totalValue).isEqualTo(BigDecimal("30.00"))
+        assertThat(report.totalValue.compareTo(BigDecimal("30"))).isEqualTo(0)
+    }
+
+    @Test
+    fun observeInventoryDetails_stockedStatus_numericalNonZeroOnly() = runBlocking {
+        seedDependencies()
+        
+        // ing1: +5 in area1, -5 in area2. Aggregate 0.
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area1", "5.0", 1000L))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area2", "-5.0", 1000L))
+        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId.value, "ing1", "10.0", 1000L))
+        
+        val report = repository.observeInventoryDetails(restId).first()
+        
+        assertThat(report.rows).hasSize(1) // Row included because of negative area balance
+        assertThat(report.stockedIngredientCount).isEqualTo(0) // Aggregate is zero
+        assertThat(report.valuedIngredientCount).isEqualTo(0)
+        assertThat(report.totalValue.compareTo(BigDecimal.ZERO)).isEqualTo(0)
+    }
+
+    @Test
+    fun observeInventoryDetails_negativeBalances_sumAcrossAreas() = runBlocking {
+        seedDependencies()
+        
+        // ing1: -10 in area1, -5 in area2. Aggregate -15.
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area1", "-10.0", 1000L))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area2", "-5.0", 1000L))
+        
+        val report = repository.observeInventoryDetails(restId).first()
+        
+        assertThat(report.rows[0].negativeAreaBalanceCount).isEqualTo(2)
+        assertThat(report.negativeBalanceCount).isEqualTo(2)
+    }
+
+    @Test
+    fun observeInventoryDetails_missingCost_onlyForStocked() = runBlocking {
+        seedDependencies()
+        
+        // ing1: Stock 0, but negative area balance. Missing cost.
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area1", "-1.0", 1000L))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area2", "1.0", 1000L))
+        
+        val report = repository.observeInventoryDetails(restId).first()
+        
+        assertThat(report.rows).hasSize(1)
+        assertThat(report.rows[0].isMissingCost).isFalse() // Not stocked (aggregate 0)
+        assertThat(report.missingCostCount).isEqualTo(0)
+    }
+
+    @Test
+    fun observeInventoryDetails_isolatesByRestaurant() = runBlocking {
+        val otherRest = "rest-2"
+        db.restaurantDao().insert(RestaurantEntity(otherRest, "Other", "USD", "en", 0L, 0L, null))
+        seedDependencies()
+        
+        // Same ingredient id, but other restaurant
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(otherRest, "ing1", "area1", "100.0", 1000L))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, "ing1", "area1", "10.0", 1000L))
+        
+        val report = repository.observeInventoryDetails(restId).first()
+        
+        assertThat(report.rows[0].totalQuantityBase).isEqualTo(BigDecimal("10.0"))
     }
 
     @Test

@@ -57,18 +57,38 @@ class WasteDetailViewModelTest {
     }
 
     @Test
-    fun `Ready state when repository success`() = runTest {
+    fun `range change triggers refreshing state`() = runTest {
         restaurantFlow.value = restaurant
-        val report = WasteDetailReport(emptyList(), period, BigDecimal.ZERO, 0)
-        every { detailedReportsRepository.observeWasteDetails(any(), any()) } returns flowOf(report)
+        val flow30 = MutableSharedFlow<WasteDetailReport>(replay = 1)
+        val flow90 = MutableSharedFlow<WasteDetailReport>(replay = 1)
+        
+        every { detailedReportsRepository.observeWasteDetails(any(), any()) } answers {
+            val p = arg<ReportingPeriod>(1)
+            if (p.startInclusive == periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS).current.startInclusive) flow30
+            else flow90
+        }
 
         val viewModel = WasteDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
             
-            val state = awaitItem() as DetailReportScreenState.Ready
-            assertThat(state.report.totalWasteValue).isEqualTo(BigDecimal.ZERO)
+            // 1. Initial load
+            flow30.emit(WasteDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
+            var item = awaitItem()
+            while (item !is DetailReportScreenState.Ready) item = awaitItem()
+            
+            // 2. Change range
+            viewModel.onRangeSelected(DashboardDateRange.LAST_90_DAYS)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            val refreshing = awaitItem() as DetailReportScreenState.Ready
+            assertThat(refreshing.isRefreshing).isTrue()
+            
+            // 3. New data arrives
+            flow90.emit(WasteDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
+            val ready = awaitItem() as DetailReportScreenState.Ready
+            assertThat(ready.isRefreshing).isFalse()
         }
     }
 

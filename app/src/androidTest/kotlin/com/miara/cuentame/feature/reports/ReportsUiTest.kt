@@ -298,4 +298,36 @@ class ReportsUiTest {
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
+
+    @Test
+    fun reportsOverview_rangeRefresh_noFlicker() {
+        seedReadyState("Flicker Test")
+        runBlocking {
+            db.ingredientDao().insert(IngredientEntity("ing-1", "rest-1", "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "rest-1", null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
+        }
+
+        ActivityScenario.launch<MainActivity>(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("nav_reports").performClick()
+            composeTestRule.waitForTag("reports_screen")
+
+            // 1. Initial data visible
+            composeTestRule.onNodeWithTag("reports_header").assertIsDisplayed()
+            
+            // 2. Change range
+            composeTestRule.onNodeWithTag("reports_range_7").performClick()
+
+            // 3. Verify elements remain (proving no full-screen flicker)
+            composeTestRule.onNodeWithTag("reports_header").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("reports_date_range_selector").assertIsDisplayed()
+            
+            // 4. Verify full-screen loading does NOT appear
+            composeTestRule.onNodeWithTag("reports_loading").assertDoesNotExist()
+
+            // 5. Wait for refresh to complete
+            composeTestRule.waitForIdle()
+        }
+    }
 }

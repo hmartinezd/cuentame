@@ -44,13 +44,14 @@ class PurchaseDetailScreenTest {
                 period = period,
                 totalSpend = BigDecimal("500.00"),
                 recordCount = 1
-            )
+            ),
+            selectedRange = DashboardDateRange.LAST_30_DAYS,
+            loadedRange = DashboardDateRange.LAST_30_DAYS
         )
 
         composeTestRule.setContent {
             PurchaseDetailScreen(
                 uiState = readyState,
-                selectedRange = DashboardDateRange.LAST_30_DAYS,
                 onRangeSelected = {},
                 onRetry = {}
             )
@@ -78,13 +79,14 @@ class PurchaseDetailScreenTest {
             restaurantName = "Test Rest",
             currencyCode = "USD",
             localeTag = "en-US",
-            report = PurchaseDetailReport(emptyList(), ReportingPeriod(Instant.now(), Instant.now()), BigDecimal.ZERO, 0)
+            report = PurchaseDetailReport(emptyList(), ReportingPeriod(Instant.now(), Instant.now()), BigDecimal.ZERO, 0),
+            selectedRange = DashboardDateRange.LAST_30_DAYS,
+            loadedRange = DashboardDateRange.LAST_30_DAYS
         )
 
         composeTestRule.setContent {
             PurchaseDetailScreen(
                 uiState = readyState,
-                selectedRange = DashboardDateRange.LAST_30_DAYS,
                 onRangeSelected = { selectedRange = it },
                 onRetry = {}
             )

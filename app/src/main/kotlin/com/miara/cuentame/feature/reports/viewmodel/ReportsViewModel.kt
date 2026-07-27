@@ -25,7 +25,10 @@ sealed interface ReportsScreenState {
         val currencyCode: String,
         val localeTag: String,
         val selectedRange: DashboardDateRange,
-        val report: ReportsUiModel
+        val loadedRange: DashboardDateRange,
+        val report: ReportsUiModel,
+        val isRefreshing: Boolean = false,
+        val refreshError: Boolean = false
     ) : ReportsScreenState
     data class Error(
         val selectedRange: DashboardDateRange,
@@ -62,11 +65,26 @@ class ReportsViewModel @Inject constructor(
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
                         selectedRange = range,
+                        loadedRange = range,
                         report = mapToUiModel(snapshot)
                     ) as ReportsScreenState
                 }
-                .onStart { emit(ReportsScreenState.Loading) }
-                .catch { emit(ReportsScreenState.Error(range, it)) }
+                .onStart {
+                    val current = uiState.value
+                    if (current is ReportsScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = true, refreshError = false))
+                    } else {
+                        emit(ReportsScreenState.Loading)
+                    }
+                }
+                .catch { cause ->
+                    val current = uiState.value
+                    if (current is ReportsScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = false, refreshError = true))
+                    } else {
+                        emit(ReportsScreenState.Error(range, cause))
+                    }
+                }
         }
     }.stateIn(
         scope = viewModelScope,

@@ -81,23 +81,42 @@ class PurchaseDetailViewModelTest {
     }
 
     @Test
-    fun `range change triggers new report`() = runTest {
+    fun `range change triggers refreshing state`() = runTest {
         restaurantFlow.value = restaurant
-        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } returns flowOf(
-            PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0)
-        )
+        val flow30 = MutableSharedFlow<PurchaseDetailReport>(replay = 1)
+        val flow90 = MutableSharedFlow<PurchaseDetailReport>(replay = 1)
+        
+        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } answers {
+            val p = arg<ReportingPeriod>(1)
+            // Use startInclusive to distinguish
+            if (p.startInclusive == periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS).current.startInclusive) flow30
+            else flow90
+        }
 
         val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
-            awaitItem() // Ready
             
+            // 1. Initial load (30 days)
+            flow30.emit(PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
+            var item = awaitItem()
+            while (item !is DetailReportScreenState.Ready) item = awaitItem()
+            assertThat((item as DetailReportScreenState.Ready).isRefreshing).isFalse()
+            
+            // 2. Change range
             viewModel.onRangeSelected(DashboardDateRange.LAST_90_DAYS)
             testDispatcher.scheduler.advanceUntilIdle()
             
-            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
-            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Ready::class.java)
+            val refreshing = awaitItem() as DetailReportScreenState.Ready
+            assertThat(refreshing.isRefreshing).isTrue()
+            assertThat(refreshing.selectedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+            
+            // 3. New data arrives
+            flow90.emit(PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
+            val ready = awaitItem() as DetailReportScreenState.Ready
+            assertThat(ready.isRefreshing).isFalse()
+            assertThat(ready.loadedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
         }
     }
 

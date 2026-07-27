@@ -28,17 +28,19 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
+import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+
 @Composable
 fun PurchaseDetailRoute(
     modifier: Modifier = Modifier,
     viewModel: PurchaseDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
 
     PurchaseDetailScreen(
         uiState = uiState,
-        selectedRange = selectedRange,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
         modifier = modifier
@@ -48,7 +50,6 @@ fun PurchaseDetailRoute(
 @Composable
 fun PurchaseDetailScreen(
     uiState: DetailReportScreenState<PurchaseDetailReport>,
-    selectedRange: DashboardDateRange,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
@@ -61,8 +62,8 @@ fun PurchaseDetailScreen(
             is DetailReportScreenState.Ready -> {
                 PurchaseDetailContent(
                     state = uiState,
-                    selectedRange = selectedRange,
-                    onRangeSelected = onRangeSelected
+                    onRangeSelected = onRangeSelected,
+                    onRetry = onRetry
                 )
             }
         }
@@ -72,13 +73,15 @@ fun PurchaseDetailScreen(
 @Composable
 private fun PurchaseDetailContent(
     state: DetailReportScreenState.Ready<PurchaseDetailReport>,
-    selectedRange: DashboardDateRange,
-    onRangeSelected: (DashboardDateRange) -> Unit
+    onRangeSelected: (DashboardDateRange) -> Unit,
+    onRetry: () -> Unit
 ) {
     val locale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    val scrollState = rememberLazyListState()
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("purchase_report_list"),
+        state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -91,11 +94,22 @@ private fun PurchaseDetailContent(
         }
 
         item {
-            RangeSelector(
-                selected = selectedRange,
-                onSelected = onRangeSelected,
-                testTag = "purchase_report_range_selector"
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RangeSelector(
+                    selected = state.selectedRange ?: DashboardDateRange.LAST_30_DAYS,
+                    onSelected = onRangeSelected,
+                    testTag = "purchase_report_range_selector"
+                )
+                if (state.isRefreshing) {
+                    RefreshIndicator(testTag = "purchase_report_refreshing")
+                }
+                if (state.refreshError) {
+                    RefreshErrorBanner(
+                        testTag = "purchase_report_refresh_error",
+                        onRetry = onRetry
+                    )
+                }
+            }
         }
 
         item {
@@ -154,8 +168,16 @@ private fun PurchaseDetailRow(
     val formattedDate = dateFormatter.format(item.purchaseDate)
     val formattedTotal = Formatters.formatCurrency(item.total, currencyCode, locale)
     val supplierName = item.supplierName.takeIf { !it.isNullOrBlank() } ?: stringResource(R.string.activity_type_purchase)
+    val statusLabel = stringResource(R.string.activity_status_posted)
     
-    val semanticsDesc = "$supplierName. Date: $formattedDate. Lines: ${item.lineCount}. Total: $formattedTotal. Status: ${stringResource(R.string.activity_status_posted)}"
+    val semanticsDesc = stringResource(
+        R.string.purchase_row_semantics,
+        supplierName,
+        formattedDate,
+        item.lineCount,
+        formattedTotal,
+        statusLabel
+    )
 
     Card(
         modifier = Modifier
@@ -182,7 +204,7 @@ private fun PurchaseDetailRow(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                stringResource(R.string.activity_status_posted),
+                statusLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold
@@ -190,6 +212,7 @@ private fun PurchaseDetailRow(
         }
     }
 }
+
 
 @Composable
 private fun RangeSelector(

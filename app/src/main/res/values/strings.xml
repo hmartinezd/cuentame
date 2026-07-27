@@ -215,6 +215,17 @@
     <string name="area_label">Area</string>
     <string name="reason_label">Reason</string>
     <string name="notes_label">Notes</string>
+    <string name="updating_report">Updating report</string>
+    <string name="updating_dashboard">Updating dashboard</string>
+    <string name="refresh_error_message">The report could not be updated. Showing previous results.</string>
+    <string name="refresh_error_dashboard">The dashboard could not be updated. Showing previous results.</string>
+
+    <string name="inventory_row_semantics">%1$s. Quantity: %2$s. Cost: %3$s. Value: %4$s</string>
+    <string name="inventory_row_missing_cost_warning">. Missing current cost</string>
+    <string name="inventory_row_negative_areas_warning">. %1$d negative area balances</string>
+    <string name="purchase_row_semantics">%1$s. Date: %2$s. Lines: %3$d. Total: %4$s. Status: %5$s</string>
+    <string name="waste_row_semantics">%1$s. Area: %2$s. Reason: %3$s. Quantity: %4$s. Value: %5$s. Date: %6$s</string>
+    <string name="waste_row_notes_semantics">. Notes: %1$s</string>
 
     <!-- Accessibility -->
     <string name="move_up">Move %1$s up</string>

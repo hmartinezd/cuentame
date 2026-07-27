@@ -93,6 +93,7 @@ class HomeScreenStateTest {
             currencyCode = "USD",
             localeTag = "en-US",
             selectedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
+            loadedRange = com.miara.cuentame.core.model.dashboard.DashboardDateRange.LAST_30_DAYS,
             dashboard = com.miara.cuentame.feature.home.DashboardUiModel(
                 inventoryValue = BigDecimal("1000.00"),
                 valuedIngredientCount = 10,

@@ -26,6 +26,10 @@ import com.miara.cuentame.feature.reports.viewmodel.DetailReportScreenState
 import com.miara.cuentame.feature.reports.viewmodel.InventoryDetailViewModel
 import java.util.*
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
+import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+
 @Composable
 fun InventoryDetailRoute(
     modifier: Modifier = Modifier,
@@ -52,7 +56,10 @@ fun InventoryDetailScreen(
             is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("inventory_report_setup_required")
             is DetailReportScreenState.Error -> DetailReportError("inventory_report_error", onRetry)
             is DetailReportScreenState.Ready -> {
-                InventoryDetailContent(state = uiState)
+                InventoryDetailContent(
+                    state = uiState,
+                    onRetry = onRetry
+                )
             }
         }
     }
@@ -60,12 +67,15 @@ fun InventoryDetailScreen(
 
 @Composable
 private fun InventoryDetailContent(
-    state: DetailReportScreenState.Ready<InventoryDetailReport>
+    state: DetailReportScreenState.Ready<InventoryDetailReport>,
+    onRetry: () -> Unit
 ) {
     val locale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    val scrollState = rememberLazyListState()
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("inventory_report_list"),
+        state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -75,6 +85,18 @@ private fun InventoryDetailContent(
                 reportTitle = stringResource(R.string.inventory_detail_title),
                 testTag = "inventory_report_header"
             )
+        }
+
+        item {
+            if (state.isRefreshing) {
+                RefreshIndicator(testTag = "inventory_report_refreshing")
+            }
+            if (state.refreshError) {
+                RefreshErrorBanner(
+                    testTag = "inventory_report_refresh_error",
+                    onRetry = onRetry
+                )
+            }
         }
 
         item {
@@ -157,9 +179,14 @@ private fun InventoryDetailRow(
     val formattedCost = item.currentAverageCost?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_applicable)
     val formattedValue = item.currentInventoryValue?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_applicable)
     
-    val semanticsDesc = "${item.ingredientName}. Quantity: $formattedQuantity. Cost: $formattedCost. Value: $formattedValue" +
-            (if (item.isMissingCost) ". " + stringResource(R.string.missing_current_cost_label) else "") +
-            (if (item.negativeAreaBalanceCount > 0) ". " + stringResource(R.string.negative_area_balances_label) else "")
+    val semanticsDesc = stringResource(
+        R.string.inventory_row_semantics,
+        item.ingredientName,
+        formattedQuantity,
+        formattedCost,
+        formattedValue
+    ) + (if (item.isMissingCost) stringResource(R.string.inventory_row_missing_cost_warning) else "") +
+        (if (item.negativeAreaBalanceCount > 0) stringResource(R.string.inventory_row_negative_areas_warning, item.negativeAreaBalanceCount) else "")
 
     Card(
         modifier = Modifier
@@ -203,3 +230,4 @@ private fun InventoryDetailRow(
         }
     }
 }
+

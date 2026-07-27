@@ -25,10 +25,10 @@ interface InventoryMovementDao {
             im.totalValueSnapshot,
             we.notes
         FROM inventory_movements im
-        JOIN waste_events we ON im.sourceDocumentId = we.id
-        JOIN ingredients i ON im.ingredientId = i.id
+        JOIN waste_events we ON im.sourceDocumentId = we.id AND we.restaurantId = im.restaurantId
+        JOIN ingredients i ON im.ingredientId = i.id AND i.restaurantId = im.restaurantId
         JOIN units u ON i.baseUnitId = u.id
-        JOIN inventory_areas ia ON im.areaId = ia.id
+        JOIN inventory_areas ia ON im.areaId = ia.id AND ia.restaurantId = im.restaurantId
         WHERE im.restaurantId = :restaurantId
         AND im.sourceDocumentType = 'WASTE_EVENT'
         AND im.movementType = 'WASTE'

@@ -4,6 +4,7 @@ import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.domain.service.ReportingPeriod
+import com.miara.cuentame.core.model.inventory.WasteReason
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -56,7 +57,7 @@ data class WasteDetailItem(
     val ingredientId: IngredientId,
     val ingredientName: String,
     val areaName: String,
-    val reason: String,
+    val reason: WasteReason,
     val timestamp: Instant,
     val quantityBase: BigDecimal,
     val baseUnitSymbol: String,

@@ -115,29 +115,74 @@ class HomeViewModelTest {
             flow30.emit(createEmptySnapshot().copy(negativeBalanceCount = 30))
             var item = awaitItem()
             while (item is HomeScreenState.Loading) item = awaitItem()
-            assertThat((item as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
-            assertThat(item.dashboard.negativeBalanceCount).isEqualTo(30)
+            val initialReady = item as HomeScreenState.Ready
+            assertThat(initialReady.selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(initialReady.dashboard.negativeBalanceCount).isEqualTo(30)
             
             // 2. Switch to 7 days
             viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
             testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
+            
+            // Should emit Ready(isRefreshing = true) instead of Loading
+            val refreshingItem = awaitItem() as HomeScreenState.Ready
+            assertThat(refreshingItem.isRefreshing).isTrue()
+            assertThat(refreshingItem.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(refreshingItem.loadedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
             
             // 3. Emit 7-day snapshot
             flow7.emit(createEmptySnapshot().copy(negativeBalanceCount = 7))
-            item = awaitItem()
-            assertThat((item as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-            assertThat(item.dashboard.negativeBalanceCount).isEqualTo(7)
+            val newItem = awaitItem() as HomeScreenState.Ready
+            assertThat(newItem.isRefreshing).isFalse()
+            assertThat(newItem.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(newItem.loadedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(newItem.dashboard.negativeBalanceCount).isEqualTo(7)
             
             // 4. Emit late 30-day snapshot - SHOULD BE IGNORED
             flow30.emit(createEmptySnapshot().copy(negativeBalanceCount = 999))
             testDispatcher.scheduler.advanceUntilIdle()
             
             // Verify state is still 7 days
-            assertThat((viewModel.uiState.value as HomeScreenState.Ready).selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
-            assertThat((viewModel.uiState.value as HomeScreenState.Ready).dashboard.negativeBalanceCount).isEqualTo(7)
+            val finalState = viewModel.uiState.value as HomeScreenState.Ready
+            assertThat(finalState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(finalState.dashboard.negativeBalanceCount).isEqualTo(7)
             
             expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `refresh failure keeps previous data and shows error`() = runTest {
+        restaurantFlow.value = restaurant
+        
+        val flow30 = MutableSharedFlow<DashboardSnapshot>()
+        val flow7 = flow<DashboardSnapshot> { throw RuntimeException("Refresh fail") }
+        
+        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_30_DAYS) } returns flow30
+        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_7_DAYS) } returns flow7
+
+        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            // 1. Successful initial load
+            flow30.emit(createEmptySnapshot().copy(negativeBalanceCount = 30))
+            awaitItem() // Ready
+            
+            // 2. Switch range (triggers refresh)
+            viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat((awaitItem() as HomeScreenState.Ready).isRefreshing).isTrue()
+            
+            // 3. New range fails
+            val finalItem = awaitItem() as HomeScreenState.Ready
+            assertThat(finalItem.isRefreshing).isFalse()
+            assertThat(finalItem.refreshError).isTrue()
+            // Previous data should still be there
+            assertThat(finalItem.dashboard.negativeBalanceCount).isEqualTo(30)
+            assertThat(finalItem.loadedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(finalItem.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
         }
     }
 

@@ -19,7 +19,10 @@ sealed interface HomeScreenState {
         val currencyCode: String,
         val localeTag: String,
         val selectedRange: DashboardDateRange,
-        val dashboard: DashboardUiModel
+        val loadedRange: DashboardDateRange,
+        val dashboard: DashboardUiModel,
+        val isRefreshing: Boolean = false,
+        val refreshError: Boolean = false
     ) : HomeScreenState
     data class Error(
         val selectedRange: DashboardDateRange,
@@ -56,11 +59,26 @@ class HomeViewModel @Inject constructor(
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
                         selectedRange = range,
+                        loadedRange = range,
                         dashboard = mapToUiModel(snapshot)
                     ) as HomeScreenState
                 }
-                .onStart { emit(HomeScreenState.Loading) }
-                .catch { emit(HomeScreenState.Error(range, it)) }
+                .onStart {
+                    val current = uiState.value
+                    if (current is HomeScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = true, refreshError = false))
+                    } else {
+                        emit(HomeScreenState.Loading)
+                    }
+                }
+                .catch { cause ->
+                    val current = uiState.value
+                    if (current is HomeScreenState.Ready) {
+                        emit(current.copy(selectedRange = range, isRefreshing = false, refreshError = true))
+                    } else {
+                        emit(HomeScreenState.Error(range, cause))
+                    }
+                }
         }
     }.stateIn(
         scope = viewModelScope,
