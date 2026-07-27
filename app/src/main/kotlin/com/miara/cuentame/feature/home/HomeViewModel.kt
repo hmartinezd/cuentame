@@ -2,6 +2,7 @@ package com.miara.cuentame.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.DashboardRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.dashboard.*
@@ -15,6 +16,7 @@ sealed interface HomeScreenState {
     data object Loading : HomeScreenState
     data object SetupRequired : HomeScreenState
     data class Ready(
+        val restaurantId: RestaurantId,
         val restaurantName: String,
         val currencyCode: String,
         val localeTag: String,
@@ -55,6 +57,7 @@ class HomeViewModel @Inject constructor(
             dashboardRepository.observeDashboard(restaurant.id, range)
                 .map { snapshot ->
                     HomeScreenState.Ready(
+                        restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
@@ -65,7 +68,7 @@ class HomeViewModel @Inject constructor(
                 }
                 .onStart {
                     val current = uiState.value
-                    if (current is HomeScreenState.Ready) {
+                    if (current is HomeScreenState.Ready && current.restaurantId == restaurant.id) {
                         emit(current.copy(selectedRange = range, isRefreshing = true, refreshError = false))
                     } else {
                         emit(HomeScreenState.Loading)

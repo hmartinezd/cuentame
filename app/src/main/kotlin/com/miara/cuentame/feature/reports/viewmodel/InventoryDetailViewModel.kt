@@ -2,6 +2,7 @@ package com.miara.cuentame.feature.reports.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.DetailedReportsRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.dashboard.InventoryDetailReport
@@ -31,6 +32,7 @@ class InventoryDetailViewModel @Inject constructor(
             detailedReportsRepository.observeInventoryDetails(restaurant.id)
                 .map { report ->
                     DetailReportScreenState.Ready(
+                        restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
@@ -39,7 +41,7 @@ class InventoryDetailViewModel @Inject constructor(
                 }
                 .onStart {
                     val current = uiState.value
-                    if (current is DetailReportScreenState.Ready) {
+                    if (current is DetailReportScreenState.Ready && current.restaurantId == restaurant.id) {
                         emit(current.copy(isRefreshing = true, refreshError = false))
                     } else {
                         emit(DetailReportScreenState.Loading)
@@ -47,7 +49,7 @@ class InventoryDetailViewModel @Inject constructor(
                 }
                 .catch { cause ->
                     val current = uiState.value
-                    if (current is DetailReportScreenState.Ready) {
+                    if (current is DetailReportScreenState.Ready && current.restaurantId == restaurant.id) {
                         emit(current.copy(isRefreshing = false, refreshError = true))
                     } else {
                         emit(DetailReportScreenState.Error(cause))

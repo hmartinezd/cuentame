@@ -142,6 +142,33 @@ private fun ReportsContent(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+
+                if (state.selectedRange != state.loadedRange) {
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    
+                    val contextMessage = if (state.refreshError) {
+                        stringResource(R.string.refresh_context_error, selectedLabel, loadedLabel)
+                    } else {
+                        stringResource(R.string.refresh_context_updating, loadedLabel, selectedLabel)
+                    }
+                    
+                    Text(
+                        text = contextMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (state.refreshError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 4.dp).testTag("reports_range_context")
+                    )
+                }
+
                 if (state.isRefreshing) {
                     RefreshIndicator(
                         testTag = "reports_refreshing",
@@ -149,10 +176,20 @@ private fun ReportsContent(
                     )
                 }
                 if (state.refreshError) {
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
                     RefreshErrorBanner(
                         testTag = "reports_refresh_error",
                         onRetry = onRetry,
-                        message = stringResource(R.string.refresh_error_message)
+                        message = stringResource(R.string.refresh_context_error, selectedLabel, loadedLabel)
                     )
                 }
             }
@@ -504,7 +541,10 @@ private fun MetricRow(label: String, value: String, testTag: String? = null) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$label: $value"
+            },
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)

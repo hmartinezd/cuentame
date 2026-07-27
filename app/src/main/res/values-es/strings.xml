@@ -219,6 +219,10 @@
     <string name="updating_dashboard">Actualizando panel</string>
     <string name="refresh_error_message">No se pudo actualizar el informe. Se muestran los resultados anteriores.</string>
     <string name="refresh_error_dashboard">No se pudo actualizar el panel. Se muestran los resultados anteriores.</string>
+    <string name="refresh_context_updating">Se muestran los resultados de %1$s mientras se actualiza el informe de %2$s.</string>
+    <string name="refresh_context_error">No se pudo actualizar el informe de %1$s. Se muestran los resultados de %2$s.</string>
+    <string name="refresh_context_updating_dashboard">Se muestra el panel de %1$s mientras se actualiza para %2$s.</string>
+    <string name="refresh_context_error_dashboard">No se pudo actualizar el panel de %1$s. Se muestran los resultados de %2$s.</string>
 
     <string name="inventory_row_semantics">%1$s. Cantidad: %2$s. Costo: %3$s. Valor: %4$s</string>
     <string name="inventory_row_missing_cost_warning">. Falta costo actual</string>

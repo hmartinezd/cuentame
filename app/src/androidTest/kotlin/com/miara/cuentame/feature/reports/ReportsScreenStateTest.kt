@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.reports
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.feature.reports.ui.*
 import com.miara.cuentame.feature.reports.viewmodel.ReportsScreenState
 import com.miara.cuentame.feature.home.DashboardMetricUiModel
@@ -75,6 +76,7 @@ class ReportsScreenStateTest {
     @Test
     fun reportsScreen_ready_displaysAllSections_withValues() {
         val readyState = ReportsScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Restaurant",
             currencyCode = "USD",
             localeTag = "en-US",
@@ -174,6 +176,7 @@ class ReportsScreenStateTest {
     @Test
     fun reportsScreen_ready_empty_displaysZeroStates() {
         val readyState = ReportsScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Empty Restaurant",
             currencyCode = "USD",
             localeTag = "en-US",

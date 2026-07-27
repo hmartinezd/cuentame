@@ -45,6 +45,7 @@ class PurchaseDetailViewModel @Inject constructor(
             detailedReportsRepository.observePurchaseDetails(restaurant.id, period)
                 .map { report ->
                     DetailReportScreenState.Ready(
+                        restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
@@ -55,7 +56,7 @@ class PurchaseDetailViewModel @Inject constructor(
                 }
                 .onStart {
                     val current = uiState.value
-                    if (current is DetailReportScreenState.Ready) {
+                    if (current is DetailReportScreenState.Ready && current.restaurantId == restaurant.id) {
                         emit(current.copy(selectedRange = range, isRefreshing = true, refreshError = false))
                     } else {
                         emit(DetailReportScreenState.Loading)

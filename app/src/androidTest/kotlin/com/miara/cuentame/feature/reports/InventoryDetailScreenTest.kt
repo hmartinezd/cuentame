@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.model.dashboard.InventoryDetailItem
 import com.miara.cuentame.core.model.dashboard.InventoryDetailReport
 import com.miara.cuentame.feature.reports.ui.InventoryDetailScreen
@@ -59,6 +60,7 @@ class InventoryDetailScreenTest {
     @Test
     fun inventoryReport_ready_displaysSummaryAndItems() {
         val readyState = DetailReportScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Rest",
             currencyCode = "USD",
             localeTag = "en-US",
@@ -130,6 +132,7 @@ class InventoryDetailScreenTest {
     @Test
     fun inventoryReport_empty_displaysEmptyMessage() {
         val readyState = DetailReportScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Empty Rest",
             currencyCode = "USD",
             localeTag = "en-US",

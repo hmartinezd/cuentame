@@ -169,6 +169,33 @@ private fun DashboardContent(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
+
+                if (state.selectedRange != state.loadedRange) {
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    
+                    val contextMessage = if (state.refreshError) {
+                        stringResource(R.string.refresh_context_error_dashboard, selectedLabel, loadedLabel)
+                    } else {
+                        stringResource(R.string.refresh_context_updating_dashboard, loadedLabel, selectedLabel)
+                    }
+                    
+                    Text(
+                        text = contextMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (state.refreshError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 4.dp).testTag("home_range_context")
+                    )
+                }
+
                 if (state.isRefreshing) {
                     RefreshIndicator(
                         testTag = "home_refreshing",
@@ -176,10 +203,20 @@ private fun DashboardContent(
                     )
                 }
                 if (state.refreshError) {
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
                     RefreshErrorBanner(
                         testTag = "home_refresh_error",
                         onRetry = onRetry,
-                        message = stringResource(R.string.refresh_error_dashboard)
+                        message = stringResource(R.string.refresh_context_error_dashboard, selectedLabel, loadedLabel)
                     )
                 }
             }
@@ -470,7 +507,15 @@ private fun DataCompletenessSection(state: HomeScreenState.Ready, locale: Locale
 
 @Composable
 private fun DataQualityRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$label: $value"
+            },
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }

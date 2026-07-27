@@ -11,7 +11,7 @@ object ReportDecimalParser {
      * Note: Inventory allows null cost for stocked ingredients, but this helper
      * handles the decimal parsing part.
      */
-    fun parseRequiredPositive(value: String?): BigDecimal {
+    fun parseRequiredNonNegative(value: String?): BigDecimal {
         if (value == null) throw ValidationError.InvalidDecimal
         val decimal = try {
             BigDecimal(value)

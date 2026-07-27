@@ -100,13 +100,53 @@ private fun PurchaseDetailContent(
                     onSelected = onRangeSelected,
                     testTag = "purchase_report_range_selector"
                 )
+                
+                if (state.selectedRange != null && state.loadedRange != null && state.selectedRange != state.loadedRange) {
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                    })
+                    
+                    val contextMessage = if (state.refreshError) {
+                        stringResource(R.string.refresh_context_error, selectedLabel, loadedLabel)
+                    } else {
+                        stringResource(R.string.refresh_context_updating, loadedLabel, selectedLabel)
+                    }
+                    
+                    Text(
+                        text = contextMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (state.refreshError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 4.dp).testTag("purchase_report_range_context")
+                    )
+                }
+
                 if (state.isRefreshing) {
                     RefreshIndicator(testTag = "purchase_report_refreshing")
                 }
                 if (state.refreshError) {
+                    val selectedLabel = stringResource(when(state.selectedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                        else -> R.string.not_applicable
+                    })
+                    val loadedLabel = stringResource(when(state.loadedRange) {
+                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                        else -> R.string.not_applicable
+                    })
                     RefreshErrorBanner(
                         testTag = "purchase_report_refresh_error",
-                        onRetry = onRetry
+                        onRetry = onRetry,
+                        message = stringResource(R.string.refresh_context_error, selectedLabel, loadedLabel)
                     )
                 }
             }

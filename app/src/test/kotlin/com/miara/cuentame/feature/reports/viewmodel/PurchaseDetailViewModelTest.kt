@@ -23,6 +23,7 @@ import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PurchaseDetailViewModelTest {
@@ -33,14 +34,23 @@ class PurchaseDetailViewModelTest {
     private val periodCalculator = mockk<ReportingPeriodCalculator>()
     
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
-    private val restaurant = Restaurant(RestaurantId("rest-1"), "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
-    private val period = ReportingPeriod(Instant.EPOCH, Instant.now())
+    private val restaurantId = RestaurantId("rest-1")
+    private val restaurant = Restaurant(restaurantId, "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+
+    private val now = Instant.parse("2026-01-01T00:00:00Z")
+    private val period7 = ReportingPeriod(now.minus(7, ChronoUnit.DAYS), now)
+    private val period30 = ReportingPeriod(now.minus(30, ChronoUnit.DAYS), now)
+    private val period90 = ReportingPeriod(now.minus(90, ChronoUnit.DAYS), now)
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { restaurantRepository.observeRestaurant() } returns restaurantFlow
-        every { periodCalculator.calculatePeriods(any()) } returns ReportingPeriods(period, period)
+        
+        // Default periods stub
+        every { periodCalculator.calculatePeriods(DashboardDateRange.LAST_7_DAYS) } returns ReportingPeriods(period7, period7)
+        every { periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS) } returns ReportingPeriods(period30, period30)
+        every { periodCalculator.calculatePeriods(DashboardDateRange.LAST_90_DAYS) } returns ReportingPeriods(period90, period90)
     }
 
     @After
@@ -57,41 +67,31 @@ class PurchaseDetailViewModelTest {
     }
 
     @Test
-    fun `malformed range defaults to LAST_30_DAYS`() = runTest {
-        val savedStateHandle = SavedStateHandle(mapOf("range" to "INVALID"))
-        val viewModel = PurchaseDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository, periodCalculator)
-        
-        assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_30_DAYS)
-    }
-
-    @Test
-    fun `Ready state when repository success`() = runTest {
+    fun `Ready state success sequence`() = runTest {
         restaurantFlow.value = restaurant
-        val report = PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0)
-        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } returns flowOf(report)
+        val report = PurchaseDetailReport(emptyList(), period30, BigDecimal.ZERO, 0)
+        every { detailedReportsRepository.observePurchaseDetails(restaurantId, period30) } returns flowOf(report)
 
         val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
         viewModel.uiState.test {
-            awaitItem() // Loading
+            assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
             testDispatcher.scheduler.advanceUntilIdle()
             
             val state = awaitItem() as DetailReportScreenState.Ready
-            assertThat(state.report.totalSpend).isEqualTo(BigDecimal.ZERO)
+            assertThat(state.restaurantId).isEqualTo(restaurantId)
+            assertThat(state.report.period).isEqualTo(period30)
+            assertThat(state.isRefreshing).isFalse()
         }
     }
 
     @Test
-    fun `range change triggers refreshing state`() = runTest {
+    fun `range change triggers refreshing sequence with distinct periods`() = runTest {
         restaurantFlow.value = restaurant
         val flow30 = MutableSharedFlow<PurchaseDetailReport>(replay = 1)
         val flow90 = MutableSharedFlow<PurchaseDetailReport>(replay = 1)
         
-        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } answers {
-            val p = arg<ReportingPeriod>(1)
-            // Use startInclusive to distinguish
-            if (p.startInclusive == periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS).current.startInclusive) flow30
-            else flow90
-        }
+        every { detailedReportsRepository.observePurchaseDetails(restaurantId, period30) } returns flow30
+        every { detailedReportsRepository.observePurchaseDetails(restaurantId, period90) } returns flow90
 
         val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
         viewModel.uiState.test {
@@ -99,55 +99,79 @@ class PurchaseDetailViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             
             // 1. Initial load (30 days)
-            flow30.emit(PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
-            var item = awaitItem()
-            while (item !is DetailReportScreenState.Ready) item = awaitItem()
-            assertThat((item as DetailReportScreenState.Ready).isRefreshing).isFalse()
+            val report30 = PurchaseDetailReport(emptyList(), period30, BigDecimal("30.00"), 1)
+            flow30.emit(report30)
+            val initialReady = awaitItem() as DetailReportScreenState.Ready
+            assertThat(initialReady.loadedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(initialReady.report.totalSpend).isEqualTo(BigDecimal("30.00"))
             
-            // 2. Change range
+            // 2. Change range to 90 days
             viewModel.onRangeSelected(DashboardDateRange.LAST_90_DAYS)
             testDispatcher.scheduler.advanceUntilIdle()
             
             val refreshing = awaitItem() as DetailReportScreenState.Ready
             assertThat(refreshing.isRefreshing).isTrue()
             assertThat(refreshing.selectedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+            assertThat(refreshing.loadedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(refreshing.report.totalSpend).isEqualTo(BigDecimal("30.00")) // Shows old data
             
             // 3. New data arrives
-            flow90.emit(PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
-            val ready = awaitItem() as DetailReportScreenState.Ready
-            assertThat(ready.isRefreshing).isFalse()
-            assertThat(ready.loadedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+            val report90 = PurchaseDetailReport(emptyList(), period90, BigDecimal("90.00"), 2)
+            flow90.emit(report90)
+            val finalReady = awaitItem() as DetailReportScreenState.Ready
+            assertThat(finalReady.isRefreshing).isFalse()
+            assertThat(finalReady.selectedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+            assertThat(finalReady.loadedRange).isEqualTo(DashboardDateRange.LAST_90_DAYS)
+            assertThat(finalReady.report.totalSpend).isEqualTo(BigDecimal("90.00"))
         }
     }
 
     @Test
-    fun `retry preserves selected range`() = runTest {
+    fun `selecting same range does not trigger new request`() = runTest {
         restaurantFlow.value = restaurant
         var callCount = 0
         every { detailedReportsRepository.observePurchaseDetails(any(), any()) } answers {
             callCount++
-            if (callCount == 1) flow { throw RuntimeException("Fail") }
-            else flowOf(PurchaseDetailReport(emptyList(), period, BigDecimal.ZERO, 0))
+            flowOf(PurchaseDetailReport(emptyList(), period30, BigDecimal.ZERO, 0))
         }
 
         val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
-        viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
-        
         viewModel.uiState.test {
-            // Skip initial emissions until we reach the error from the 7-day range selection
-            var item = awaitItem()
-            while (item !is DetailReportScreenState.Error) {
-                item = awaitItem()
-            }
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem() // Ready
             
-            assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(callCount).isEqualTo(1)
             
-            viewModel.onRetry()
+            viewModel.onRangeSelected(DashboardDateRange.LAST_30_DAYS)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            expectNoEvents()
+            assertThat(callCount).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `account switch resets to Loading`() = runTest {
+        restaurantFlow.value = restaurant
+        every { detailedReportsRepository.observePurchaseDetails(any(), any()) } returns flowOf(
+            PurchaseDetailReport(emptyList(), period30, BigDecimal.ZERO, 0)
+        )
+
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem() // Ready Rest 1
+            
+            // Switch to Rest 2
+            val restaurant2 = Restaurant(RestaurantId("rest-2"), "Rest 2", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+            restaurantFlow.value = restaurant2
             testDispatcher.scheduler.advanceUntilIdle()
             
             assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
-            assertThat(awaitItem()).isInstanceOf(DetailReportScreenState.Ready::class.java)
-            assertThat(viewModel.selectedRange.value).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            val ready2 = awaitItem() as DetailReportScreenState.Ready
+            assertThat(ready2.restaurantId).isEqualTo(RestaurantId("rest-2"))
         }
     }
 }

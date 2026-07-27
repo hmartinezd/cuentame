@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.reports.viewmodel
 
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 
 sealed interface DetailReportScreenState<out T> {
@@ -7,6 +8,7 @@ sealed interface DetailReportScreenState<out T> {
     data object SetupRequired : DetailReportScreenState<Nothing>
 
     data class Ready<T>(
+        val restaurantId: RestaurantId,
         val restaurantName: String,
         val currencyCode: String,
         val localeTag: String,

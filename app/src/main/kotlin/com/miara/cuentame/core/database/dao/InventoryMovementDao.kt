@@ -51,8 +51,8 @@ interface InventoryMovementDao {
             im.totalValueSnapshot as totalWasteValue,
             1 as eventCount
         FROM inventory_movements im
-        JOIN waste_events we ON im.sourceDocumentId = we.id
-        JOIN ingredients i ON im.ingredientId = i.id
+        JOIN waste_events we ON im.sourceDocumentId = we.id AND we.restaurantId = im.restaurantId
+        JOIN ingredients i ON im.ingredientId = i.id AND i.restaurantId = im.restaurantId
         JOIN units u ON i.baseUnitId = u.id
         WHERE im.restaurantId = :restaurantId
         AND im.sourceDocumentType = 'WASTE_EVENT'
@@ -75,8 +75,8 @@ interface InventoryMovementDao {
             i.name as ingredientName,
             im.totalValueSnapshot as totalValue
         FROM waste_events we
-        JOIN inventory_movements im ON we.id = im.sourceDocumentId
-        JOIN ingredients i ON we.ingredientId = i.id
+        JOIN inventory_movements im ON we.id = im.sourceDocumentId AND im.restaurantId = we.restaurantId
+        JOIN ingredients i ON we.ingredientId = i.id AND i.restaurantId = we.restaurantId
         WHERE we.restaurantId = :restaurantId
         AND we.status IN ('POSTED', 'VOIDED')
         AND im.sourceDocumentType = 'WASTE_EVENT'

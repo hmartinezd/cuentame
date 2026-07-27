@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.model.dashboard.DashboardActivityItem
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.InventoryValuationSummary
@@ -89,6 +90,7 @@ class HomeScreenStateTest {
     @Test
     fun homeScreen_ready_displaysContentWithMetrics() {
         val readyState = HomeScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Restaurant",
             currencyCode = "USD",
             localeTag = "en-US",

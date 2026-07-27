@@ -31,7 +31,7 @@ class RoomDetailedReportsRepository @Inject constructor(
             val allItems = rows.groupBy { it.ingredientId }.map { (ingId, ingRows) ->
                 val first = ingRows.first()
                 val totalQuantity = ingRows.sumOf { ReportDecimalParser.parseAny(it.quantityBase) }
-                val avgCost = first.averageUnitCostBase?.let { ReportDecimalParser.parseRequiredPositive(it) }
+                val avgCost = first.averageUnitCostBase?.let { ReportDecimalParser.parseRequiredNonNegative(it) }
                 val value = avgCost?.let { totalQuantity.multiply(it, mathContext) }
                 
                 val negativeAreaBalanceCount = ingRows.count { 
@@ -94,7 +94,7 @@ class RoomDetailedReportsRepository @Inject constructor(
                     postedAt = first.postedAt?.let { java.time.Instant.ofEpochMilli(it) },
                     supplierName = first.supplierName,
                     lineCount = receiptRows.size,
-                    total = receiptRows.sumOf { ReportDecimalParser.parseRequiredPositive(it.lineTotal) }
+                    total = receiptRows.sumOf { ReportDecimalParser.parseRequiredNonNegative(it.lineTotal) }
                 )
             }.sortedWith(
                 compareByDescending<PurchaseDetailItem> { it.purchaseDate }

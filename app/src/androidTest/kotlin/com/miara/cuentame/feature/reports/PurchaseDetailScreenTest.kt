@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.service.ReportingPeriod
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import com.miara.cuentame.core.model.dashboard.PurchaseDetailItem
@@ -27,6 +28,7 @@ class PurchaseDetailScreenTest {
         val now = Instant.now()
         val period = ReportingPeriod(now.minusSeconds(1000), now)
         val readyState = DetailReportScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Rest",
             currencyCode = "USD",
             localeTag = "en-US",
@@ -76,6 +78,7 @@ class PurchaseDetailScreenTest {
     fun purchaseReport_rangeSelection_callsCallback() {
         var selectedRange: DashboardDateRange? = null
         val readyState = DetailReportScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Rest",
             currencyCode = "USD",
             localeTag = "en-US",

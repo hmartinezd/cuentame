@@ -219,6 +219,10 @@
     <string name="updating_dashboard">Updating dashboard</string>
     <string name="refresh_error_message">The report could not be updated. Showing previous results.</string>
     <string name="refresh_error_dashboard">The dashboard could not be updated. Showing previous results.</string>
+    <string name="refresh_context_updating">Showing %1$s results while updating the %2$s report.</string>
+    <string name="refresh_context_error">The %1$s report could not be updated. Showing the %2$s results.</string>
+    <string name="refresh_context_updating_dashboard">Showing %1$s dashboard while updating for %2$s.</string>
+    <string name="refresh_context_error_dashboard">The %1$s dashboard could not be updated. Showing %2$s results.</string>
 
     <string name="inventory_row_semantics">%1$s. Quantity: %2$s. Cost: %3$s. Value: %4$s</string>
     <string name="inventory_row_missing_cost_warning">. Missing current cost</string>

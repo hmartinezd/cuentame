@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.domain.service.ReportingPeriod
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
@@ -29,6 +30,7 @@ class WasteDetailScreenTest {
         val now = Instant.now()
         val period = ReportingPeriod(now.minusSeconds(1000), now)
         val readyState = DetailReportScreenState.Ready(
+            restaurantId = RestaurantId("rest-1"),
             restaurantName = "Test Rest",
             currencyCode = "USD",
             localeTag = "en-US",
