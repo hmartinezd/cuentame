@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -305,7 +306,17 @@ fun CuentameNavHost(
 
 @Composable
 fun PlaceholderScreen(destination: TopLevelDestination) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(
+                when (destination) {
+                    TopLevelDestination.REPORTS -> "reports_placeholder"
+                    else -> ""
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = stringResource(destination.titleTextId), style = MaterialTheme.typography.headlineMedium)
             Text(text = "Feature placeholder")

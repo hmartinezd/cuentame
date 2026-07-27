@@ -202,54 +202,72 @@ class HomeViewModelTest {
     @Test
     fun `stale range result is ignored when newer range is selected`() = runTest {
         restaurantFlow.value = restaurant
-        val flow30 = MutableSharedFlow<DashboardSnapshot>()
-        val flow7 = MutableSharedFlow<DashboardSnapshot>()
+        val flow30 = MutableSharedFlow<DashboardSnapshot>(replay = 0)
+        val flow7 = MutableSharedFlow<DashboardSnapshot>(replay = 0)
 
         every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_30_DAYS) } returns flow30
         every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_7_DAYS) } returns flow7
 
         val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
         viewModel.uiState.test {
-            awaitItem() // Initial Loading
+            // 1. Subscribe and observe initial Loading
+            assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            // Start 30-day collection
-            var item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            // Switch to 7 days
-            viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            item = awaitItem()
-            while (item is HomeScreenState.Loading) {
-                item = awaitItem()
-            }
-
-            // Emit 7-day snapshot
-            val snapshot7 = createEmptySnapshot().copy(
-                inventory = InventoryValuationSummary(BigDecimal("700"), 1, 1, 0)
-            )
-            flow7.emit(snapshot7)
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            item = awaitItem()
-            assertThat((item as HomeScreenState.Ready).dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
-
-            // Late 30-day snapshot should be ignored
+            // 2. Emit 30-day snapshot
             val snapshot30 = createEmptySnapshot().copy(
                 inventory = InventoryValuationSummary(BigDecimal("3000"), 1, 1, 0)
             )
             flow30.emit(snapshot30)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            // Verify state remains 7-day
-            assertThat(viewModel.uiState.value).isInstanceOf(HomeScreenState.Ready::class.java)
-            val readyState = viewModel.uiState.value as HomeScreenState.Ready
-            assertThat(readyState.dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
+            // 3. Observe 30-day Ready
+            var item = awaitItem()
+            while (item is HomeScreenState.Loading) {
+                item = awaitItem()
+            }
+            var readyState = item as HomeScreenState.Ready
+            assertThat(readyState.selectedRange).isEqualTo(DashboardDateRange.LAST_30_DAYS)
+            assertThat(readyState.dashboard.inventoryValue).isEqualTo(BigDecimal("3000"))
+
+            // 4. Select 7 days
+            viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // 5. Observe Loading for new range
+            item = awaitItem()
+            while (item is HomeScreenState.Loading) {
+                item = awaitItem()
+            }
+
+            // 6. Emit 7-day snapshot
+            val snapshot7 = createEmptySnapshot().copy(
+                inventory = InventoryValuationSummary(BigDecimal("700"), 1, 1, 0)
+            )
+            flow7.emit(snapshot7)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // 7. Observe 7-day Ready
+            item = awaitItem()
+            readyState = item as HomeScreenState.Ready
             assertThat(readyState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            assertThat(readyState.dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
+
+            // 8. Emit late value into old 30-day flow
+            val lateSnapshot30 = createEmptySnapshot().copy(
+                inventory = InventoryValuationSummary(BigDecimal("9999"), 1, 1, 0)
+            )
+            flow30.emit(lateSnapshot30)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // 9. Verify ViewModel still contains 7-day value and range
+            // No new item should be emitted from the 30-day flow
+            val currentState = viewModel.uiState.value as HomeScreenState.Ready
+            assertThat(currentState.dashboard.inventoryValue).isEqualTo(BigDecimal("700"))
+            assertThat(currentState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+
+            // 10. Verify no unexpected items by trying to await with a timeout
+            expectNoEvents()
         }
     }
 

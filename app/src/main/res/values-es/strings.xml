@@ -122,6 +122,9 @@
     <string name="range_7_days">7 días</string>
     <string name="range_30_days">30 días</string>
     <string name="range_90_days">90 días</string>
+    <string name="dashboard_date_range_filter_label">Filtro de rango de fechas del panel</string>
+    <string name="dashboard_range_description">Filtrar por %1$s</string>
+    <string name="dashboard_range_selected_description">Filtrar por %1$s, seleccionado</string>
     <string name="inventory_value_label">Valor Actual del Inventario</string>
     <string name="purchase_spend_label">Gasto en Compras</string>
     <string name="waste_value_label">Valor de Mermas</string>
@@ -163,6 +166,8 @@
     <string name="activity_status_completed">Completado</string>
     <string name="from_previous_period">vs periodo anterior</string>
     <string name="items_count_format">%1$d artículos</string>
+    <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
+    <string name="activity_description_no_value">%1$s: %2$s. %3$s el %4$s</string>
 
     <!-- Accessibility -->
     <string name="move_up">Mover %1$s arriba</string>

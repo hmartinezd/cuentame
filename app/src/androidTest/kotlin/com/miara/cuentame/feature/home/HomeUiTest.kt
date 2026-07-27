@@ -38,7 +38,8 @@ class HomeUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
-    private val now = Instant.parse("2024-01-31T12:00:00Z")
+    // Capture test time once, use for all seeding to ensure consistency with repository periods
+    private val testNow = Instant.now()
 
     @Before
     fun setup() {
@@ -56,8 +57,8 @@ class HomeUiTest {
     private fun seedRestaurantAndArea(name: String = "Test Restaurant") {
         runBlocking {
             val restId = "rest-1"
-            db.restaurantDao().insert(RestaurantEntity(restId, name, "USD", "en-US", now.toEpochMilli(), now.toEpochMilli(), null))
-            db.inventoryAreaDao().upsert(InventoryAreaEntity("area-1", restId, "Main Area", "main area", 1, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            db.restaurantDao().insert(RestaurantEntity(restId, name, "USD", "en-US", testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.inventoryAreaDao().upsert(InventoryAreaEntity("area-1", restId, "Main Area", "main area", 1, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
         }
     }
 
@@ -66,37 +67,38 @@ class HomeUiTest {
         seedRestaurantAndArea("Test Restaurant")
 
         // Create ingredient with full cost and valuation data
-        db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, now.toEpochMilli(), now.toEpochMilli(), null))
-        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, now.toEpochMilli(), now.toEpochMilli(), null))
+        db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
         
         // Inventory balance: 10 lb
-        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId, "ing-1", "area-1", "10.0", now.toEpochMilli()))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId, "ing-1", "area-1", "10.0", testNow.toEpochMilli()))
 
         // Cost projection: $2.0 per lb → Total inventory value = 10 * 2 = $20
-        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId, "ing-1", "2.0", now.toEpochMilli()))
+        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId, "ing-1", "2.0", testNow.toEpochMilli()))
 
         // Posted Purchase 5 hours ago: $100
         val pid = "p1"
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity(pid, restId, null, null, now.minusSeconds(18000).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, now.toEpochMilli(), null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity(pid, restId, null, null, testNow.minusSeconds(18000).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
         db.purchaseDao().insertLine(PurchaseLineEntity("l1", pid, "ing-1", "area-1", "opt-1", "5", "5", "100.0", "20.0", null, 0L, 0L))
 
         // Create inventory movement for purchase
-        db.inventoryMovementDao().insert(InventoryMovementEntity("m_purchase", restId, "ing-1", "area-1", InventoryMovementType.PURCHASE.name, "5.0", "20.0", "100.0", now.minusSeconds(18000).toEpochMilli(), SourceDocumentType.PURCHASE_RECEIPT.name, pid, "l1", null, null, 0L))
+        db.inventoryMovementDao().insert(InventoryMovementEntity("m_purchase", restId, "ing-1", "area-1", InventoryMovementType.PURCHASE.name, "5.0", "20.0", "100.0", testNow.minusSeconds(18000).toEpochMilli(), SourceDocumentType.PURCHASE_RECEIPT.name, pid, "l1", null, null, 0L))
 
         // Posted Waste 2 hours ago: 1 lb at $2 = $10
         val wid = "w1"
-        db.wasteDao().insert(WasteEventEntity(wid, restId, "ing-1", "area-1", "opt-1", "1", "1", "SPOILED", now.minusSeconds(7200).toEpochMilli(), null, null, DocumentStatus.POSTED.name, 0L, 0L, now.toEpochMilli(), null))
-        db.inventoryMovementDao().insert(InventoryMovementEntity("m_waste", restId, "ing-1", "area-1", InventoryMovementType.WASTE.name, "-1.0", "2.0", "2.0", now.minusSeconds(7200).toEpochMilli(), SourceDocumentType.WASTE_EVENT.name, wid, "w1", null, null, 0L))
+        db.wasteDao().insert(WasteEventEntity(wid, restId, "ing-1", "area-1", "opt-1", "1", "1", "SPOILED", testNow.minusSeconds(7200).toEpochMilli(), null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null))
+        db.inventoryMovementDao().insert(InventoryMovementEntity("m_waste", restId, "ing-1", "area-1", InventoryMovementType.WASTE.name, "-1.0", "2.0", "2.0", testNow.minusSeconds(7200).toEpochMilli(), SourceDocumentType.WASTE_EVENT.name, wid, "w1", null, null, 0L))
 
         // Completed Stock Count
         val cid = "c1"
-        db.stockCountDao().insertCount(StockCountEntity(cid, restId, "Weekly Count", now.toEpochMilli(), now.toEpochMilli(), now.toEpochMilli(), StockCountStatus.COMPLETED.name, null, 0L, 0L, null))
-        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("ca1", cid, "area-1", "COMPLETED", now.toEpochMilli(), now.toEpochMilli(), 1)))
+        db.stockCountDao().insertCount(StockCountEntity(cid, restId, "Weekly Count", testNow.toEpochMilli(), testNow.toEpochMilli(), testNow.toEpochMilli(), StockCountStatus.COMPLETED.name, null, 0L, 0L, null))
+        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("ca1", cid, "area-1", "COMPLETED", testNow.toEpochMilli(), testNow.toEpochMilli(), 1)))
         db.stockCountDao().insertCountLine(StockCountLineEntity("cl1", "ca1", "ing-1", "opt-1", "10", "10", "5", "5", null, 0L, 0L))
     }
 
     @Test
-    fun dashboard_setupRequired_whenNoRestaurant() {
+    fun app_routesToOnboarding_whenSetupIsIncomplete() {
+        // This test verifies app-level routing, not direct HomeScreenState.SetupRequired rendering
         // Force RequiresOnboarding state by not seeding restaurant
         runBlocking {
             preferencesRepository.clearAll()
@@ -125,25 +127,9 @@ class HomeUiTest {
     }
 
     @Test
-    fun dashboard_loading_state_initially() {
-        seedRestaurantAndArea()
-
-        ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitForTag("dashboard_inventory_value", 10_000)
-        }
-    }
-
-    @Test
-    fun dashboard_error_state_shows_retry() {
-        // This test would require injecting a failing repository,
-        // which is complex in an instrumentation test.
-        // Covered by unit tests instead.
-    }
-
-    @Test
     fun dashboard_populatedWithData() {
         seedPopulatedData()
-        
+
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitForTag("home_date_range_selector")
             
@@ -187,15 +173,15 @@ class HomeUiTest {
         runBlocking {
             val restId = "rest-1"
             seedRestaurantAndArea("Range Rest")
-            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, now.toEpochMilli(), now.toEpochMilli(), null))
-            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
 
             // Purchase 1: 5 days ago (Inside 7 and 30) → $50
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_recent", restId, null, null, now.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, now.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_recent", restId, null, null, testNow.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l_recent", "p_recent", "ing-1", "area-1", "opt-1", "1", "1", "50.0", "50.0", null, 0L, 0L))
 
             // Purchase 2: 15 days ago (Inside 30, Outside 7) → $100
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, now.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, now.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l_old", "p_old", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "100.0", null, 0L, 0L))
 
             preferencesRepository.setOnboardingCompleted(true)
@@ -223,15 +209,15 @@ class HomeUiTest {
         runBlocking {
             val restId = "rest-1"
             seedRestaurantAndArea("Range Rest")
-            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, now.toEpochMilli(), now.toEpochMilli(), null))
-            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
 
             // Purchase 1: 5 days ago (Inside all ranges) → $50
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_recent", restId, null, null, now.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, now.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_recent", restId, null, null, testNow.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l_recent", "p_recent", "ing-1", "area-1", "opt-1", "1", "1", "50.0", "50.0", null, 0L, 0L))
 
             // Purchase 2: 60 days ago (Inside 90, Outside 30) → $100
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, now.minus(60, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, now.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, testNow.minus(60, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l_old", "p_old", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "100.0", null, 0L, 0L))
 
             preferencesRepository.setOnboardingCompleted(true)
@@ -287,6 +273,30 @@ class HomeUiTest {
             composeTestRule.onNodeWithTag("start_count_button").performClick()
             composeTestRule.waitForTag("stock_count_start_screen", 10_000)
             composeTestRule.onNodeWithTag("stock_count_start_screen").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun dashboard_navigation_viewWasteHistory() {
+        seedRestaurantAndArea()
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitForTag("home_date_range_selector")
+            composeTestRule.onNodeWithTag("view_waste_button").performClick()
+            composeTestRule.waitForTag("waste_list_screen", 10_000)
+            composeTestRule.onNodeWithTag("waste_list_screen").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun dashboard_navigation_viewReports() {
+        seedRestaurantAndArea()
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitForTag("home_date_range_selector")
+            composeTestRule.onNodeWithTag("view_reports_button").performClick()
+            composeTestRule.waitForTag("reports_placeholder", 10_000)
+            composeTestRule.onNodeWithTag("reports_placeholder").assertIsDisplayed()
         }
     }
 

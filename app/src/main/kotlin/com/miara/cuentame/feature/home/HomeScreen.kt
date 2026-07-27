@@ -56,6 +56,7 @@ import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import java.time.FormatStyle
+import java.time.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -221,26 +222,34 @@ private fun RangeSelector(
     selected: DashboardDateRange,
     onSelected: (DashboardDateRange) -> Unit
 ) {
+    val filterLabel = stringResource(R.string.dashboard_date_range_filter_label)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("home_date_range_selector")
             .semantics(mergeDescendants = true) {
-                contentDescription = "Date range filter for dashboard metrics"
+                contentDescription = filterLabel
             },
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         DashboardDateRange.entries.forEach { range ->
+            // Precompute localized strings before using in semantics
+            val rangeLabel = stringResource(when(range) {
+                DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+            })
+            val rangeDescription = if (selected == range) {
+                stringResource(R.string.dashboard_range_selected_description, rangeLabel)
+            } else {
+                stringResource(R.string.dashboard_range_description, rangeLabel)
+            }
+
             FilterChip(
                 selected = selected == range,
                 onClick = { onSelected(range) },
-                label = { 
-                    Text(stringResource(when(range) {
-                        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
-                        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
-                        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
-                    }))
-                },
+                label = { Text(rangeLabel) },
                 modifier = Modifier
                     .testTag(when(range) {
                         DashboardDateRange.LAST_7_DAYS -> "home_range_7"
@@ -248,19 +257,7 @@ private fun RangeSelector(
                         DashboardDateRange.LAST_90_DAYS -> "home_range_90"
                     })
                     .semantics {
-                        contentDescription = if (selected == range) {
-                            "Filter by ${stringResource(when(range) {
-                                DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
-                                DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
-                                DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
-                            })}, currently selected"
-                        } else {
-                            "Filter by ${stringResource(when(range) {
-                                DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
-                                DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
-                                DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
-                            })}"
-                        }
+                        contentDescription = rangeDescription
                     }
             )
         }
@@ -520,7 +517,7 @@ private fun TopWasteSection(state: HomeScreenState.Ready, locale: Locale) {
 
 @Composable
 private fun RecentActivitySection(state: HomeScreenState.Ready, locale: Locale) {
-    val dateFormatter = remember(locale) {
+    val dateTimeFormatter = remember(locale) {
         DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT, java.time.format.FormatStyle.SHORT)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
@@ -550,14 +547,21 @@ private fun RecentActivitySection(state: HomeScreenState.Ready, locale: Locale) 
                     else -> R.string.not_applicable
                 })
                 val displayName = if (item.displayName.isNullOrBlank()) typeLabel else item.displayName
-                val valueText = item.value?.let { Formatters.formatCurrency(it, state.currencyCode, locale) } ?: ""
-                val dateText = dateFormatter.format(item.timestamp)
+                val dateTimeText = dateTimeFormatter.format(item.timestamp)
+
+                // Build semantic description using localized format
+                val semanticDesc = if (item.value != null) {
+                    val valueText = Formatters.formatCurrency(item.value, state.currencyCode, locale)
+                    stringResource(R.string.activity_description_format, typeLabel, displayName, statusLabel, dateTimeText, valueText)
+                } else {
+                    stringResource(R.string.activity_description_no_value, typeLabel, displayName, statusLabel, dateTimeText)
+                }
 
                 ListItem(
                     modifier = Modifier
                         .testTag("dashboard_activity_${item.type.name}_${item.id}")
                         .semantics(mergeDescendants = true) {
-                            contentDescription = "$typeLabel: $displayName. $statusLabel on $dateText. $valueText"
+                            contentDescription = semanticDesc
                         },
                     headlineContent = { 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -573,7 +577,7 @@ private fun RecentActivitySection(state: HomeScreenState.Ready, locale: Locale) 
                     },
                     supportingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(dateText)
+                            Text(dateTimeText)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("•")
                             Spacer(modifier = Modifier.width(8.dp))
