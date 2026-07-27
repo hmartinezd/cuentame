@@ -17,6 +17,7 @@
 - [x] **Verification**
     - [x] Implement `ReportsViewModelTest.kt` (JVM)
     - [x] Implement `ReportsScreenStateTest.kt` (Compose State)
-    - [x] Implement `ReportsUiTest.kt` (Integration)
+    - [x] Implement `ReportsUiTest.kt` (Integration with seeding)
+    - [x] Verify Home-to-Reports and Back navigation
     - [x] Run full build & verification suite
     - [x] Update `README.md`

@@ -161,9 +161,9 @@ private fun ReportsContent(
 @Composable
 private fun ReportsHeader(restaurantName: String, range: DashboardDateRange) {
     val rangeText = stringResource(when(range) {
-        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
-        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
-        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days_label
+        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days_label
+        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days_label
     })
     Column(modifier = Modifier.fillMaxWidth().testTag("reports_header")) {
         Text(
@@ -244,11 +244,13 @@ private fun InventorySection(
     } else {
         inventory.costCoverage?.let { Formatters.formatPercent(it, locale) } ?: stringResource(R.string.not_applicable)
     }
+    val coverageRatio = stringResource(R.string.coverage_format, inventory.valuedIngredientCount, inventory.stockedIngredientCount)
     
     val semanticsDesc = stringResource(
         R.string.reports_inventory_semantics,
         sectionTitle,
         formattedValue,
+        coverageRatio,
         coveragePercentage,
         inventory.missingCostCount
     )
@@ -265,11 +267,9 @@ private fun InventorySection(
             Text(sectionTitle, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            MetricRow(stringResource(R.string.inventory_value_label), formattedValue)
-            
-            val coverageRatio = stringResource(R.string.coverage_format, inventory.valuedIngredientCount, inventory.stockedIngredientCount)
-            MetricRow(stringResource(R.string.valuation_coverage_label), "$coverageRatio ($coveragePercentage)")
-            MetricRow(stringResource(R.string.missing_costs_label), inventory.missingCostCount.toString())
+            MetricRow(stringResource(R.string.inventory_value_label), formattedValue, "reports_inventory_value")
+            MetricRow(stringResource(R.string.valuation_coverage_label), "$coverageRatio ($coveragePercentage)", "reports_inventory_coverage")
+            MetricRow(stringResource(R.string.missing_costs_label), inventory.missingCostCount.toString(), "reports_inventory_missing_costs")
         }
     }
 }
@@ -311,16 +311,16 @@ private fun ComparisonSection(
             Text(text = title, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            MetricRow(stringResource(R.string.reports_current_period), currentFormatted)
+            MetricRow(stringResource(R.string.reports_current_period), currentFormatted, "${testTag}_current")
             metric.previousValue?.let {
-                MetricRow(stringResource(R.string.reports_previous_period), previousFormatted)
+                MetricRow(stringResource(R.string.reports_previous_period), previousFormatted, "${testTag}_previous")
             }
             metric.absoluteChange?.let {
-                MetricRow(stringResource(R.string.reports_absolute_change), absoluteFormatted)
+                MetricRow(stringResource(R.string.reports_absolute_change), absoluteFormatted, "${testTag}_absolute")
             }
             
             Spacer(modifier = Modifier.height(8.dp))
-            TrendLabel(trendInfo)
+            TrendLabel(trendInfo, "${testTag}_trend")
         }
     }
 }
@@ -346,9 +346,9 @@ private fun AlertsSection(alerts: ReportsAlertsUiModel) {
             Text(stringResource(R.string.reports_operational_alerts), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            AlertRow(stringResource(R.string.negative_balances_label), alerts.negativeBalanceCount, isError = true)
-            AlertRow(stringResource(R.string.missing_costs_label), alerts.missingCostCount, isError = false)
-            AlertRow(stringResource(R.string.missing_unit_options_label), alerts.missingOptionsCount, isError = false)
+            AlertRow(stringResource(R.string.negative_balances_label), alerts.negativeBalanceCount, isError = true, "reports_negative_balances")
+            AlertRow(stringResource(R.string.missing_costs_label), alerts.missingCostCount, isError = false, "reports_missing_costs")
+            AlertRow(stringResource(R.string.missing_unit_options_label), alerts.missingOptionsCount, isError = false, "reports_missing_unit_options")
         }
     }
 }
@@ -380,9 +380,9 @@ private fun StockCountSection(counts: ReportsCountUiModel, locale: Locale) {
             Text(stringResource(R.string.reports_stock_count_summary), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            MetricRow(stringResource(R.string.completed_counts_label), counts.completedCountCount.toString())
-            MetricRow(stringResource(R.string.adjusted_lines_label), counts.adjustedLineCount.toString())
-            MetricRow(stringResource(R.string.most_recent_count_label), latestDate)
+            MetricRow(stringResource(R.string.completed_counts_label), counts.completedCountCount.toString(), "reports_completed_counts")
+            MetricRow(stringResource(R.string.adjusted_lines_label), counts.adjustedLineCount.toString(), "reports_adjusted_lines")
+            MetricRow(stringResource(R.string.most_recent_count_label), latestDate, "reports_most_recent_count")
         }
     }
 }
@@ -438,16 +438,29 @@ private fun TopWasteSection(
 }
 
 @Composable
-private fun MetricRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun MetricRow(label: String, value: String, testTag: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun AlertRow(label: String, count: Int, isError: Boolean) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+private fun AlertRow(label: String, count: Int, isError: Boolean, testTag: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         val color = if (count > 0) {
             if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
@@ -463,8 +476,11 @@ private fun AlertRow(label: String, count: Int, isError: Boolean) {
 }
 
 @Composable
-private fun TrendLabel(info: TrendInfo) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun TrendLabel(info: TrendInfo, testTag: String? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = if (testTag != null) Modifier.testTag(testTag) else Modifier
+    ) {
         info.icon?.let {
             Icon(it, contentDescription = null, modifier = Modifier.size(16.dp), tint = info.color)
             Spacer(modifier = Modifier.width(4.dp))

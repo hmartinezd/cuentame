@@ -7,7 +7,8 @@ Implement the Reports Overview feature, providing a detailed breakdown of restau
 > [!IMPORTANT]
 > - Reports will use the existing authoritative formulas and data from `DashboardRepository`.
 > - The feature will be accessible from the bottom navigation and the "View Reports" quick action on the Home screen.
-> - High-precision `BigDecimal` math and localized formatting will be applied consistently across all metrics.
+> - High-precision `BigDecimal` math (scale-independent) and localized formatting will be applied consistently across all metrics.
+> - Full accessibility semantics are implemented for all reporting sections to support screen readers.
 
 ## Proposed Changes
 
@@ -18,7 +19,7 @@ Implement the Reports Overview feature, providing a detailed breakdown of restau
 - Ensure all trend descriptions are localized and include previous-period context.
 
 #### [MODIFY] [HomeScreenStateTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt)
-- Replace `assert(retryClicked)` with `assertThat(retryClicked).isTrue()`.
+- Standardize assertions using Google Truth (`assertThat`).
 
 #### [MODIFY] [FormattersTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt)
 - Add JVM test for invalid currency code fallback behavior (e.g., "XYZ 1,234.56").
@@ -31,18 +32,19 @@ Implement the Reports Overview feature, providing a detailed breakdown of restau
 
 ### Reports Feature
 
-#### [NEW] Reports Models
-- Create `ReportsUiModels.kt` to hold structured data for the Reports screen (Comparison, Inventory, Alerts, Counts).
+#### [NEW] [ReportsUiModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ui/ReportsUiModels.kt)
+- Structured data for Inventory, Comparisons, Alerts, and Counts.
 
-#### [NEW] Reports ViewModel
-- Create `ReportsViewModel.kt` utilizing `RestaurantRepository` and `DashboardRepository`.
+#### [NEW] [ReportsViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModel.kt)
+- utilize `RestaurantRepository` and `DashboardRepository`.
 - Implement `ReportsScreenState` (Loading, SetupRequired, Ready, Error).
 - Support date-range selection with cancellation of stale repository emissions.
+- Use scale-independent `BigDecimal` comparisons for trend mapping.
 
-#### [NEW] Reports UI
-- Create `ReportsScreen.kt` with a vertically scrollable layout.
-- Implement sections: Header, Date-Range Selector, Inventory Overview, Purchase Spend, Waste Value, Operational Alerts, Stock-Count Summary, and Top Waste Detail.
-- Apply consistent localized formatting for currency, percentages, quantities, and dates.
+#### [NEW] [ReportsScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ui/ReportsScreen.kt)
+- Vertically scrollable layout with sections: Header (with range label), Range Selector, Inventory, Purchases, Waste, Alerts, Stock Counts, and Top Waste.
+- Add combined accessibility semantics for all reporting sections.
+- Add stable test tags for exact numeric verification in integration tests.
 
 #### [MODIFY] [CuentameNavHost.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/app/navigation/CuentameNavHost.kt)
 - Replace `PlaceholderScreen(TopLevelDestination.REPORTS)` with `ReportsRoute`.
@@ -52,24 +54,21 @@ Implement the Reports Overview feature, providing a detailed breakdown of restau
 ### Resources & Localization
 
 #### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml) & [strings.xml (es)](file:///Users/hector/Projects/cuentame/app/src/main/res/values-es/strings.xml)
-- Add localized strings for all Reports sections, labels, and error messages.
-- Ensure no hard-coded English remains in accessibility or UI prose.
+- Add localized strings for all Reports sections, range labels, and semantics patterns.
 
 ## Verification Plan
 
 ### Automated Tests
 1. **JVM Tests**:
-   - Verify `ReportsViewModel` state transitions, range switching, and stale-flow handling.
-   - Verify `Formatters` with localized and invalid inputs.
+   - Verify `ReportsViewModel` state transitions, range switching, and scale-independent comparisons.
    - Command: `./gradlew testDebugUnitTest --tests "*ReportsViewModelTest*" --tests "*FormattersTest*"`
 2. **Compose State Tests**:
-   - Verify `ReportsScreen` rendering for all states using `ReportsScreenStateTest`.
+   - Verify `ReportsScreen` rendering for all states (Loading, Error, Ready empty/populated).
 3. **Integration Tests**:
-   - Verify `ReportsUiTest` with real seeded data for all reporting sections and range switching.
-   - Verify navigation flows from Home and Bottom Nav.
+   - Verify `ReportsUiTest` with real seeded data for all sections and range updates.
+   - Verify Home-to-Reports and Back navigation.
    - Command: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.reports.ReportsUiTest`
 
 ### Manual Verification
-- Deploy to emulator and verify visual layout on different device widths.
-- Confirm localized formatting in both English and Spanish locales.
-- Verify "Back" navigation correctly returns to the previous screen.
+- Deploy to emulator and verify visual layout and "Last 30 days" header.
+- Confirm localized formatting and screen-reader announcements.

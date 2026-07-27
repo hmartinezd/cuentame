@@ -5,30 +5,25 @@ A local-first restaurant inventory application built with modern Android practic
 ## Current Status (Milestone 8 — Dashboard and Reports - Phase 1)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (150 tests)
+- `testDebugUnitTest`: PASSED (154 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (117 tests)
+- `connectedDebugAndroidTest`: PASSED (119 tests)
 
-### Milestone 8 Phase 1 (Reports Overview) Implementation
-- **Reports Overview Screen:** Vertically scrollable dashboard with sections for Inventory, Purchasing, Waste, Operational Alerts, and Stock-count summary.
-- **Header Summary:** Reports header now displays the selected reporting range (e.g., "Last 30 days").
-- **Authoritative Metrics:** Utilizes `DashboardRepository` for all reporting formulas, ensuring data parity with the Home Dashboard.
-- **BigDecimal Integrity:** All comparison logic and aggregations use scale-independent numeric comparisons.
-- **Accessibility & Localization:** Full semantic descriptions for all sections and items. Native support for English and Spanish locales.
-- **Deterministic Seeding:** Integration tests use a centralized seeding strategy with `Instant.now()` boundaries.
-- **Verification Suite:** 100% pass rate on 150 unit tests and 117 instrumentation tests.
+### Milestone 8 Phase 1 (Home Dashboard and Reports Overview) Closure
+- **Inventory Semantics:** Accessibility strings now include current value, valued/stocked ratio, coverage percentage, and missing-cost count.
+- **BigDecimal Comparison:** Fixed comparison logic to be scale-independent using `compareTo()`, ensuring `0.00` is equivalent to `0` for trend mapping.
+- **Reports Header:** Displays the active reporting range summary (e.g., "Last 30 days").
+- **Seeding & Fixtures:** Expanded `ReportsUiTest` with exhaustive Room seeding for Inventory, Purchases, Waste (historical snapshot validation), and Stock Counts.
+- **Navigation:** Verified reliable navigation from Home Dashboard to Reports and correct system Back behavior.
+- **Range Switching:** Authoritative verification of metric updates when switching between 7, 30, and 90-day periods.
 
 ### Verification Status
-- **Home ViewModel tests:** PASSED
-- **Reports ViewModel tests:** PASSED
-- **Formatters tests:** PASSED
-- **Home instrumentation tests:** PASSED
-- **Reports instrumentation tests:** PASSED
-- **Dashboard DAO Room tests:** PASSED
-- **Full JVM suite:** PASSED
-- **assembleDebug:** PASSED
-- **lintDebug:** PASSED
-- **Full instrumentation suite:** PASSED
+- **Current milestone:** Milestone 8 — Dashboard and Reports
+- **Phase 1 status:** PASSED
+- **Home Dashboard:** PASSED
+- **Reports Overview:** PASSED
+- **Next phase:** NOT STARTED — awaiting definition
+- **CI verification:** NOT CONFIGURED
 
 ### Milestone 7 Highlights (Completed)
 - **Authoritative Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, with strict `triggerCount == 1` assertions.

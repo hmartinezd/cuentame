@@ -73,9 +73,9 @@ class ReportsScreenStateTest {
             report = ReportsUiModel(
                 inventory = ReportsInventoryUiModel(BigDecimal("1234.56"), 8, 10, BigDecimal("80.0"), 2),
                 purchases = DashboardMetricUiModel(BigDecimal("500"), BigDecimal("400"), BigDecimal("100"), BigDecimal("25"), MetricComparisonState.INCREASE),
-                waste = DashboardMetricUiModel(BigDecimal("50"), BigDecimal("0"), BigDecimal("50"), null, MetricComparisonState.NEW),
+                waste = DashboardMetricUiModel(BigDecimal("50"), BigDecimal("20"), BigDecimal("30"), BigDecimal("150"), MetricComparisonState.INCREASE),
                 alerts = ReportsAlertsUiModel(1, 2, 3),
-                counts = ReportsCountUiModel(1, 5, Instant.EPOCH),
+                counts = ReportsCountUiModel(4, 5, Instant.EPOCH),
                 topWasteItems = listOf(
                     com.miara.cuentame.core.model.dashboard.WasteReportItem(
                         ingredientId = com.miara.cuentame.core.common.ids.IngredientId("ing-1"),
@@ -97,38 +97,65 @@ class ReportsScreenStateTest {
             )
         }
 
+        val scrollable = composeTestRule.onNode(hasScrollAction())
+
         // Header Range
         composeTestRule.onNodeWithTag("reports_header", useUnmergedTree = true).onChildren()
-            .filterToOne(hasText("30 days", substring = true)).assertIsDisplayed()
+            .filter(hasText("30 days", substring = true)).onFirst().assertIsDisplayed()
 
         // Inventory
-        val scrollable = composeTestRule.onNode(hasScrollAction())
-        
         scrollable.performScrollToNode(hasTestTag("reports_inventory_section"))
-        composeTestRule.onNodeWithTag("reports_inventory_section", useUnmergedTree = true).assertExists()
-        composeTestRule.onNodeWithTag("reports_inventory_section", useUnmergedTree = true).onChildren()
+        composeTestRule.onNodeWithTag("reports_inventory_section", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_inventory_value", useUnmergedTree = true).onChildren()
             .filter(hasText("$1,234.56", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_inventory_coverage", useUnmergedTree = true).onChildren()
+            .filter(hasText("8 / 10", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_inventory_coverage", useUnmergedTree = true).onChildren()
+            .filter(hasText("80.0%", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_inventory_missing_costs", useUnmergedTree = true).onChildren()
+            .filter(hasText("2")).onFirst().assertExists()
         
         // Purchase
         scrollable.performScrollToNode(hasTestTag("reports_purchase_section"))
-        composeTestRule.onNodeWithTag("reports_purchase_section", useUnmergedTree = true).assertExists()
-        
+        composeTestRule.onNodeWithTag("reports_purchase_section", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_purchase_section_current", useUnmergedTree = true).onChildren()
+            .filter(hasText("$500.00", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_purchase_section_previous", useUnmergedTree = true).onChildren()
+            .filter(hasText("$400.00", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_purchase_section_absolute", useUnmergedTree = true).onChildren()
+            .filter(hasText("$100.00", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_purchase_section_trend", useUnmergedTree = true).onChildren()
+            .filter(hasText("Increase", substring = true)).onFirst().assertExists()
+
+        // Waste
+        scrollable.performScrollToNode(hasTestTag("reports_waste_section"))
+        composeTestRule.onNodeWithTag("reports_waste_section", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_waste_section_current", useUnmergedTree = true).onChildren()
+            .filter(hasText("$50.00", substring = true)).onFirst().assertExists()
+
         // Alerts
         scrollable.performScrollToNode(hasTestTag("reports_alerts_section"))
-        composeTestRule.onNodeWithTag("reports_alerts_section", useUnmergedTree = true).assertExists()
-        
+        composeTestRule.onNodeWithTag("reports_alerts_section", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_negative_balances", useUnmergedTree = true).onChildren()
+            .filter(hasText("1")).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_missing_costs", useUnmergedTree = true).onChildren()
+            .filter(hasText("2")).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_missing_unit_options", useUnmergedTree = true).onChildren()
+            .filter(hasText("3")).onFirst().assertExists()
+
         // Counts
         scrollable.performScrollToNode(hasTestTag("reports_stock_count_section"))
-        composeTestRule.onNodeWithTag("reports_stock_count_section", useUnmergedTree = true).assertExists()
+        composeTestRule.onNodeWithTag("reports_stock_count_section", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_completed_counts", useUnmergedTree = true).onChildren()
+            .filter(hasText("4")).onFirst().assertExists()
+        composeTestRule.onNodeWithTag("reports_adjusted_lines", useUnmergedTree = true).onChildren()
+            .filter(hasText("5")).onFirst().assertExists()
         
         // Top Waste
         scrollable.performScrollToNode(hasTestTag("reports_top_waste_list"))
-        composeTestRule.onNodeWithTag("reports_top_waste_list", useUnmergedTree = true).assertExists()
-        
-        // Top Waste
-        composeTestRule.onNodeWithTag("reports_top_waste_list").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("reports_top_waste_ing-1").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Chicken").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_top_waste_list", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reports_top_waste_ing-1", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Chicken", useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -158,8 +185,9 @@ class ReportsScreenStateTest {
 
         val scrollable = composeTestRule.onNode(hasScrollAction())
         scrollable.performScrollToNode(hasTestTag("reports_inventory_section"))
-        composeTestRule.onNodeWithTag("reports_inventory_section", useUnmergedTree = true).onChildren()
+        composeTestRule.onNodeWithTag("reports_inventory_coverage", useUnmergedTree = true).onChildren()
             .filter(hasText("0 / 0", substring = true)).onFirst().assertExists()
+        composeTestRule.onNodeWithText("N/A", substring = true, useUnmergedTree = true).assertIsDisplayed()
         
         scrollable.performScrollToNode(hasTestTag("reports_top_waste_list"))
         composeTestRule.onNodeWithTag("reports_top_waste_empty").assertIsDisplayed()

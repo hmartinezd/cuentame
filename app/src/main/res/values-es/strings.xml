@@ -122,6 +122,9 @@
     <string name="range_7_days">7 días</string>
     <string name="range_30_days">30 días</string>
     <string name="range_90_days">90 días</string>
+    <string name="range_7_days_label">Últimos 7 días</string>
+    <string name="range_30_days_label">Últimos 30 días</string>
+    <string name="range_90_days_label">Últimos 90 días</string>
     <string name="reports_overview_title">Resumen de Reportes</string>
     <string name="reports_current_period">Periodo actual</string>
     <string name="reports_previous_period">Periodo anterior</string>
@@ -183,7 +186,7 @@
     <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
     <string name="activity_description_no_value">%1$s: %2$s. %3$s el %4$s</string>
 
-    <string name="reports_inventory_semantics">%1$s: %2$s. Cobertura: %3$s. Costos faltantes: %4$d</string>
+    <string name="reports_inventory_semantics">%1$s. Valor: %2$s. Ingredientes valorados: %3$s. Cobertura: %4$s. Costos faltantes: %5$d</string>
     <string name="reports_comparison_semantics">%1$s. Actual: %2$s. Anterior: %3$s. Cambio: %4$s. %5$s %6$s</string>
     <string name="reports_alerts_semantics">Alertas: %1$d saldos negativos, %2$d costos faltantes, %3$d sin opciones de unidad</string>
     <string name="reports_counts_semantics">Conteos: %1$d completados, %2$d líneas ajustadas. Último: %3$s</string>
