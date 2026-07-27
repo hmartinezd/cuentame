@@ -132,6 +132,7 @@
     <string name="reports_operational_alerts">Alertas operativas</string>
     <string name="reports_stock_count_summary">Resumen de conteos</string>
     <string name="reports_top_waste">Principales Mermas</string>
+    <string name="reports_no_posted_waste">Sin mermas publicadas en este periodo</string>
     <string name="reports_no_completed_counts">Sin conteos completados</string>
     <string name="reports_error_title">Error de reportes</string>
     <string name="reports_error_desc">No pudimos cargar los datos del reporte. Inténtalo de nuevo.</string>
@@ -181,6 +182,12 @@
     <string name="items_count_format">%1$d artículos</string>
     <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
     <string name="activity_description_no_value">%1$s: %2$s. %3$s el %4$s</string>
+
+    <string name="reports_inventory_semantics">%1$s: %2$s. Cobertura: %3$s. Costos faltantes: %4$d</string>
+    <string name="reports_comparison_semantics">%1$s. Actual: %2$s. Anterior: %3$s. Cambio: %4$s. %5$s %6$s</string>
+    <string name="reports_alerts_semantics">Alertas: %1$d saldos negativos, %2$d costos faltantes, %3$d sin opciones de unidad</string>
+    <string name="reports_counts_semantics">Conteos: %1$d completados, %2$d líneas ajustadas. Último: %3$s</string>
+    <string name="reports_top_waste_row_semantics">%1$s. Valor: %2$s. Cantidad: %3$s. Eventos: %4$d</string>
 
     <!-- Accessibility -->
     <string name="move_up">Mover %1$s arriba</string>

@@ -8,7 +8,10 @@
 - [x] **Reports Feature Implementation**
     - [x] Create `ReportsUiModels.kt`
     - [x] Create `ReportsViewModel.kt` with range-switching logic
+    - [x] Fix `BigDecimal` scale-independent zero comparison
     - [x] Create `ReportsScreen.kt` with all reporting sections
+    - [x] Add range summary to Reports header
+    - [x] Implement combined semantics for all Reports sections
     - [x] Add Reports localized strings (EN & ES)
     - [x] Integrate `ReportsRoute` into `CuentameNavHost`
 - [x] **Verification**

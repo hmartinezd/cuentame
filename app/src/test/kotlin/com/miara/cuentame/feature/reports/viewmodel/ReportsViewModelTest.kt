@@ -150,6 +150,86 @@ class ReportsViewModelTest {
         }
     }
 
+    @Test
+    fun `retry resubscribes after failure and preserves range`() = runTest {
+        restaurantFlow.value = restaurant
+        var callCount = 0
+        every { dashboardRepository.observeDashboard(any(), DashboardDateRange.LAST_7_DAYS) } answers {
+            callCount++
+            if (callCount == 1) flow { throw RuntimeException("Fail") }
+            else flowOf(createEmptySnapshot())
+        }
+
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
+        
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            val errorState = awaitItem() as ReportsScreenState.Error
+            assertThat(errorState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+            
+            viewModel.onRetry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            assertThat(awaitItem()).isEqualTo(ReportsScreenState.Loading)
+            val readyState = awaitItem() as ReportsScreenState.Ready
+            assertThat(readyState.selectedRange).isEqualTo(DashboardDateRange.LAST_7_DAYS)
+        }
+    }
+
+    @Test
+    fun `mapComparison handles scale-independent zero`() = runTest {
+        restaurantFlow.value = restaurant
+        // 0.00 should be treated as zero
+        val snapshot = createEmptySnapshot().copy(
+            purchases = MetricComparison(BigDecimal("100"), BigDecimal("0.00"), BigDecimal("100"), null)
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is ReportsScreenState.Ready) item = awaitItem()
+            assertThat(item.report.purchases.comparisonState).isEqualTo(MetricComparisonState.NEW)
+        }
+    }
+
+    @Test
+    fun `mapComparison handles INCREASE and DECREASE`() = runTest {
+        restaurantFlow.value = restaurant
+        val snapshot = createEmptySnapshot().copy(
+            purchases = MetricComparison(BigDecimal("150"), BigDecimal("100"), BigDecimal("50"), BigDecimal("50.0")),
+            waste = MetricComparison(BigDecimal("50"), BigDecimal("100"), BigDecimal("-50"), BigDecimal("-50.00"))
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is ReportsScreenState.Ready) item = awaitItem()
+            assertThat(item.report.purchases.comparisonState).isEqualTo(MetricComparisonState.INCREASE)
+            assertThat(item.report.waste.comparisonState).isEqualTo(MetricComparisonState.DECREASE)
+        }
+    }
+
+    @Test
+    fun `mapComparison handles NO_CHANGE`() = runTest {
+        restaurantFlow.value = restaurant
+        val snapshot = createEmptySnapshot().copy(
+            purchases = MetricComparison(BigDecimal("100.0"), BigDecimal("100.00"), BigDecimal.ZERO, BigDecimal.ZERO)
+        )
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
+        
+        val viewModel = ReportsViewModel(restaurantRepository, dashboardRepository)
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is ReportsScreenState.Ready) item = awaitItem()
+            assertThat(item.report.purchases.comparisonState).isEqualTo(MetricComparisonState.NO_CHANGE)
+        }
+    }
+
     private fun createEmptySnapshot() = DashboardSnapshot(
         inventory = InventoryValuationSummary(BigDecimal.ZERO, 0, 0, 0),
         purchases = MetricComparison(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null),

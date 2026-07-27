@@ -117,11 +117,11 @@ class ReportsViewModel @Inject constructor(
 
     private fun mapComparison(comparison: MetricComparison): DashboardMetricUiModel {
         val state = when {
-            comparison.previous == BigDecimal.ZERO && comparison.current > BigDecimal.ZERO -> MetricComparisonState.NEW
-            comparison.previous == BigDecimal.ZERO && comparison.current == BigDecimal.ZERO -> MetricComparisonState.NO_CHANGE
+            comparison.previous.compareTo(BigDecimal.ZERO) == 0 && comparison.current.compareTo(BigDecimal.ZERO) > 0 -> MetricComparisonState.NEW
+            comparison.previous.compareTo(BigDecimal.ZERO) == 0 && comparison.current.compareTo(BigDecimal.ZERO) == 0 -> MetricComparisonState.NO_CHANGE
             comparison.percentageChange == null -> MetricComparisonState.UNAVAILABLE
-            comparison.percentageChange!! > BigDecimal.ZERO -> MetricComparisonState.INCREASE
-            comparison.percentageChange!! < BigDecimal.ZERO -> MetricComparisonState.DECREASE
+            comparison.percentageChange.compareTo(BigDecimal.ZERO) > 0 -> MetricComparisonState.INCREASE
+            comparison.percentageChange.compareTo(BigDecimal.ZERO) < 0 -> MetricComparisonState.DECREASE
             else -> MetricComparisonState.NO_CHANGE
         }
 

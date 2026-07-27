@@ -5,17 +5,18 @@ A local-first restaurant inventory application built with modern Android practic
 ## Current Status (Milestone 8 — Dashboard and Reports - Phase 1)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (146 tests)
+- `testDebugUnitTest`: PASSED (150 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (116 tests)
+- `connectedDebugAndroidTest`: PASSED (117 tests)
 
 ### Milestone 8 Phase 1 (Reports Overview) Implementation
-- **Reports Overview Screen:** Implemented as a vertically scrollable layout with sections for Inventory, Purchasing, Waste, Operational Alerts, and Stock-Count summary.
-- **Data Consistency:** Utilizes authoritative `DashboardRepository` for all metrics, matching Home Dashboard formulas.
-- **ViewModel Implementation:** Supports date-range filtering (7/30/90 days) with robust cancellation of stale emissions.
-- **Accessibility & Localization:** Full English/Spanish support with combined semantic descriptions for KPI cards and section headers.
-- **Verification Suite:** Added focused JVM, Compose, and Integration tests covering all reporting states and range switching.
-- **Home Dashboard Refinement:** Corrected accessibility semantics and extended integration coverage with authoritative assertions.
+- **Reports Overview Screen:** Vertically scrollable dashboard with sections for Inventory, Purchasing, Waste, Operational Alerts, and Stock-count summary.
+- **Header Summary:** Reports header now displays the selected reporting range (e.g., "Last 30 days").
+- **Authoritative Metrics:** Utilizes `DashboardRepository` for all reporting formulas, ensuring data parity with the Home Dashboard.
+- **BigDecimal Integrity:** All comparison logic and aggregations use scale-independent numeric comparisons.
+- **Accessibility & Localization:** Full semantic descriptions for all sections and items. Native support for English and Spanish locales.
+- **Deterministic Seeding:** Integration tests use a centralized seeding strategy with `Instant.now()` boundaries.
+- **Verification Suite:** 100% pass rate on 150 unit tests and 117 instrumentation tests.
 
 ### Verification Status
 - **Home ViewModel tests:** PASSED

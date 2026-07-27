@@ -160,6 +160,11 @@ private fun ReportsContent(
 
 @Composable
 private fun ReportsHeader(restaurantName: String, range: DashboardDateRange) {
+    val rangeText = stringResource(when(range) {
+        DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+        DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+        DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+    })
     Column(modifier = Modifier.fillMaxWidth().testTag("reports_header")) {
         Text(
             text = restaurantName,
@@ -171,6 +176,11 @@ private fun ReportsHeader(restaurantName: String, range: DashboardDateRange) {
             text = stringResource(R.string.reports_overview_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.secondary
+        )
+        Text(
+            text = rangeText,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline
         )
     }
 }
@@ -227,20 +237,37 @@ private fun InventorySection(
     currencyCode: String,
     locale: Locale
 ) {
-    Card(modifier = Modifier.fillMaxWidth().testTag("reports_inventory_section")) {
+    val sectionTitle = stringResource(R.string.reports_inventory_overview)
+    val formattedValue = Formatters.formatCurrency(inventory.totalValue, currencyCode, locale)
+    val coveragePercentage = if (inventory.stockedIngredientCount == 0) {
+        stringResource(R.string.not_applicable)
+    } else {
+        inventory.costCoverage?.let { Formatters.formatPercent(it, locale) } ?: stringResource(R.string.not_applicable)
+    }
+    
+    val semanticsDesc = stringResource(
+        R.string.reports_inventory_semantics,
+        sectionTitle,
+        formattedValue,
+        coveragePercentage,
+        inventory.missingCostCount
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reports_inventory_section")
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticsDesc
+            }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.reports_inventory_overview), style = MaterialTheme.typography.titleMedium)
+            Text(sectionTitle, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            val formattedValue = Formatters.formatCurrency(inventory.totalValue, currencyCode, locale)
             MetricRow(stringResource(R.string.inventory_value_label), formattedValue)
             
             val coverageRatio = stringResource(R.string.coverage_format, inventory.valuedIngredientCount, inventory.stockedIngredientCount)
-            val coveragePercentage = if (inventory.stockedIngredientCount == 0) {
-                stringResource(R.string.not_applicable)
-            } else {
-                inventory.costCoverage?.let { Formatters.formatPercent(it, locale) } ?: stringResource(R.string.not_applicable)
-            }
             MetricRow(stringResource(R.string.valuation_coverage_label), "$coverageRatio ($coveragePercentage)")
             MetricRow(stringResource(R.string.missing_costs_label), inventory.missingCostCount.toString())
         }
@@ -255,28 +282,66 @@ private fun ComparisonSection(
     locale: Locale,
     testTag: String
 ) {
-    Card(modifier = Modifier.fillMaxWidth().testTag(testTag)) {
+    val currentFormatted = Formatters.formatCurrency(metric.value, currencyCode, locale)
+    val previousFormatted = metric.previousValue?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_applicable)
+    val absoluteFormatted = metric.absoluteChange?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_applicable)
+    
+    val trendInfo = getTrendInfo(metric, locale)
+    val previousContext = stringResource(R.string.from_previous_period)
+    
+    val semanticsDesc = stringResource(
+        R.string.reports_comparison_semantics,
+        title,
+        currentFormatted,
+        previousFormatted,
+        absoluteFormatted,
+        trendInfo.text,
+        previousContext
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(testTag)
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticsDesc
+            }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            MetricRow(stringResource(R.string.reports_current_period), Formatters.formatCurrency(metric.value, currencyCode, locale))
+            MetricRow(stringResource(R.string.reports_current_period), currentFormatted)
             metric.previousValue?.let {
-                MetricRow(stringResource(R.string.reports_previous_period), Formatters.formatCurrency(it, currencyCode, locale))
+                MetricRow(stringResource(R.string.reports_previous_period), previousFormatted)
             }
             metric.absoluteChange?.let {
-                MetricRow(stringResource(R.string.reports_absolute_change), Formatters.formatCurrency(it, currencyCode, locale))
+                MetricRow(stringResource(R.string.reports_absolute_change), absoluteFormatted)
             }
             
             Spacer(modifier = Modifier.height(8.dp))
-            TrendLabel(metric, locale)
+            TrendLabel(trendInfo)
         }
     }
 }
 
 @Composable
 private fun AlertsSection(alerts: ReportsAlertsUiModel) {
-    Card(modifier = Modifier.fillMaxWidth().testTag("reports_alerts_section")) {
+    val semanticsDesc = stringResource(
+        R.string.reports_alerts_semantics,
+        alerts.negativeBalanceCount,
+        alerts.missingCostCount,
+        alerts.missingOptionsCount
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reports_alerts_section")
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticsDesc
+            }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.reports_operational_alerts), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
@@ -294,16 +359,30 @@ private fun StockCountSection(counts: ReportsCountUiModel, locale: Locale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withZone(ZoneId.systemDefault())
     }
 
-    Card(modifier = Modifier.fillMaxWidth().testTag("reports_stock_count_section")) {
+    val latestDate = counts.mostRecentCompletedCountAt?.let { dateFormatter.format(it) } ?: stringResource(R.string.not_applicable)
+    
+    val semanticsDesc = stringResource(
+        R.string.reports_counts_semantics,
+        counts.completedCountCount,
+        counts.adjustedLineCount,
+        latestDate
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("reports_stock_count_section")
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticsDesc
+            }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.reports_stock_count_summary), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
             MetricRow(stringResource(R.string.completed_counts_label), counts.completedCountCount.toString())
             MetricRow(stringResource(R.string.adjusted_lines_label), counts.adjustedLineCount.toString())
-            
-            val recentText = counts.mostRecentCompletedCountAt?.let { dateFormatter.format(it) } ?: stringResource(R.string.not_applicable)
-            MetricRow(stringResource(R.string.most_recent_count_label), recentText)
+            MetricRow(stringResource(R.string.most_recent_count_label), latestDate)
         }
     }
 }
@@ -319,22 +398,38 @@ private fun TopWasteSection(
         
         if (items.isEmpty()) {
             Text(
-                text = stringResource(R.string.no_posted_waste_period), 
+                text = stringResource(R.string.reports_no_posted_waste), 
                 style = MaterialTheme.typography.bodyMedium, 
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.testTag("reports_top_waste_empty")
             )
         } else {
             items.forEach { item ->
+                val formattedValue = Formatters.formatCurrency(item.totalValue, currencyCode, locale)
+                val formattedQuantity = Formatters.formatQuantity(item.quantityBase, item.unitSymbol)
+                
+                val semanticsDesc = stringResource(
+                    R.string.reports_top_waste_row_semantics,
+                    item.name,
+                    formattedValue,
+                    formattedQuantity,
+                    item.eventCount
+                )
+
                 ListItem(
                     headlineContent = { Text(item.name) },
                     supportingContent = { Text(stringResource(R.string.items_count_format, item.eventCount)) },
                     trailingContent = {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(Formatters.formatCurrency(item.totalValue, currencyCode, locale), fontWeight = FontWeight.Bold)
-                            Text(Formatters.formatQuantity(item.quantityBase, item.unitSymbol), style = MaterialTheme.typography.labelSmall)
+                            Text(formattedValue, fontWeight = FontWeight.Bold)
+                            Text(formattedQuantity, style = MaterialTheme.typography.labelSmall)
                         }
                     },
-                    modifier = Modifier.testTag("reports_top_waste_${item.ingredientId.value}")
+                    modifier = Modifier
+                        .testTag("reports_top_waste_${item.ingredientId.value}")
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = semanticsDesc
+                        }
                 )
                 HorizontalDivider()
             }
@@ -368,27 +463,13 @@ private fun AlertRow(label: String, count: Int, isError: Boolean) {
 }
 
 @Composable
-private fun TrendLabel(metric: DashboardMetricUiModel, locale: Locale) {
-    val (text, color, icon) = when (metric.comparisonState) {
-        MetricComparisonState.INCREASE -> {
-            val percentText = Formatters.formatPercent(metric.percentageChange!!, locale)
-            Triple(stringResource(R.string.trend_increase, percentText), MaterialTheme.colorScheme.primary, Icons.Default.ArrowUpward)
-        }
-        MetricComparisonState.DECREASE -> {
-            val percentText = Formatters.formatPercent(metric.percentageChange!!, locale)
-            Triple(stringResource(R.string.trend_decrease, percentText), MaterialTheme.colorScheme.primary, Icons.Default.ArrowDownward)
-        }
-        MetricComparisonState.NEW -> Triple(stringResource(R.string.comparison_new), MaterialTheme.colorScheme.secondary, Icons.Default.FiberNew)
-        MetricComparisonState.NO_CHANGE -> Triple(stringResource(R.string.trend_no_change), MaterialTheme.colorScheme.outline, Icons.Default.Remove)
-        MetricComparisonState.UNAVAILABLE -> Triple(stringResource(R.string.not_applicable), MaterialTheme.colorScheme.outline, null)
-    }
-
+private fun TrendLabel(info: TrendInfo) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        icon?.let {
-            Icon(it, contentDescription = null, modifier = Modifier.size(16.dp), tint = color)
+        info.icon?.let {
+            Icon(it, contentDescription = null, modifier = Modifier.size(16.dp), tint = info.color)
             Spacer(modifier = Modifier.width(4.dp))
         }
-        Text(text = text, style = MaterialTheme.typography.labelMedium, color = color)
+        Text(text = info.text, style = MaterialTheme.typography.labelMedium, color = info.color)
         Text(
             text = " ${stringResource(R.string.from_previous_period)}",
             style = MaterialTheme.typography.labelSmall,
@@ -396,3 +477,26 @@ private fun TrendLabel(metric: DashboardMetricUiModel, locale: Locale) {
         )
     }
 }
+
+@Composable
+private fun getTrendInfo(metric: DashboardMetricUiModel, locale: Locale): TrendInfo {
+    return when (metric.comparisonState) {
+        MetricComparisonState.INCREASE -> {
+            val percentText = Formatters.formatPercent(metric.percentageChange!!, locale)
+            TrendInfo(stringResource(R.string.trend_increase, percentText), MaterialTheme.colorScheme.primary, Icons.Default.ArrowUpward)
+        }
+        MetricComparisonState.DECREASE -> {
+            val percentText = Formatters.formatPercent(metric.percentageChange!!, locale)
+            TrendInfo(stringResource(R.string.trend_decrease, percentText), MaterialTheme.colorScheme.primary, Icons.Default.ArrowDownward)
+        }
+        MetricComparisonState.NEW -> TrendInfo(stringResource(R.string.comparison_new), MaterialTheme.colorScheme.secondary, Icons.Default.FiberNew)
+        MetricComparisonState.NO_CHANGE -> TrendInfo(stringResource(R.string.trend_no_change), MaterialTheme.colorScheme.outline, Icons.Default.Remove)
+        MetricComparisonState.UNAVAILABLE -> TrendInfo(stringResource(R.string.not_applicable), MaterialTheme.colorScheme.outline, null)
+    }
+}
+
+data class TrendInfo(
+    val text: String,
+    val color: Color,
+    val icon: ImageVector?
+)
