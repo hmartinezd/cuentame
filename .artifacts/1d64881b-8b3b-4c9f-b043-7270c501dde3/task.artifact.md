@@ -1,24 +1,19 @@
-# Task List - Milestone 8 Phase 1: Home Dashboard Corrections
+# Task List - Milestone 8 Phase 1: Reports Overview
 
-- [x] **Phase 1: Data & Models Correction**
-    - [x] Update `DashboardModels.kt` (Counts in summary)
-    - [x] Update `ReportingPeriodCalculator.kt` (Atomic periods)
-    - [x] Update Activity DAOs (Deterministic ordering)
-    - [x] Add Room tests for ordering in `DashboardDaoTest.kt`
-- [x] **Phase 2: UI Logic & Formatting**
-    - [x] Refactor `Formatters.kt` (Locale support and currency fallback)
-    - [x] Refactor `HomeViewModel.kt` (Mapping and strict parsing)
-    - [x] Add `HomeViewModelTest.kt` (Stale results, Retry, Coverage)
-    - [x] Add `FormattersTest.kt` (JVM)
-- [x] **Phase 3: Home Screen Refactor**
-    - [x] Remove duplicate `TopAppBar` in `HomeScreen.kt`
-    - [x] Move header into `LazyColumn`
-    - [x] Update `MetricTrend` formatting
-    - [x] Localize Activity statuses and type fallbacks
-    - [x] Complete Data Completeness section
-    - [x] Update `strings.xml` (EN & ES)
-- [x] **Phase 4: Final Verification**
-    - [x] Refactor `HomeUiTest.kt` with real data seeding and navigation
-    - [x] Add focused `HomeScreenStateTest.kt` for UI rendering
-    - [x] Run full build & verification pipe
+- [x] **Residual Home Corrections**
+    - [x] Restore combined semantics in `KpiCard`
+    - [x] Correct Truth assertion in `HomeScreenStateTest`
+    - [x] Add invalid-currency test in `FormattersTest`
+    - [x] Extend `HomeUiTest` with authoritative assertions
+- [x] **Reports Feature Implementation**
+    - [x] Create `ReportsUiModels.kt`
+    - [x] Create `ReportsViewModel.kt` with range-switching logic
+    - [x] Create `ReportsScreen.kt` with all reporting sections
+    - [x] Add Reports localized strings (EN & ES)
+    - [x] Integrate `ReportsRoute` into `CuentameNavHost`
+- [x] **Verification**
+    - [x] Implement `ReportsViewModelTest.kt` (JVM)
+    - [x] Implement `ReportsScreenStateTest.kt` (Compose State)
+    - [x] Implement `ReportsUiTest.kt` (Integration)
+    - [x] Run full build & verification suite
     - [x] Update `README.md`

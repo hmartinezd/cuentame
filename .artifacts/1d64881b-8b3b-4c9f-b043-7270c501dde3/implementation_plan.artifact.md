@@ -1,80 +1,75 @@
-# Implementation Plan — Milestone 8 Phase 1: Home Dashboard Corrections
+# Implementation Plan — Milestone 8 Phase 1: Reports Overview
 
-Perform a focused correction pass on the Home Dashboard to ensure UI integrity, localization accuracy, and robust verification.
+Implement the Reports Overview feature, providing a detailed breakdown of restaurant inventory, purchasing, and waste metrics with localized date-range filtering.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - Removed duplicate TopAppBar from HomeScreen; header is now part of scrollable content.
-> - Removed interactive SetupRequired button as app-start logic handles redirection.
-> - Trends and Coverage now use authoritative BigDecimal calculations and localized formatters.
+> - Reports will use the existing authoritative formulas and data from `DashboardRepository`.
+> - The feature will be accessible from the bottom navigation and the "View Reports" quick action on the Home screen.
+> - High-precision `BigDecimal` math and localized formatting will be applied consistently across all metrics.
 
 ## Proposed Changes
 
-### Data & Domain Layer
-
-#### [MODIFY] [DashboardModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/model/dashboard/DashboardModels.kt)
-- Update `InventoryValuationSummary` to include `stockedIngredientCount` and `valuedIngredientCount`.
-- Ensure `DashboardActivityItem` has clear fields for localization.
-
-#### [MODIFY] [ReportingPeriodCalculator.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculator.kt)
-- Atomize period calculation to use a single `timeProvider.now()` call.
-
-#### [MODIFY] [PurchaseDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/PurchaseDao.kt)
-#### [MODIFY] [InventoryMovementDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/InventoryMovementDao.kt)
-#### [MODIFY] [StockCountDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/StockCountDao.kt)
-- Ensure deterministic ordering (`DESC timestamp, ASC id`) in activity queries.
-
----
-
-### Home Feature
-
-#### [MODIFY] [HomeViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeViewModel.kt)
-- Update mapping logic for `DashboardUiModel` to preserve raw counts.
-- Implement strict decimal integrity parsing.
-- Refine `Ready` and `Error` states to include the restaurant's locale.
+### Residual Home Corrections
 
 #### [MODIFY] [HomeScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeScreen.kt)
-- **Remove second Scaffold/TopAppBar**.
-- Move Header (Name, "Dashboard", Selected Range) into `LazyColumn` item.
-- Update `MetricTrend` to fix double `%` issue.
-- Localize Activity status and type fallbacks.
-- Complete Data Completeness section with `X / Y` counts and percentage.
+- Restore combined accessibility semantics for `KpiCard`.
+- Ensure all trend descriptions are localized and include previous-period context.
 
-#### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml)
-- Correct `trend_increase`/`trend_decrease` patterns (remove `%%`).
-- Remove "check connection" from dashboard error message.
-- Add activity status and type strings.
+#### [MODIFY] [HomeScreenStateTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt)
+- Replace `assert(retryClicked)` with `assertThat(retryClicked).isTrue()`.
 
-#### [MODIFY] [Formatters.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/designsystem/util/Formatters.kt)
-- Update `formatCurrency` and `formatPercent` to use a provided `Locale` and `ZoneId`.
+#### [MODIFY] [FormattersTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt)
+- Add JVM test for invalid currency code fallback behavior (e.g., "XYZ 1,234.56").
+
+#### [MODIFY] [HomeUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt)
+- Rename and extend `dashboard_fullVerification` with authoritative metric assertions.
+- Add Home-to-Reports navigation verification.
 
 ---
 
-### Verification
+### Reports Feature
 
-#### JVM Tests
-- **[MODIFY] [HomeViewModelTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt)**: Add stale-flow cancellation, retry behavior, and empty data scenarios.
-- **[NEW] [FormattersTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt)**: Verify localized currency and percentage output.
+#### [NEW] Reports Models
+- Create `ReportsUiModels.kt` to hold structured data for the Reports screen (Comparison, Inventory, Alerts, Counts).
 
-#### Instrumentation Tests
-- **[MODIFY] [HomeUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt)**:
-    - Real data seeding for populated state.
-    - Assert specific values and trends.
-    - Verify navigation to quick actions (authoritative tags).
-    - Verify range-switch updates values, not just selection.
-- **[MODIFY] [DashboardDaoTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt)**: Add deterministic ordering checks for all activity types.
+#### [NEW] Reports ViewModel
+- Create `ReportsViewModel.kt` utilizing `RestaurantRepository` and `DashboardRepository`.
+- Implement `ReportsScreenState` (Loading, SetupRequired, Ready, Error).
+- Support date-range selection with cancellation of stale repository emissions.
+
+#### [NEW] Reports UI
+- Create `ReportsScreen.kt` with a vertically scrollable layout.
+- Implement sections: Header, Date-Range Selector, Inventory Overview, Purchase Spend, Waste Value, Operational Alerts, Stock-Count Summary, and Top Waste Detail.
+- Apply consistent localized formatting for currency, percentages, quantities, and dates.
+
+#### [MODIFY] [CuentameNavHost.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/app/navigation/CuentameNavHost.kt)
+- Replace `PlaceholderScreen(TopLevelDestination.REPORTS)` with `ReportsRoute`.
+
+---
+
+### Resources & Localization
+
+#### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml) & [strings.xml (es)](file:///Users/hector/Projects/cuentame/app/src/main/res/values-es/strings.xml)
+- Add localized strings for all Reports sections, labels, and error messages.
+- Ensure no hard-coded English remains in accessibility or UI prose.
 
 ## Verification Plan
 
 ### Automated Tests
-1. **Targeted JVM**: `./gradlew testDebugUnitTest --tests "*HomeViewModelTest*" --tests "*FormattersTest*" --tests "*Dashboard*"`
-2. **Targeted Room**: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.core.database.dao.DashboardDaoTest`
-3. **Home UI**: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.home.HomeUiTest`
-4. **Regression Run**: `./gradlew connectedDebugAndroidTest` (Full suite)
+1. **JVM Tests**:
+   - Verify `ReportsViewModel` state transitions, range switching, and stale-flow handling.
+   - Verify `Formatters` with localized and invalid inputs.
+   - Command: `./gradlew testDebugUnitTest --tests "*ReportsViewModelTest*" --tests "*FormattersTest*"`
+2. **Compose State Tests**:
+   - Verify `ReportsScreen` rendering for all states using `ReportsScreenStateTest`.
+3. **Integration Tests**:
+   - Verify `ReportsUiTest` with real seeded data for all reporting sections and range switching.
+   - Verify navigation flows from Home and Bottom Nav.
+   - Command: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.reports.ReportsUiTest`
 
 ### Manual Verification
-- Deploy to emulator.
-- Verify no duplicate top bar.
-- Verify status labels are localized (Posted/Publicado) in activity feed.
-- Check 0/0 and N/A behavior for coverage.
+- Deploy to emulator and verify visual layout on different device widths.
+- Confirm localized formatting in both English and Spanish locales.
+- Verify "Back" navigation correctly returns to the previous screen.

@@ -5,27 +5,24 @@ A local-first restaurant inventory application built with modern Android practic
 ## Current Status (Milestone 8 — Dashboard and Reports - Phase 1)
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (135 tests)
+- `testDebugUnitTest`: PASSED (146 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (108 tests)
+- `connectedDebugAndroidTest`: PASSED (116 tests)
 
-### Milestone 8 Phase 1 (Home Dashboard) Corrections Applied
-- **Removed duplicate top bar:** Home uses global app bar, content moved to scrollable dashboard.
-- **Fixed SetupRequired:** App-start logic handles redirection; dashboard shows non-interactive explanation if needed.
-- **Trend formatting:** Percentage symbols formatted correctly (no double %%).
-- **Recent Activity localization:** All status enums and fallback type names converted to localized strings.
-- **Data Completeness:** Preserved valued/stocked ingredient counts with authoritative coverage display.
-- **Currency formatting:** Using restaurant locale with explicit invalid-code fallback (e.g. "XYZ 100.00").
-- **Date/time formatting:** Using localized DateTimeFormatter with restaurant locale and system zone.
-- **HomeViewModel tests:** Expanded to cover stale-flow cancellation, repository failures, and empty data scenarios.
-- **Home instrumentation tests:** Enhanced with real data seeding and actual value assertions.
-- **DAO ordering tests:** Added Room tests for Waste and Stock Count deterministic ordering.
-- **Accessibility:** Added combined semantics for cards and activity items.
+### Milestone 8 Phase 1 (Reports Overview) Implementation
+- **Reports Overview Screen:** Implemented as a vertically scrollable layout with sections for Inventory, Purchasing, Waste, Operational Alerts, and Stock-Count summary.
+- **Data Consistency:** Utilizes authoritative `DashboardRepository` for all metrics, matching Home Dashboard formulas.
+- **ViewModel Implementation:** Supports date-range filtering (7/30/90 days) with robust cancellation of stale emissions.
+- **Accessibility & Localization:** Full English/Spanish support with combined semantic descriptions for KPI cards and section headers.
+- **Verification Suite:** Added focused JVM, Compose, and Integration tests covering all reporting states and range switching.
+- **Home Dashboard Refinement:** Corrected accessibility semantics and extended integration coverage with authoritative assertions.
 
 ### Verification Status
 - **Home ViewModel tests:** PASSED
+- **Reports ViewModel tests:** PASSED
 - **Formatters tests:** PASSED
 - **Home instrumentation tests:** PASSED
+- **Reports instrumentation tests:** PASSED
 - **Dashboard DAO Room tests:** PASSED
 - **Full JVM suite:** PASSED
 - **assembleDebug:** PASSED

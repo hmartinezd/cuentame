@@ -308,8 +308,27 @@ private fun KpiCard(
     locale: Locale = Locale.getDefault(),
     valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
+    val trendDescription = if (comparison != null) {
+        val directionText = when (comparison.comparisonState) {
+            MetricComparisonState.INCREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                stringResource(R.string.trend_increase, percentText)
+            }
+            MetricComparisonState.DECREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                stringResource(R.string.trend_decrease, percentText)
+            }
+            MetricComparisonState.NEW -> stringResource(R.string.comparison_new)
+            MetricComparisonState.NO_CHANGE -> stringResource(R.string.trend_no_change)
+            MetricComparisonState.UNAVAILABLE -> stringResource(R.string.not_applicable)
+        }
+        "$directionText ${stringResource(R.string.from_previous_period)}"
+    } else ""
+
     Card(
-        modifier = modifier
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$title: $value. $trendDescription"
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)

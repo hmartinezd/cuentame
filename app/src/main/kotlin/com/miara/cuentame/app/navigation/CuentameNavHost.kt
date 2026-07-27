@@ -31,6 +31,7 @@ import com.miara.cuentame.feature.purchases.ui.PurchaseDetailRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDraftRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseLineRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseListRoute
+import com.miara.cuentame.feature.reports.ui.ReportsRoute
 import com.miara.cuentame.feature.settings.ui.RestaurantProfileRoute
 import com.miara.cuentame.feature.settings.ui.SettingsRoute
 import com.miara.cuentame.feature.suppliers.ui.SupplierFormRoute
@@ -93,7 +94,7 @@ fun CuentameNavHost(
             )
         }
         composable(route = TopLevelDestination.REPORTS.route) {
-            PlaceholderScreen(TopLevelDestination.REPORTS)
+            ReportsRoute()
         }
         composable(route = Destination.SETTINGS.route) {
             SettingsRoute(

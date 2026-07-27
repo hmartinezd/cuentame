@@ -12,6 +12,7 @@ import com.miara.cuentame.core.model.dashboard.InventoryValuationSummary
 import com.miara.cuentame.core.model.dashboard.MetricComparison
 import com.miara.cuentame.core.model.dashboard.WasteReportItem
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,7 +83,7 @@ class HomeScreenStateTest {
         composeTestRule.onNodeWithTag("home_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("home_retry_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("home_retry_button").performClick()
-        assert(retryClicked) { "Retry callback should be invoked" }
+        assertThat(retryClicked).isTrue()
     }
 
     @Test

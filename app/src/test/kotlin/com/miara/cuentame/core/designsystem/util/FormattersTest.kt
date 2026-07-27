@@ -26,6 +26,16 @@ class FormattersTest {
     }
 
     @Test
+    fun formatCurrency_invalidCode_fallbackToLiteral() {
+        val amount = BigDecimal("1234.56")
+        val result = Formatters.formatCurrency(amount, "XYZ", Locale.US)
+        // Should preserve the code and format the amount
+        assertThat(result).contains("XYZ")
+        assertThat(result).contains("1,234.56")
+        assertThat(result).doesNotContain("$")
+    }
+
+    @Test
     fun formatPercent_US_Locale() {
         val value = BigDecimal("50.5") // 50.5%
         val result = Formatters.formatPercent(value, Locale.US)

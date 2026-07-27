@@ -1,17 +1,31 @@
 package com.miara.cuentame.feature.home
 
-import androidx.compose.ui.test.*
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
+import com.miara.cuentame.core.database.entity.IngredientEntity
+import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
+import com.miara.cuentame.core.database.entity.InventoryAreaEntity
+import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
+import com.miara.cuentame.core.database.entity.PurchaseLineEntity
+import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
+import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.core.model.inventory.SourceDocumentType
-import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -20,8 +34,6 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
-import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.flow.first
 
 @HiltAndroidTest
 class HomeUiTest {
@@ -82,7 +94,7 @@ class HomeUiTest {
     }
 
     @Test
-    fun dashboard_fullVerification() {
+    fun dashboard_fullVerification_populatedData() {
         runBlocking {
             seedReadyState("Test Restaurant")
             val restId = "rest-1"
@@ -95,17 +107,24 @@ class HomeUiTest {
         }
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            // Wait for Home root Box
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(15_000) {
+                composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Check restaurant name
             composeTestRule.onNodeWithTag("dashboard_restaurant_name", useUnmergedTree = true).assertTextEquals("Test Restaurant")
             
-            // Wait for non-zero metrics anywhere in the unmerged tree
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasText("100", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            // Assert authoritative values
+            composeTestRule.onAllNodes(hasText("$20.00", substring = true), useUnmergedTree = true).onFirst().assertExists()
+            composeTestRule.onAllNodes(hasText("$100.00", substring = true), useUnmergedTree = true).onFirst().assertExists()
+            
+            // Navigation to Reports
+            val scrollable = composeTestRule.onNode(hasScrollAction())
+            scrollable.performScrollToNode(hasTestTag("view_reports_button"))
+            composeTestRule.onNodeWithTag("view_reports_button").performClick()
+            
+            // Wait for reports screen
+            composeTestRule.waitUntil(10_000) {
+                composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
             }
         }
     }
