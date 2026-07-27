@@ -19,9 +19,12 @@ interface PurchaseDao {
         SELECT 
             pr.id as receiptId,
             pr.purchaseDate,
+            pr.postedAt,
+            s.name as supplierName,
             pl.lineTotal
         FROM purchase_receipts pr
         JOIN purchase_lines pl ON pr.id = pl.purchaseReceiptId
+        LEFT JOIN suppliers s ON pr.supplierId = s.id
         WHERE pr.restaurantId = :restaurantId 
         AND pr.status = 'POSTED'
         AND pr.purchaseDate >= :startInclusive

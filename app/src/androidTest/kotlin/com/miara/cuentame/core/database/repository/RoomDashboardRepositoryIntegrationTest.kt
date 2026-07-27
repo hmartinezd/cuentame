@@ -68,13 +68,15 @@ class RoomDashboardRepositoryIntegrationTest {
     @Test
     fun observeDashboard_reflectsValuationChanges() {
         runBlocking {
+            seedIngDependencies("rest-1")
+            
             repository.observeDashboard(RestaurantId("rest-1"), DashboardDateRange.LAST_30_DAYS).test {
                 var snapshot = awaitItem()
                 assertThat(snapshot.inventory.totalValue).isEqualTo(BigDecimal.ZERO)
                 
-                // Insert inventory and cost
-                db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("rest-1", "ing-1", "area-1", "10.0", 0L))
-                db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("rest-1", "ing-1", "2.5", 0L))
+                // Insert inventory and cost for ing1 (which was seeded)
+                db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("rest-1", "ing1", "area1", "10.0", 0L))
+                db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("rest-1", "ing1", "2.5", 0L))
                 
                 // May have multiple intermediate items due to multiple DAO updates
                 snapshot = awaitItem()

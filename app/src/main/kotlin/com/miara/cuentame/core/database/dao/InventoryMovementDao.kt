@@ -16,11 +16,19 @@ interface InventoryMovementDao {
         SELECT 
             im.sourceDocumentId as wasteEventId,
             im.ingredientId,
-            we.effectiveAt,
-            im.quantityBaseSigned,
-            im.totalValueSnapshot
+            i.name as ingredientName,
+            ia.name as areaName,
+            we.reason,
+            we.effectiveAt as timestamp,
+            im.quantityBaseSigned as quantityBase,
+            u.symbol as baseUnitSymbol,
+            im.totalValueSnapshot,
+            we.notes
         FROM inventory_movements im
         JOIN waste_events we ON im.sourceDocumentId = we.id
+        JOIN ingredients i ON im.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
+        JOIN inventory_areas ia ON im.areaId = ia.id
         WHERE im.restaurantId = :restaurantId
         AND im.sourceDocumentType = 'WASTE_EVENT'
         AND im.movementType = 'WASTE'

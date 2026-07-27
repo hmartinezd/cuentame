@@ -63,6 +63,10 @@ class DashboardDaoTest {
             db.restaurantDao().insert(RestaurantEntity(rest1, "Rest 1", "USD", "en", 0L, 0L, null))
             db.restaurantDao().insert(RestaurantEntity(rest2, "Rest 2", "USD", "en", 0L, 0L, null))
             
+            // Seed dependencies for JOINs
+            db.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "u", "u", "Mass", BigDecimal.ONE, true, 1)))
+            db.ingredientDao().insert(IngredientEntity(ing1, rest1, "Ing 1", "ing 1", null, "u1", null, null, null, null, true, 0L, 0L, null))
+
             inventoryProjectionDao.upsert(InventoryBalanceProjectionEntity(rest1, ing1, "area-1", "10.0", 1000L))
             db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(rest2, ing1, "50.0", 1000L))
             db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(rest1, ing1, "2.0", 1000L))

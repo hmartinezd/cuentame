@@ -130,6 +130,9 @@
     <string name="reports_previous_period">Periodo anterior</string>
     <string name="reports_absolute_change">Cambio absoluto</string>
     <string name="reports_inventory_overview">Resumen de inventario</string>
+    <string name="reports_view_inventory_details">Ver detalles de inventario</string>
+    <string name="reports_view_purchase_details">Ver detalles de compras</string>
+    <string name="reports_view_waste_details">Ver detalles de mermas</string>
     <string name="reports_purchasing">Compras</string>
     <string name="reports_waste">Mermas</string>
     <string name="reports_operational_alerts">Alertas operativas</string>
@@ -191,6 +194,27 @@
     <string name="reports_alerts_semantics">Alertas: %1$d saldos negativos, %2$d costos faltantes, %3$d sin opciones de unidad</string>
     <string name="reports_counts_semantics">Conteos: %1$d completados, %2$d líneas ajustadas. Último: %3$s</string>
     <string name="reports_top_waste_row_semantics">%1$s. Valor: %2$s. Cantidad: %3$s. Eventos: %4$d</string>
+
+    <!-- Detailed Reports -->
+    <string name="inventory_detail_title">Detalle de Inventario</string>
+    <string name="purchase_detail_title">Detalles de Compra</string>
+    <string name="waste_detail_title">Detalles de Merma</string>
+    <string name="current_avg_cost_label">Costo promedio actual</string>
+    <string name="current_inventory_value_label">Valor de inventario actual</string>
+    <string name="stocked_areas_label">Áreas con stock</string>
+    <string name="negative_area_balances_label">Saldos de área negativos</string>
+    <string name="missing_current_cost_label">Falta costo actual</string>
+    <string name="posted_receipts_label">Recibos publicados</string>
+    <string name="posted_waste_events_label">Eventos de merma publicados</string>
+    <string name="no_stocked_ingredients">Sin ingredientes con stock</string>
+    <string name="no_posted_purchases_period">Sin compras publicadas en este periodo</string>
+    <string name="historical_waste_value_label">Valor de merma histórico</string>
+    <string name="purchase_date_label">Fecha de compra</string>
+    <string name="line_count_label">Cantidad de líneas</string>
+    <string name="event_count_label">Cantidad de eventos</string>
+    <string name="area_label">Área</string>
+    <string name="reason_label">Razón</string>
+    <string name="notes_label">Notas</string>
 
     <!-- Accessibility -->
     <string name="move_up">Mover %1$s arriba</string>

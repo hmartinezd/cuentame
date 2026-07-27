@@ -1,6 +1,6 @@
 # Guía del Usuario de Cuentame
 
-Bienvenido a **Cuentame**, su gestor de inventario para restaurantes con almacenamiento local. Esta guía explica cómo usar la aplicación para mantener niveles de stock precisos y monitorear la salud financiera de su restaurante.
+Bienvenido a **Cuentame**, su gestor de inventario para restaurantes con almacenamiento local. Esta guía explica cómo usar la aplicación para mantener niveles de stock precisos y monitorear tendencias de valor de inventario, compras y mermas.
 
 ## 1. Configuración Inicial
 
@@ -67,6 +67,14 @@ Seleccione entre periodos de **7, 30 o 90 días**.
 *   **Valor de Mermas:** Revise sus pérdidas totales a lo largo del tiempo.
 *   **Integridad de Datos:** Vea cuántos de sus artículos tienen costos asignados.
 *   **Principales Mermas:** Identifique los 5 artículos que causan sus mayores pérdidas financieras.
+
+### Reportes Detallados
+Puede profundizar en cada sección del Resumen de Reportes para ver los registros exactos:
+*   **Detalle de Inventario:** Muestra cada ingrediente actualmente en stock, su cantidad total, costo promedio y valor calculado. Resalta los artículos con **costos faltantes** o **saldos negativos** en áreas específicas.
+*   **Detalles de Compra:** Enumera todos los recibos **PUBLICADOS** en el periodo seleccionado. Puede ver el proveedor, la fecha, la cantidad de líneas y el total de cada compra.
+*   **Detalles de Merma:** Enumera todos los eventos de Merma **PUBLICADOS**. Los valores mostrados utilizan el **costo histórico** capturado en el momento en que se registró la merma, lo que garantiza que los informes sigan siendo precisos incluso si los costos actuales cambian.
+
+**Nota sobre la selección de rango:** Cuando abre un reporte detallado de Compras o Merma, este hereda el rango de fechas seleccionado actualmente en el Resumen de Reportes. Cambiar el rango dentro de la pantalla de detalles actualizará ese reporte inmediatamente, pero no cambiará los ajustes de su Resumen general.
 
 ## 5. Estados de los Documentos
 

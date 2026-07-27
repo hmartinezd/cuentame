@@ -11,10 +11,15 @@ import kotlinx.coroutines.flow.Flow
 interface InventoryProjectionDao {
     @Query("""
         SELECT 
-            ibp.ingredientId, 
+            ibp.ingredientId,
+            i.name as ingredientName,
+            u.symbol as baseUnitSymbol,
             ibp.quantityBase, 
-            icp.averageUnitCostBase
+            icp.averageUnitCostBase,
+            ibp.areaId
         FROM inventory_balance_projection ibp
+        JOIN ingredients i ON ibp.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
         LEFT JOIN ingredient_cost_projection icp 
             ON ibp.restaurantId = icp.restaurantId 
             AND ibp.ingredientId = icp.ingredientId

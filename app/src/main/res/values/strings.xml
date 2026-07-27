@@ -130,6 +130,9 @@
     <string name="reports_previous_period">Previous period</string>
     <string name="reports_absolute_change">Absolute change</string>
     <string name="reports_inventory_overview">Inventory overview</string>
+    <string name="reports_view_inventory_details">View inventory details</string>
+    <string name="reports_view_purchase_details">View purchase details</string>
+    <string name="reports_view_waste_details">View Waste details</string>
     <string name="reports_purchasing">Purchasing</string>
     <string name="reports_waste">Waste</string>
     <string name="reports_operational_alerts">Operational alerts</string>
@@ -191,6 +194,27 @@
     <string name="reports_alerts_semantics">Alerts: %1$d negative balances, %2$d missing costs, %3$d missing unit options</string>
     <string name="reports_counts_semantics">Counts: %1$d completed, %2$d adjusted lines. Latest: %3$s</string>
     <string name="reports_top_waste_row_semantics">%1$s. Value: %2$s. Quantity: %3$s. Events: %4$d</string>
+
+    <!-- Detailed Reports -->
+    <string name="inventory_detail_title">Inventory Detail</string>
+    <string name="purchase_detail_title">Purchase Details</string>
+    <string name="waste_detail_title">Waste Details</string>
+    <string name="current_avg_cost_label">Current average cost</string>
+    <string name="current_inventory_value_label">Current inventory value</string>
+    <string name="stocked_areas_label">Stocked areas</string>
+    <string name="negative_area_balances_label">Negative area balances</string>
+    <string name="missing_current_cost_label">Missing current cost</string>
+    <string name="posted_receipts_label">Posted receipts</string>
+    <string name="posted_waste_events_label">Posted Waste events</string>
+    <string name="no_stocked_ingredients">No stocked ingredients</string>
+    <string name="no_posted_purchases_period">No posted purchases in this period</string>
+    <string name="historical_waste_value_label">Historical Waste value</string>
+    <string name="purchase_date_label">Purchase date</string>
+    <string name="line_count_label">Line count</string>
+    <string name="event_count_label">Event count</string>
+    <string name="area_label">Area</string>
+    <string name="reason_label">Reason</string>
+    <string name="notes_label">Notes</string>
 
     <!-- Accessibility -->
     <string name="move_up">Move %1$s up</string>

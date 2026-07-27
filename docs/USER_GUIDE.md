@@ -1,6 +1,6 @@
 # Cuentame User Guide
 
-Welcome to **Cuentame**, your local-first restaurant inventory manager. This guide explains how to use the app to maintain accurate stock levels and monitor your restaurant's financial health.
+Welcome to **Cuentame**, your local-first restaurant inventory manager. This guide explains how to use the app to maintain accurate stock levels and monitor inventory value, purchasing and Waste trends.
 
 ## 1. Initial Setup
 
@@ -67,6 +67,14 @@ Select between **7, 30, or 90-day** rolling windows.
 *   **Waste Value:** Review your total losses over time.
 *   **Data Completeness:** See how many of your items have costs assigned.
 *   **Top Waste:** Identify the 5 items causing your highest financial losses.
+
+### Detailed Reports
+You can drill down into each section of the Reports Overview to see the exact records:
+*   **Inventory Detail:** Shows every ingredient currently in stock, its total quantity, average cost, and calculated value. It highlights items with **missing costs** or **negative balances** in specific areas.
+*   **Purchase Details:** Lists all **POSTED** receipts in the selected period. You can see the supplier, date, line count, and total for each purchase.
+*   **Waste Details:** Lists all **POSTED** Waste events. Values shown use the **historical cost** captured at the time the Waste was logged, ensuring reporting remains accurate even if current costs change.
+
+**Note on Range Selection:** When you open a Purchase or Waste detail report, it inherits the date range currently selected in the Reports Overview. Changing the range within the detail screen will update that report immediately but will not change your Overview settings.
 
 ## 5. Document Statuses
 

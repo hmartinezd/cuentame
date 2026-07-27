@@ -31,6 +31,9 @@ import com.miara.cuentame.feature.purchases.ui.PurchaseDetailRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDraftRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseLineRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseListRoute
+import com.miara.cuentame.feature.reports.ui.InventoryDetailRoute
+import com.miara.cuentame.feature.reports.ui.PurchaseDetailRoute as ReportsPurchaseDetailRoute
+import com.miara.cuentame.feature.reports.ui.WasteDetailRoute as ReportsWasteDetailRoute
 import com.miara.cuentame.feature.reports.ui.ReportsRoute
 import com.miara.cuentame.feature.settings.ui.RestaurantProfileRoute
 import com.miara.cuentame.feature.settings.ui.SettingsRoute
@@ -94,7 +97,20 @@ fun CuentameNavHost(
             )
         }
         composable(route = TopLevelDestination.REPORTS.route) {
-            ReportsRoute()
+            ReportsRoute(
+                onNavigateToInventory = { navController.navigate(Destination.REPORT_INVENTORY_DETAIL.route) },
+                onNavigateToPurchases = { range -> navController.navigate("reports/purchase?range=${range.name}") },
+                onNavigateToWaste = { range -> navController.navigate("reports/waste?range=${range.name}") }
+            )
+        }
+        composable(route = Destination.REPORT_INVENTORY_DETAIL.route) {
+            InventoryDetailRoute()
+        }
+        composable(route = Destination.REPORT_PURCHASE_DETAIL.route) {
+            ReportsPurchaseDetailRoute()
+        }
+        composable(route = Destination.REPORT_WASTE_DETAIL.route) {
+            ReportsWasteDetailRoute()
         }
         composable(route = Destination.SETTINGS.route) {
             SettingsRoute(

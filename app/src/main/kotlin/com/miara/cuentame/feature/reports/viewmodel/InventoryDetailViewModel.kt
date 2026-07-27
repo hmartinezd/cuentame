@@ -1,0 +1,52 @@
+package com.miara.cuentame.feature.reports.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.domain.repository.DetailedReportsRepository
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.model.dashboard.InventoryDetailReport
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
+import javax.inject.Inject
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class InventoryDetailViewModel @Inject constructor(
+    private val restaurantRepository: RestaurantRepository,
+    private val detailedReportsRepository: DetailedReportsRepository
+) : ViewModel() {
+
+    private val _retryTrigger = MutableStateFlow(0)
+
+    val uiState: StateFlow<DetailReportScreenState<InventoryDetailReport>> = combine(
+        restaurantRepository.observeRestaurant(),
+        _retryTrigger
+    ) { restaurant, _ ->
+        restaurant
+    }.flatMapLatest { restaurant ->
+        if (restaurant == null) {
+            flowOf(DetailReportScreenState.SetupRequired)
+        } else {
+            detailedReportsRepository.observeInventoryDetails(restaurant.id)
+                .map { report ->
+                    DetailReportScreenState.Ready(
+                        restaurantName = restaurant.name,
+                        currencyCode = restaurant.currencyCode,
+                        localeTag = restaurant.localeTag,
+                        report = report
+                    ) as DetailReportScreenState<InventoryDetailReport>
+                }
+                .onStart { emit(DetailReportScreenState.Loading) }
+                .catch { emit(DetailReportScreenState.Error(it)) }
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = DetailReportScreenState.Loading
+    )
+
+    fun onRetry() {
+        _retryTrigger.value++
+    }
+}

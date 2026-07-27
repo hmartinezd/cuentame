@@ -74,10 +74,10 @@ class RoomDashboardRepositoryTest {
     @Test
     fun `calculate inventory valuation with multiple areas and negative quantities`() = runTest {
         val rows = listOf(
-            InventoryValuationRow("ing-1", "10.0", "2.0"),
-            InventoryValuationRow("ing-1", "-2.0", "2.0"), // Combined ing-1 = 8.0
-            InventoryValuationRow("ing-2", "5.0", "10.0"),
-            InventoryValuationRow("ing-3", "1.0", null) // Missing cost
+            InventoryValuationRow("ing-1", "Chicken", "lb", "10.0", "2.0", "area-1"),
+            InventoryValuationRow("ing-1", "Chicken", "lb", "-2.0", "2.0", "area-2"), // Combined ing-1 = 8.0
+            InventoryValuationRow("ing-2", "Beef", "lb", "5.0", "10.0", "area-1"),
+            InventoryValuationRow("ing-3", "Milk", "gal", "1.0", null, "area-1") // Missing cost
         )
         every { inventoryProjectionDao.observeValuationRows("rest-1") } returns flowOf(rows)
 
@@ -95,7 +95,7 @@ class RoomDashboardRepositoryTest {
 
     @Test
     fun `invalid inventory decimal throws error`() = runTest {
-        val rows = listOf(InventoryValuationRow("ing-1", "bad", "2.0"))
+        val rows = listOf(InventoryValuationRow("ing-1", "Chicken", "lb", "bad", "2.0", "area-1"))
         every { inventoryProjectionDao.observeValuationRows("rest-1") } returns flowOf(rows)
 
         repository.observeDashboard(RestaurantId("rest-1"), DashboardDateRange.LAST_30_DAYS).test {
@@ -105,7 +105,7 @@ class RoomDashboardRepositoryTest {
 
     @Test
     fun `negative cost throws error`() = runTest {
-        val rows = listOf(InventoryValuationRow("ing-1", "10.0", "-1.0"))
+        val rows = listOf(InventoryValuationRow("ing-1", "Chicken", "lb", "10.0", "-1.0", "area-1"))
         every { inventoryProjectionDao.observeValuationRows("rest-1") } returns flowOf(rows)
 
         repository.observeDashboard(RestaurantId("rest-1"), DashboardDateRange.LAST_30_DAYS).test {
@@ -118,11 +118,11 @@ class RoomDashboardRepositoryTest {
         val periods = periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS)
 
         val currentRows = listOf(
-            PurchaseSpendRow("p1", 1000L, "100.0"),
-            PurchaseSpendRow("p2", 2000L, "50.50")
+            PurchaseSpendRow("p1", 1000L, 1000L, "Supplier A", "100.0"),
+            PurchaseSpendRow("p2", 2000L, 2000L, "Supplier B", "50.50")
         )
         val previousRows = listOf(
-            PurchaseSpendRow("p0", 500L, "75.25")
+            PurchaseSpendRow("p0", 500L, 500L, "Supplier C", "75.25")
         )
 
         every { purchaseDao.observeSpendRows("rest-1", periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()) } returns flowOf(currentRows)
@@ -142,8 +142,8 @@ class RoomDashboardRepositoryTest {
     fun `waste value uses historical snapshots`() = runTest {
         val periods = periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS)
         val rows = listOf(
-            WasteValueRow("w1", "ing-1", 1000L, "-5.0", "10.0"),
-            WasteValueRow("w2", "ing-2", 2000L, "-2.0", "4.5")
+            WasteValueRow("w1", "ing-1", "Chicken", "Area 1", "SPOILED", 1000L, "-5.0", "lb", "10.0", null),
+            WasteValueRow("w2", "ing-2", "Milk", "Area 1", "EXPIRED", 2000L, "-2.0", "gal", "4.5", null)
         )
         
         every { movementDao.observeWasteValueRows("rest-1", periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()) } returns flowOf(rows)
@@ -158,7 +158,7 @@ class RoomDashboardRepositoryTest {
     @Test
     fun `null waste valuation throws error`() = runTest {
         val periods = periodCalculator.calculatePeriods(DashboardDateRange.LAST_30_DAYS)
-        val rows = listOf(WasteValueRow("w1", "ing-1", 1000L, "-5.0", null))
+        val rows = listOf(WasteValueRow("w1", "ing-1", "Chicken", "Area 1", "SPOILED", 1000L, "-5.0", "lb", null, null))
         
         every { movementDao.observeWasteValueRows("rest-1", periods.current.startInclusive.toEpochMilli(), periods.current.endExclusive.toEpochMilli()) } returns flowOf(rows)
 

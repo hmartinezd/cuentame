@@ -2,22 +2,32 @@ package com.miara.cuentame.core.database.model
 
 data class InventoryValuationRow(
     val ingredientId: String,
+    val ingredientName: String,
+    val baseUnitSymbol: String,
     val quantityBase: String,
-    val averageUnitCostBase: String?
+    val averageUnitCostBase: String?,
+    val areaId: String
 )
 
 data class PurchaseSpendRow(
     val receiptId: String,
     val purchaseDate: Long,
+    val postedAt: Long?,
+    val supplierName: String?,
     val lineTotal: String
 )
 
 data class WasteValueRow(
     val wasteEventId: String,
     val ingredientId: String,
-    val effectiveAt: Long,
-    val quantityBaseSigned: String,
-    val totalValueSnapshot: String?
+    val ingredientName: String,
+    val areaName: String,
+    val reason: String,
+    val timestamp: Long,
+    val quantityBase: String,
+    val baseUnitSymbol: String,
+    val totalValueSnapshot: String?,
+    val notes: String?
 )
 
 data class CompletedCountLineRow(

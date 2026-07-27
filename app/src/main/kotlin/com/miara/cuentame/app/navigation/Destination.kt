@@ -101,6 +101,11 @@ enum class Destination(val route: String) {
     WASTE_CREATE("waste/create"),
     WASTE_DRAFT("waste/{wasteEventId}"),
     WASTE_EDIT("waste/{wasteEventId}/edit"),
-    WASTE_DETAIL("waste/{wasteEventId}/detail")
+    WASTE_DETAIL("waste/{wasteEventId}/detail"),
+
+    // Reports Detailed
+    REPORT_INVENTORY_DETAIL("reports/inventory"),
+    REPORT_PURCHASE_DETAIL("reports/purchase?range={range}"),
+    REPORT_WASTE_DETAIL("reports/waste?range={range}")
 }
 

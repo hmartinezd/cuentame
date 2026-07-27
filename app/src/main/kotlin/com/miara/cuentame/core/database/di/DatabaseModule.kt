@@ -90,4 +90,16 @@ object DatabaseModule {
 
     @Provides
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase): IngredientCostProjectionDao = db.ingredientCostProjectionDao()
+
+    @Provides
+    fun provideDetailedReportsRepository(
+        inventoryProjectionDao: InventoryProjectionDao,
+        purchaseDao: PurchaseDao,
+        movementDao: InventoryMovementDao
+    ): com.miara.cuentame.core.domain.repository.DetailedReportsRepository =
+        com.miara.cuentame.core.database.repository.RoomDetailedReportsRepository(
+            inventoryProjectionDao,
+            purchaseDao,
+            movementDao
+        )
 }

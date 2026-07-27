@@ -23,7 +23,7 @@
     *   Record a **Purchase** when an order arrives.
     *   Log **Waste** as it happens throughout the shift.
     *   Perform a **Stock Count** weekly or monthly to stay accurate.
-5.  **Review Reports:** Use the Dashboard or Reports screen to monitor your restaurant's financial health.
+5.    *   Review Reports: Use the Dashboard or Reports screen to monitor inventory value, purchasing and Waste trends.
 
 ## Understanding Document Statuses
 
@@ -41,7 +41,7 @@ Cuentame stores all your business data **locally on your device**.
 ## Languages and Accessibility
 
 *   Available in **English** and **Español**.
-*   Full support for screen readers (TalkBack) and localized formatting for dates and currency.
+*   Screen-reader support and accessible labels across key workflows.
 
 ## User Guides
 
@@ -55,9 +55,7 @@ Detailed instructions for every feature:
 
 ### Current Status (Milestone 8 — Dashboard and Reports)
 *   **Milestone 8 Phase 1:** PASSED
-*   **Home Dashboard:** PASSED
-*   **Reports Overview:** PASSED
-*   **Next phase:** NOT STARTED — awaiting definition
+*   **Phase 2 — Detailed Reports:** PASSED
 *   **CI verification:** NOT CONFIGURED
 
 ### Automated Test Summary

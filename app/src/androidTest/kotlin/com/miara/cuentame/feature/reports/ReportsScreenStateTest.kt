@@ -26,6 +26,9 @@ class ReportsScreenStateTest {
             ReportsScreen(
                 uiState = ReportsScreenState.Loading,
                 onRangeSelected = {},
+                onNavigateToInventory = {},
+                onNavigateToPurchases = {},
+                onNavigateToWaste = {},
                 onRetry = {}
             )
         }
@@ -38,6 +41,9 @@ class ReportsScreenStateTest {
             ReportsScreen(
                 uiState = ReportsScreenState.SetupRequired,
                 onRangeSelected = {},
+                onNavigateToInventory = {},
+                onNavigateToPurchases = {},
+                onNavigateToWaste = {},
                 onRetry = {}
             )
         }
@@ -54,6 +60,9 @@ class ReportsScreenStateTest {
                     cause = RuntimeException("Test error")
                 ),
                 onRangeSelected = {},
+                onNavigateToInventory = {},
+                onNavigateToPurchases = {},
+                onNavigateToWaste = {},
                 onRetry = { retryClicked = true }
             )
         }
@@ -93,6 +102,9 @@ class ReportsScreenStateTest {
             ReportsScreen(
                 uiState = readyState,
                 onRangeSelected = {},
+                onNavigateToInventory = {},
+                onNavigateToPurchases = {},
+                onNavigateToWaste = {},
                 onRetry = {}
             )
         }
@@ -179,6 +191,9 @@ class ReportsScreenStateTest {
             ReportsScreen(
                 uiState = readyState,
                 onRangeSelected = {},
+                onNavigateToInventory = {},
+                onNavigateToPurchases = {},
+                onNavigateToWaste = {},
                 onRetry = {}
             )
         }

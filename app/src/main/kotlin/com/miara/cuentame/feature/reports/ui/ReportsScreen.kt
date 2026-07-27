@@ -36,6 +36,9 @@ import java.util.*
 
 @Composable
 fun ReportsRoute(
+    onNavigateToInventory: () -> Unit,
+    onNavigateToPurchases: (DashboardDateRange) -> Unit,
+    onNavigateToWaste: (DashboardDateRange) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
@@ -44,6 +47,9 @@ fun ReportsRoute(
     ReportsScreen(
         uiState = uiState,
         onRangeSelected = viewModel::onRangeSelected,
+        onNavigateToInventory = onNavigateToInventory,
+        onNavigateToPurchases = onNavigateToPurchases,
+        onNavigateToWaste = onNavigateToWaste,
         onRetry = viewModel::onRetry,
         modifier = modifier
     )
@@ -53,6 +59,9 @@ fun ReportsRoute(
 fun ReportsScreen(
     uiState: ReportsScreenState,
     onRangeSelected: (DashboardDateRange) -> Unit,
+    onNavigateToInventory: () -> Unit,
+    onNavigateToPurchases: (DashboardDateRange) -> Unit,
+    onNavigateToWaste: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -93,7 +102,10 @@ fun ReportsScreen(
             is ReportsScreenState.Ready -> {
                 ReportsContent(
                     state = uiState,
-                    onRangeSelected = onRangeSelected
+                    onRangeSelected = onRangeSelected,
+                    onNavigateToInventory = onNavigateToInventory,
+                    onNavigateToPurchases = onNavigateToPurchases,
+                    onNavigateToWaste = onNavigateToWaste
                 )
             }
         }
@@ -103,7 +115,10 @@ fun ReportsScreen(
 @Composable
 private fun ReportsContent(
     state: ReportsScreenState.Ready,
-    onRangeSelected: (DashboardDateRange) -> Unit
+    onRangeSelected: (DashboardDateRange) -> Unit,
+    onNavigateToInventory: () -> Unit,
+    onNavigateToPurchases: (DashboardDateRange) -> Unit,
+    onNavigateToWaste: (DashboardDateRange) -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
 
@@ -121,7 +136,12 @@ private fun ReportsContent(
         }
 
         item {
-            InventorySection(state.report.inventory, state.currencyCode, restaurantLocale)
+            InventorySection(
+                inventory = state.report.inventory,
+                currencyCode = state.currencyCode,
+                locale = restaurantLocale,
+                onViewDetails = onNavigateToInventory
+            )
         }
 
         item {
@@ -130,7 +150,9 @@ private fun ReportsContent(
                 metric = state.report.purchases,
                 currencyCode = state.currencyCode,
                 locale = restaurantLocale,
-                testTag = "reports_purchase_section"
+                testTag = "reports_purchase_section",
+                onViewDetails = { onNavigateToPurchases(state.selectedRange) },
+                viewDetailsTag = "reports_view_purchase_details"
             )
         }
 
@@ -140,7 +162,9 @@ private fun ReportsContent(
                 metric = state.report.waste,
                 currencyCode = state.currencyCode,
                 locale = restaurantLocale,
-                testTag = "reports_waste_section"
+                testTag = "reports_waste_section",
+                onViewDetails = { onNavigateToWaste(state.selectedRange) },
+                viewDetailsTag = "reports_view_waste_details"
             )
         }
 
@@ -235,7 +259,8 @@ private fun RangeSelector(
 private fun InventorySection(
     inventory: ReportsInventoryUiModel,
     currencyCode: String,
-    locale: Locale
+    locale: Locale,
+    onViewDetails: () -> Unit
 ) {
     val sectionTitle = stringResource(R.string.reports_inventory_overview)
     val formattedValue = Formatters.formatCurrency(inventory.totalValue, currencyCode, locale)
@@ -264,7 +289,12 @@ private fun InventorySection(
             }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(sectionTitle, style = MaterialTheme.typography.titleMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(sectionTitle, style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = onViewDetails, modifier = Modifier.testTag("reports_view_inventory_details")) {
+                    Text(stringResource(R.string.reports_view_inventory_details))
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             
             MetricRow(stringResource(R.string.inventory_value_label), formattedValue, "reports_inventory_value")
@@ -280,7 +310,9 @@ private fun ComparisonSection(
     metric: DashboardMetricUiModel,
     currencyCode: String,
     locale: Locale,
-    testTag: String
+    testTag: String,
+    onViewDetails: () -> Unit,
+    viewDetailsTag: String
 ) {
     val currentFormatted = Formatters.formatCurrency(metric.value, currencyCode, locale)
     val previousFormatted = metric.previousValue?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_applicable)
@@ -308,7 +340,12 @@ private fun ComparisonSection(
             }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = onViewDetails, modifier = Modifier.testTag(viewDetailsTag)) {
+                    Text(stringResource(if (title == stringResource(R.string.reports_purchasing)) R.string.reports_view_purchase_details else R.string.reports_view_waste_details))
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             
             MetricRow(stringResource(R.string.reports_current_period), currentFormatted, "${testTag}_current")

@@ -3,6 +3,9 @@ package com.miara.cuentame.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.dao.*
+import com.miara.cuentame.core.database.repository.RoomDetailedReportsRepository
+import com.miara.cuentame.core.domain.repository.DetailedReportsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -63,4 +66,15 @@ object TestDatabaseModule {
 
     @Provides
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase) = db.ingredientCostProjectionDao()
+
+    @Provides
+    fun provideDetailedReportsRepository(
+        inventoryProjectionDao: InventoryProjectionDao,
+        purchaseDao: PurchaseDao,
+        movementDao: InventoryMovementDao
+    ): DetailedReportsRepository = RoomDetailedReportsRepository(
+        inventoryProjectionDao,
+        purchaseDao,
+        movementDao
+    )
 }
