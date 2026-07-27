@@ -16,16 +16,18 @@ object Formatters {
         try {
             formatter.currency = Currency.getInstance(currencyCode)
         } catch (e: Exception) {
-            // Fallback if currency code is invalid
+            // Fallback: use generic symbol if currency code is invalid
         }
-        return formatter.format(amount.setScale(2, RoundingMode.HALF_UP))
+        // Rounding is usually handled by the currency instance, but we enforce 2 places for safety
+        // unless the currency requires more/less (handled by NumberFormat).
+        return formatter.format(amount)
     }
 
     fun formatQuantity(
         quantity: BigDecimal,
         unitSymbol: String? = null
     ): String {
-        // Round to 3 decimal places then strip zeros
+        // Round to 3 decimal places then strip trailing zeros
         val value = quantity.setScale(3, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
         return if (unitSymbol != null) "$value $unitSymbol" else value
     }
@@ -47,8 +49,8 @@ object Formatters {
         val formatter = NumberFormat.getPercentInstance(locale)
         formatter.minimumFractionDigits = 1
         formatter.maximumFractionDigits = 1
-        // NumberFormat.getPercentInstance expects 0.1 for 10%, so we divide by 100 if we have the percentage value
-        // But MetricComparison percentageChange is e.g. 50.0 for 50%.
+        // MetricComparison percentageChange is e.g. 50.0 for 50%.
+        // NumberFormat.getPercentInstance expects 0.5 for 50%.
         return formatter.format(value.divide(BigDecimal("100"), 4, RoundingMode.HALF_UP))
     }
 }

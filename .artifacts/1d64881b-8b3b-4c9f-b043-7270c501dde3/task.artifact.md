@@ -1,25 +1,24 @@
-# Task List - Milestone 8 Phase 1: Home Dashboard UI
+# Task List - Milestone 8 Phase 1: Home Dashboard Corrections
 
-- [ ] **Phase 1: Data Layer (Deterministic Ordering)**
-    - [ ] Update `PurchaseDao.kt`
-    - [ ] Update `InventoryMovementDao.kt`
-    - [ ] Update `StockCountDao.kt`
-    - [ ] Add tests to `DashboardDaoTest.kt` for ordering
-- [ ] **Phase 2: UI Models & Localization**
-    - [ ] Create `HomeUiModels.kt`
+- [ ] **Phase 1: Data & Models Correction**
+    - [ ] Update `DashboardModels.kt` (Counts in summary)
+    - [ ] Update `ReportingPeriodCalculator.kt` (Atomic periods)
+    - [ ] Update Activity DAOs (Deterministic ordering)
+    - [ ] Add Room tests for ordering in `DashboardDaoTest.kt`
+- [ ] **Phase 2: UI Logic & Formatting**
+    - [ ] Refactor `Formatters.kt` (Locale support)
+    - [ ] Refactor `HomeViewModel.kt` (Mapping and strict parsing)
+    - [ ] Add `HomeViewModelTest.kt` (Stale results, Retry, Coverage)
+    - [ ] Add `FormattersTest.kt` (JVM)
+- [ ] **Phase 3: Home Screen Refactor**
+    - [ ] Remove duplicate `TopAppBar` in `HomeScreen.kt`
+    - [ ] Move header into `LazyColumn`
+    - [ ] Update `MetricTrend` formatting
+    - [ ] Localize Activity statuses and type fallbacks
+    - [ ] Complete Data Completeness section
     - [ ] Update `strings.xml` (EN & ES)
-- [ ] **Phase 3: Home ViewModel**
-    - [ ] Refactor `HomeViewModel.kt`
-    - [ ] Add `HomeViewModelTest.kt`
-- [ ] **Phase 4: Home Screen Implementation**
-    - [ ] Implement `DashboardHeader` and `RangeSelector`
-    - [ ] Implement `KpiCard` and `MetricTrend` components
-    - [ ] Implement `DataCompleteness` section
-    - [ ] Implement `StockCountSummary` section
-    - [ ] Implement `TopWasteList` and `RecentActivityList`
-    - [ ] Update `HomeScreen` with full layout
-    - [ ] Update `CuentameNavHost.kt` navigation wiring
-- [ ] **Phase 5: Verification**
-    - [ ] Run JVM tests
-    - [ ] Add and run `HomeUiTest.kt` (Instrumentation)
+- [ ] **Phase 4: Final Verification**
+    - [ ] Refactor `HomeUiTest.kt` with real data seeding
+    - [ ] Add quick-action navigation tests
+    - [ ] Run full build & verification pipe
     - [ ] Update `README.md`

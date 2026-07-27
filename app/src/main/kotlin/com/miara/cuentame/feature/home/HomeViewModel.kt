@@ -17,6 +17,7 @@ sealed interface HomeScreenState {
     data class Ready(
         val restaurantName: String,
         val currencyCode: String,
+        val localeTag: String,
         val selectedRange: DashboardDateRange,
         val dashboard: DashboardUiModel
     ) : HomeScreenState
@@ -53,6 +54,7 @@ class HomeViewModel @Inject constructor(
                     HomeScreenState.Ready(
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
+                        localeTag = restaurant.localeTag,
                         selectedRange = range,
                         dashboard = mapToUiModel(snapshot)
                     ) as HomeScreenState
@@ -75,11 +77,19 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun mapToUiModel(snapshot: DashboardSnapshot): DashboardUiModel {
+        val stockedCount = snapshot.inventory.stockedIngredientCount
+        val valuedCount = snapshot.inventory.valuedIngredientCount
+        // Use BigDecimal for coverage calculation to avoid Double precision issues
+        val coverage = if (stockedCount > 0) {
+            BigDecimal(valuedCount).divide(BigDecimal(stockedCount), 3, java.math.RoundingMode.HALF_UP)
+                .multiply(BigDecimal("100")) // Convert to percentage (e.g., 0.8 -> 80)
+        } else null
+
         return DashboardUiModel(
             inventoryValue = snapshot.inventory.totalValue,
-            costCoverage = if (snapshot.inventory.stockedIngredientCount > 0) {
-                snapshot.inventory.valuedIngredientCount.toDouble() / snapshot.inventory.stockedIngredientCount
-            } else null,
+            valuedIngredientCount = valuedCount,
+            stockedIngredientCount = stockedCount,
+            costCoverage = coverage,
             missingCostCount = snapshot.inventory.missingCostCount,
             missingOptionsCount = snapshot.activeIngredientsMissingOptionsCount,
             purchaseSpend = mapComparison(snapshot.purchases),

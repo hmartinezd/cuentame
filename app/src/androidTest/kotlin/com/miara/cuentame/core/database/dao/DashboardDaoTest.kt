@@ -164,9 +164,9 @@ class DashboardDaoTest {
             db.purchaseDao().insertLine(createLine("l2", "p2", "10"))
             db.purchaseDao().insertReceipt(createReceipt("p1", restId, now, DocumentStatus.POSTED.name).copy(postedAt = now))
             db.purchaseDao().insertLine(createLine("l1", "p1", "10"))
-            
+
             val purchases = db.purchaseDao().observeRecentPurchaseActivity(restId, 10).first()
-            
+
             assertThat(purchases).hasSize(2)
             assertThat(purchases[0].id).isEqualTo("p1") // p1 before p2 because of id ASC
             assertThat(purchases[1].id).isEqualTo("p2")

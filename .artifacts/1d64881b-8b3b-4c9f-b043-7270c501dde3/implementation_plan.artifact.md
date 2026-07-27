@@ -1,83 +1,80 @@
-# Implementation Plan — Milestone 8 Phase 1: Home Dashboard UI
+# Implementation Plan — Milestone 8 Phase 1: Home Dashboard Corrections
 
-Implement the Home Dashboard UI with real data-backed summaries, KPI cards, and recent activity tracking.
+Perform a focused correction pass on the Home Dashboard to ensure UI integrity, localization accuracy, and robust verification.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> The dashboard will exclusively use local data. External integrations and food cost percentages are deferred to later phases.
+> - Removed duplicate TopAppBar from HomeScreen; header is now part of scrollable content.
+> - Removed interactive SetupRequired button as app-start logic handles redirection.
+> - Trends and Coverage now use authoritative BigDecimal calculations and localized formatters.
 
 ## Proposed Changes
 
-### Data Layer (Deterministic Activity Ordering)
+### Data & Domain Layer
+
+#### [MODIFY] [DashboardModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/model/dashboard/DashboardModels.kt)
+- Update `InventoryValuationSummary` to include `stockedIngredientCount` and `valuedIngredientCount`.
+- Ensure `DashboardActivityItem` has clear fields for localization.
+
+#### [MODIFY] [ReportingPeriodCalculator.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculator.kt)
+- Atomize period calculation to use a single `timeProvider.now()` call.
 
 #### [MODIFY] [PurchaseDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/PurchaseDao.kt)
-- Update `observeRecentPurchaseActivity`: Change `ORDER BY pr.postedAt DESC` to `ORDER BY pr.postedAt DESC, pr.id ASC`.
-
 #### [MODIFY] [InventoryMovementDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/InventoryMovementDao.kt)
-- Update `observeRecentWasteActivity`: Change `ORDER BY timestamp DESC` to `ORDER BY timestamp DESC, we.id ASC`.
-
 #### [MODIFY] [StockCountDao.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/database/dao/StockCountDao.kt)
-- Update `observeRecentCountActivity`: Change `ORDER BY completedAt DESC` to `ORDER BY completedAt DESC, id ASC`.
+- Ensure deterministic ordering (`DESC timestamp, ASC id`) in activity queries.
 
 ---
 
-### UI Layer (Home Feature)
-
-#### [NEW] [HomeUiModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeUiModels.kt)
-- Define `DashboardMetricUiModel` and `MetricComparisonState` (INCREASE, DECREASE, NO_CHANGE, NEW, UNAVAILABLE).
-- Define `DashboardUiModel` for use in `HomeScreenState`.
+### Home Feature
 
 #### [MODIFY] [HomeViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeViewModel.kt)
-- Replace placeholder logic with `DashboardRepository` and `RestaurantRepository`.
-- Use `flatMapLatest` to switch repository flows when the date range changes.
-- Map `DashboardSnapshot` to `DashboardUiModel`.
-- Handle `HomeScreenState`: `Loading`, `SetupRequired`, `Ready`, `Error`.
+- Update mapping logic for `DashboardUiModel` to preserve raw counts.
+- Implement strict decimal integrity parsing.
+- Refine `Ready` and `Error` states to include the restaurant's locale.
 
 #### [MODIFY] [HomeScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeScreen.kt)
-- Implement vertically scrollable layout.
-- Sections:
-    - **Header**: Restaurant name, Dashboard title, selected range.
-    - **Date-range Selector**: 7, 30, 90 days.
-    - **KPI Section**: Current Inventory Value, Purchase Spend, Waste Value, Negative Balances.
-    - **Data Completeness**: Coverage stats.
-    - **Stock-count Summary**: Completed counts, adjusted lines, most recent count date.
-    - **Top Waste**: Top 5 ingredients.
-    - **Recent Activity**: 10 most recent finalized documents.
-    - **Quick Actions**: Log Waste, New Purchase, Start Stock Count, View Reports.
-
-#### [MODIFY] [CuentameNavHost.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/app/navigation/CuentameNavHost.kt)
-- Update `HomeRoute` callbacks to handle new actions.
-
----
-
-### Localization & Infrastructure
+- **Remove second Scaffold/TopAppBar**.
+- Move Header (Name, "Dashboard", Selected Range) into `LazyColumn` item.
+- Update `MetricTrend` to fix double `%` issue.
+- Localize Activity status and type fallbacks.
+- Complete Data Completeness section with `X / Y` counts and percentage.
 
 #### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml)
-- Add all required strings in English and Spanish for new dashboard labels and activity types.
+- Correct `trend_increase`/`trend_decrease` patterns (remove `%%`).
+- Remove "check connection" from dashboard error message.
+- Add activity status and type strings.
 
 #### [MODIFY] [Formatters.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/core/designsystem/util/Formatters.kt)
-- Ensure existing formatters meet dashboard precision requirements.
+- Update `formatCurrency` and `formatPercent` to use a provided `Locale` and `ZoneId`.
 
 ---
+
+### Verification
+
+#### JVM Tests
+- **[MODIFY] [HomeViewModelTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt)**: Add stale-flow cancellation, retry behavior, and empty data scenarios.
+- **[NEW] [FormattersTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt)**: Verify localized currency and percentage output.
+
+#### Instrumentation Tests
+- **[MODIFY] [HomeUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt)**:
+    - Real data seeding for populated state.
+    - Assert specific values and trends.
+    - Verify navigation to quick actions (authoritative tags).
+    - Verify range-switch updates values, not just selection.
+- **[MODIFY] [DashboardDaoTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt)**: Add deterministic ordering checks for all activity types.
 
 ## Verification Plan
 
 ### Automated Tests
-- **HomeViewModelTest** (JVM):
-    - Verify initial `Loading` and `SetupRequired` (missing restaurant).
-    - Verify `Ready` state with populated and empty snapshots.
-    - Verify range changes trigger new flow collection.
-    - Verify currency mapping.
-- **HomeUiTest** (Instrumentation):
-    - Verify state rendering (Loading, Error, Populated, Empty).
-    - Verify date-range switching updates UI.
-    - Verify navigation to quick actions.
-- **DashboardDaoTest** (Instrumentation):
-    - Verify deterministic ordering of recent activity.
+1. **Targeted JVM**: `./gradlew testDebugUnitTest --tests "*HomeViewModelTest*" --tests "*FormattersTest*" --tests "*Dashboard*"`
+2. **Targeted Room**: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.core.database.dao.DashboardDaoTest`
+3. **Home UI**: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.home.HomeUiTest`
+4. **Regression Run**: `./gradlew connectedDebugAndroidTest` (Full suite)
 
 ### Manual Verification
 - Deploy to emulator.
-- Toggle between 7, 30, and 90 day ranges and verify values update.
-- Verify quick actions navigate to correct screens.
-- Check accessibility tags with a screen reader.
+- Verify no duplicate top bar.
+- Verify status labels are localized (Posted/Publicado) in activity feed.
+- Check 0/0 and N/A behavior for coverage.

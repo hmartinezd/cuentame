@@ -22,7 +22,9 @@ enum class MetricComparisonState {
 
 data class DashboardUiModel(
     val inventoryValue: BigDecimal,
-    val costCoverage: Double?, // null if stockedIngredientCount == 0
+    val valuedIngredientCount: Int,
+    val stockedIngredientCount: Int,
+    val costCoverage: BigDecimal?, // null if stockedIngredientCount == 0
     val missingCostCount: Int,
     val missingOptionsCount: Int,
     val purchaseSpend: DashboardMetricUiModel,

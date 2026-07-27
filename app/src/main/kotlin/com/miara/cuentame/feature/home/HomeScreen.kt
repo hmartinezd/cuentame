@@ -35,9 +35,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,8 +55,10 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
+import java.time.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun HomeRoute(
@@ -65,7 +67,6 @@ fun HomeRoute(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onNavigateToSetup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -80,7 +81,6 @@ fun HomeRoute(
         onNewPurchase = onNewPurchase,
         onStartCount = onStartCount,
         onViewReports = onViewReports,
-        onNavigateToSetup = onNavigateToSetup,
         modifier = modifier
     )
 }
@@ -96,53 +96,32 @@ fun HomeScreen(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onNavigateToSetup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(
-        modifier = modifier.testTag("home_screen"),
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text(
-                            text = when (uiState) {
-                                is HomeScreenState.Ready -> uiState.restaurantName
-                                else -> stringResource(R.string.dashboard_title)
-                            },
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = stringResource(R.string.dashboard_title),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("home_screen")
+    ) {
         when (uiState) {
             is HomeScreenState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding).testTag("home_loading"), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxSize().testTag("home_loading"), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
             is HomeScreenState.SetupRequired -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding).testTag("home_setup_required"), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxSize().testTag("home_setup_required"), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                         Icon(Icons.Default.Restaurant, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(stringResource(R.string.setup_required_title), style = MaterialTheme.typography.headlineSmall)
                         Text(stringResource(R.string.setup_required_desc), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                        Button(onClick = onNavigateToSetup, modifier = Modifier.padding(top = 24.dp)) {
-                            Text(stringResource(R.string.onboarding_setup_action))
-                        }
+                        // Navigation handled by app-start logic usually, but keep a non-interactive state as per plan
                     }
                 }
             }
             is HomeScreenState.Error -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding).testTag("home_error"), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxSize().testTag("home_error"), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                         Icon(Icons.Default.Error, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.height(16.dp))
@@ -162,8 +141,7 @@ fun HomeScreen(
                     onViewWaste = onViewWaste,
                     onNewPurchase = onNewPurchase,
                     onStartCount = onStartCount,
-                    onViewReports = onViewReports,
-                    paddingValues = padding
+                    onViewReports = onViewReports
                 )
             }
         }
@@ -178,20 +156,25 @@ private fun DashboardContent(
     onViewWaste: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
-    onViewReports: () -> Unit,
-    paddingValues: PaddingValues
+    onViewReports: () -> Unit
 ) {
+    val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
+    
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(paddingValues),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
+        item {
+            DashboardHeader(state.restaurantName)
+        }
+        
         item {
             RangeSelector(selected = state.selectedRange, onSelected = onRangeSelected)
         }
 
         item {
-            KpiSection(state)
+            KpiSection(state, restaurantLocale)
         }
 
         item {
@@ -199,20 +182,37 @@ private fun DashboardContent(
         }
 
         item {
-            DataCompletenessSection(state)
+            DataCompletenessSection(state, restaurantLocale)
         }
 
         item {
-            StockCountSummarySection(state)
+            StockCountSummarySection(state, restaurantLocale)
         }
 
         item {
-            TopWasteSection(state)
+            TopWasteSection(state, restaurantLocale)
         }
 
         item {
-            RecentActivitySection(state)
+            RecentActivitySection(state, restaurantLocale)
         }
+    }
+}
+
+@Composable
+private fun DashboardHeader(restaurantName: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = restaurantName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = stringResource(R.string.dashboard_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
@@ -222,7 +222,12 @@ private fun RangeSelector(
     onSelected: (DashboardDateRange) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().testTag("home_date_range_selector"),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_date_range_selector")
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Date range filter for dashboard metrics"
+            },
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         DashboardDateRange.entries.forEach { range ->
@@ -236,23 +241,39 @@ private fun RangeSelector(
                         DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
                     }))
                 },
-                modifier = Modifier.testTag(when(range) {
-                    DashboardDateRange.LAST_7_DAYS -> "home_range_7"
-                    DashboardDateRange.LAST_30_DAYS -> "home_range_30"
-                    DashboardDateRange.LAST_90_DAYS -> "home_range_90"
-                })
+                modifier = Modifier
+                    .testTag(when(range) {
+                        DashboardDateRange.LAST_7_DAYS -> "home_range_7"
+                        DashboardDateRange.LAST_30_DAYS -> "home_range_30"
+                        DashboardDateRange.LAST_90_DAYS -> "home_range_90"
+                    })
+                    .semantics {
+                        contentDescription = if (selected == range) {
+                            "Filter by ${stringResource(when(range) {
+                                DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                                DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                                DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                            })}, currently selected"
+                        } else {
+                            "Filter by ${stringResource(when(range) {
+                                DashboardDateRange.LAST_7_DAYS -> R.string.range_7_days
+                                DashboardDateRange.LAST_30_DAYS -> R.string.range_30_days
+                                DashboardDateRange.LAST_90_DAYS -> R.string.range_90_days
+                            })}"
+                        }
+                    }
             )
         }
     }
 }
 
 @Composable
-private fun KpiSection(state: HomeScreenState.Ready) {
+private fun KpiSection(state: HomeScreenState.Ready, locale: Locale) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             KpiCard(
                 title = stringResource(R.string.inventory_value_label),
-                value = Formatters.formatCurrency(state.dashboard.inventoryValue, state.currencyCode),
+                value = Formatters.formatCurrency(state.dashboard.inventoryValue, state.currencyCode, locale),
                 modifier = Modifier.weight(1f).testTag("dashboard_inventory_value")
             )
             KpiCard(
@@ -265,15 +286,17 @@ private fun KpiSection(state: HomeScreenState.Ready) {
         
         KpiCard(
             title = stringResource(R.string.purchase_spend_label),
-            value = Formatters.formatCurrency(state.dashboard.purchaseSpend.value, state.currencyCode),
+            value = Formatters.formatCurrency(state.dashboard.purchaseSpend.value, state.currencyCode, locale),
             comparison = state.dashboard.purchaseSpend,
+            locale = locale,
             modifier = Modifier.fillMaxWidth().testTag("dashboard_purchase_spend")
         )
 
         KpiCard(
             title = stringResource(R.string.waste_value_label),
-            value = Formatters.formatCurrency(state.dashboard.wasteValue.value, state.currencyCode),
+            value = Formatters.formatCurrency(state.dashboard.wasteValue.value, state.currencyCode, locale),
             comparison = state.dashboard.wasteValue,
+            locale = locale,
             modifier = Modifier.fillMaxWidth().testTag("dashboard_waste_value")
         )
     }
@@ -285,37 +308,64 @@ private fun KpiCard(
     value: String,
     modifier: Modifier = Modifier,
     comparison: DashboardMetricUiModel? = null,
+    locale: Locale = Locale.getDefault(),
     valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    Card(modifier = modifier) {
+    val trendDescription = if (comparison != null) {
+        when (comparison.comparisonState) {
+            MetricComparisonState.INCREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                stringResource(R.string.trend_increase, percentText)
+            }
+            MetricComparisonState.DECREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                stringResource(R.string.trend_decrease, percentText)
+            }
+            MetricComparisonState.NEW -> stringResource(R.string.comparison_new)
+            MetricComparisonState.NO_CHANGE -> stringResource(R.string.trend_no_change)
+            MetricComparisonState.UNAVAILABLE -> stringResource(R.string.not_applicable)
+        } + " " + stringResource(R.string.from_previous_period)
+    } else ""
+
+    Card(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$title: $value. $trendDescription"
+        }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
             Text(text = value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = valueColor)
             
             comparison?.let {
-                MetricTrend(it)
+                MetricTrend(it, locale)
             }
         }
     }
 }
 
 @Composable
-private fun MetricTrend(comparison: DashboardMetricUiModel) {
+private fun MetricTrend(comparison: DashboardMetricUiModel, locale: Locale) {
     Row(
         modifier = Modifier.padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val (text, color, icon) = when (comparison.comparisonState) {
-            MetricComparisonState.INCREASE -> Triple(
-                stringResource(R.string.trend_increase, Formatters.formatPercent(comparison.percentageChange!!)),
-                MaterialTheme.colorScheme.primary,
-                Icons.Default.ArrowUpward
-            )
-            MetricComparisonState.DECREASE -> Triple(
-                stringResource(R.string.trend_decrease, Formatters.formatPercent(comparison.percentageChange!!)),
-                MaterialTheme.colorScheme.primary,
-                Icons.Default.ArrowDownward
-            )
+            MetricComparisonState.INCREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                Triple(
+                    stringResource(R.string.trend_increase, percentText),
+                    MaterialTheme.colorScheme.primary,
+                    Icons.Default.ArrowUpward
+                )
+            }
+            MetricComparisonState.DECREASE -> {
+                val percentText = Formatters.formatPercent(comparison.percentageChange!!, locale)
+                Triple(
+                    stringResource(R.string.trend_decrease, percentText),
+                    MaterialTheme.colorScheme.primary,
+                    Icons.Default.ArrowDownward
+                )
+            }
             MetricComparisonState.NEW -> Triple(
                 stringResource(R.string.comparison_new),
                 MaterialTheme.colorScheme.secondary,
@@ -376,7 +426,9 @@ private fun QuickActionButton(
 ) {
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = label
+        },
         contentPadding = PaddingValues(12.dp)
     ) {
         Icon(icon, contentDescription = null)
@@ -386,14 +438,20 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun DataCompletenessSection(state: HomeScreenState.Ready) {
+private fun DataCompletenessSection(state: HomeScreenState.Ready, locale: Locale) {
     Card(modifier = Modifier.fillMaxWidth().testTag("dashboard_data_completeness")) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.data_completeness_label), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            val coverageText = state.dashboard.costCoverage?.let { Formatters.formatPercent(it) } ?: stringResource(R.string.not_applicable)
-            DataQualityRow(stringResource(R.string.valuation_coverage_label), coverageText)
+            val coverageRatio = stringResource(R.string.coverage_format, state.dashboard.valuedIngredientCount, state.dashboard.stockedIngredientCount)
+            val coveragePercentage = if (state.dashboard.stockedIngredientCount == 0) {
+                stringResource(R.string.not_applicable)
+            } else {
+                state.dashboard.costCoverage?.let { Formatters.formatPercent(it, locale) } ?: stringResource(R.string.not_applicable)
+            }
+
+            DataQualityRow(stringResource(R.string.valuation_coverage_label), "$coverageRatio ($coveragePercentage)")
             DataQualityRow(stringResource(R.string.missing_costs_label), state.dashboard.missingCostCount.toString())
             DataQualityRow(stringResource(R.string.missing_unit_options_label), state.dashboard.missingOptionsCount.toString())
         }
@@ -409,12 +467,16 @@ private fun DataQualityRow(label: String, value: String) {
 }
 
 @Composable
-private fun StockCountSummarySection(state: HomeScreenState.Ready) {
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd").withZone(ZoneId.systemDefault()) }
-    
+private fun StockCountSummarySection(state: HomeScreenState.Ready, locale: Locale) {
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+            .withLocale(locale)
+            .withZone(ZoneId.systemDefault())
+    }
+
     Card(modifier = Modifier.fillMaxWidth().testTag("dashboard_stock_count_summary")) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.stock_counts), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.count_title), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
             DataQualityRow(stringResource(R.string.completed_counts_label), state.dashboard.completedCountCount.toString())
@@ -427,7 +489,7 @@ private fun StockCountSummarySection(state: HomeScreenState.Ready) {
 }
 
 @Composable
-private fun TopWasteSection(state: HomeScreenState.Ready) {
+private fun TopWasteSection(state: HomeScreenState.Ready, locale: Locale) {
     Column(modifier = Modifier.testTag("dashboard_top_waste_list")) {
         Text(stringResource(R.string.top_waste_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
         
@@ -445,7 +507,7 @@ private fun TopWasteSection(state: HomeScreenState.Ready) {
                     supportingContent = { Text(stringResource(R.string.items_count_format, item.eventCount)) },
                     trailingContent = {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(Formatters.formatCurrency(item.totalValue, state.currencyCode), fontWeight = FontWeight.Bold)
+                            Text(Formatters.formatCurrency(item.totalValue, state.currencyCode, locale), fontWeight = FontWeight.Bold)
                             Text(Formatters.formatQuantity(item.quantityBase, item.unitSymbol), style = MaterialTheme.typography.labelSmall)
                         }
                     },
@@ -457,8 +519,12 @@ private fun TopWasteSection(state: HomeScreenState.Ready) {
 }
 
 @Composable
-private fun RecentActivitySection(state: HomeScreenState.Ready) {
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, HH:mm").withZone(ZoneId.systemDefault()) }
+private fun RecentActivitySection(state: HomeScreenState.Ready, locale: Locale) {
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT, java.time.format.FormatStyle.SHORT)
+            .withLocale(locale)
+            .withZone(ZoneId.systemDefault())
+    }
 
     Column(modifier = Modifier.testTag("dashboard_recent_activity_list")) {
         Text(stringResource(R.string.recent_activity_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
@@ -472,36 +538,51 @@ private fun RecentActivitySection(state: HomeScreenState.Ready) {
             )
         } else {
             state.dashboard.recentActivity.forEach { item ->
+                val typeLabel = stringResource(when(item.type) {
+                    DashboardActivityType.PURCHASE -> R.string.activity_type_purchase
+                    DashboardActivityType.WASTE -> R.string.activity_type_waste
+                    DashboardActivityType.STOCK_COUNT -> R.string.activity_type_stock_count
+                })
+                val statusLabel = stringResource(when(item.status) {
+                    "POSTED" -> R.string.activity_status_posted
+                    "VOIDED" -> R.string.activity_status_voided
+                    "COMPLETED" -> R.string.activity_status_completed
+                    else -> R.string.not_applicable
+                })
+                val displayName = if (item.displayName.isNullOrBlank()) typeLabel else item.displayName
+                val valueText = item.value?.let { Formatters.formatCurrency(it, state.currencyCode, locale) } ?: ""
+                val dateText = dateFormatter.format(item.timestamp)
+
                 ListItem(
+                    modifier = Modifier
+                        .testTag("dashboard_activity_${item.type.name}_${item.id}")
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "$typeLabel: $displayName. $statusLabel on $dateText. $valueText"
+                        },
                     headlineContent = { 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = stringResource(when(item.type) {
-                                    DashboardActivityType.PURCHASE -> R.string.activity_type_purchase
-                                    DashboardActivityType.WASTE -> R.string.activity_type_waste
-                                    DashboardActivityType.STOCK_COUNT -> R.string.activity_type_stock_count
-                                }),
+                                text = typeLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 2.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(item.displayName ?: "")
+                            Text(displayName)
                         }
                     },
                     supportingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(dateFormatter.format(item.timestamp))
+                            Text(dateText)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("•")
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(item.status)
+                            Text(statusLabel)
                         }
                     },
                     trailingContent = item.value?.let {
-                        { Text(Formatters.formatCurrency(it, state.currencyCode), fontWeight = FontWeight.Bold) }
-                    },
-                    modifier = Modifier.testTag("dashboard_activity_${item.type.name}_${item.id}")
+                        { Text(Formatters.formatCurrency(it, state.currencyCode, locale), fontWeight = FontWeight.Bold) }
+                    }
                 )
             }
         }
