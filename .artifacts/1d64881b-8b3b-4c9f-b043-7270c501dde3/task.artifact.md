@@ -1,23 +1,13 @@
-# Task List - Milestone 8 Phase 1: Reports Overview
+# Task List - Milestone 8 Phase 1: Final Closure
 
-- [x] **Residual Home Corrections**
-    - [x] Restore combined semantics in `KpiCard`
-    - [x] Correct Truth assertion in `HomeScreenStateTest`
-    - [x] Add invalid-currency test in `FormattersTest`
-    - [x] Extend `HomeUiTest` with authoritative assertions
-- [x] **Reports Feature Implementation**
-    - [x] Create `ReportsUiModels.kt`
-    - [x] Create `ReportsViewModel.kt` with range-switching logic
-    - [x] Fix `BigDecimal` scale-independent zero comparison
-    - [x] Create `ReportsScreen.kt` with all reporting sections
-    - [x] Add range summary to Reports header
-    - [x] Implement combined semantics for all Reports sections
-    - [x] Add Reports localized strings (EN & ES)
-    - [x] Integrate `ReportsRoute` into `CuentameNavHost`
-- [x] **Verification**
-    - [x] Implement `ReportsViewModelTest.kt` (JVM)
-    - [x] Implement `ReportsScreenStateTest.kt` (Compose State)
-    - [x] Implement `ReportsUiTest.kt` (Integration with seeding)
-    - [x] Verify Home-to-Reports and Back navigation
-    - [x] Run full build & verification suite
-    - [x] Update `README.md`
+- [ ] **Integration Coverage Pass**
+    - [ ] Update `ReportsUiTest.kt` with authoritative seeding (Purchases DRAFT/VOIDED, Waste historical, Count status)
+    - [ ] Verify exact reporting totals with status exclusions
+- [ ] **Customer Documentation**
+    - [ ] Create `docs/USER_GUIDE.md` (EN)
+    - [ ] Create `docs/USER_GUIDE.es.md` (ES)
+    - [ ] Reorganize `README.md` (Customer-first)
+    - [ ] Create `CONTRIBUTING.md` (Maintenance policy)
+- [ ] **Verification**
+    - [ ] Run full build & verification suite
+    - [ ] Final truthfulness update of `README.md`

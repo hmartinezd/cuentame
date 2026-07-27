@@ -1,74 +1,49 @@
-# Implementation Plan — Milestone 8 Phase 1: Reports Overview
+# Implementation Plan — Milestone 8 Phase 1 closure
 
-Implement the Reports Overview feature, providing a detailed breakdown of restaurant inventory, purchasing, and waste metrics with localized date-range filtering.
+Perform final truthfulness pass on integration coverage and establish customer-oriented documentation.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - Reports will use the existing authoritative formulas and data from `DashboardRepository`.
-> - The feature will be accessible from the bottom navigation and the "View Reports" quick action on the Home screen.
-> - High-precision `BigDecimal` math (scale-independent) and localized formatting will be applied consistently across all metrics.
-> - Full accessibility semantics are implemented for all reporting sections to support screen readers.
+> - Integration tests will be updated to authoritatively prove document status exclusion rules (e.g., DRAFT/VOIDED excluded from reporting).
+> - Customer documentation will be established as the primary entry point for the repository.
+> - A permanent rule for maintaining documentation synchronization will be added to the project.
 
 ## Proposed Changes
 
-### Residual Home Corrections
+### Integration Coverage
 
-#### [MODIFY] [HomeScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/home/HomeScreen.kt)
-- Restore combined accessibility semantics for `KpiCard`.
-- Ensure all trend descriptions are localized and include previous-period context.
-
-#### [MODIFY] [HomeScreenStateTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt)
-- Standardize assertions using Google Truth (`assertThat`).
-
-#### [MODIFY] [FormattersTest.kt](file:///Users/hector/Projects/cuentame/app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt)
-- Add JVM test for invalid currency code fallback behavior (e.g., "XYZ 1,234.56").
-
-#### [MODIFY] [HomeUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt)
-- Rename and extend `dashboard_fullVerification` with authoritative metric assertions.
-- Add Home-to-Reports navigation verification.
+#### [MODIFY] [ReportsUiTest.kt](file:///Users/hector/Projects/cuentame/app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt)
+- Expand `seedPopulatedData` with:
+    - DRAFT and VOIDED purchases (proving exclusion).
+    - VOIDED waste and historical cost mismatch (proving historical valuation).
+    - DRAFT counts and zero/null adjustments (proving count/adjustment logic).
+- Strengthen assertions to verify exact totals within specific UI sections.
 
 ---
 
-### Reports Feature
+### Documentation
 
-#### [NEW] [ReportsUiModels.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ui/ReportsUiModels.kt)
-- Structured data for Inventory, Comparisons, Alerts, and Counts.
+#### [MODIFY] [README.md](file:///Users/hector/Projects/cuentame/README.md)
+- Reorganize to be customer-first.
+- Add clear sections on product capability, getting started, and local-first data retention.
+- Remove obsolete Milestone 8 "Next Steps".
 
-#### [NEW] [ReportsViewModel.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModel.kt)
-- utilize `RestaurantRepository` and `DashboardRepository`.
-- Implement `ReportsScreenState` (Loading, SetupRequired, Ready, Error).
-- Support date-range selection with cancellation of stale repository emissions.
-- Use scale-independent `BigDecimal` comparisons for trend mapping.
+#### [NEW] [USER_GUIDE.md](file:///Users/hector/Projects/cuentame/docs/USER_GUIDE.md)
+- Comprehensive English guide for restaurant staff.
 
-#### [NEW] [ReportsScreen.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/feature/reports/ui/ReportsScreen.kt)
-- Vertically scrollable layout with sections: Header (with range label), Range Selector, Inventory, Purchases, Waste, Alerts, Stock Counts, and Top Waste.
-- Add combined accessibility semantics for all reporting sections.
-- Add stable test tags for exact numeric verification in integration tests.
+#### [NEW] [USER_GUIDE.es.md](file:///Users/hector/Projects/cuentame/docs/USER_GUIDE.es.md)
+- Comprehensive Spanish guide for restaurant staff.
 
-#### [MODIFY] [CuentameNavHost.kt](file:///Users/hector/Projects/cuentame/app/src/main/kotlin/com/miara/cuentame/app/navigation/CuentameNavHost.kt)
-- Replace `PlaceholderScreen(TopLevelDestination.REPORTS)` with `ReportsRoute`.
-
----
-
-### Resources & Localization
-
-#### [MODIFY] [strings.xml](file:///Users/hector/Projects/cuentame/app/src/main/res/values/strings.xml) & [strings.xml (es)](file:///Users/hector/Projects/cuentame/app/src/main/res/values-es/strings.xml)
-- Add localized strings for all Reports sections, range labels, and semantics patterns.
+#### [NEW] [CONTRIBUTING.md](file:///Users/hector/Projects/cuentame/CONTRIBUTING.md)
+- Define the documentation-maintenance policy.
 
 ## Verification Plan
 
 ### Automated Tests
-1. **JVM Tests**:
-   - Verify `ReportsViewModel` state transitions, range switching, and scale-independent comparisons.
-   - Command: `./gradlew testDebugUnitTest --tests "*ReportsViewModelTest*" --tests "*FormattersTest*"`
-2. **Compose State Tests**:
-   - Verify `ReportsScreen` rendering for all states (Loading, Error, Ready empty/populated).
-3. **Integration Tests**:
-   - Verify `ReportsUiTest` with real seeded data for all sections and range updates.
-   - Verify Home-to-Reports and Back navigation.
-   - Command: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.reports.ReportsUiTest`
+- Run updated `ReportsUiTest` to verify exhaustive seeding and status rules.
+- Run full suite to ensure no regressions.
+- Command: `./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.miara.cuentame.feature.reports.ReportsUiTest`
 
 ### Manual Verification
-- Deploy to emulator and verify visual layout and "Last 30 days" header.
-- Confirm localized formatting and screen-reader announcements.
+- Review generated markdown files for clarity and natural language (especially Spanish).

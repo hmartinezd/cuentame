@@ -1,58 +1,80 @@
 # Cuentame Inventory
 
-A local-first restaurant inventory application built with modern Android practices.
+**Cuentame** is a professional inventory management tool designed specifically for restaurants. It helps you track your stock, manage purchases, and monitor waste—all from your Android device.
 
-## Current Status (Milestone 8 — Dashboard and Reports - Phase 1)
+## What Cuentame helps you do
+
+*   **Restaurant Profile:** Set up your restaurant details including your preferred currency and language.
+*   **Inventory Areas:** Organize your stock into logical locations like "Main Freezer," "Dry Storage," or "Bar."
+*   **Ingredient Management:** Create a master list of all your ingredients.
+*   **Unit Options:** Configure exactly how you buy and count each item (e.g., cases, bags, or individual pounds).
+*   **Purchase Tracking:** Record new stock as it arrives, track costs, and post purchases to update your inventory automatically.
+*   **Stock Counts:** Perform regular physical counts to verify your actual stock levels.
+*   **Waste Logging:** Record spoiled, expired, or dropped items to keep your inventory accurate and understand your losses.
+*   **Dashboard & Alerts:** View real-time warnings for negative balances or missing costs.
+*   **Reporting:** Monitor your total inventory value and compare your spending and waste over 7, 30, or 90 days.
+
+## Getting Started
+
+1.  **Restaurant Setup:** Complete the initial onboarding to set your restaurant name and currency.
+2.  **Add Areas:** Go to Settings to define your inventory locations.
+3.  **Create Ingredients:** Add the items you want to track. Be sure to add at least one **Unit Option** for each ingredient so you can record quantities.
+4.  **Daily Workflow:**
+    *   Record a **Purchase** when an order arrives.
+    *   Log **Waste** as it happens throughout the shift.
+    *   Perform a **Stock Count** weekly or monthly to stay accurate.
+5.  **Review Reports:** Use the Dashboard or Reports screen to monitor your restaurant's financial health.
+
+## Understanding Document Statuses
+
+*   **DRAFT:** A record that is still being worked on. It does not affect your inventory levels or show up in finalized reports.
+*   **POSTED:** A finalized record. Once posted, it updates your inventory balances and is included in all reports.
+*   **VOIDED:** A previously posted record that has been cancelled. It is excluded from active reporting totals.
+*   **COMPLETED (Counts):** A finalized stock count that sets the authoritative balance for your ingredients.
+
+## Local-First Data
+
+Cuentame stores all your business data **locally on your device**. 
+*   No internet connection is required for daily operation.
+*   **Important:** Your data is not currently backed up to the cloud. Deleting the app or clearing its storage will permanently remove your restaurant's records.
+
+## Languages and Accessibility
+
+*   Available in **English** and **Español**.
+*   Full support for screen readers (TalkBack) and localized formatting for dates and currency.
+
+## User Guides
+
+Detailed instructions for every feature:
+*   [English User Guide](docs/USER_GUIDE.md)
+*   [Guía del Usuario en Español](docs/USER_GUIDE.es.md)
+
+---
+
+## Development & Status
+
+### Current Status (Milestone 8 — Dashboard and Reports)
+*   **Milestone 8 Phase 1:** PASSED
+*   **Home Dashboard:** PASSED
+*   **Reports Overview:** PASSED
+*   **Next phase:** NOT STARTED — awaiting definition
+*   **CI verification:** NOT CONFIGURED
+
+### Automated Test Summary
 - `clean`: PASSED
 - `assembleDebug`: PASSED
 - `testDebugUnitTest`: PASSED (154 tests)
 - `lintDebug`: PASSED
 - `connectedDebugAndroidTest`: PASSED (119 tests)
 
-### Milestone 8 Phase 1 (Home Dashboard and Reports Overview) Closure
-- **Inventory Semantics:** Accessibility strings now include current value, valued/stocked ratio, coverage percentage, and missing-cost count.
-- **BigDecimal Comparison:** Fixed comparison logic to be scale-independent using `compareTo()`, ensuring `0.00` is equivalent to `0` for trend mapping.
-- **Reports Header:** Displays the active reporting range summary (e.g., "Last 30 days").
-- **Seeding & Fixtures:** Expanded `ReportsUiTest` with exhaustive Room seeding for Inventory, Purchases, Waste (historical snapshot validation), and Stock Counts.
-- **Navigation:** Verified reliable navigation from Home Dashboard to Reports and correct system Back behavior.
-- **Range Switching:** Authoritative verification of metric updates when switching between 7, 30, and 90-day periods.
-
-### Verification Status
-- **Current milestone:** Milestone 8 — Dashboard and Reports
-- **Phase 1 status:** PASSED
-- **Home Dashboard:** PASSED
-- **Reports Overview:** PASSED
-- **Next phase:** NOT STARTED — awaiting definition
-- **CI verification:** NOT CONFIGURED
-
-### Milestone 7 Highlights (Completed)
-- **Authoritative Integrity:** Verified that `POST`, `VOID`, and `DELETE` operations rollback cleanly on transactional failure, with strict `triggerCount == 1` assertions.
-- **Robust UI Synchronization:** Implemented `waitForWasteStatus` and specialized test tags for confirmation dialogs and progress indicators.
-- **Production Correction:** Fixed critical navigation defect where DRAFT purchases were routed to read-only detail screens.
-- **Archived Reference Persistence:** Verified that archived ingredients, areas, and unit options remain usable in DRAFT states and display localized (Archived) markers.
-- **Reactive State Management:** Transitioned Waste unit loading to a typed `UnitOptionsLoadState` flow to prevent races and handle authoritative empty results.
-- **Historical Costing:** Quantity and value snapshots are correctly captured and preserved through state transitions.
-
-### Next Steps
-- Complete compilation and test verification
-- Begin Milestone 8 Phase 2 (Reports Overview)
-- Implement Reports ViewModel and UI
-- Complete Reports integration and testing
-
-## Tech Stack
+### Tech Stack
 - **UI:** Jetpack Compose with Material 3.
 - **Architecture:** Clean Architecture with Hilt for DI and Coroutines/Flow for reactivity.
-- **Persistence:** Room (Business Data) and Preferences DataStore (User settings/drafts).
-- **ID Strategy:** Client-generated UUIDs (@JvmInline value classes).
-- **Precision:** `BigDecimal` for all quantities and costs.
+- **Persistence:** Room (SQL-based business data) and Preferences DataStore (Local settings).
+- **Precision:** `BigDecimal` used for all monetary and quantity calculations to ensure financial accuracy.
 
-## Resetting App Data
-To re-run onboarding, clear the application storage via Android Settings.
-
-## Development Setup
+### Development Setup
 1. Open in Android Studio Ladybug or newer.
-2. Run `./gradlew assembleDebug` to verify build.
-3. Run `./gradlew testDebugUnitTest` for JVM tests.
+2. Run `./gradlew assembleDebug` to verify the build.
+3. Run `./gradlew testDebugUnitTest` for JVM unit tests.
 4. Run `./gradlew connectedDebugAndroidTest` for integration and E2E verification.
-
-
