@@ -2,17 +2,17 @@ package com.miara.cuentame.core.backup
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
-import com.miara.cuentame.core.model.backup.*
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
+import com.miara.cuentame.core.model.backup.BackupSnapshot
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.core.domain.repository.BackupOperationStatus
-import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import io.mockk.coEvery
 import io.mockk.every
@@ -24,11 +24,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
-import java.math.BigDecimal
 import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
-class BackupRoundTripTest {
+class ArchiveDeterminismTest {
 
     private lateinit var context: Context
     private val backupDao = mockk<BackupDao>()
@@ -55,13 +54,12 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun backup_roundTrip_richDataset() = runTest {
-        val tempFile = File(context.cacheDir, "roundtrip.zip")
-        if (tempFile.exists()) tempFile.delete()
-        tempFile.createNewFile()
-        val uri = Uri.fromFile(tempFile)
+    fun archivesAreBitForByteIdenticalForSameInputs() = runTest {
+        val file1 = File(context.cacheDir, "backup1.zip")
+        val file2 = File(context.cacheDir, "backup2.zip")
+        val file3 = File(context.cacheDir, "backup3.zip")
+        listOf(file1, file2, file3).forEach { if (it.exists()) it.delete(); it.createNewFile() }
 
-        // Mock data
         val now = Instant.parse("2026-01-01T10:00:00Z")
         every { timeProvider.now() } returns now
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
@@ -69,25 +67,20 @@ class BackupRoundTripTest {
         every { appVersionProvider.versionCode } returns 1L
         every { appVersionProvider.databaseSchemaVersion } returns 1
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
-        
+
         val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
         val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
-        // Create one dummy file for attachment test
-        val attachmentFile = File(context.cacheDir, "receipt.jpg")
-        attachmentFile.writeText("dummy content")
-        val attachmentUri = Uri.fromFile(attachmentFile)
-
         coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
             restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
-            inventoryAreas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area 1", 1, true, 0L, 0L, null)),
+            inventoryAreas = emptyList(),
             ingredientCategories = emptyList(),
             units = emptyList(),
             ingredients = emptyList(),
             ingredientUnitOptions = emptyList(),
             suppliers = emptyList(),
-            purchaseReceipts = listOf(com.miara.cuentame.core.database.entity.PurchaseReceiptEntity("p-1", "rest-1", null, null, 0L, "POSTED", null, attachmentUri.toString(), 0L, 0L, 0L, null)),
+            purchaseReceipts = emptyList(),
             purchaseLines = emptyList(),
             stockCounts = emptyList(),
             stockCountAreas = emptyList(),
@@ -98,21 +91,23 @@ class BackupRoundTripTest {
             ingredientCostProjections = emptyList()
         )
 
-        // 1. Create
-        val createResults = repository.createBackup(uri.toString()).toList()
-        assertThat(createResults.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
-        val manifest = (createResults.last() as BackupOperationStatus.Success).manifest
+        // 1. Create first backup
+        repository.createBackup(Uri.fromFile(file1).toString()).toList()
+        val bytes1 = file1.readBytes()
 
-        // 2. Validate
-        val validationResult = repository.validateBackup(uri.toString())
-        assertThat(validationResult).isInstanceOf(BackupValidationResult.Valid::class.java)
-        
-        val valid = validationResult as BackupValidationResult.Valid
-        assertThat(valid.manifest.applicationId).isEqualTo("com.miara.cuentame")
-        assertThat(valid.manifest.attachments).hasSize(1)
-        assertThat(valid.manifest.attachments[0].referencedBy).isNotEmpty()
-        
-        tempFile.delete()
-        attachmentFile.delete()
+        // 2. Create second backup (identical inputs)
+        repository.createBackup(Uri.fromFile(file2).toString()).toList()
+        val bytes2 = file2.readBytes()
+
+        assertThat(bytes1).isEqualTo(bytes2)
+
+        // 3. Create third backup (different timestamp)
+        every { timeProvider.now() } returns now.plusSeconds(1)
+        repository.createBackup(Uri.fromFile(file3).toString()).toList()
+        val bytes3 = file3.readBytes()
+
+        assertThat(bytes1).isNotEqualTo(bytes3)
+
+        listOf(file1, file2, file3).forEach { it.delete() }
     }
 }

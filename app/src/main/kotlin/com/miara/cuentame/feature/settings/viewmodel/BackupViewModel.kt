@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.backup.BackupFilenameGenerator
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
@@ -42,7 +43,7 @@ class BackupViewModel @Inject constructor(
     val events = _events.asSharedFlow()
 
     fun onCreateBackupRequested() {
-        if (_uiState.value is BackupUiState.Creating || _uiState.value is BackupUiState.Validating || _uiState.value is BackupUiState.WaitingForDestination) return
+        if (_uiState.value != BackupUiState.Idle && _uiState.value !is BackupUiState.Success && _uiState.value !is BackupUiState.Error && _uiState.value != BackupUiState.Cancelled) return
         
         viewModelScope.launch {
             _uiState.value = BackupUiState.WaitingForDestination
@@ -54,17 +55,17 @@ class BackupViewModel @Inject constructor(
 
     fun onFileSelected(uri: String) {
         viewModelScope.launch {
-            _uiState.value = BackupUiState.Creating
-            val result = backupRepository.createBackup(uri)
-            when (result) {
-                is BackupResult.Success -> {
-                    _uiState.value = BackupUiState.Success(result.manifest)
-                }
-                is BackupResult.Error -> {
-                    if (result is BackupResult.Error.OperationCancelled) {
-                        _uiState.value = BackupUiState.Cancelled
-                    } else {
-                        _uiState.value = BackupUiState.Error(result)
+            backupRepository.createBackup(uri).collect { status ->
+                when (status) {
+                    is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
+                    is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
+                    is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+                    is BackupOperationStatus.Error -> {
+                        if (status.result is BackupResult.Error.OperationCancelled) {
+                            _uiState.value = BackupUiState.Cancelled
+                        } else {
+                            _uiState.value = BackupUiState.Error(status.result)
+                        }
                     }
                 }
             }

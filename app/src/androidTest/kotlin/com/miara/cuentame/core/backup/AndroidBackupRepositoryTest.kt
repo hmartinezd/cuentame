@@ -13,11 +13,14 @@ import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.model.backup.*
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
+import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -60,9 +63,9 @@ class AndroidBackupRepositoryTest {
         val uri = Uri.parse(uriString)
         every { contentResolver.openFileDescriptor(uri, "w") } returns null
 
-        val result = repository.createBackup(uriString)
+        val results = repository.createBackup(uriString).toList()
 
-        assertThat(result).isEqualTo(BackupResult.Error.DestinationUnavailable)
+        assertThat(results.last()).isEqualTo(BackupOperationStatus.Error(BackupResult.Error.DestinationUnavailable))
     }
 
     @Test
@@ -114,10 +117,10 @@ class AndroidBackupRepositoryTest {
         
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
 
-        val result = repository.createBackup(uriString)
+        val results = repository.createBackup(uriString).toList()
 
-        assertThat(result).isInstanceOf(BackupResult.Success::class.java)
-        val success = result as BackupResult.Success
+        assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+        val success = results.last() as BackupOperationStatus.Success
         assertThat(success.manifest.createdAtUtc).isEqualTo("2026-01-01T12:00:00Z")
         
         tempFile.delete()

@@ -2,16 +2,25 @@ package com.miara.cuentame.core.backup
 
 import android.content.Context
 import android.net.Uri
-import com.miara.cuentame.core.backup.model.*
+import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
-import com.miara.cuentame.core.model.backup.*
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
+import com.miara.cuentame.core.model.backup.BackupAttachmentReference
+import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.backup.BackupResult
+import com.miara.cuentame.core.model.backup.BackupValidationResult
+import com.miara.cuentame.core.model.backup.TableMetadata
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -40,11 +49,12 @@ class AndroidBackupRepository @Inject constructor(
         ignoreUnknownKeys = true
     }
 
-    override suspend fun createBackup(destinationUri: String): BackupResult = withContext(Dispatchers.IO) {
+    override fun createBackup(destinationUri: String): Flow<BackupOperationStatus> = flow {
+        emit(BackupOperationStatus.Creating)
         try {
             val uri = Uri.parse(destinationUri)
             val pfd = context.contentResolver.openFileDescriptor(uri, "w")
-                ?: return@withContext BackupResult.Error.DestinationUnavailable
+                ?: throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
             
             val entryChecksums = mutableMapOf<String, String>()
 
@@ -58,20 +68,21 @@ class AndroidBackupRepository @Inject constructor(
                 }
             }
             
+            emit(BackupOperationStatus.Validating)
             val validation = validateBackup(destinationUri)
             if (validation is BackupValidationResult.Valid) {
-                BackupResult.Success(validation.manifest)
+                emit(BackupOperationStatus.Success(validation.manifest))
             } else {
-                BackupResult.Error.ArchiveValidationFailure((validation as BackupValidationResult.Invalid).reason)
+                emit(BackupOperationStatus.Error(BackupResult.Error.ArchiveValidationFailure((validation as BackupValidationResult.Invalid).reason)))
             }
         } catch (e: BackupCreationException) {
-            e.error
+            emit(BackupOperationStatus.Error(e.error))
         } catch (e: SecurityException) {
-            BackupResult.Error.PermissionDenied
+            emit(BackupOperationStatus.Error(BackupResult.Error.PermissionDenied))
         } catch (e: Exception) {
-            BackupResult.Error.Unknown(e)
+            emit(BackupOperationStatus.Error(BackupResult.Error.Unknown(e)))
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     private suspend fun performBackup(zos: ZipOutputStream, entryChecksums: MutableMap<String, String>) {
         val restaurant = restaurantRepository.getRestaurant() ?: throw BackupCreationException(BackupResult.Error.UnsupportedPersistentData)
@@ -79,86 +90,84 @@ class AndroidBackupRepository @Inject constructor(
         val prefs = preferencesRepository.observePreferences().first()
         
         // 1. Identify and process attachments
-        val uriToAttachmentId = mutableMapOf<String, String>()
-        val attachmentIdToMetadata = mutableMapOf<String, BackupAttachmentMetadata>()
+        val pendingAttachments = mutableMapOf<String, PendingAttachment>() // URI -> PendingAttachment
         
-        fun addReference(uri: String, type: String, id: String) {
-            if (uri.isBlank()) return
-            val attachmentId = uriToAttachmentId.getOrPut(uri) { 
-                java.util.UUID.nameUUIDFromBytes(uri.toByteArray()).toString() 
-            }
-            val metadata = attachmentIdToMetadata.getOrPut(attachmentId) {
-                BackupAttachmentMetadata(
-                    attachmentId = attachmentId,
-                    archivePath = "", 
-                    displayName = null,
-                    mimeType = null,
-                    sizeBytes = 0,
-                    checksumSha256 = "",
-                    referencedBy = mutableListOf()
+        fun addReference(uriString: String, type: String, recordId: String) {
+            if (uriString.isBlank()) return
+            val pending = pendingAttachments.getOrPut(uriString) {
+                PendingAttachment(
+                    sourceUri = Uri.parse(uriString),
+                    attachmentId = java.util.UUID.nameUUIDFromBytes(uriString.toByteArray()).toString(),
+                    references = mutableListOf()
                 )
             }
-            (metadata.referencedBy as MutableList).add(BackupAttachmentReference(type, id))
+            pending.references.add(BackupAttachmentReference(type, recordId))
         }
 
         snapshot.purchaseReceipts.forEach { it.attachmentPath?.let { uri -> addReference(uri, "PURCHASE_RECEIPT", it.id) } }
         snapshot.wasteEvents.forEach { it.attachmentPath?.let { uri -> addReference(uri, "WASTE_EVENT", it.id) } }
 
-        for ((uriString, metadata) in attachmentIdToMetadata) {
-            val attachmentUri = Uri.parse(uriString)
+        val attachmentMetadatas = mutableListOf<BackupAttachmentMetadata>()
+        
+        // Deterministic attachment order
+        val sortedPending = pendingAttachments.values.sortedBy { it.attachmentId }
+        
+        for (pending in sortedPending) {
             try {
-                context.contentResolver.openInputStream(attachmentUri)?.use { inputStream ->
-                    val displayName = queryDisplayName(attachmentUri)
+                context.contentResolver.openInputStream(pending.sourceUri)?.use { inputStream ->
+                    val displayName = queryDisplayName(pending.sourceUri)
                     val sanitizedName = ArchiveEntryValidator.sanitize(displayName ?: "file")
-                    val archivePath = "attachments/${metadata.attachmentId}/$sanitizedName"
+                    val archivePath = "attachments/${pending.attachmentId}/$sanitizedName"
                     
                     if (!ArchiveEntryValidator.isSafe(archivePath)) {
                         throw Exception("Unsafe archive path: $archivePath")
                     }
 
-                    val checksum = context.contentResolver.openInputStream(attachmentUri)!!.use { 
-                        checksumProvider.calculateChecksum(it)
-                    }
+                    // Task 2: One-pass write + checksum
+                    zos.putNextEntry(ZipEntry(archivePath).apply { time = 0L })
                     
-                    zos.putNextEntry(ZipEntry(archivePath))
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
                     var size = 0L
                     val buffer = ByteArray(8192)
                     var n: Int
                     while (inputStream.read(buffer).also { n = it } != -1) {
-                        size += n
+                        digest.update(buffer, 0, n)
                         zos.write(buffer, 0, n)
+                        size += n
                     }
                     zos.closeEntry()
+                    
+                    val checksum = digest.digest().joinToString("") { "%02x".format(it) }
                     entryChecksums[archivePath] = checksum
 
-                    attachmentIdToMetadata[metadata.attachmentId] = metadata.copy(
+                    attachmentMetadatas.add(BackupAttachmentMetadata(
+                        attachmentId = pending.attachmentId,
                         archivePath = archivePath,
                         displayName = displayName,
-                        mimeType = context.contentResolver.getType(attachmentUri),
+                        mimeType = context.contentResolver.getType(pending.sourceUri),
                         sizeBytes = size,
-                        checksumSha256 = checksum
-                    )
-                } ?: throw Exception("Could not open attachment: $uriString")
+                        checksumSha256 = checksum,
+                        referencedBy = pending.references
+                    ))
+                } ?: throw Exception("Could not open attachment: ${pending.sourceUri}")
             } catch (e: Exception) {
-                throw BackupCreationException(BackupResult.Error.UnreadableAttachment(metadata.attachmentId, e))
+                throw BackupCreationException(BackupResult.Error.UnreadableAttachment(pending.attachmentId, e))
             }
         }
 
-        val snapshotDto = BackupMapper.mapToDto(snapshot, uriToAttachmentId)
+        val snapshotDto = BackupMapper.mapToDto(snapshot, pendingAttachments.mapValues { it.value.attachmentId })
         val snapshotJson = json.encodeToString(snapshotDto)
         
-        // 2. Back up database entries
+        // Deterministic order for ZIP entries
         writeZipEntry(zos, "data/database.json", snapshotJson, entryChecksums)
         
-        // 3. Back up preferences
         val prefsMap = mapOf(
             "themeMode" to prefs.themeMode.name,
             "dynamicColorEnabled" to prefs.dynamicColorEnabled.toString(),
             "appLocaleTag" to prefs.appLocaleTag
-        )
+        ).entries.sortedBy { it.key }.associate { it.key to it.value }
         writeZipEntry(zos, "preferences/settings.json", json.encodeToString(prefsMap), entryChecksums)
         
-        // 4. Create Manifest
         val manifest = BackupManifest(
             backupFormatVersion = 1,
             createdAtUtc = DateTimeFormatter.ISO_INSTANT.format(timeProvider.now()),
@@ -170,15 +179,14 @@ class AndroidBackupRepository @Inject constructor(
             restaurantName = restaurant.name,
             localeTag = restaurant.localeTag,
             currencyCode = restaurant.currencyCode,
-            tableMetadata = createTableMetadata(snapshotDto),
-            attachments = attachmentIdToMetadata.values.toList().sortedBy { it.attachmentId },
-            includedSections = listOf("data", "preferences", "attachments")
+            tableMetadata = createTableMetadata(snapshotDto).entries.sortedBy { it.key }.associate { it.key to it.value },
+            attachments = attachmentMetadatas,
+            includedSections = listOf("data", "preferences", "attachments"),
+            checksumAlgorithm = "SHA-256"
         )
         writeZipEntry(zos, "manifest.json", json.encodeToString(manifest), entryChecksums)
         
-        // 5. Create Checksums
-        val deterministicChecksums = entryChecksums.entries.sortedBy { it.key }
-            .associate { it.key to it.value }
+        val deterministicChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
         writeZipEntry(zos, "checksums.json", json.encodeToString(deterministicChecksums), mutableMapOf())
     }
 
@@ -194,13 +202,21 @@ class AndroidBackupRepository @Inject constructor(
 
     private fun writeZipEntry(zos: ZipOutputStream, name: String, content: String, checksums: MutableMap<String, String>) {
         val bytes = content.toByteArray(Charsets.UTF_8)
-        zos.putNextEntry(ZipEntry(name))
+        zos.putNextEntry(ZipEntry(name).apply { time = 0L })
         zos.write(bytes)
         zos.closeEntry()
         if (name != "checksums.json") {
-            checksums[name] = bytes.inputStream().use { checksumProvider.calculateChecksum(it) }
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update(bytes)
+            checksums[name] = digest.digest().joinToString("") { "%02x".format(it) }
         }
     }
+
+    private data class PendingAttachment(
+        val sourceUri: Uri,
+        val attachmentId: String,
+        val references: MutableList<BackupAttachmentReference>
+    )
 
     private fun createTableMetadata(dto: BackupSnapshotDto) = mapOf(
         "restaurants" to TableMetadata(dto.restaurants.size, false),
@@ -226,7 +242,7 @@ class AndroidBackupRepository @Inject constructor(
             val uri = Uri.parse(sourceUri)
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 ZipInputStream(inputStream).use { zis ->
-                    validateArchive(zis)
+                    validateArchiveStream(zis)
                 }
             } ?: BackupValidationResult.Invalid("Could not open source URI")
         } catch (e: Exception) {
@@ -234,76 +250,76 @@ class AndroidBackupRepository @Inject constructor(
         }
     }
 
-    private fun validateArchive(zis: ZipInputStream): BackupValidationResult {
-        val entries = mutableMapOf<String, ByteArray>()
+    private fun validateArchiveStream(zis: ZipInputStream): BackupValidationResult {
+        val entryMetadata = mutableMapOf<String, EntryInfo>()
+        val jsonPayloads = mutableMapOf<String, String>()
+        val maxJsonSize = 10 * 1024 * 1024 // 10MB limit
+
         var entry: ZipEntry? = zis.nextEntry
         while (entry != null) {
-            if (!entry.isDirectory) {
-                if (entries.containsKey(entry.name)) {
-                    return BackupValidationResult.Invalid("Duplicate entry: ${entry.name}")
-                }
-                if (!ArchiveEntryValidator.isSafe(entry.name)) {
-                    return BackupValidationResult.Invalid("Unsafe entry name: ${entry.name}")
-                }
-                // Only read small JSON entries into memory for P1
-                if (entry.name.endsWith(".json")) {
-                    entries[entry.name] = zis.readBytes()
-                } else if (entry.name.startsWith("attachments/")) {
-                    // For attachments, we'll need to stream to validate checksum in a real robust validator.
-                    // For P1, we'll read to memory if it fits, or skip if too large? 
-                    // Let's at least read for now to complete the validation logic, 
-                    // knowing it's a memory risk to be addressed in next phase hardening if needed.
-                    entries[entry.name] = zis.readBytes()
-                } else {
-                    entries[entry.name] = zis.readBytes()
-                }
+            val name = entry.name
+            if (entryMetadata.containsKey(name)) return BackupValidationResult.Invalid("Duplicate entry: $name")
+            if (!ArchiveEntryValidator.isSafe(name)) return BackupValidationResult.Invalid("Unsafe entry name: $name")
+
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            var size = 0L
+            val buffer = ByteArray(8192)
+            val jsonBuffer = if (name.endsWith(".json")) java.io.ByteArrayOutputStream() else null
+            
+            var n: Int
+            while (zis.read(buffer).also { n = it } != -1) {
+                digest.update(buffer, 0, n)
+                size += n
+                jsonBuffer?.write(buffer, 0, n)
+                if (jsonBuffer != null && size > maxJsonSize) return BackupValidationResult.Invalid("JSON payload too large: $name")
             }
+            
+            val checksum = digest.digest().joinToString("") { "%02x".format(it) }
+            entryMetadata[name] = EntryInfo(name, checksum, size)
+            if (jsonBuffer != null) jsonPayloads[name] = jsonBuffer.toString("UTF-8")
+            
             zis.closeEntry()
             entry = zis.nextEntry
         }
 
-        val manifestBytes = entries["manifest.json"] ?: return BackupValidationResult.Invalid("Missing manifest.json")
-        val manifest = try {
-            json.decodeFromString<BackupManifest>(manifestBytes.decodeToString())
-        } catch (e: Exception) {
-            return BackupValidationResult.Invalid("Malformed manifest.json")
-        }
+        val manifestJson = jsonPayloads["manifest.json"] ?: return BackupValidationResult.Invalid("Missing manifest.json")
+        val checksumsJson = jsonPayloads["checksums.json"] ?: return BackupValidationResult.Invalid("Missing checksums.json")
+        
+        val manifest = try { json.decodeFromString<BackupManifest>(manifestJson) } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed manifest.json") }
+        if (manifest.backupFormatVersion != 1) return BackupValidationResult.Invalid("Unsupported backup format version: ${manifest.backupFormatVersion}")
+        if (manifest.applicationId.isBlank()) return BackupValidationResult.Invalid("Manifest application ID is blank")
+        if (manifest.restaurantId.isNullOrBlank()) return BackupValidationResult.Invalid("Manifest restaurant ID is blank")
 
-        if (manifest.backupFormatVersion != 1) {
-            return BackupValidationResult.Invalid("Unsupported backup format version: ${manifest.backupFormatVersion}")
-        }
-
-        val checksumsBytes = entries["checksums.json"] ?: return BackupValidationResult.Invalid("Missing checksums.json")
-        val reportedChecksums = try {
-            json.decodeFromString<Map<String, String>>(checksumsBytes.decodeToString())
-        } catch (e: Exception) {
-            return BackupValidationResult.Invalid("Malformed checksums.json")
-        }
+        val reportedChecksums = try { json.decodeFromString<Map<String, String>>(checksumsJson) } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed checksums.json") }
 
         for ((name, reportedChecksum) in reportedChecksums) {
-            val actualBytes = entries[name] ?: return BackupValidationResult.Invalid("Missing entry: $name")
-            val actualChecksum = actualBytes.inputStream().use { checksumProvider.calculateChecksum(it) }
-            if (actualChecksum != reportedChecksum) {
-                return BackupValidationResult.Invalid("Checksum mismatch for $name")
-            }
+            val actual = entryMetadata[name] ?: return BackupValidationResult.Invalid("Checksum for nonexistent entry: $name")
+            if (actual.checksum != reportedChecksum) return BackupValidationResult.Invalid("Checksum mismatch for $name")
         }
 
-        val dbBytes = entries["data/database.json"] ?: return BackupValidationResult.Invalid("Missing data/database.json")
-        val dbDto = try {
-            json.decodeFromString<BackupSnapshotDto>(dbBytes.decodeToString())
-        } catch (e: Exception) {
-            return BackupValidationResult.Invalid("Malformed data/database.json")
+        for (name in entryMetadata.keys) {
+            if (name == "checksums.json") continue
+            if (!reportedChecksums.containsKey(name)) return BackupValidationResult.Invalid("Entry $name missing from checksums.json")
         }
+
+        val dbJson = jsonPayloads["data/database.json"] ?: return BackupValidationResult.Invalid("Missing data/database.json")
+        val dbDto = try { json.decodeFromString<BackupSnapshotDto>(dbJson) } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed data/database.json") }
 
         val actualCounts = createTableMetadata(dbDto)
         for ((tableName, metadata) in manifest.tableMetadata) {
-            if (actualCounts[tableName]?.entryCount != metadata.entryCount) {
-                return BackupValidationResult.Invalid("Entry count mismatch for $tableName")
-            }
+            if (actualCounts[tableName]?.entryCount != metadata.entryCount) return BackupValidationResult.Invalid("Entry count mismatch for table: $tableName")
+        }
+
+        for (attachment in manifest.attachments) {
+            val actual = entryMetadata[attachment.archivePath] ?: return BackupValidationResult.Invalid("Missing attachment file: ${attachment.archivePath}")
+            if (actual.size != attachment.sizeBytes) return BackupValidationResult.Invalid("Attachment size mismatch: ${attachment.archivePath}")
+            if (actual.checksum != attachment.checksumSha256) return BackupValidationResult.Invalid("Attachment checksum mismatch: ${attachment.archivePath}")
+            if (attachment.referencedBy.isEmpty()) return BackupValidationResult.Invalid("Orphan attachment: ${attachment.attachmentId}")
         }
 
         return BackupValidationResult.Valid(manifest)
     }
 
+    private data class EntryInfo(val name: String, val checksum: String, val size: Long)
     private class BackupCreationException(val error: BackupResult.Error) : Exception()
 }

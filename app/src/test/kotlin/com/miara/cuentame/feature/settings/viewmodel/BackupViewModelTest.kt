@@ -3,17 +3,19 @@ package com.miara.cuentame.feature.settings.viewmodel
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
-import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -67,9 +69,13 @@ class BackupViewModelTest {
     }
 
     @Test
-    fun `onFileSelected transitions through Creating to Success`() = runTest {
+    fun `onFileSelected transitions through Creating and Validating to Success`() = runTest {
         val manifest = mockk<BackupManifest>()
-        coEvery { backupRepository.createBackup(any()) } returns BackupResult.Success(manifest)
+        every { backupRepository.createBackup(any()) } returns flowOf(
+            BackupOperationStatus.Creating,
+            BackupOperationStatus.Validating,
+            BackupOperationStatus.Success(manifest)
+        )
 
         viewModel.uiState.test {
             assertThat(awaitItem()).isEqualTo(BackupUiState.Idle)
@@ -77,6 +83,7 @@ class BackupViewModelTest {
             viewModel.onFileSelected("uri")
             
             assertThat(awaitItem()).isEqualTo(BackupUiState.Creating)
+            assertThat(awaitItem()).isEqualTo(BackupUiState.Validating)
             val success = awaitItem() as BackupUiState.Success
             assertThat(success.manifest).isEqualTo(manifest)
         }
@@ -90,7 +97,10 @@ class BackupViewModelTest {
 
     @Test
     fun `onFileSelected handles Error`() = runTest {
-        coEvery { backupRepository.createBackup(any()) } returns BackupResult.Error.PermissionDenied
+        every { backupRepository.createBackup(any()) } returns flowOf(
+            BackupOperationStatus.Creating,
+            BackupOperationStatus.Error(BackupResult.Error.PermissionDenied)
+        )
 
         viewModel.uiState.test {
             awaitItem() // Idle
