@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.inventory.UnitDimension
 import org.junit.Test
 
 class BackupSnapshotIntegrityValidatorTest {
@@ -89,7 +90,7 @@ class BackupSnapshotIntegrityValidatorTest {
     fun `validate rejects unit option belonging to different ingredient in purchase lines`() {
         val baseDto = createEmptyDto()
         val dto = baseDto.copy(
-            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", UnitDimension.MASS.name, "1.0", true, 1)),
             inventoryAreas = listOf(InventoryAreaBackupDto("area-1", restId, "Area", "area", 1, true, 0, 0, null)),
             ingredients = listOf(
                 IngredientBackupDto("ing-1", restId, "Ing 1", "ing 1", null, "u1", null, null, null, null, true, 0, 0, null),
@@ -114,7 +115,7 @@ class BackupSnapshotIntegrityValidatorTest {
     fun `validate rejects invalid decimal strings without revealing sensitive values`() {
         val baseDto = createEmptyDto()
         val dto = baseDto.copy(
-            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "NOT_A_NUMBER", true, 1))
+            units = listOf(UnitBackupDto("u1", "Unit", "u", UnitDimension.MASS.name, "NOT_A_NUMBER", true, 1))
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
@@ -152,14 +153,14 @@ class BackupSnapshotIntegrityValidatorTest {
     fun `validate rejects movement self-reversal`() {
         val dto = createEmptyDto().copy(
             ingredients = listOf(IngredientBackupDto("ing-1", restId, "Ing", "ing", null, "u1", null, null, null, null, true, 0, 0, null)),
-            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", UnitDimension.MASS.name, "1.0", true, 1)),
             inventoryAreas = listOf(InventoryAreaBackupDto("area-1", restId, "Area", "area", 1, true, 0, 0, null)),
             inventoryMovements = listOf(
-                InventoryMovementBackupDto("m1", restId, "ing-1", "area-1", "WASTE_POST", "-1", null, null, 0, "WASTE_EVENT", "w1", "op1", null, "m1", 0)
+                InventoryMovementBackupDto("m1", restId, "ing-1", "area-1", "REVERSAL", "-1", null, null, 0, "WASTE_EVENT", "w1", "op1", null, "m1", 0)
             )
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Self-reversal")
+        assertThat(result.exceptionOrNull()?.message).contains("cannot reverse itself")
     }
 }

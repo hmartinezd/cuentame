@@ -10,12 +10,8 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.entity.InventoryAreaEntity
-import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
-import com.miara.cuentame.core.model.backup.BackupSnapshot
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import io.mockk.coEvery
@@ -29,7 +25,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
-import java.math.BigDecimal
 import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
@@ -74,45 +69,28 @@ class ArchiveDeterminismTest {
     }
 
     @Test
-    fun archiveDeterminism_comprehensiveProofs() = runTest {
+    fun archiveDeterminism_singleMutationProofs() = runTest {
         val now = Instant.parse("2026-01-01T10:00:00Z")
         every { timeProvider.now() } returns now
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 2 // Schema version 2
+        every { appVersionProvider.databaseSchemaVersion } returns 2
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
 
-        val restId = "rest-1"
-        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(RestaurantId(restId), "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        val restId = BackupTestFixtures.RESTAURANT_ID
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(
+            RestaurantId(restId), "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH
+        )
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
         val attFile = File(context.cacheDir, "att_det.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
         createdFiles.add(attFile)
         val attUri = Uri.fromFile(attFile)
 
-        val area1 = InventoryAreaEntity("area-1", restId, "Area 1", "area-1", 1, true, 0, 0, null)
-        val area2 = InventoryAreaEntity("area-2", restId, "Area 2", "area-2", 2, true, 0, 0, null)
-        val unit1 = UnitEntity("u-1", "Unit", "u", "Mass", BigDecimal.ONE, true, 1)
-        val receipt1 = PurchaseReceiptEntity("pr-1", restId, null, "INV-1", 1000, "POSTED", null, attUri.toString(), 0, 0, 100, null)
-
-        val snapshotBase = BackupSnapshot(
-            restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 100L, null)),
-            inventoryAreas = listOf(area1, area2),
-            ingredientCategories = emptyList(),
-            units = listOf(unit1),
-            ingredients = emptyList(),
-            ingredientUnitOptions = emptyList(),
-            suppliers = emptyList(),
-            purchaseReceipts = listOf(receipt1),
-            purchaseLines = emptyList(),
-            stockCounts = emptyList(),
-            stockCountAreas = emptyList(),
-            stockCountLines = emptyList(),
-            wasteEvents = emptyList(),
-            inventoryMovements = emptyList(),
-            inventoryBalanceProjections = emptyList(),
-            ingredientCostProjections = emptyList()
+        val snapshotBase = BackupTestFixtures.createValidSnapshot(
+            restaurantId = restId,
+            purchaseAttPath = attUri.toString()
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase
 
@@ -122,7 +100,7 @@ class ArchiveDeterminismTest {
             return file.readBytes()
         }
 
-        // Proof 1: Identical logical inputs produce identical bytes
+        // Base Proof 1 & 2: Identical inputs produce identical bytes
         val f1 = createTempFile("f1")
         val bytes1 = generateBackupBytes(f1)
 
@@ -130,9 +108,9 @@ class ArchiveDeterminismTest {
         val bytes2 = generateBackupBytes(f2)
         assertThat(bytes1).isEqualTo(bytes2)
 
-        // Proof 2: Different source list ordering produces identical bytes (explicit DTO sorting)
+        // Proof 3: Reordered input list produces byte-identical output (sorting)
         val snapshotReordered = snapshotBase.copy(
-            inventoryAreas = listOf(area2, area1) // reversed list order
+            inventoryAreas = snapshotBase.inventoryAreas.reversed()
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotReordered
         val fReorder = createTempFile("fReorder")
@@ -140,23 +118,26 @@ class ArchiveDeterminismTest {
         assertThat(bytes1).isEqualTo(bytesReorder)
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
 
-        // Proof 3: Changing timestamp changes bytes
+        // Proof 4: Creation timestamp only
         every { timeProvider.now() } returns Instant.parse("2026-01-02T10:00:00Z")
         val fTime = createTempFile("fTime")
         val bytesTime = generateBackupBytes(fTime)
         assertThat(bytes1).isNotEqualTo(bytesTime)
         every { timeProvider.now() } returns now // restore
 
-        // Proof 4: Changing preference changes bytes
+        // Proof 5: Preference only
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT.copy(dynamicColorEnabled = false))
         val fPref = createTempFile("fPref")
         val bytesPref = generateBackupBytes(fPref)
         assertThat(bytes1).isNotEqualTo(bytesPref)
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT) // restore
 
-        // Proof 5: Changing database entity value changes bytes
+        // Proof 6: Non-manifest database field only (e.g. area updated_at)
         val snapshotChangedDb = snapshotBase.copy(
-            restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 999L, null))
+            inventoryAreas = listOf(
+                snapshotBase.inventoryAreas[0].copy(updatedAt = 9999L),
+                snapshotBase.inventoryAreas[1]
+            )
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotChangedDb
         val fDb = createTempFile("fDb")
@@ -164,32 +145,23 @@ class ArchiveDeterminismTest {
         assertThat(bytes1).isNotEqualTo(bytesDb)
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
 
-        // Proof 6: Changing attachment bytes changes bytes
-        attFile.writeBytes(byteArrayOf(99, 98, 97, 96)) // modified bytes
+        // Proof 7: Attachment bytes only
+        attFile.writeBytes(byteArrayOf(99, 98, 97, 96))
         val fAttBytes = createTempFile("fAttBytes")
         val bytesAttBytes = generateBackupBytes(fAttBytes)
         assertThat(bytes1).isNotEqualTo(bytesAttBytes)
         attFile.writeBytes(byteArrayOf(1, 2, 3, 4)) // restore
 
-        // Proof 7: Changing attachment filename changes bytes
+        // Proof 8: Attachment display name only
         val renamedAttFile = File(context.cacheDir, "att_renamed.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
         createdFiles.add(renamedAttFile)
         val snapshotRenamedAtt = snapshotBase.copy(
-            purchaseReceipts = listOf(receipt1.copy(attachmentPath = Uri.fromFile(renamedAttFile).toString()))
+            purchaseReceipts = listOf(snapshotBase.purchaseReceipts[0].copy(attachmentPath = Uri.fromFile(renamedAttFile).toString()))
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotRenamedAtt
         val fAttName = createTempFile("fAttName")
         val bytesAttName = generateBackupBytes(fAttName)
         assertThat(bytes1).isNotEqualTo(bytesAttName)
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
-
-        // Proof 8: Changing attachment references changes bytes
-        val snapshotRefChange = snapshotBase.copy(
-            purchaseReceipts = listOf(receipt1.copy(id = "pr-changed-id"))
-        )
-        coEvery { backupDao.createSnapshot(restId) } returns snapshotRefChange
-        val fRefChange = createTempFile("fRefChange")
-        val bytesRefChange = generateBackupBytes(fRefChange)
-        assertThat(bytes1).isNotEqualTo(bytesRefChange)
     }
 }

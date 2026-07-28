@@ -53,11 +53,25 @@ class BackupViewModel @Inject constructor(
     @Volatile private var activeToken = 0L
 
     fun onCreateBackupRequested() {
-        if (!canStartOperation()) return
+        var transitioned = false
+        while (true) {
+            val current = _uiState.value
+            if (current != BackupUiState.Idle &&
+                current !is BackupUiState.Success &&
+                current !is BackupUiState.Error &&
+                current != BackupUiState.Cancelled
+            ) {
+                return
+            }
+            if (_uiState.compareAndSet(current, BackupUiState.WaitingForDestination)) {
+                transitioned = true
+                break
+            }
+        }
+        if (!transitioned) return
 
         val token = operationTokenGenerator.incrementAndGet()
         activeToken = token
-        _uiState.value = BackupUiState.WaitingForDestination
 
         destinationPickerPreparationJob?.cancel()
         destinationPickerPreparationJob = viewModelScope.launch {
@@ -78,12 +92,13 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onFileSelected(uri: String) {
-        if (_uiState.value != BackupUiState.WaitingForDestination) return
+        // Atomic transition from WaitingForDestination to Creating.
+        // Duplicate callbacks fail compareAndSet and return immediately without repository calls or job cancellations.
+        if (!_uiState.compareAndSet(BackupUiState.WaitingForDestination, BackupUiState.Creating)) {
+            return
+        }
 
-        // Atomically update state to Creating before launching Flow
-        _uiState.value = BackupUiState.Creating
         val token = activeToken
-
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
         activeBackupJob = viewModelScope.launch {
@@ -110,26 +125,22 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onPickerCancelled() {
-        if (_uiState.value == BackupUiState.WaitingForDestination) {
+        if (_uiState.compareAndSet(BackupUiState.WaitingForDestination, BackupUiState.Cancelled)) {
             destinationPickerPreparationJob?.cancel()
-            _uiState.value = BackupUiState.Cancelled
         }
     }
 
     fun resetStatus() {
-        val current = _uiState.value
-        if (current is BackupUiState.Success || current is BackupUiState.Error || current == BackupUiState.Cancelled) {
-            activeToken = operationTokenGenerator.incrementAndGet()
-            _uiState.value = BackupUiState.Idle
+        while (true) {
+            val current = _uiState.value
+            if (current !is BackupUiState.Success && current !is BackupUiState.Error && current != BackupUiState.Cancelled) {
+                return
+            }
+            if (_uiState.compareAndSet(current, BackupUiState.Idle)) {
+                activeToken = operationTokenGenerator.incrementAndGet()
+                break
+            }
         }
-    }
-
-    private fun canStartOperation(): Boolean {
-        val current = _uiState.value
-        return current == BackupUiState.Idle ||
-               current is BackupUiState.Success ||
-               current is BackupUiState.Error ||
-               current == BackupUiState.Cancelled
     }
 
     override fun onCleared() {

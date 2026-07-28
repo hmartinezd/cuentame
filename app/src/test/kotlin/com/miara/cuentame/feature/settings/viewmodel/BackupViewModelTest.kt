@@ -13,6 +13,7 @@ import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flow
@@ -56,7 +57,7 @@ class BackupViewModelTest {
     fun `onCreateBackupRequested emits LaunchFilePicker and transitions to WaitingForDestination`() = runTest {
         val now = Instant.parse("2026-01-01T12:00:00Z")
         every { timeProvider.now() } returns now
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
 
         viewModel.events.test {
             viewModel.onCreateBackupRequested()
@@ -79,7 +80,7 @@ class BackupViewModelTest {
             emit(BackupOperationStatus.Success(manifest))
         }
         every { backupRepository.createBackup(any()) } returns flow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.uiState.test {
@@ -89,7 +90,7 @@ class BackupViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             assertThat(awaitItem()).isEqualTo(BackupUiState.WaitingForDestination)
 
-            viewModel.onFileSelected("uri")
+            viewModel.onFileSelected("accepted-uri")
 
             assertThat(awaitItem()).isEqualTo(BackupUiState.Creating)
             assertThat(awaitItem()).isEqualTo(BackupUiState.Validating)
@@ -99,31 +100,34 @@ class BackupViewModelTest {
     }
 
     @Test
-    fun `onFileSelected atomically transitions state to Creating and ignores duplicate calls`() = runTest {
+    fun `onFileSelected duplicate callback is ignored immediately without repository call`() = runTest {
         val flow = flow {
             emit(BackupOperationStatus.Creating)
-            kotlinx.coroutines.delay(1000)
-            emit(BackupOperationStatus.Success(mockk()))
         }
-        every { backupRepository.createBackup(any()) } returns flow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        every { backupRepository.createBackup("accepted-uri") } returns flow
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.onCreateBackupRequested()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // First call
-        viewModel.onFileSelected("uri-1")
+        // First callback succeeds
+        viewModel.onFileSelected("accepted-uri")
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating)
 
-        // Duplicate call while Creating should be ignored
-        viewModel.onFileSelected("uri-2")
+        // Duplicate callback while Creating is rejected immediately
+        viewModel.onFileSelected("duplicate-uri")
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 1) { backupRepository.createBackup("accepted-uri") }
+        verify(exactly = 0) { backupRepository.createBackup("duplicate-uri") }
     }
 
     @Test
     fun `onPickerCancelled transitions to Cancelled`() = runTest {
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.onCreateBackupRequested()
@@ -140,7 +144,7 @@ class BackupViewModelTest {
             BackupOperationStatus.Creating,
             BackupOperationStatus.Error(BackupResult.Error.PermissionDenied)
         )
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.uiState.test {
@@ -149,7 +153,7 @@ class BackupViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             awaitItem() // WaitingForDestination
 
-            viewModel.onFileSelected("uri")
+            viewModel.onFileSelected("accepted-uri")
             awaitItem() // Creating
             assertThat(awaitItem()).isEqualTo(BackupUiState.Error(BackupResult.Error.PermissionDenied))
         }
@@ -158,7 +162,7 @@ class BackupViewModelTest {
     @Test
     fun `duplicate onCreateBackupRequested are ignored while waiting`() = runTest {
         every { timeProvider.now() } returns Instant.EPOCH
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
 
         viewModel.events.test {
             viewModel.onCreateBackupRequested()

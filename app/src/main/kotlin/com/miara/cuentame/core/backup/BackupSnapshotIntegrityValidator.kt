@@ -2,22 +2,29 @@ package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.inventory.CountAreaStatus
+import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.StockCountStatus
+import com.miara.cuentame.core.model.inventory.UnitDimension
+import com.miara.cuentame.core.model.inventory.WasteReason
 import java.math.BigDecimal
 
 object BackupSnapshotIntegrityValidator {
 
-    private val VALID_PURCHASE_STATUSES = setOf("DRAFT", "POSTED", "VOIDED")
-    private val VALID_STOCK_COUNT_STATUSES = setOf("DRAFT", "COMPLETED", "VOIDED")
-    private val VALID_STOCK_COUNT_AREA_STATUSES = setOf("NOT_STARTED", "IN_PROGRESS", "COMPLETED")
-    private val VALID_WASTE_STATUSES = setOf("DRAFT", "POSTED", "VOIDED")
-    private val VALID_MOVEMENT_TYPES = setOf(
-        "PURCHASE_POST", "PURCHASE_VOID",
-        "STOCK_COUNT_ADJUSTMENT", "STOCK_COUNT_VOID",
-        "WASTE_POST", "WASTE_VOID"
-    )
+    private val VALID_PURCHASE_STATUSES = DocumentStatus.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_STOCK_COUNT_STATUSES = StockCountStatus.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_STOCK_COUNT_AREA_STATUSES = CountAreaStatus.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_WASTE_STATUSES = DocumentStatus.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_WASTE_REASONS = WasteReason.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_MOVEMENT_TYPES = InventoryMovementType.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_SOURCE_DOC_TYPES = SourceDocumentType.entries.mapTo(mutableSetOf()) { it.name }
+    private val VALID_UNIT_DIMENSIONS = UnitDimension.entries.mapTo(mutableSetOf()) { it.name }
 
     /**
-     * Validates logical consistency and restaurant isolation of a backup snapshot DTO.
+     * Validates logical consistency, enum validity, document timestamps, movement graph semantics,
+     * and restaurant isolation of a backup snapshot DTO.
      */
     fun validate(dto: BackupSnapshotDto, manifest: BackupManifest): Result<Unit> {
         val manifestRestaurantId = manifest.restaurantId ?: return Result.failure(Exception("Manifest missing restaurantId"))
@@ -83,7 +90,7 @@ object BackupSnapshotIntegrityValidator {
         if (dto.inventoryBalanceProjections.any { it.restaurantId != manifestRestaurantId }) return Result.failure(Exception("Isolation error in inventory_balance_projections"))
         if (dto.ingredientCostProjections.any { it.restaurantId != manifestRestaurantId }) return Result.failure(Exception("Isolation error in ingredient_cost_projections"))
 
-        // Maps for fast FK lookup and parent entity resolution
+        // Lookup maps
         val unitById = dto.units.associateBy { it.id }
         val areaById = dto.inventoryAreas.associateBy { it.id }
         val catById = dto.ingredientCategories.associateBy { it.id }
@@ -91,8 +98,11 @@ object BackupSnapshotIntegrityValidator {
         val optionById = dto.ingredientUnitOptions.associateBy { it.id }
         val supplierById = dto.suppliers.associateBy { it.id }
         val receiptById = dto.purchaseReceipts.associateBy { it.id }
+        val purchaseLineById = dto.purchaseLines.associateBy { it.id }
         val countById = dto.stockCounts.associateBy { it.id }
         val countAreaById = dto.stockCountAreas.associateBy { it.id }
+        val countLineById = dto.stockCountLines.associateBy { it.id }
+        val wasteById = dto.wasteEvents.associateBy { it.id }
         val movementById = dto.inventoryMovements.associateBy { it.id }
 
         // Transitive restaurant ownership for child entities without explicit restaurantId
@@ -126,6 +136,10 @@ object BackupSnapshotIntegrityValidator {
         }
 
         // 4. Relational & Foreign Key Integrity
+        for (unit in dto.units) {
+            if (unit.dimension !in VALID_UNIT_DIMENSIONS) return Result.failure(Exception("Invalid unit dimension: ${unit.dimension}"))
+        }
+
         for (ing in dto.ingredients) {
             if (!unitById.containsKey(ing.baseUnitId)) return Result.failure(Exception("Broken FK: ingredient to unit"))
             if (ing.categoryId != null && !catById.containsKey(ing.categoryId)) return Result.failure(Exception("Broken FK: ingredient to category"))
@@ -148,7 +162,6 @@ object BackupSnapshotIntegrityValidator {
             if (!ingById.containsKey(line.ingredientId)) return Result.failure(Exception("Broken FK: purchase_line to ingredient"))
             if (!areaById.containsKey(line.areaId)) return Result.failure(Exception("Broken FK: purchase_line to area"))
             val option = optionById[line.ingredientUnitOptionId] ?: return Result.failure(Exception("Broken FK: purchase_line to unit_option"))
-            // Check that unit option belongs to the SAME ingredient as purchase line
             if (option.ingredientId != line.ingredientId) {
                 return Result.failure(Exception("Unit option ingredient mismatch in purchase_lines"))
             }
@@ -163,7 +176,6 @@ object BackupSnapshotIntegrityValidator {
             if (!countAreaById.containsKey(scl.stockCountAreaId)) return Result.failure(Exception("Broken FK: stock_count_line to stock_count_area"))
             if (!ingById.containsKey(scl.ingredientId)) return Result.failure(Exception("Broken FK: stock_count_line to ingredient"))
             val option = optionById[scl.ingredientUnitOptionId] ?: return Result.failure(Exception("Broken FK: stock_count_line to unit_option"))
-            // Check that unit option belongs to the SAME ingredient as stock count line
             if (option.ingredientId != scl.ingredientId) {
                 return Result.failure(Exception("Unit option ingredient mismatch in stock_count_lines"))
             }
@@ -173,22 +185,11 @@ object BackupSnapshotIntegrityValidator {
             if (!ingById.containsKey(waste.ingredientId)) return Result.failure(Exception("Broken FK: waste_event to ingredient"))
             if (!areaById.containsKey(waste.areaId)) return Result.failure(Exception("Broken FK: waste_event to area"))
             val option = optionById[waste.ingredientUnitOptionId] ?: return Result.failure(Exception("Broken FK: waste_event to unit_option"))
-            // Check that unit option belongs to the SAME ingredient as waste event
             if (option.ingredientId != waste.ingredientId) {
                 return Result.failure(Exception("Unit option ingredient mismatch in waste_events"))
             }
-        }
-
-        for (movement in dto.inventoryMovements) {
-            if (!ingById.containsKey(movement.ingredientId)) return Result.failure(Exception("Broken FK: movement to ingredient"))
-            if (!areaById.containsKey(movement.areaId)) return Result.failure(Exception("Broken FK: movement to area"))
-            if (movement.reversalOfMovementId != null) {
-                if (movement.reversalOfMovementId == movement.id) {
-                    return Result.failure(Exception("Self-reversal in inventory_movements"))
-                }
-                if (!movementById.containsKey(movement.reversalOfMovementId)) {
-                    return Result.failure(Exception("Broken FK: movement to reversal movement"))
-                }
+            if (waste.reason !in VALID_WASTE_REASONS) {
+                return Result.failure(Exception("Invalid waste reason: ${waste.reason}"))
             }
         }
 
@@ -201,17 +202,211 @@ object BackupSnapshotIntegrityValidator {
             if (!ingById.containsKey(cost.ingredientId)) return Result.failure(Exception("Broken FK: cost_projection to ingredient"))
         }
 
-        // 5. Enum & Status String Validation
-        if (dto.purchaseReceipts.any { it.status !in VALID_PURCHASE_STATUSES }) return Result.failure(Exception("Invalid purchase receipt status"))
-        if (dto.stockCounts.any { it.status !in VALID_STOCK_COUNT_STATUSES }) return Result.failure(Exception("Invalid stock count status"))
-        if (dto.stockCountAreas.any { it.status !in VALID_STOCK_COUNT_AREA_STATUSES }) return Result.failure(Exception("Invalid stock count area status"))
-        if (dto.wasteEvents.any { it.status !in VALID_WASTE_STATUSES }) return Result.failure(Exception("Invalid waste event status"))
-        if (dto.inventoryMovements.any { it.movementType !in VALID_MOVEMENT_TYPES }) return Result.failure(Exception("Invalid inventory movement type"))
+        // 5. Document Semantics & Timestamps
+        for (receipt in dto.purchaseReceipts) {
+            if (receipt.status !in VALID_PURCHASE_STATUSES) return Result.failure(Exception("Invalid purchase receipt status"))
+            if (receipt.createdAt > receipt.updatedAt) return Result.failure(Exception("Purchase receipt createdAt > updatedAt"))
+            when (receipt.status) {
+                DocumentStatus.DRAFT.name -> {
+                    if (receipt.postedAt != null || receipt.voidedAt != null) {
+                        return Result.failure(Exception("DRAFT purchase receipt must not have postedAt or voidedAt"))
+                    }
+                }
+                DocumentStatus.POSTED.name -> {
+                    if (receipt.postedAt == null) return Result.failure(Exception("POSTED purchase receipt requires postedAt"))
+                    if (receipt.voidedAt != null) return Result.failure(Exception("POSTED purchase receipt must not have voidedAt"))
+                }
+                DocumentStatus.VOIDED.name -> {
+                    if (receipt.postedAt == null || receipt.voidedAt == null) {
+                        return Result.failure(Exception("VOIDED purchase receipt requires both postedAt and voidedAt"))
+                    }
+                    if (receipt.postedAt > receipt.voidedAt) {
+                        return Result.failure(Exception("Purchase receipt postedAt must be <= voidedAt"))
+                    }
+                }
+            }
+        }
 
-        // 6. Decimal Fields Validation (Redacted error messages)
-        fun checkDecimal(valStr: String?, tableName: String, fieldName: String) {
-            if (valStr == null) return
-            try {
+        for (waste in dto.wasteEvents) {
+            if (waste.status !in VALID_WASTE_STATUSES) return Result.failure(Exception("Invalid waste event status"))
+            if (waste.createdAt > waste.updatedAt) return Result.failure(Exception("Waste event createdAt > updatedAt"))
+            when (waste.status) {
+                DocumentStatus.DRAFT.name -> {
+                    if (waste.postedAt != null || waste.voidedAt != null) {
+                        return Result.failure(Exception("DRAFT waste event must not have postedAt or voidedAt"))
+                    }
+                }
+                DocumentStatus.POSTED.name -> {
+                    if (waste.postedAt == null) return Result.failure(Exception("POSTED waste event requires postedAt"))
+                    if (waste.voidedAt != null) return Result.failure(Exception("POSTED waste event must not have voidedAt"))
+                }
+                DocumentStatus.VOIDED.name -> {
+                    if (waste.postedAt == null || waste.voidedAt == null) {
+                        return Result.failure(Exception("VOIDED waste event requires both postedAt and voidedAt"))
+                    }
+                    if (waste.postedAt > waste.voidedAt) {
+                        return Result.failure(Exception("Waste event postedAt must be <= voidedAt"))
+                    }
+                }
+            }
+        }
+
+        for (count in dto.stockCounts) {
+            if (count.status !in VALID_STOCK_COUNT_STATUSES) return Result.failure(Exception("Invalid stock count status"))
+            if (count.createdAt > count.updatedAt) return Result.failure(Exception("Stock count createdAt > updatedAt"))
+            when (count.status) {
+                StockCountStatus.DRAFT.name -> {
+                    if (count.completedAt != null || count.voidedAt != null) {
+                        return Result.failure(Exception("DRAFT stock count must not have completedAt or voidedAt"))
+                    }
+                }
+                StockCountStatus.COMPLETED.name -> {
+                    if (count.completedAt == null) return Result.failure(Exception("COMPLETED stock count requires completedAt"))
+                    if (count.voidedAt != null) return Result.failure(Exception("COMPLETED stock count must not have voidedAt"))
+                }
+                StockCountStatus.VOIDED.name -> {
+                    if (count.completedAt == null || count.voidedAt == null) {
+                        return Result.failure(Exception("VOIDED stock count requires both completedAt and voidedAt"))
+                    }
+                    if (count.completedAt > count.voidedAt) {
+                        return Result.failure(Exception("Stock count completedAt must be <= voidedAt"))
+                    }
+                }
+            }
+        }
+
+        for (sca in dto.stockCountAreas) {
+            if (sca.status !in VALID_STOCK_COUNT_AREA_STATUSES) return Result.failure(Exception("Invalid stock count area status"))
+            if (sca.status == CountAreaStatus.COMPLETED.name && sca.completedAt == null) {
+                return Result.failure(Exception("COMPLETED stock count area requires completedAt"))
+            }
+            if (sca.status != CountAreaStatus.COMPLETED.name && sca.completedAt != null) {
+                return Result.failure(Exception("Non-COMPLETED stock count area must not have completedAt"))
+            }
+        }
+
+        // 6. Movement Graph Semantics Validation
+        val reversedMovementIds = mutableSetOf<String>()
+
+        for (move in dto.inventoryMovements) {
+            if (move.movementType !in VALID_MOVEMENT_TYPES) {
+                return Result.failure(Exception("Invalid inventory movement type: ${move.movementType}"))
+            }
+            if (move.sourceDocumentType !in VALID_SOURCE_DOC_TYPES) {
+                return Result.failure(Exception("Invalid source document type: ${move.sourceDocumentType}"))
+            }
+            if (move.sourceDocumentId.isBlank()) {
+                return Result.failure(Exception("Blank sourceDocumentId in inventory_movements"))
+            }
+            if (move.sourceOperationId.isBlank()) {
+                return Result.failure(Exception("Blank sourceOperationId in inventory_movements"))
+            }
+
+            val ing = ingById[move.ingredientId] ?: return Result.failure(Exception("Broken FK: movement to ingredient"))
+            val area = areaById[move.areaId] ?: return Result.failure(Exception("Broken FK: movement to area"))
+            if (ing.restaurantId != manifestRestaurantId || area.restaurantId != manifestRestaurantId) {
+                return Result.failure(Exception("Restaurant mismatch on movement ingredient/area"))
+            }
+
+            when (move.movementType) {
+                InventoryMovementType.PURCHASE.name -> {
+                    if (move.sourceDocumentType != SourceDocumentType.PURCHASE_RECEIPT.name) {
+                        return Result.failure(Exception("PURCHASE movement must use PURCHASE_RECEIPT source document type"))
+                    }
+                    val receipt = receiptById[move.sourceDocumentId]
+                        ?: return Result.failure(Exception("PURCHASE movement sourceDocumentId not found in purchase_receipts"))
+                    val lineId = move.sourceLineId
+                        ?: return Result.failure(Exception("PURCHASE movement requires non-null sourceLineId"))
+                    val line = purchaseLineById[lineId]
+                        ?: return Result.failure(Exception("PURCHASE movement sourceLineId not found in purchase_lines"))
+                    if (line.purchaseReceiptId != receipt.id) {
+                        return Result.failure(Exception("PURCHASE movement sourceLineId does not belong to source purchase receipt"))
+                    }
+                    if (line.ingredientId != move.ingredientId || line.areaId != move.areaId) {
+                        return Result.failure(Exception("PURCHASE movement ingredient/area mismatch with purchase line"))
+                    }
+                }
+                InventoryMovementType.WASTE.name -> {
+                    if (move.sourceDocumentType != SourceDocumentType.WASTE_EVENT.name) {
+                        return Result.failure(Exception("WASTE movement must use WASTE_EVENT source document type"))
+                    }
+                    val waste = wasteById[move.sourceDocumentId]
+                        ?: return Result.failure(Exception("WASTE movement sourceDocumentId not found in waste_events"))
+                    if (waste.ingredientId != move.ingredientId || waste.areaId != move.areaId) {
+                        return Result.failure(Exception("WASTE movement ingredient/area mismatch with waste event"))
+                    }
+                }
+                InventoryMovementType.OPENING_BALANCE.name, InventoryMovementType.COUNT_ADJUSTMENT.name -> {
+                    if (move.sourceDocumentType != SourceDocumentType.STOCK_COUNT.name) {
+                        return Result.failure(Exception("${move.movementType} movement must use STOCK_COUNT source document type"))
+                    }
+                    val count = countById[move.sourceDocumentId]
+                        ?: return Result.failure(Exception("${move.movementType} movement sourceDocumentId not found in stock_counts"))
+                    val lineId = move.sourceLineId
+                        ?: return Result.failure(Exception("${move.movementType} movement requires non-null sourceLineId"))
+                    val line = countLineById[lineId]
+                        ?: return Result.failure(Exception("${move.movementType} movement sourceLineId not found in stock_count_lines"))
+                    val sca = countAreaById[line.stockCountAreaId]
+                        ?: return Result.failure(Exception("Stock count line parent area not found"))
+                    if (sca.stockCountId != count.id) {
+                        return Result.failure(Exception("${move.movementType} movement line does not belong to source stock count"))
+                    }
+                    if (line.ingredientId != move.ingredientId || sca.areaId != move.areaId) {
+                        return Result.failure(Exception("${move.movementType} movement ingredient/area mismatch with stock count line"))
+                    }
+                }
+                InventoryMovementType.MANUAL_ADJUSTMENT.name -> {
+                    if (move.sourceDocumentType != SourceDocumentType.MANUAL.name) {
+                        return Result.failure(Exception("MANUAL_ADJUSTMENT movement must use MANUAL source document type"))
+                    }
+                }
+                InventoryMovementType.REVERSAL.name -> {
+                    val targetId = move.reversalOfMovementId
+                        ?: return Result.failure(Exception("REVERSAL movement requires non-null reversalOfMovementId"))
+                    if (targetId == move.id) {
+                        return Result.failure(Exception("REVERSAL movement cannot reverse itself"))
+                    }
+                    val original = movementById[targetId]
+                        ?: return Result.failure(Exception("REVERSAL movement target not found in inventory_movements"))
+                    if (original.movementType == InventoryMovementType.REVERSAL.name) {
+                        return Result.failure(Exception("REVERSAL movement cannot point to another REVERSAL movement"))
+                    }
+                    if (reversedMovementIds.contains(targetId)) {
+                        return Result.failure(Exception("Multiple REVERSAL movements pointing to the same original movement ($targetId)"))
+                    }
+                    reversedMovementIds.add(targetId)
+
+                    if (move.restaurantId != original.restaurantId ||
+                        move.ingredientId != original.ingredientId ||
+                        move.areaId != original.areaId) {
+                        return Result.failure(Exception("REVERSAL movement restaurant/ingredient/area mismatch with original"))
+                    }
+
+                    try {
+                        val revQty = BigDecimal(move.quantityBaseSigned)
+                        val origQty = BigDecimal(original.quantityBaseSigned)
+                        if (revQty.add(origQty).compareTo(BigDecimal.ZERO) != 0) {
+                            return Result.failure(Exception("REVERSAL movement quantity is not the exact negation of original"))
+                        }
+
+                        if (move.totalValueSnapshot != null && original.totalValueSnapshot != null) {
+                            val revVal = BigDecimal(move.totalValueSnapshot)
+                            val origVal = BigDecimal(original.totalValueSnapshot)
+                            if (revVal.add(origVal).compareTo(BigDecimal.ZERO) != 0) {
+                                return Result.failure(Exception("REVERSAL movement totalValueSnapshot is not the exact negation of original"))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        return Result.failure(Exception("Invalid decimal format during REVERSAL quantity/value verification"))
+                    }
+                }
+            }
+        }
+
+        // 7. Decimal & Domain Value Range Validation
+        fun checkDecimal(valStr: String?, tableName: String, fieldName: String): BigDecimal? {
+            if (valStr == null) return null
+            return try {
                 BigDecimal(valStr)
             } catch (e: Exception) {
                 throw Exception("Invalid decimal format in $tableName.$fieldName")
@@ -219,32 +414,65 @@ object BackupSnapshotIntegrityValidator {
         }
 
         try {
-            dto.units.forEach { checkDecimal(it.factorToCanonical, "units", "factorToCanonical") }
-            dto.ingredients.forEach { checkDecimal(it.reorderPointBase, "ingredients", "reorderPointBase") }
-            dto.ingredientUnitOptions.forEach { checkDecimal(it.factorToBase, "ingredient_unit_options", "factorToBase") }
-            dto.purchaseLines.forEach { line ->
-                checkDecimal(line.quantityEntered, "purchase_lines", "quantityEntered")
-                checkDecimal(line.quantityBase, "purchase_lines", "quantityBase")
-                checkDecimal(line.unitCostBase, "purchase_lines", "unitCostBase")
-                checkDecimal(line.lineTotal, "purchase_lines", "lineTotal")
+            dto.units.forEach { unit ->
+                val factor = checkDecimal(unit.factorToCanonical, "units", "factorToCanonical")
+                if (factor != null && factor <= BigDecimal.ZERO) {
+                    return Result.failure(Exception("unit factorToCanonical must be > 0"))
+                }
             }
+
+            dto.ingredients.forEach { ing ->
+                val point = checkDecimal(ing.reorderPointBase, "ingredients", "reorderPointBase")
+                if (point != null && point < BigDecimal.ZERO) {
+                    return Result.failure(Exception("ingredient reorderPointBase must be >= 0"))
+                }
+            }
+
+            dto.ingredientUnitOptions.forEach { opt ->
+                val factor = checkDecimal(opt.factorToBase, "ingredient_unit_options", "factorToBase")
+                if (factor != null && factor <= BigDecimal.ZERO) {
+                    return Result.failure(Exception("unit option factorToBase must be > 0"))
+                }
+            }
+
+            dto.purchaseLines.forEach { line ->
+                val qEntered = checkDecimal(line.quantityEntered, "purchase_lines", "quantityEntered")
+                val qBase = checkDecimal(line.quantityBase, "purchase_lines", "quantityBase")
+                val lTotal = checkDecimal(line.lineTotal, "purchase_lines", "lineTotal")
+                checkDecimal(line.unitCostBase, "purchase_lines", "unitCostBase")
+
+                if (qEntered != null && qEntered <= BigDecimal.ZERO) return Result.failure(Exception("purchase_line quantityEntered must be > 0"))
+                if (qBase != null && qBase <= BigDecimal.ZERO) return Result.failure(Exception("purchase_line quantityBase must be > 0"))
+                if (lTotal != null && lTotal < BigDecimal.ZERO) return Result.failure(Exception("purchase_line lineTotal must be >= 0"))
+            }
+
             dto.stockCountLines.forEach { line ->
-                checkDecimal(line.quantityEntered, "stock_count_lines", "quantityEntered")
-                checkDecimal(line.quantityBase, "stock_count_lines", "quantityBase")
+                val qEntered = checkDecimal(line.quantityEntered, "stock_count_lines", "quantityEntered")
+                val qBase = checkDecimal(line.quantityBase, "stock_count_lines", "quantityBase")
                 checkDecimal(line.expectedQuantityBaseSnapshot, "stock_count_lines", "expectedQuantityBaseSnapshot")
                 checkDecimal(line.adjustmentQuantityBase, "stock_count_lines", "adjustmentQuantityBase")
+
+                if (qEntered != null && qEntered < BigDecimal.ZERO) return Result.failure(Exception("stock_count_line quantityEntered must be >= 0"))
+                if (qBase != null && qBase < BigDecimal.ZERO) return Result.failure(Exception("stock_count_line quantityBase must be >= 0"))
             }
+
             dto.wasteEvents.forEach { waste ->
-                checkDecimal(waste.quantityEntered, "waste_events", "quantityEntered")
-                checkDecimal(waste.quantityBase, "waste_events", "quantityBase")
+                val qEntered = checkDecimal(waste.quantityEntered, "waste_events", "quantityEntered")
+                val qBase = checkDecimal(waste.quantityBase, "waste_events", "quantityBase")
+
+                if (qEntered != null && qEntered <= BigDecimal.ZERO) return Result.failure(Exception("waste_event quantityEntered must be > 0"))
+                if (qBase != null && qBase <= BigDecimal.ZERO) return Result.failure(Exception("waste_event quantityBase must be > 0"))
             }
+
             dto.inventoryMovements.forEach { move ->
                 checkDecimal(move.quantityBaseSigned, "inventory_movements", "quantityBaseSigned")
                 checkDecimal(move.unitCostBaseSnapshot, "inventory_movements", "unitCostBaseSnapshot")
                 checkDecimal(move.totalValueSnapshot, "inventory_movements", "totalValueSnapshot")
             }
+
             dto.inventoryBalanceProjections.forEach { checkDecimal(it.quantityBase, "inventory_balance_projections", "quantityBase") }
             dto.ingredientCostProjections.forEach { checkDecimal(it.averageUnitCostBase, "ingredient_cost_projections", "averageUnitCostBase") }
+
         } catch (e: Exception) {
             return Result.failure(e)
         }

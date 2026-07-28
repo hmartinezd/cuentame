@@ -7,10 +7,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.backup.model.RestaurantBackupDto
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
+import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.BackupValidationResult
 import com.miara.cuentame.core.model.backup.TableMetadata
+import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.UnitDimension
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
@@ -73,8 +77,8 @@ class BackupValidatorAdversarialTest {
         appVersionName = "1.0",
         appVersionCode = 1L,
         databaseSchemaVersion = 2,
-        restaurantId = "rest-1",
-        restaurantName = "Test Rest",
+        restaurantId = BackupTestFixtures.RESTAURANT_ID,
+        restaurantName = "Test Restaurant",
         localeTag = "en-US",
         currencyCode = "USD",
         tableMetadata = validTableMetadata,
@@ -84,7 +88,7 @@ class BackupValidatorAdversarialTest {
     )
 
     private fun createValidSnapshot() = BackupSnapshotDto(
-        restaurants = listOf(RestaurantBackupDto("rest-1", "Test Rest", "USD", "en-US", 100, 200, null)),
+        restaurants = listOf(RestaurantBackupDto(BackupTestFixtures.RESTAURANT_ID, "Test Restaurant", "USD", "en-US", 1000L, 2000L, null)),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),
         units = emptyList(),
@@ -178,13 +182,26 @@ class BackupValidatorAdversarialTest {
     }
 
     @Test
-    fun validate_rejectsMissingRequiredEntry() = runBlocking {
+    fun validate_rejectsMissingRequiredEntry_databaseJson() = runBlocking {
         val file = File(context.cacheDir, "missing_db.zip")
         try {
             buildZipArchive(file, omitRequiredEntries = setOf("data/database.json"))
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
             assertThat((result as BackupValidationResult.Invalid).reason).contains("Missing data/database.json")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsMissingRequiredEntry_manifestJson() = runBlocking {
+        val file = File(context.cacheDir, "missing_manifest.zip")
+        try {
+            buildZipArchive(file, omitRequiredEntries = setOf("manifest.json"))
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("Missing manifest.json")
         } finally {
             file.delete()
         }
@@ -228,6 +245,19 @@ class BackupValidatorAdversarialTest {
     }
 
     @Test
+    fun validate_rejectsAbsolutePath() = runBlocking {
+        val file = File(context.cacheDir, "absolute_path.zip")
+        try {
+            buildZipArchive(file, extraEntries = mapOf("/etc/passwd" to "evil".toByteArray()))
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("Invalid zip entry path")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun validate_rejectsUnknownFieldInManifest() = runBlocking {
         val file = File(context.cacheDir, "unknown_manifest_field.zip")
         try {
@@ -239,8 +269,8 @@ class BackupValidatorAdversarialTest {
                   "appVersionName": "1.0",
                   "appVersionCode": 1,
                   "databaseSchemaVersion": 2,
-                  "restaurantId": "rest-1",
-                  "restaurantName": "Test Rest",
+                  "restaurantId": "${BackupTestFixtures.RESTAURANT_ID}",
+                  "restaurantName": "Test Restaurant",
                   "localeTag": "en-US",
                   "currencyCode": "USD",
                   "tableMetadata": {},
@@ -276,6 +306,86 @@ class BackupValidatorAdversarialTest {
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
             assertThat((result as BackupValidationResult.Invalid).reason).contains("Malformed manifest.json")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsChecksumMismatch() = runBlocking {
+        val file = File(context.cacheDir, "checksum_mismatch.zip")
+        try {
+            val validManifest = createValidManifest()
+            val manifestBytes = jsonWriter.encodeToString(validManifest).toByteArray()
+
+            val customChecksums = """
+                {
+                  "manifest.json": "${"f".repeat(64)}",
+                  "data/database.json": "${sha256(jsonWriter.encodeToString(createValidSnapshot()).toByteArray())}",
+                  "preferences/settings.json": "${sha256(jsonWriter.encodeToString(createValidPreferences()).toByteArray())}"
+                }
+            """.trimIndent()
+
+            buildZipArchive(file, overrideChecksumsJson = customChecksums)
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("Checksum mismatch")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsSelfReferentialChecksumInManifest() = runBlocking {
+        val file = File(context.cacheDir, "self_checksum.zip")
+        try {
+            val customChecksums = """
+                {
+                  "manifest.json": "${sha256(jsonWriter.encodeToString(createValidManifest()).toByteArray())}",
+                  "data/database.json": "${sha256(jsonWriter.encodeToString(createValidSnapshot()).toByteArray())}",
+                  "preferences/settings.json": "${sha256(jsonWriter.encodeToString(createValidPreferences()).toByteArray())}",
+                  "checksums.json": "${"a".repeat(64)}"
+                }
+            """.trimIndent()
+
+            buildZipArchive(file, overrideChecksumsJson = customChecksums)
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("checksums.json self-referential key forbidden")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsInvalidMovementGraph_missingOriginalReversal() = runBlocking {
+        val file = File(context.cacheDir, "bad_reversal.zip")
+        try {
+            val invalidSnapshot = createValidSnapshot().copy(
+                inventoryMovements = listOf(
+                    com.miara.cuentame.core.backup.model.InventoryMovementBackupDto(
+                        id = "m-rev-bad",
+                        restaurantId = BackupTestFixtures.RESTAURANT_ID,
+                        ingredientId = "ing-1",
+                        areaId = "area-1",
+                        movementType = "REVERSAL",
+                        quantityBaseSigned = "1.0",
+                        unitCostBaseSnapshot = "1.0",
+                        totalValueSnapshot = "1.0",
+                        effectiveAt = 1000L,
+                        sourceDocumentType = "WASTE_EVENT",
+                        sourceDocumentId = "we-1",
+                        sourceOperationId = "op-1",
+                        sourceLineId = null,
+                        reversalOfMovementId = "nonexistent-orig-id",
+                        createdAt = 1000L
+                    )
+                )
+            )
+            buildZipArchive(file, snapshot = invalidSnapshot)
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("REVERSAL movement target not found")
         } finally {
             file.delete()
         }

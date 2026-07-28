@@ -16,3 +16,4 @@
 *.apk
 *.aar
 *.jks
+.kotlin/

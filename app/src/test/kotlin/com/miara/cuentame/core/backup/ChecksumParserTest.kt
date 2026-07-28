@@ -26,12 +26,62 @@ class ChecksumParserTest {
     }
 
     @Test
-    fun parse_escapedKeys_decodesAndDetectsDuplicates() {
-        // Escaped unicode dot in key
+    fun parse_leadingAndTrailingWhitespace_succeeds() {
+        val json = "  \n\t {\n \"data/db.json\": \"$validHash1\" \n} \n "
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun parse_escapedSlashAndBackslash_succeeds() {
+        val json = """
+            {
+              "attachments\/att1.jpg": "$validHash1",
+              "attachments\\att2.jpg": "$validHash2"
+            }
+        """.trimIndent()
+
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isSuccess).isTrue()
+        val map = result.getOrThrow()
+        assertThat(map["attachments/att1.jpg"]).isEqualTo(validHash1)
+        assertThat(map["attachments\\att2.jpg"]).isEqualTo(validHash2)
+    }
+
+    @Test
+    fun parse_normalDuplicateKey_isRejected() {
+        val json = """
+            {
+              "data/db.json": "$validHash1",
+              "data/db.json": "$validHash2"
+            }
+        """.trimIndent()
+
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Duplicate key detected")
+    }
+
+    @Test
+    fun parse_unicodeEscapedDuplicateKey_isRejected() {
         val json = """
             {
               "database.json": "$validHash1",
               "database\u002ejson": "$validHash2"
+            }
+        """.trimIndent()
+
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Duplicate key detected")
+    }
+
+    @Test
+    fun parse_escapedSlashDuplicateKey_isRejected() {
+        val json = """
+            {
+              "data/db.json": "$validHash1",
+              "data\/db.json": "$validHash2"
             }
         """.trimIndent()
 
@@ -54,6 +104,13 @@ class ChecksumParserTest {
     }
 
     @Test
+    fun parse_emptyInput_isRejected() {
+        val result = ChecksumParser.parse("")
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Checksums JSON is empty")
+    }
+
+    @Test
     fun parse_emptyObject_isRejected() {
         val result = ChecksumParser.parse("{}")
         assertThat(result.isFailure).isTrue()
@@ -61,30 +118,79 @@ class ChecksumParserTest {
     }
 
     @Test
-    fun parse_nonStringValue_isRejected() {
-        val json = """
-            {
-              "database.json": 12345
-            }
-        """.trimIndent()
-
+    fun parse_numberValue_isRejected() {
+        val json = """{"database.json": 12345}"""
         val result = ChecksumParser.parse(json)
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()?.message).contains("Checksum value must be a string")
     }
 
     @Test
-    fun parse_uppercaseOrInvalidHash_isRejected() {
-        val uppercaseHash = "A".repeat(64)
-        val json = """
-            {
-              "database.json": "$uppercaseHash"
-            }
-        """.trimIndent()
+    fun parse_booleanValue_isRejected() {
+        val json = """{"database.json": true}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Checksum value must be a string")
+    }
 
+    @Test
+    fun parse_nullValue_isRejected() {
+        val json = """{"database.json": null}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Checksum value must be a string")
+    }
+
+    @Test
+    fun parse_nestedObjectValue_isRejected() {
+        val json = """{"database.json": {"hash": "$validHash1"}}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Checksum value must be a string")
+    }
+
+    @Test
+    fun parse_arrayValue_isRejected() {
+        val json = """{"database.json": ["$validHash1"]}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Checksum value must be a string")
+    }
+
+    @Test
+    fun parse_hashTooShort_isRejected() {
+        val json = """{"database.json": "abcd1234"}"""
         val result = ChecksumParser.parse(json)
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()?.message).contains("Invalid SHA-256 hash format")
+    }
+
+    @Test
+    fun parse_hashTooLong_isRejected() {
+        val json = """{"database.json": "${"a".repeat(65)}"}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Invalid SHA-256 hash format")
+    }
+
+    @Test
+    fun parse_uppercaseHash_isRejected() {
+        val uppercaseHash = "A".repeat(64)
+        val json = """{"database.json": "$uppercaseHash"}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Invalid SHA-256 hash format")
+    }
+
+    @Test
+    fun parse_trailingComma_isRejected() {
+        val json = """
+            {
+              "database.json": "$validHash1",
+            }
+        """.trimIndent()
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
     }
 
     @Test
@@ -102,15 +208,23 @@ class ChecksumParserTest {
     }
 
     @Test
-    fun parse_malformedEscapeSequence_isRejected() {
-        val json = """
-            {
-              "database\zjson": "$validHash1"
-            }
-        """.trimIndent()
-
+    fun parse_unterminatedString_isRejected() {
+        val json = """{"database.json": "$validHash1"""
         val result = ChecksumParser.parse(json)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Invalid escape character")
+    }
+
+    @Test
+    fun parse_invalidUnicodeEscape_isRejected() {
+        val json = """{"data\u00ZZ.json": "$validHash1"}"""
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
+    }
+
+    @Test
+    fun parse_unescapedControlCharacter_isRejected() {
+        val json = "{\"data\nb.json\": \"$validHash1\"}"
+        val result = ChecksumParser.parse(json)
+        assertThat(result.isFailure).isTrue()
     }
 }
