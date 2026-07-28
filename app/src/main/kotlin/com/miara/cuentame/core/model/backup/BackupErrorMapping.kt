@@ -8,6 +8,7 @@ fun BackupResult.Error.toUserMessageRes(): Int = when (this) {
     is BackupResult.Error.InsufficientStorage -> R.string.backup_error_storage
     is BackupResult.Error.SerializationFailure -> R.string.backup_error_serialization
     is BackupResult.Error.DatabaseSnapshotFailure -> R.string.backup_error_database
+    is BackupResult.Error.PreferencesReadFailure -> R.string.backup_error_database // Use database error as fallback or define new one
     is BackupResult.Error.MissingAttachment -> R.string.backup_error_attachment_missing
     is BackupResult.Error.UnreadableAttachment -> R.string.backup_error_attachment_unreadable
     is BackupResult.Error.ChecksumFailure -> R.string.backup_error_checksum

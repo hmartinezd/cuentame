@@ -14,6 +14,6 @@ import androidx.room.Index
 data class IngredientCostProjectionEntity(
     val restaurantId: String,
     val ingredientId: String,
-    val averageUnitCostBase: String,
+    val averageUnitCostBase: String?,
     val updatedAt: Long
 )

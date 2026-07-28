@@ -44,7 +44,9 @@ object BackupMapper {
     )
     
     private fun PurchaseLineEntity.toDto() = PurchaseLineBackupDto(id, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, unitCostBase, lineTotal, notes, createdAt, updatedAt)
-    private fun StockCountEntity.toDto() = StockCountBackupDto(id, restaurantId, status, startedAt, completedAt, notes, createdAt, updatedAt)
+    
+    private fun StockCountEntity.toDto() = StockCountBackupDto(id, restaurantId, name, startedAt, effectiveAt, completedAt, status, notes, createdAt, updatedAt, voidedAt)
+    
     private fun StockCountAreaEntity.toDto() = StockCountAreaBackupDto(id, stockCountId, areaId, status, startedAt, completedAt, sortOrder)
     private fun StockCountLineEntity.toDto() = StockCountLineBackupDto(id, stockCountAreaId, ingredientId, ingredientUnitOptionId, quantityEntered, quantityBase, expectedQuantityBaseSnapshot, adjustmentQuantityBase, notes, createdAt, updatedAt)
     
@@ -54,7 +56,7 @@ object BackupMapper {
         status, createdAt, updatedAt, postedAt, voidedAt
     )
     
-    private fun InventoryMovementEntity.toDto() = InventoryMovementBackupDto(id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, unitCostBaseSnapshot, totalValueSnapshot, effectiveAt, sourceDocumentType, sourceDocumentId, sourceLineId, sourceOperationId, reversalOfMovementId, createdAt)
+    private fun InventoryMovementEntity.toDto() = InventoryMovementBackupDto(id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, unitCostBaseSnapshot, totalValueSnapshot, effectiveAt, sourceDocumentType, sourceDocumentId, sourceOperationId, sourceLineId, reversalOfMovementId, createdAt)
     private fun InventoryBalanceProjectionEntity.toDto() = InventoryBalanceProjectionBackupDto(restaurantId, ingredientId, areaId, quantityBase, updatedAt)
     private fun IngredientCostProjectionEntity.toDto() = IngredientCostProjectionBackupDto(restaurantId, ingredientId, averageUnitCostBase, updatedAt)
 }

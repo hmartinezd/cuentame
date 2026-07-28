@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "b2bc79efdc99df9daf5f158c180e464b",
+    "identityHash": "b4a236aac9202bbc11f2a5c047c20471",
     "entities": [
       {
         "tableName": "restaurants",
@@ -2059,7 +2059,7 @@
       },
       {
         "tableName": "ingredient_cost_projection",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))",
         "fields": [
           {
             "fieldPath": "restaurantId",
@@ -2077,7 +2077,7 @@
             "fieldPath": "averageUnitCostBase",
             "columnName": "averageUnitCostBase",
             "affinity": "TEXT",
-            "notNull": true
+            "notNull": false
           },
           {
             "fieldPath": "updatedAt",
@@ -2119,7 +2119,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b2bc79efdc99df9daf5f158c180e464b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b4a236aac9202bbc11f2a5c047c20471')"
     ]
   }
 }

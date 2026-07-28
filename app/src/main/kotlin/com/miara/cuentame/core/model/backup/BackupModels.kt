@@ -64,6 +64,13 @@ data class BackupSnapshot(
     val ingredientCostProjections: List<IngredientCostProjectionEntity>
 )
 
+@Serializable
+data class BackupPreferencesDto(
+    val themeMode: String,
+    val dynamicColorEnabled: Boolean,
+    val appLocaleTag: String
+)
+
 sealed interface BackupResult {
     data class Success(val manifest: BackupManifest) : BackupResult
     sealed interface Error : BackupResult {
@@ -72,6 +79,7 @@ sealed interface BackupResult {
         data object InsufficientStorage : Error
         data class SerializationFailure(val cause: Throwable) : Error
         data class DatabaseSnapshotFailure(val cause: Throwable) : Error
+        data class PreferencesReadFailure(val cause: Throwable) : Error
         data class MissingAttachment(val attachmentId: String) : Error
         data class UnreadableAttachment(val attachmentId: String, val cause: Throwable) : Error
         data class ChecksumFailure(val entryName: String) : Error

@@ -212,9 +212,19 @@ fun SettingsScreen(
                     }
                     Text(
                         text = desc,
-                        modifier = Modifier.semantics {
-                            liveRegion = LiveRegionMode.Polite
-                        }
+                        modifier = Modifier
+                            .testTag(when(backupUiState) {
+                                is BackupUiState.WaitingForDestination -> "backup_waiting_for_destination"
+                                is BackupUiState.Creating -> "backup_creating"
+                                is BackupUiState.Validating -> "backup_validating"
+                                is BackupUiState.Success -> "backup_success"
+                                is BackupUiState.Error -> "backup_error"
+                                is BackupUiState.Cancelled -> "backup_cancelled"
+                                else -> "backup_idle"
+                            })
+                            .semantics {
+                                liveRegion = LiveRegionMode.Polite
+                            }
                     )
                 },
                 leadingContent = { Icon(Icons.Default.Backup, contentDescription = null) },

@@ -57,7 +57,8 @@ class ArchiveDeterminismTest {
         val file1 = File(context.cacheDir, "backup1.zip")
         val file2 = File(context.cacheDir, "backup2.zip")
         val file3 = File(context.cacheDir, "backup3.zip")
-        listOf(file1, file2, file3).forEach { if (it.exists()) it.delete(); it.createNewFile() }
+        val file4 = File(context.cacheDir, "backup4.zip")
+        listOf(file1, file2, file3, file4).forEach { if (it.exists()) it.delete(); it.createNewFile() }
 
         val now = Instant.parse("2026-01-01T10:00:00Z")
         every { timeProvider.now() } returns now
@@ -68,44 +69,11 @@ class ArchiveDeterminismTest {
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
 
         val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
-        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
-        coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
-            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
-            inventoryAreas = listOf(
-                com.miara.cuentame.core.database.entity.InventoryAreaEntity("a2", "rest-1", "Area 2", "area 2", 2, true, 0L, 0L, null),
-                com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "rest-1", "Area 1", "area 1", 1, true, 0L, 0L, null)
-            ),
-            ingredientCategories = emptyList(),
-            units = emptyList(),
-            ingredients = emptyList(),
-            ingredientUnitOptions = emptyList(),
-            suppliers = emptyList(),
-            purchaseReceipts = emptyList(),
-            purchaseLines = emptyList(),
-            stockCounts = emptyList(),
-            stockCountAreas = emptyList(),
-            stockCountLines = emptyList(),
-            wasteEvents = emptyList(),
-            inventoryMovements = emptyList(),
-            inventoryBalanceProjections = emptyList(),
-            ingredientCostProjections = emptyList()
-        )
-
-        // 1. Create first backup
-        repository.createBackup(Uri.fromFile(file1).toString()).toList()
-        val bytes1 = file1.readBytes()
-
-        // 2. Create second backup (identical inputs)
-        repository.createBackup(Uri.fromFile(file2).toString()).toList()
-        val bytes2 = file2.readBytes()
-
-        assertThat(bytes1).isEqualTo(bytes2)
-
-        // 3. Change a value
-        coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
-            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "CHANGED", "USD", "en", 0L, 0L, null)),
+        val snapshot = BackupSnapshot(
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en-US", 0L, 0L, null)),
             inventoryAreas = emptyList(),
             ingredientCategories = emptyList(),
             units = emptyList(),
@@ -122,11 +90,35 @@ class ArchiveDeterminismTest {
             inventoryBalanceProjections = emptyList(),
             ingredientCostProjections = emptyList()
         )
+        coEvery { backupDao.createSnapshot("rest-1") } returns snapshot
+
+        // 1. Create first backup
+        val results1 = repository.createBackup(Uri.fromFile(file1).toString()).toList()
+        assertThat(results1.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+        val bytes1 = file1.readBytes()
+
+        // 2. Create second backup (identical inputs)
+        val results2 = repository.createBackup(Uri.fromFile(file2).toString()).toList()
+        assertThat(results2.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+        val bytes2 = file2.readBytes()
+
+        assertThat(bytes1).isEqualTo(bytes2)
+
+        // 3. Change a database value
+        coEvery { backupDao.createSnapshot("rest-1") } returns snapshot.copy(
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "CHANGED", "USD", "en-US", 0L, 0L, null))
+        )
         repository.createBackup(Uri.fromFile(file3).toString()).toList()
         val bytes3 = file3.readBytes()
         assertThat(bytes1).isNotEqualTo(bytes3)
+        
+        // 4. Change a preference
+        coEvery { backupDao.createSnapshot("rest-1") } returns snapshot
+        every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT.copy(appLocaleTag = "es-US"))
+        repository.createBackup(Uri.fromFile(file4).toString()).toList()
+        val bytes4 = file4.readBytes()
+        assertThat(bytes1).isNotEqualTo(bytes4)
 
-        file1.delete()
-        file2.delete()
+        listOf(file1, file2, file3, file4).forEach { it.delete() }
     }
 }

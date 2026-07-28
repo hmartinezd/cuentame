@@ -78,21 +78,28 @@ class BackupRoundTripTest {
         attachmentFile.writeText("dummy attachment content")
         val attachmentUri = Uri.fromFile(attachmentFile)
 
+        val units = listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "Dimension", BigDecimal.ONE, true, 1))
+        val areas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area-1", 1, true, 0L, 0L, null))
+        val categories = listOf(com.miara.cuentame.core.database.entity.IngredientCategoryEntity("cat-1", "rest-1", "Cat 1", "cat-1", 1, true, 0L, 0L, null))
+        val ingredients = listOf(com.miara.cuentame.core.database.entity.IngredientEntity("ing-1", "rest-1", "Ing 1", "ing-1", "cat-1", "u1", "area-1", null, null, null, true, 0L, 0L, null))
+        val receipts = listOf(com.miara.cuentame.core.database.entity.PurchaseReceiptEntity("p-1", "rest-1", null, null, 0L, "POSTED", null, attachmentUri.toString(), 0L, 0L, 0L, null))
+        val movements = listOf(com.miara.cuentame.core.database.entity.InventoryMovementEntity("im-1", "rest-1", "ing-1", "area-1", "PURCHASE", "1", "1", "1", 0L, "PURCHASE_RECEIPT", "p-1", "op-1", null, null, 0L))
+
         coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
             restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en-US", 0L, 0L, null)),
-            inventoryAreas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area-1", 1, true, 0L, 0L, null)),
-            ingredientCategories = emptyList(),
-            units = listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "Dimension", BigDecimal.ONE, true, 1)),
-            ingredients = listOf(com.miara.cuentame.core.database.entity.IngredientEntity("ing-1", "rest-1", "Ing 1", "ing-1", null, "u1", "area-1", null, null, null, true, 0L, 0L, null)),
+            inventoryAreas = areas,
+            ingredientCategories = categories,
+            units = units,
+            ingredients = ingredients,
             ingredientUnitOptions = emptyList(),
             suppliers = emptyList(),
-            purchaseReceipts = listOf(com.miara.cuentame.core.database.entity.PurchaseReceiptEntity("p-1", "rest-1", null, null, 0L, "POSTED", null, attachmentUri.toString(), 0L, 0L, 0L, null)),
+            purchaseReceipts = receipts,
             purchaseLines = emptyList(),
             stockCounts = emptyList(),
             stockCountAreas = emptyList(),
             stockCountLines = emptyList(),
             wasteEvents = emptyList(),
-            inventoryMovements = emptyList(),
+            inventoryMovements = movements,
             inventoryBalanceProjections = emptyList(),
             ingredientCostProjections = emptyList()
         )

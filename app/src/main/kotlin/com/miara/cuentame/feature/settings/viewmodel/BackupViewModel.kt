@@ -10,13 +10,12 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 sealed interface BackupUiState {
@@ -46,41 +45,38 @@ class BackupViewModel @Inject constructor(
     private val _events = MutableSharedFlow<BackupUiEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
-    private val operationGuard = Mutex()
+    private var activeJob: Job? = null
 
     fun onCreateBackupRequested() {
+        if (!canStartOperation()) return
+        
+        _uiState.value = BackupUiState.WaitingForDestination
         viewModelScope.launch {
-            operationGuard.withLock {
-                val current = _uiState.value
-                if (current is BackupUiState.WaitingForDestination || 
-                    current is BackupUiState.Creating || 
-                    current is BackupUiState.Validating) return@withLock
-                
-                _uiState.value = BackupUiState.WaitingForDestination
+            try {
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
                 _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+            } catch (e: Exception) {
+                _uiState.value = BackupUiState.Error(BackupResult.Error.Unknown(e))
             }
         }
     }
 
     fun onFileSelected(uri: String) {
-        viewModelScope.launch {
-            operationGuard.withLock {
-                val current = _uiState.value
-                if (current is BackupUiState.Creating || current is BackupUiState.Validating) return@withLock
-
-                backupRepository.createBackup(uri).collect { status ->
-                    when (status) {
-                        is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
-                        is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
-                        is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
-                        is BackupOperationStatus.Error -> {
-                            _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
-                                BackupUiState.Cancelled
-                            } else {
-                                BackupUiState.Error(status.result)
-                            }
+        if (_uiState.value != BackupUiState.WaitingForDestination) return
+        
+        activeJob?.cancel()
+        activeJob = viewModelScope.launch {
+            backupRepository.createBackup(uri).collect { status ->
+                when (status) {
+                    is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
+                    is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
+                    is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+                    is BackupOperationStatus.Error -> {
+                        _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
+                            BackupUiState.Cancelled
+                        } else {
+                            BackupUiState.Error(status.result)
                         }
                     }
                 }
@@ -89,16 +85,23 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onPickerCancelled() {
-        viewModelScope.launch {
-            operationGuard.withLock {
-                if (_uiState.value is BackupUiState.WaitingForDestination) {
-                    _uiState.value = BackupUiState.Cancelled
-                }
-            }
+        if (_uiState.value == BackupUiState.WaitingForDestination) {
+            _uiState.value = BackupUiState.Cancelled
         }
     }
 
     fun resetStatus() {
-        _uiState.value = BackupUiState.Idle
+        val current = _uiState.value
+        if (current is BackupUiState.Success || current is BackupUiState.Error || current == BackupUiState.Cancelled) {
+            _uiState.value = BackupUiState.Idle
+        }
+    }
+
+    private fun canStartOperation(): Boolean {
+        val current = _uiState.value
+        return current == BackupUiState.Idle || 
+               current is BackupUiState.Success || 
+               current is BackupUiState.Error || 
+               current == BackupUiState.Cancelled
     }
 }

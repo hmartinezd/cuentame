@@ -4,46 +4,56 @@ This document specifies the authoritative format and strategy for Cuentame versi
 
 ## Archive Specification
 
-The backup is a deterministic ZIP archive with the following entry set and order:
+The backup is a deterministic ZIP archive. To ensure bit-for-byte identity, entries MUST be written in this exact order:
 1. `data/database.json`: Logical snapshot of all 16 Room tables.
-2. `preferences/settings.json`: Key application settings (Theme, Locale, Dynamic Color).
-3. `attachments/<attachmentId>/<sanitizedFilename>`: Binary attachment files.
-4. `manifest.json`: Metadata, table counts, and attachment relationship map.
-5. `checksums.json`: SHA-256 hashes for all payload entries.
+2. `preferences/settings.json`: Typed application settings (Theme, Locale, Dynamic Color).
+3. `attachments/<attachmentId>/<effectiveDisplayName>`: Binary attachment files, sorted by `attachmentId` ascending.
+4. `manifest.json`: Archive metadata, table counts, and bidirectional attachment map.
+5. `checksums.json`: SHA-256 hashes for all preceding entries.
 
 ## Manifest Validation Rules
 * **Format Version**: Must be exactly 1.
-* **Timestamp**: Must be canonical ISO-8601 UTC.
-* **Metadata**: All identifiers (Application ID, Restaurant ID) and version strings must be non-blank.
-* **Localization**: `localeTag` must be a valid BCP 47 tag (e.g., `en-US`). `currencyCode` must be a valid ISO 4217 code.
-* **Sections**: Must contain exactly `data`, `preferences`, and `attachments`.
+* **Timestamp**: Must be canonical ISO-8601 UTC (e.g., `2026-07-27T19:00:00Z`).
+* **Localization**: `localeTag` must be a valid BCP 47 tag. `currencyCode` must be a valid ISO 4217 code.
+* **Integrity**: Every declared table count must match the actual record count in `database.json`.
 
-## Table Schema Metadata
-The manifest must declare metadata for all 16 tables. `isDerived` must be true ONLY for `inventory_balance_projections` and `ingredient_cost_projections`.
+## Typed Preferences (`settings.json`)
+The preferences section uses a strictly typed DTO:
+* `themeMode`: `LIGHT`, `DARK`, or `SYSTEM`.
+* `dynamicColorEnabled`: Boolean.
+* `appLocaleTag`: `en-US` or `es-US`.
+* *Note: `onboardingCompleted` is excluded as it is a device-local transient state.*
+
+## Relational Integrity Policy
+The backup is rejected if the internal relational graph is broken:
+* **Snaphot Integrity**: 
+    - Exactly one restaurant, matching manifest ID/Name/Currency/Locale.
+    - No duplicate primary keys.
+    - All records (Areas, Ingredients, Purchases, etc.) must belong to the manifest's `restaurantId`.
+    - All foreign keys (Ingredient -> Category, Purchase -> Supplier, etc.) must resolve within the backup set.
+* **Attachment Mapping**:
+    - `expectedSet = database.json{attachmentId + type + recordId}`
+    - `manifestSet = manifest.attachments{attachmentId + referencedBy{type + recordId}}`
+    - Both sets must be EQUAL. No orphans, no missing files, no extra manifest metadata.
 
 ## Checksum Rules
-* Every file in the archive (except `checksums.json`) must have a corresponding SHA-256 entry.
-* Duplicate keys in `checksums.json` are strictly forbidden and cause validation failure.
-* Checksums are verified via streaming to ensure memory efficiency.
-
-## Attachment Relationship Policy
-* **Portability**: Device-specific URIs are never stored. Attachments are referenced by a logical `attachmentId`.
-* **Bidirectional Integrity**: 
-    - Every logical ID in `database.json` must exist in the manifest.
-    - Every manifest attachment must have at least one valid record reference in `database.json`.
-* **Sanitization**: Filenames are sanitized to remove path separators and control characters. Invalid names are rejected during validation.
+* `checksums.json` MUST NOT contain a checksum for itself.
+* Duplicate keys in `checksums.json` (even with different escapes) MUST cause rejection.
+* All payload entries must be covered.
 
 ## Streaming Safety Limits
-* **Archive Entry Count**: Max 1000
-* **Attachment Count**: Max 500
-* **JSON Size**: Max 10MB per file
-* **Total Uncompressed Size**: Max 500MB
-* **Entry Name Length**: Max 255 characters
+* **Archive Entry Count**: Max 1000.
+* **JSON Size**: Max 10MB per file.
+* **Total Uncompressed Size**: Max 500MB.
+* **Attachment Count**: Max 500.
 
-## Data Isolation & Security
-* **Isolation**: All backups are strictly scoped to the active restaurant. No data from other restaurant profiles is included.
-* **Confidentiality**: Backups contain sensitive operational data (prices, costs, contacts). The archive is NOT encrypted by the application. Users must store the file securely.
+## Error Mapping Policy
+Failures are mapped to structured results:
+* `DatabaseSnapshotFailure`: Room transaction or query error.
+* `PreferencesReadFailure`: DataStore error.
+* `InsufficientStorage`: Platform `ENOSPC` detected via cause chain.
+* `ArchiveValidationFailure`: Any integrity, limit, or relationship violation.
+* `UnreadableAttachment`: SecurityException or IOException while reading source files.
 
-## Restore & Export Status
-* **Restore**: NOT IMPLEMENTED (Phase 2).
-* **CSV Export**: NOT IMPLEMENTED (Phase 3).
+## Security Note
+Backups contain sensitive restaurant data (costs, supplier info, inventory levels). The archive is **not encrypted** by the application. Users are responsible for secure storage.

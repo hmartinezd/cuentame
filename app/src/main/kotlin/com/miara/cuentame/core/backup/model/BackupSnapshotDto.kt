@@ -156,12 +156,15 @@ data class PurchaseLineBackupDto(
 data class StockCountBackupDto(
     val id: String,
     val restaurantId: String,
-    val status: String,
+    val name: String,
     val startedAt: Long,
+    val effectiveAt: Long,
     val completedAt: Long?,
+    val status: String,
     val notes: String?,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val voidedAt: Long?
 )
 
 @Serializable
@@ -223,8 +226,8 @@ data class InventoryMovementBackupDto(
     val effectiveAt: Long,
     val sourceDocumentType: String,
     val sourceDocumentId: String,
-    val sourceLineId: String?,
     val sourceOperationId: String,
+    val sourceLineId: String?,
     val reversalOfMovementId: String?,
     val createdAt: Long
 )

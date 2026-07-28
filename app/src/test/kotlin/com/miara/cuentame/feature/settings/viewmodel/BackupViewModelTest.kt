@@ -15,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -71,14 +72,21 @@ class BackupViewModelTest {
     @Test
     fun `onFileSelected transitions through Creating and Validating to Success`() = runTest {
         val manifest = mockk<BackupManifest>()
-        every { backupRepository.createBackup(any()) } returns flowOf(
-            BackupOperationStatus.Creating,
-            BackupOperationStatus.Validating,
-            BackupOperationStatus.Success(manifest)
-        )
+        val flow = flow {
+            emit(BackupOperationStatus.Creating)
+            emit(BackupOperationStatus.Validating)
+            emit(BackupOperationStatus.Success(manifest))
+        }
+        every { backupRepository.createBackup(any()) } returns flow
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.uiState.test {
             assertThat(awaitItem()).isEqualTo(BackupUiState.Idle)
+            
+            // Must transition to WaitingForDestination first
+            viewModel.onCreateBackupRequested()
+            assertThat(awaitItem()).isEqualTo(BackupUiState.WaitingForDestination)
             
             viewModel.onFileSelected("uri")
             
@@ -108,12 +116,33 @@ class BackupViewModelTest {
             BackupOperationStatus.Creating,
             BackupOperationStatus.Error(BackupResult.Error.PermissionDenied)
         )
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.uiState.test {
             awaitItem() // Idle
+            viewModel.onCreateBackupRequested()
+            awaitItem() // WaitingForDestination
+            
             viewModel.onFileSelected("uri")
             awaitItem() // Creating
             assertThat(awaitItem()).isEqualTo(BackupUiState.Error(BackupResult.Error.PermissionDenied))
+        }
+    }
+
+    @Test
+    fun `duplicate onCreateBackupRequested are ignored while waiting`() = runTest {
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+
+        viewModel.events.test {
+            viewModel.onCreateBackupRequested()
+            assertThat(awaitItem()).isInstanceOf(BackupUiEvent.LaunchFilePicker::class.java)
+            assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
+            
+            // Second call should be ignored
+            viewModel.onCreateBackupRequested()
+            expectNoEvents()
         }
     }
 }

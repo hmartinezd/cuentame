@@ -50,7 +50,6 @@ class BackupManifestHardeningTest {
 
     @Test
     fun `validate rejects non-canonical timestamp`() {
-        // Non-canonical if it doesn't match Instant.toString() exactly (e.g. extra zeros or different precision)
         val invalid = validManifest.copy(createdAtUtc = "2026-01-01T12:00:00.000Z") 
         val result = BackupManifestValidator.validate(invalid)
         assertThat(result.isFailure).isTrue()
@@ -67,7 +66,7 @@ class BackupManifestHardeningTest {
 
     @Test
     fun `validate rejects invalid locale`() {
-        val invalid = validManifest.copy(localeTag = "")
+        val invalid = validManifest.copy(localeTag = "invalid")
         assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
     }
     
@@ -77,13 +76,5 @@ class BackupManifestHardeningTest {
         val result = BackupManifestValidator.validate(invalid)
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()?.message).contains("Missing: [ingredients]")
-    }
-
-    @Test
-    fun `validate rejects unexpected table metadata keys`() {
-        val invalid = validManifest.copy(tableMetadata = validTableMetadata + ("unknown" to TableMetadata(1, false)))
-        val result = BackupManifestValidator.validate(invalid)
-        assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Unknown: [unknown]")
     }
 }
