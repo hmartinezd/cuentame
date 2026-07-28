@@ -213,9 +213,7 @@ fun SettingsScreen(
                     Text(
                         text = desc,
                         modifier = Modifier.semantics {
-                            if (isBackupActive) {
-                                liveRegion = LiveRegionMode.Polite
-                            }
+                            liveRegion = LiveRegionMode.Polite
                         }
                     )
                 },

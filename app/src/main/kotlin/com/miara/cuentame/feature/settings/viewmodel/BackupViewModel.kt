@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 sealed interface BackupUiState {
@@ -44,35 +46,41 @@ class BackupViewModel @Inject constructor(
     private val _events = MutableSharedFlow<BackupUiEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
+    private val operationGuard = Mutex()
+
     fun onCreateBackupRequested() {
-        val current = _uiState.value
-        if (current is BackupUiState.WaitingForDestination || 
-            current is BackupUiState.Creating || 
-            current is BackupUiState.Validating) return
-        
         viewModelScope.launch {
-            _uiState.value = BackupUiState.WaitingForDestination
-            val restaurant = restaurantRepository.getRestaurant()
-            val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
-            _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+            operationGuard.withLock {
+                val current = _uiState.value
+                if (current is BackupUiState.WaitingForDestination || 
+                    current is BackupUiState.Creating || 
+                    current is BackupUiState.Validating) return@withLock
+                
+                _uiState.value = BackupUiState.WaitingForDestination
+                val restaurant = restaurantRepository.getRestaurant()
+                val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
+                _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+            }
         }
     }
 
     fun onFileSelected(uri: String) {
-        val current = _uiState.value
-        if (current is BackupUiState.Creating || current is BackupUiState.Validating) return
-
         viewModelScope.launch {
-            backupRepository.createBackup(uri).collect { status ->
-                when (status) {
-                    is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
-                    is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
-                    is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
-                    is BackupOperationStatus.Error -> {
-                        _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
-                            BackupUiState.Cancelled
-                        } else {
-                            BackupUiState.Error(status.result)
+            operationGuard.withLock {
+                val current = _uiState.value
+                if (current is BackupUiState.Creating || current is BackupUiState.Validating) return@withLock
+
+                backupRepository.createBackup(uri).collect { status ->
+                    when (status) {
+                        is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
+                        is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
+                        is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+                        is BackupOperationStatus.Error -> {
+                            _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
+                                BackupUiState.Cancelled
+                            } else {
+                                BackupUiState.Error(status.result)
+                            }
                         }
                     }
                 }
@@ -81,7 +89,13 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onPickerCancelled() {
-        _uiState.value = BackupUiState.Cancelled
+        viewModelScope.launch {
+            operationGuard.withLock {
+                if (_uiState.value is BackupUiState.WaitingForDestination) {
+                    _uiState.value = BackupUiState.Cancelled
+                }
+            }
+        }
     }
 
     fun resetStatus() {

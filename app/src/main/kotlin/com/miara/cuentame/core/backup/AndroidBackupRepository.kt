@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import java.io.BufferedOutputStream
@@ -33,6 +32,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 @Singleton
 class AndroidBackupRepository @Inject constructor(
@@ -61,8 +61,8 @@ class AndroidBackupRepository @Inject constructor(
 
     override fun createBackup(destinationUri: String): Flow<BackupOperationStatus> = flow {
         emit(BackupOperationStatus.Creating)
+        val uri = Uri.parse(destinationUri)
         try {
-            val uri = Uri.parse(destinationUri)
             val pfd = context.contentResolver.openFileDescriptor(uri, "w")
                 ?: throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
             
@@ -87,11 +87,17 @@ class AndroidBackupRepository @Inject constructor(
                 val reason = (validation as BackupValidationResult.Invalid).reason
                 emit(BackupOperationStatus.Error(BackupResult.Error.ArchiveValidationFailure(reason)))
             }
+        } catch (e: CancellationException) {
+            tryCleanupPartialFile(uri)
+            throw e
         } catch (e: BackupCreationException) {
+            tryCleanupPartialFile(uri)
             emit(BackupOperationStatus.Error(e.error))
         } catch (e: SecurityException) {
+            tryCleanupPartialFile(uri)
             emit(BackupOperationStatus.Error(BackupResult.Error.PermissionDenied))
         } catch (e: Exception) {
+            tryCleanupPartialFile(uri)
             if (e is java.io.IOException && e.message?.contains("ENOSPC", ignoreCase = true) == true) {
                 emit(BackupOperationStatus.Error(BackupResult.Error.InsufficientStorage))
             } else {
@@ -100,14 +106,31 @@ class AndroidBackupRepository @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
+    private fun tryCleanupPartialFile(uri: Uri) {
+        try {
+            context.contentResolver.openFileDescriptor(uri, "wt")?.use { it.close() }
+        } catch (e: Exception) {
+            // Best effort
+        }
+    }
+
     private suspend fun performBackup(zos: ZipOutputStream, entryChecksums: MutableMap<String, String>) {
         val restaurant = restaurantRepository.getRestaurant() ?: throw BackupCreationException(BackupResult.Error.UnsupportedPersistentData)
         val snapshot = try {
             backupDao.createSnapshot(restaurant.id.value)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw BackupCreationException(BackupResult.Error.DatabaseSnapshotFailure(e))
         }
-        val prefs = preferencesRepository.observePreferences().first()
+        
+        val prefs = try {
+            preferencesRepository.observePreferences().first()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw BackupCreationException(BackupResult.Error.Unknown(e))
+        }
         
         // 1. Identify attachments
         val pendingAttachments = mutableMapOf<String, PendingAttachment>() // URI -> PendingAttachment
@@ -160,7 +183,6 @@ class AndroidBackupRepository @Inject constructor(
                         throw Exception("Unsafe archive path generated")
                     }
 
-                    // Task 2: One-pass write + checksum
                     zos.putNextEntry(ZipEntry(archivePath).apply { time = DETERMINISTIC_ZIP_TIMESTAMP })
                     
                     val digest = MessageDigest.getInstance("SHA-256")
@@ -187,6 +209,10 @@ class AndroidBackupRepository @Inject constructor(
                         referencedBy = pending.references.sortedWith(compareBy({ it.recordType }, { it.recordId }))
                     ))
                 } ?: throw BackupCreationException(BackupResult.Error.MissingAttachment(pending.attachmentId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SecurityException) {
+                throw BackupCreationException(BackupResult.Error.PermissionDenied)
             } catch (e: Exception) {
                 if (e is BackupCreationException) throw e
                 throw BackupCreationException(BackupResult.Error.UnreadableAttachment(pending.attachmentId, e))
@@ -212,7 +238,6 @@ class AndroidBackupRepository @Inject constructor(
         )
         writeZipEntry(zos, "manifest.json", json.encodeToString(manifest), entryChecksums)
         
-        // 6. checksums.json (Must be last to have all checksums, or we track them as we go)
         val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
         writeZipEntry(zos, "checksums.json", json.encodeToString(sortedChecksums), mutableMapOf())
     }
@@ -273,6 +298,7 @@ class AndroidBackupRepository @Inject constructor(
                 }
             } ?: BackupValidationResult.Invalid("Could not open source URI")
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             BackupValidationResult.Invalid("Validation failed: ${e.message}")
         }
     }
@@ -318,24 +344,43 @@ class AndroidBackupRepository @Inject constructor(
             entry = zis.nextEntry
         }
 
-        // 1. Core entries exist
         val manifestJson = jsonPayloads["manifest.json"] ?: return BackupValidationResult.Invalid("Missing manifest.json")
         val checksumsJson = jsonPayloads["checksums.json"] ?: return BackupValidationResult.Invalid("Missing checksums.json")
+        val settingsJson = jsonPayloads["preferences/settings.json"] ?: return BackupValidationResult.Invalid("Missing preferences/settings.json")
+        val dbJson = jsonPayloads["data/database.json"] ?: return BackupValidationResult.Invalid("Missing data/database.json")
         
-        // 2. Validate Manifest via dedicated validator
+        // Exact archive entry set for format v1
+        val expectedBaseEntries = setOf("manifest.json", "checksums.json", "preferences/settings.json", "data/database.json")
         val manifest = try { json.decodeFromString<BackupManifest>(manifestJson) } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed manifest.json") }
         val manifestResult = BackupManifestValidator.validate(manifest)
         if (manifestResult.isFailure) return BackupValidationResult.Invalid("Manifest invalid: ${manifestResult.exceptionOrNull()?.message}")
 
-        // 3. Verify Checksums (Bidirectional)
+        val attachmentPaths = manifest.attachments.map { it.archivePath }.toSet()
+        val totalExpectedEntries = expectedBaseEntries + attachmentPaths
+        
+        if (entryMetadata.keys != totalExpectedEntries) {
+            val unexpected = entryMetadata.keys - totalExpectedEntries
+            val missing = totalExpectedEntries - entryMetadata.keys
+            return BackupValidationResult.Invalid("Archive entry set mismatch. Unexpected: $unexpected, Missing: $missing")
+        }
+
+        // Checksums validation
         val reportedChecksums = try { 
-            val rawChecksums = json.parseToJsonElement(checksumsJson).jsonObject
-            // Manual iteration to detect duplicates if needed, but Kotlin JSON usually handles it.
-            // Requirement 4 says "reject duplicate keys explicitly".
+            val rawMap = json.parseToJsonElement(checksumsJson).jsonObject
+            val keys = mutableSetOf<String>()
+            val regex = Regex("\"([^\"]+)\"\\s*:")
+            val matches = regex.findAll(checksumsJson)
+            for (match in matches) {
+                val key = match.groupValues[1]
+                if (!keys.add(key)) return BackupValidationResult.Invalid("Duplicate key in checksums.json: $key")
+            }
+
+            if (rawMap.isEmpty()) return BackupValidationResult.Invalid("Empty checksums.json")
             json.decodeFromString<Map<String, String>>(checksumsJson) 
         } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed checksums.json") }
 
         for ((name, reportedChecksum) in reportedChecksums) {
+            if (name == "checksums.json") return BackupValidationResult.Invalid("checksums.json cannot checksum itself")
             val actual = entryMetadata[name] ?: return BackupValidationResult.Invalid("Checksum for nonexistent entry: $name")
             if (actual.checksum != reportedChecksum) return BackupValidationResult.Invalid("Checksum mismatch for $name")
             if (!reportedChecksum.matches(Regex("^[a-f0-9]{64}$"))) return BackupValidationResult.Invalid("Invalid SHA-256 checksum format: $name")
@@ -346,8 +391,6 @@ class AndroidBackupRepository @Inject constructor(
             if (!reportedChecksums.containsKey(name)) return BackupValidationResult.Invalid("Entry $name missing from checksums.json")
         }
 
-        // 4. Validate database table counts
-        val dbJson = jsonPayloads["data/database.json"] ?: return BackupValidationResult.Invalid("Missing data/database.json")
         val dbDto = try { json.decodeFromString<BackupSnapshotDto>(dbJson) } catch (e: Exception) { return BackupValidationResult.Invalid("Malformed data/database.json") }
 
         val actualCounts = createTableMetadata(dbDto)
@@ -355,7 +398,6 @@ class AndroidBackupRepository @Inject constructor(
             if (actualCounts[tableName]?.entryCount != metadata.entryCount) return BackupValidationResult.Invalid("Entry count mismatch for table: $tableName")
         }
 
-        // 5. Attachment relationships and cross-checks
         val dbAttachmentIds = mutableSetOf<String>()
         dbDto.purchaseReceipts.mapNotNull { it.attachmentId }.forEach { dbAttachmentIds.add(it) }
         dbDto.wasteEvents.mapNotNull { it.attachmentId }.forEach { dbAttachmentIds.add(it) }
@@ -364,15 +406,16 @@ class AndroidBackupRepository @Inject constructor(
         if (manifestAttachmentIds.size != manifest.attachments.size) return BackupValidationResult.Invalid("Duplicate attachment IDs in manifest")
 
         for (attachment in manifest.attachments) {
+            if (!AttachmentFilenameSanitizer.isValid(attachment.displayName ?: "")) {
+                return BackupValidationResult.Invalid("Invalid attachment display name: ${attachment.displayName}")
+            }
             val actual = entryMetadata[attachment.archivePath] ?: return BackupValidationResult.Invalid("Missing attachment file: ${attachment.archivePath}")
             if (actual.size != attachment.sizeBytes) return BackupValidationResult.Invalid("Attachment size mismatch: ${attachment.archivePath}")
             if (actual.checksum != attachment.checksumSha256) return BackupValidationResult.Invalid("Attachment checksum mismatch: ${attachment.archivePath}")
-            if (attachment.referencedBy.isEmpty()) return BackupValidationResult.Invalid("Orphan attachment: ${attachment.attachmentId}")
             
             val expectedPath = "attachments/${attachment.attachmentId}/${AttachmentFilenameSanitizer.sanitize(attachment.displayName)}"
             if (attachment.archivePath != expectedPath) return BackupValidationResult.Invalid("Mismatched attachment path: ${attachment.archivePath}")
 
-            // Verify bidirectional relationship with DB
             for (ref in attachment.referencedBy) {
                 val existsInDb = when (ref.recordType) {
                     "PURCHASE_RECEIPT" -> dbDto.purchaseReceipts.any { it.id == ref.recordId && it.attachmentId == attachment.attachmentId }
@@ -383,7 +426,6 @@ class AndroidBackupRepository @Inject constructor(
             }
         }
         
-        // Ensure all DB referenced IDs exist in manifest
         for (id in dbAttachmentIds) {
             if (!manifestAttachmentIds.contains(id)) return BackupValidationResult.Invalid("Attachment ID $id referenced in database missing from manifest")
         }

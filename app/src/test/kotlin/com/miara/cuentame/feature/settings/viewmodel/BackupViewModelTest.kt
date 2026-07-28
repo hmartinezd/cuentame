@@ -91,7 +91,14 @@ class BackupViewModelTest {
 
     @Test
     fun `onPickerCancelled transitions to Cancelled`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        every { timeProvider.now() } returns Instant.EPOCH
+        
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+        
         viewModel.onPickerCancelled()
+        testDispatcher.scheduler.advanceUntilIdle()
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
     }
 

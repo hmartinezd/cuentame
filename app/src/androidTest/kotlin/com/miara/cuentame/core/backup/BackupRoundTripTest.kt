@@ -70,7 +70,7 @@ class BackupRoundTripTest {
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
         
         val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
-        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
         // Create dummy file for attachment
@@ -79,7 +79,7 @@ class BackupRoundTripTest {
         val attachmentUri = Uri.fromFile(attachmentFile)
 
         coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
-            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en-US", 0L, 0L, null)),
             inventoryAreas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area-1", 1, true, 0L, 0L, null)),
             ingredientCategories = emptyList(),
             units = listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "Dimension", BigDecimal.ONE, true, 1)),
@@ -108,6 +108,8 @@ class BackupRoundTripTest {
         val valid = validationResult as BackupValidationResult.Valid
         assertThat(valid.manifest.attachments).hasSize(1)
         assertThat(valid.manifest.attachments[0].referencedBy[0].recordId).isEqualTo("p-1")
+        assertThat(valid.manifest.localeTag).isEqualTo("en-US")
+        assertThat(valid.manifest.currencyCode).isEqualTo("USD")
         
         tempFile.delete()
         attachmentFile.delete()

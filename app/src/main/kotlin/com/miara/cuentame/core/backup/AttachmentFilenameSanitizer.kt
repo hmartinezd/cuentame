@@ -46,4 +46,16 @@ object AttachmentFilenameSanitizer {
 
         return sanitized
     }
+
+    /**
+     * Rejects filenames that are unsafe or malformed during validation.
+     */
+    fun isValid(name: String): Boolean {
+        if (name.isBlank()) return false
+        if (name.contains("/") || name.contains("\\") || name.contains("\u0000")) return false
+        if (name.contains(Regex("[\\x00-\\x1f\\x7f]"))) return false
+        if (name == "." || name == "..") return false
+        if (name.length > MAX_FILENAME_LENGTH) return false
+        return true
+    }
 }

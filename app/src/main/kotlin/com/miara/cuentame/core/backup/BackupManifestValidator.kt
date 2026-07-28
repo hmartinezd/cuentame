@@ -3,6 +3,8 @@ package com.miara.cuentame.core.backup
 import com.miara.cuentame.core.model.backup.BackupManifest
 import java.time.format.DateTimeParseException
 import java.time.Instant
+import java.util.Currency
+import java.util.Locale
 
 object BackupManifestValidator {
 
@@ -21,7 +23,10 @@ object BackupManifestValidator {
         }
 
         try {
-            Instant.parse(manifest.createdAtUtc)
+            val instant = Instant.parse(manifest.createdAtUtc)
+            if (instant.toString() != manifest.createdAtUtc) {
+                return Result.failure(Exception("createdAtUtc is not in canonical UTC format"))
+            }
         } catch (e: DateTimeParseException) {
             return Result.failure(Exception("Invalid createdAtUtc format: ${manifest.createdAtUtc}"))
         }
@@ -33,6 +38,25 @@ object BackupManifestValidator {
         if (manifest.restaurantId.isNullOrBlank()) return Result.failure(Exception("restaurantId is blank"))
         if (manifest.restaurantName.isNullOrBlank()) return Result.failure(Exception("restaurantName is blank"))
         
+        // Strict Locale/Currency check
+        try {
+            val tag = manifest.localeTag
+            if (tag.isNullOrBlank()) throw Exception("Missing localeTag")
+            // Locale.forLanguageTag is too lenient. 
+            // Let's use getAvailableLocales check or simple structural check for format.
+            // For P1 hardening, let's require at least 2 segments like en-US.
+            if (!tag.matches(Regex("^[a-z]{2}-[A-Z]{2}$"))) {
+                throw Exception("Invalid localeTag format: $tag")
+            }
+        } catch (e: Exception) {
+            return Result.failure(Exception("Invalid localeTag: ${manifest.localeTag}"))
+        }
+        try {
+            manifest.currencyCode?.let { Currency.getInstance(it) } ?: throw Exception("Missing currencyCode")
+        } catch (e: Exception) {
+            return Result.failure(Exception("Invalid currencyCode: ${manifest.currencyCode}"))
+        }
+
         if (manifest.checksumAlgorithm != "SHA-256") {
             return Result.failure(Exception("Unsupported checksum algorithm: ${manifest.checksumAlgorithm}"))
         }
