@@ -84,6 +84,8 @@ sealed interface BackupResult {
         data class UnreadableAttachment(val attachmentId: String, val cause: Throwable) : Error
         data class ChecksumFailure(val entryName: String) : Error
         data class ArchiveValidationFailure(val code: BackupValidationCode, val reason: String) : Error
+        data object RestaurantUnavailable : Error
+        data class FilenamePreparationFailure(val cause: Throwable) : Error
         data object UnsupportedPersistentData : Error
         data object OperationCancelled : Error
         data object UnexpectedInternalFailure : Error

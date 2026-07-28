@@ -14,6 +14,8 @@ fun BackupResult.Error.toUserMessageRes(): Int = when (this) {
     is BackupResult.Error.UnreadableAttachment -> R.string.backup_error_attachment_unreadable
     is BackupResult.Error.ChecksumFailure -> R.string.backup_error_checksum
     is BackupResult.Error.ArchiveValidationFailure -> R.string.backup_error_validation
+    is BackupResult.Error.RestaurantUnavailable -> R.string.backup_error_unsupported
+    is BackupResult.Error.FilenamePreparationFailure -> R.string.backup_error_unknown
     is BackupResult.Error.UnsupportedPersistentData -> R.string.backup_error_unsupported
     is BackupResult.Error.OperationCancelled -> R.string.backup_cancelled_message
     is BackupResult.Error.UnexpectedInternalFailure -> R.string.backup_error_unknown

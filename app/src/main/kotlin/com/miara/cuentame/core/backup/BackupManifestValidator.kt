@@ -43,8 +43,11 @@ object BackupManifestValidator {
         try {
             val tag = manifest.localeTag
             if (tag.isNullOrBlank()) throw Exception("Missing localeTag")
+            if (!tag.matches(Regex("^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})+$"))) {
+                throw Exception("Invalid localeTag format: $tag")
+            }
             val locale = java.util.Locale.forLanguageTag(tag)
-            if (locale.language.isBlank()) {
+            if (locale.language.isBlank() || locale.toLanguageTag() == "und") {
                 throw Exception("Invalid localeTag format: $tag")
             }
         } catch (e: Exception) {

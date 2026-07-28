@@ -4,13 +4,12 @@ import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
-import java.math.RoundingMode
 
 object BackupSnapshotIntegrityValidator {
 
     /**
      * Validates logical consistency, enum validity, document timestamps, movement graph semantics,
-     * document lifecycle consistency, numeric semantics, and restaurant isolation.
+     * document lifecycle consistency, numeric semantics, bijection, and restaurant isolation.
      */
     fun validate(dto: BackupSnapshotDto, manifest: BackupManifest): Result<Unit> {
         val manifestRestaurantId = manifest.restaurantId
@@ -380,6 +379,9 @@ object BackupSnapshotIntegrityValidator {
                     }
                     val waste = wasteById[move.sourceDocumentId]
                         ?: return Result.failure(Exception("WASTE movement sourceDocumentId not found in waste_events"))
+                    if (move.sourceLineId != waste.id) {
+                        return Result.failure(Exception("WASTE movement sourceLineId must equal waste event ID"))
+                    }
                     if (waste.ingredientId != move.ingredientId || waste.areaId != move.areaId) {
                         return Result.failure(Exception("WASTE movement ingredient/area mismatch with waste event"))
                     }
@@ -424,10 +426,19 @@ object BackupSnapshotIntegrityValidator {
                     }
                     reversedMovementIds.add(targetId)
 
+                    // Reversal identity matching
                     if (move.restaurantId != original.restaurantId ||
                         move.ingredientId != original.ingredientId ||
-                        move.areaId != original.areaId) {
-                        return Result.failure(Exception("REVERSAL movement restaurant/ingredient/area mismatch with original"))
+                        move.areaId != original.areaId ||
+                        move.sourceDocumentType != original.sourceDocumentType ||
+                        move.sourceDocumentId != original.sourceDocumentId ||
+                        move.sourceLineId != original.sourceLineId ||
+                        move.unitCostBaseSnapshot != original.unitCostBaseSnapshot) {
+                        return Result.failure(Exception("REVERSAL movement identity field mismatch with original movement"))
+                    }
+
+                    if (move.effectiveAt < original.effectiveAt) {
+                        return Result.failure(Exception("REVERSAL movement effectiveAt must be >= original movement effectiveAt"))
                     }
 
                     val origQty = try { BigDecimal(original.quantityBaseSigned) } catch (e: Exception) {
@@ -444,15 +455,27 @@ object BackupSnapshotIntegrityValidator {
                             return Result.failure(Exception("REVERSAL movement totalValueSnapshot is not the exact negation of original"))
                         }
                     }
+
+                    // Check source document is VOIDED (not POSTED/COMPLETED)
+                    val parentDocStatus = when (SourceDocumentType.valueOf(original.sourceDocumentType)) {
+                        SourceDocumentType.PURCHASE_RECEIPT -> receiptById[original.sourceDocumentId]?.status
+                        SourceDocumentType.WASTE_EVENT -> wasteById[original.sourceDocumentId]?.status
+                        SourceDocumentType.STOCK_COUNT -> countById[original.sourceDocumentId]?.status
+                        SourceDocumentType.MANUAL -> null
+                    }
+                    if (parentDocStatus != null && parentDocStatus != DocumentStatus.VOIDED.name && parentDocStatus != StockCountStatus.VOIDED.name) {
+                        return Result.failure(Exception("REVERSAL movement exists on non-VOIDED parent document"))
+                    }
                 }
             }
         }
 
-        // 7. Document-to-Movement Lifecycle Consistency Validation
+        // 7. 1-to-1 Source-Line Cardinality & Document-to-Movement Lifecycle Consistency Validation
         // Purchases:
         for (receipt in dto.purchaseReceipts) {
             val status = DocumentStatus.valueOf(receipt.status)
             val lines = dto.purchaseLines.filter { it.purchaseReceiptId == receipt.id }
+            val lineIds = lines.map { it.id }.toSet()
             val movements = dto.inventoryMovements.filter { it.sourceDocumentType == SourceDocumentType.PURCHASE_RECEIPT.name && it.sourceDocumentId == receipt.id }
             when (status) {
                 DocumentStatus.DRAFT -> {
@@ -465,6 +488,10 @@ object BackupSnapshotIntegrityValidator {
                     if (purchaseMoves.size != lines.size) {
                         return Result.failure(Exception("POSTED purchase receipt must have exactly one PURCHASE movement per line"))
                     }
+                    val moveLineIds = purchaseMoves.mapNotNull { it.sourceLineId }.toSet()
+                    if (lineIds != moveLineIds) {
+                        return Result.failure(Exception("POSTED purchase receipt line IDs must match movement sourceLineIds 1-to-1"))
+                    }
                     if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
                         return Result.failure(Exception("POSTED purchase receipt must not have REVERSAL movements"))
                     }
@@ -474,6 +501,11 @@ object BackupSnapshotIntegrityValidator {
                     val reversalMoves = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
                     if (purchaseMoves.size != lines.size || reversalMoves.size != lines.size) {
                         return Result.failure(Exception("VOIDED purchase receipt must have matching PURCHASE and REVERSAL movements"))
+                    }
+                    val reversedTargetIds = reversalMoves.mapNotNull { it.reversalOfMovementId }.toSet()
+                    val origMoveIds = purchaseMoves.map { it.id }.toSet()
+                    if (reversedTargetIds != origMoveIds) {
+                        return Result.failure(Exception("VOIDED purchase receipt REVERSAL movements must cover all original PURCHASE movements 1-to-1"))
                     }
                 }
             }
@@ -490,6 +522,9 @@ object BackupSnapshotIntegrityValidator {
                 DocumentStatus.POSTED -> {
                     val wasteMoves = movements.filter { it.movementType == InventoryMovementType.WASTE.name }
                     if (wasteMoves.size != 1) return Result.failure(Exception("POSTED waste event must have exactly one WASTE movement"))
+                    if (wasteMoves[0].sourceLineId != waste.id) {
+                        return Result.failure(Exception("WASTE movement sourceLineId must equal waste event ID"))
+                    }
                     if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
                         return Result.failure(Exception("POSTED waste event must not have REVERSAL movements"))
                     }
@@ -500,6 +535,9 @@ object BackupSnapshotIntegrityValidator {
                     if (wasteMoves.size != 1 || reversalMoves.size != 1) {
                         return Result.failure(Exception("VOIDED waste event must have exactly one WASTE movement and one REVERSAL"))
                     }
+                    if (reversalMoves[0].reversalOfMovementId != wasteMoves[0].id) {
+                        return Result.failure(Exception("VOIDED waste event REVERSAL must point to original WASTE movement"))
+                    }
                 }
             }
         }
@@ -509,6 +547,7 @@ object BackupSnapshotIntegrityValidator {
             val status = StockCountStatus.valueOf(count.status)
             val scas = dto.stockCountAreas.filter { it.stockCountId == count.id }
             val countLines = dto.stockCountLines.filter { line -> scas.any { it.id == line.stockCountAreaId } }
+            val lineIds = countLines.map { it.id }.toSet()
             val movements = dto.inventoryMovements.filter { it.sourceDocumentType == SourceDocumentType.STOCK_COUNT.name && it.sourceDocumentId == count.id }
             when (status) {
                 StockCountStatus.DRAFT -> {
@@ -519,6 +558,13 @@ object BackupSnapshotIntegrityValidator {
                     if (origMoves.size != countLines.size) {
                         return Result.failure(Exception("COMPLETED stock count must have one movement per line"))
                     }
+                    val moveLineIds = origMoves.mapNotNull { it.sourceLineId }.toSet()
+                    if (lineIds != moveLineIds) {
+                        return Result.failure(Exception("COMPLETED stock count line IDs must match movement sourceLineIds 1-to-1"))
+                    }
+                    if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
+                        return Result.failure(Exception("COMPLETED stock count must not have REVERSAL movements"))
+                    }
                 }
                 StockCountStatus.VOIDED -> {
                     val origMoves = movements.filter { it.movementType == InventoryMovementType.OPENING_BALANCE.name || it.movementType == InventoryMovementType.COUNT_ADJUSTMENT.name }
@@ -526,16 +572,37 @@ object BackupSnapshotIntegrityValidator {
                     if (origMoves.size != reversalMoves.size) {
                         return Result.failure(Exception("VOIDED stock count must have a REVERSAL for each original movement"))
                     }
+                    val reversedTargetIds = reversalMoves.mapNotNull { it.reversalOfMovementId }.toSet()
+                    val origMoveIds = origMoves.map { it.id }.toSet()
+                    if (reversedTargetIds != origMoveIds) {
+                        return Result.failure(Exception("VOIDED stock count REVERSAL movements must cover all original movements 1-to-1"))
+                    }
                 }
             }
         }
 
-        // 8. Balance Projection Consistency against Movements
+        // 8. Complete Balance Projection Verification
         val computedBalances = mutableMapOf<Pair<String, String>, BigDecimal>()
+        val keysWithMovements = mutableSetOf<Pair<String, String>>()
+
         for (move in dto.inventoryMovements) {
             val key = Pair(move.ingredientId, move.areaId)
+            keysWithMovements.add(key)
             val q = try { BigDecimal(move.quantityBaseSigned) } catch (e: Exception) { BigDecimal.ZERO }
             computedBalances[key] = computedBalances.getOrDefault(key, BigDecimal.ZERO).add(q)
+        }
+
+        val projectionKeys = dto.inventoryBalanceProjections.map { Pair(it.ingredientId, it.areaId) }.toSet()
+
+        if (keysWithMovements != projectionKeys) {
+            val missing = keysWithMovements - projectionKeys
+            val extra = projectionKeys - keysWithMovements
+            if (missing.isNotEmpty()) {
+                return Result.failure(Exception("Missing balance projection for ingredient/area key combination: $missing"))
+            }
+            if (extra.isNotEmpty()) {
+                return Result.failure(Exception("Extra balance projection found for ingredient/area with no movement history: $extra"))
+            }
         }
 
         for (proj in dto.inventoryBalanceProjections) {
@@ -545,7 +612,7 @@ object BackupSnapshotIntegrityValidator {
                 return Result.failure(Exception("Invalid quantityBase in balance projection"))
             }
             if (expected.compareTo(actual) != 0) {
-                return Result.failure(Exception("Inventory balance projection does not match movement history sum"))
+                return Result.failure(Exception("Inventory balance projection value ($actual) does not match movement sum ($expected)"))
             }
         }
 

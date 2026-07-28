@@ -85,7 +85,7 @@ class BackupViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 if (activeToken == token) {
-                    _uiState.value = BackupUiState.Error(BackupResult.Error.DatabaseSnapshotFailure(e))
+                    _uiState.value = BackupUiState.Error(BackupResult.Error.FilenamePreparationFailure(e))
                 }
             }
         }

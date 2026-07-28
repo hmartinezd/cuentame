@@ -347,52 +347,98 @@ class BackupValidatorAdversarialTest {
     fun validate_rejectsInvalidMovementGraph_missingOriginalReversal() = runBlocking {
         val file = File(context.cacheDir, "bad_reversal.zip")
         try {
-            val invalidSnapshot = createValidSnapshot().copy(
-                units = listOf(
-                    UnitBackupDto("u1", "Kilogram", "kg", "MASS", "1.0", true, 1)
-                ),
-                inventoryAreas = listOf(
-                    InventoryAreaBackupDto("area-1", BackupTestFixtures.RESTAURANT_ID, "Kitchen", "kitchen", 1, true, 1000L, 2000L, null)
-                ),
-                ingredients = listOf(
-                    IngredientBackupDto("ing-1", BackupTestFixtures.RESTAURANT_ID, "Tomato", "tomato", null, "u1", "area-1", "SKU1", "Notes", "10.0", true, 1000L, 2000L, null)
-                ),
-                inventoryMovements = listOf(
-                    InventoryMovementBackupDto(
-                        id = "m-rev-bad",
-                        restaurantId = BackupTestFixtures.RESTAURANT_ID,
-                        ingredientId = "ing-1",
-                        areaId = "area-1",
-                        movementType = "REVERSAL",
-                        quantityBaseSigned = "1.0",
-                        unitCostBaseSnapshot = "1.0",
-                        totalValueSnapshot = "1.0",
-                        effectiveAt = 1000L,
-                        sourceDocumentType = "WASTE_EVENT",
-                        sourceDocumentId = "we-1",
-                        sourceOperationId = "op-1",
-                        sourceLineId = null,
-                        reversalOfMovementId = "nonexistent-orig-id",
-                        createdAt = 1000L
-                    )
-                )
+            val validVoidedBase = BackupMapper.mapToDto(
+                BackupTestFixtures.createVoidedLifecycleSnapshot(),
+                emptyMap()
             )
-            val manifest = createValidManifest().let { m ->
-                m.copy(
-                    tableMetadata = m.tableMetadata + mapOf(
-                        "units" to TableMetadata(1, false),
-                        "inventory_areas" to TableMetadata(1, false),
-                        "ingredients" to TableMetadata(1, false),
-                        "inventory_movements" to TableMetadata(1, false)
-                    )
-                )
+
+            // Mutate ONLY reversalOfMovementId to a non-existent target ID
+            val badMovements = validVoidedBase.inventoryMovements.map { move ->
+                if (move.movementType == "REVERSAL") {
+                    move.copy(reversalOfMovementId = "nonexistent-orig-id")
+                } else move
             }
-            buildZipArchive(file, manifest = manifest, snapshot = invalidSnapshot)
+            val invalidSnapshot = validVoidedBase.copy(inventoryMovements = badMovements)
+
+            buildZipArchive(file, snapshot = invalidSnapshot)
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
             val invalid = result as BackupValidationResult.Invalid
             assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
-            assertThat(invalid.reason).contains("REVERSAL movement target not found")
+            assertThat(invalid.reason).contains("target not found")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsMissingBalanceProjection() = runBlocking {
+        val file = File(context.cacheDir, "missing_projection.zip")
+        try {
+            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
+            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = emptyList())
+
+            val manifest = createValidManifest().let { m ->
+                m.copy(tableMetadata = m.tableMetadata + mapOf("inventory_balance_projections" to TableMetadata(0, true)))
+            }
+            buildZipArchive(file, manifest = manifest, snapshot = invalidSnapshot)
+
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            val invalid = result as BackupValidationResult.Invalid
+            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
+            assertThat(invalid.reason).contains("Missing balance projection")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsExtraBalanceProjection() = runBlocking {
+        val file = File(context.cacheDir, "extra_projection.zip")
+        try {
+            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
+            val extraProj = InventoryBalanceProjectionBackupDto(
+                restaurantId = BackupTestFixtures.RESTAURANT_ID,
+                ingredientId = "ing-nonexistent",
+                areaId = "area-nonexistent",
+                quantityBase = "10.0",
+                updatedAt = 2000L
+            )
+            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = validBase.inventoryBalanceProjections + extraProj)
+
+            val manifest = createValidManifest().let { m ->
+                m.copy(tableMetadata = m.tableMetadata + mapOf("inventory_balance_projections" to TableMetadata(validBase.inventoryBalanceProjections.size + 1, true)))
+            }
+            buildZipArchive(file, manifest = manifest, snapshot = invalidSnapshot)
+
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            val invalid = result as BackupValidationResult.Invalid
+            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
+            assertThat(invalid.reason).contains("Extra balance projection")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsIncorrectBalanceProjectionValue() = runBlocking {
+        val file = File(context.cacheDir, "incorrect_projection.zip")
+        try {
+            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
+            val badProjections = validBase.inventoryBalanceProjections.map { proj ->
+                proj.copy(quantityBase = "9999.0")
+            }
+            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = badProjections)
+
+            buildZipArchive(file, snapshot = invalidSnapshot)
+
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            val invalid = result as BackupValidationResult.Invalid
+            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
+            assertThat(invalid.reason).contains("does not match movement sum")
         } finally {
             file.delete()
         }

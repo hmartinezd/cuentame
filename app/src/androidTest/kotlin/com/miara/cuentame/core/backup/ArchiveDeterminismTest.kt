@@ -154,31 +154,29 @@ class ArchiveDeterminismTest {
         assertThat(bytes1).isNotEqualTo(bytesAttBytes)
         attFile.writeBytes(byteArrayOf(1, 2, 3, 4)) // restore
 
-        // Proof 8: Attachment reference graph only (additional receipt sharing same attachment)
-        val movePurchase2 = snapshotBase.inventoryMovements[0].copy(
-            id = "m-pr2",
-            sourceDocumentId = "pr-2",
-            sourceOperationId = "pr-2:post",
-            sourceLineId = "pl-2"
-        )
+        // Proof 8: Attachment reference graph only (same attachment referenced by waste event as well)
         val snapshotRefGraphMutated = snapshotBase.copy(
-            purchaseReceipts = listOf(
-                snapshotBase.purchaseReceipts[0],
-                snapshotBase.purchaseReceipts[0].copy(id = "pr-2", invoiceNumber = "INV-2002")
-            ),
-            purchaseLines = listOf(
-                snapshotBase.purchaseLines[0],
-                snapshotBase.purchaseLines[0].copy(id = "pl-2", purchaseReceiptId = "pr-2")
-            ),
-            inventoryMovements = snapshotBase.inventoryMovements + movePurchase2,
-            inventoryBalanceProjections = listOf(
-                snapshotBase.inventoryBalanceProjections[0].copy(quantityBase = "19.0")
+            wasteEvents = listOf(
+                snapshotBase.wasteEvents[0].copy(attachmentPath = attUri.toString())
             )
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotRefGraphMutated
         val fRefGraph = createTempFile("fRefGraph")
         val bytesRefGraph = generateBackupBytes(fRefGraph)
         assertThat(bytes1).isNotEqualTo(bytesRefGraph)
+        coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
+
+        // Proof 9: Display name only (different filename for attachment source)
+        val attFile2 = File(context.cacheDir, "att_different_name.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        createdFiles.add(attFile2)
+        val attUri2 = Uri.fromFile(attFile2)
+        val snapshotDispNameMutated = snapshotBase.copy(
+            purchaseReceipts = listOf(snapshotBase.purchaseReceipts[0].copy(attachmentPath = attUri2.toString()))
+        )
+        coEvery { backupDao.createSnapshot(restId) } returns snapshotDispNameMutated
+        val fDispName = createTempFile("fDispName")
+        val bytesDispName = generateBackupBytes(fDispName)
+        assertThat(bytes1).isNotEqualTo(bytesDispName)
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
     }
 }

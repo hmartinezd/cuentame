@@ -16,9 +16,12 @@ import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.CreateWasteDraftCommand
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
+import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
+import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
 import com.miara.cuentame.core.model.backup.BackupValidationResult
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.WasteReason
 import com.miara.cuentame.core.preferences.model.AppPreferences
@@ -55,6 +58,7 @@ class BackupProductionIntegrationTest {
     private lateinit var backupRepository: AndroidBackupRepository
     private lateinit var purchaseRepository: RoomPurchaseRepository
     private lateinit var wasteRepository: RoomWasteRepository
+    private lateinit var stockCountRepository: RoomStockCountRepository
     private lateinit var restaurantRepository: RoomRestaurantRepository
 
     private val restaurantIdStr = BackupTestFixtures.RESTAURANT_ID
@@ -105,6 +109,15 @@ class BackupProductionIntegrationTest {
             NoOpFailureBoundary()
         )
 
+        val stockCountSnapshotService = RoomInventorySnapshotService(db.inventoryMovementDao(), costCalculator, movementValidator)
+        val stockCountHistoryValidator = StockCountMovementHistoryValidator()
+
+        stockCountRepository = RoomStockCountRepository(
+            db, db.stockCountDao(), db.inventoryMovementDao(), db.ingredientDao(),
+            db.inventoryAreaDao(), db.ingredientUnitOptionDao(), db.restaurantDao(),
+            stockCountSnapshotService, stockCountHistoryValidator, projectionRebuilder, idGenerator, timeProvider
+        )
+
         backupRepository = AndroidBackupRepository(
             context,
             db.backupDao(),
@@ -121,9 +134,7 @@ class BackupProductionIntegrationTest {
         db.close()
     }
 
-    @Test
-    fun productionRepositories_createAndValidateBackup_withRealPostedAndVoidedData() = runBlocking {
-        // 1. Seed Restaurant & Reference Entities into DB
+    private suspend fun seedBaseData() {
         db.restaurantDao().insert(
             RestaurantEntity(
                 id = restaurantIdStr,
@@ -209,12 +220,16 @@ class BackupProductionIntegrationTest {
             deletedAt = null
         )
         db.supplierDao().insert(supplier1)
+    }
 
-        // 2. Create and Post Purchase via RoomPurchaseRepository
+    @Test
+    fun productionRepositories_purchaseAndWasteFlow_createAndValidateBackup() = runBlocking {
+        seedBaseData()
+
         val purchaseId = purchaseRepository.createDraft(
             CreatePurchaseDraftCommand(
                 restaurantId = RestaurantId(restaurantIdStr),
-                supplierId = SupplierId(supplier1.id),
+                supplierId = SupplierId("sup-1"),
                 invoiceNumber = "INV-200",
                 purchaseDate = Instant.parse("2026-01-01T12:00:00Z"),
                 notes = "Initial purchase"
@@ -225,9 +240,9 @@ class BackupProductionIntegrationTest {
             SavePurchaseLineCommand(
                 receiptId = purchaseId,
                 lineId = null,
-                ingredientId = IngredientId(ing1.id),
-                areaId = InventoryAreaId(area1.id),
-                ingredientUnitOptionId = IngredientUnitOptionId(opt1.id),
+                ingredientId = IngredientId("ing-1"),
+                areaId = InventoryAreaId("area-1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt-1"),
                 quantityEntered = BigDecimal("20.0"),
                 lineTotal = BigDecimal("60.00"),
                 notes = null
@@ -235,13 +250,12 @@ class BackupProductionIntegrationTest {
         )
         purchaseRepository.post(purchaseId)
 
-        // 3. Create and Post Waste via RoomWasteRepository
         val wasteId = wasteRepository.createDraft(
             CreateWasteDraftCommand(
                 restaurantId = RestaurantId(restaurantIdStr),
-                ingredientId = IngredientId(ing1.id),
-                areaId = InventoryAreaId(area1.id),
-                ingredientUnitOptionId = IngredientUnitOptionId(opt1.id),
+                ingredientId = IngredientId("ing-1"),
+                areaId = InventoryAreaId("area-1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt-1"),
                 quantityEntered = BigDecimal("2.0"),
                 reason = WasteReason.SPOILED,
                 effectiveAt = Instant.parse("2026-01-01T11:00:00Z"),
@@ -250,11 +264,8 @@ class BackupProductionIntegrationTest {
             )
         )
         wasteRepository.post(wasteId)
-
-        // 4. Void Waste Event to verify REVERSAL generation
         wasteRepository.void(wasteId)
 
-        // 5. Backup Creation & Validation
         val tempFile = File(context.cacheDir, "prod_integration_backup.zip")
         if (tempFile.exists()) tempFile.delete()
         tempFile.createNewFile()
@@ -269,9 +280,90 @@ class BackupProductionIntegrationTest {
 
             val valid = validation as BackupValidationResult.Valid
             assertThat(valid.manifest.tableMetadata["restaurants"]?.entryCount).isEqualTo(1)
-            assertThat(valid.manifest.tableMetadata["inventory_movements"]?.entryCount).isEqualTo(3) // 1 PURCHASE + 1 WASTE + 1 REVERSAL
+            assertThat(valid.manifest.tableMetadata["inventory_movements"]?.entryCount).isEqualTo(3)
         } finally {
             tempFile.delete()
+        }
+    }
+
+    @Test
+    fun productionRepositories_stockCountCompleteAndVoidFlow_createAndValidateBackup() = runBlocking {
+        seedBaseData()
+
+        val countId = stockCountRepository.start(
+            StartStockCountCommand(
+                restaurantId = RestaurantId(restaurantIdStr),
+                name = "Monthly Audit",
+                effectiveAt = Instant.parse("2026-01-01T11:00:00Z"),
+                areaIds = listOf(InventoryAreaId("area-1")),
+                notes = "Count notes"
+            )
+        )
+
+        val areas = db.stockCountDao().getAreasForCount(countId.value)
+        assertThat(areas).hasSize(1)
+        val areaId = StockCountAreaId(areas[0].id)
+
+        val lineId = stockCountRepository.saveLine(
+            SaveStockCountLineCommand(
+                countId = countId,
+                countAreaId = areaId,
+                lineId = null,
+                ingredientId = IngredientId("ing-1"),
+                ingredientUnitOptionId = IngredientUnitOptionId("opt-1"),
+                quantityEntered = BigDecimal("15.0"),
+                notes = "Measured 15kg"
+            )
+        )
+        assertThat(lineId.value).isNotEmpty()
+
+        stockCountRepository.completeArea(countId, areaId)
+        stockCountRepository.completeCount(countId)
+
+        val movesAfterComplete = db.backupDao().createSnapshot(restaurantIdStr).inventoryMovements
+        assertThat(movesAfterComplete).hasSize(1)
+        assertThat(movesAfterComplete[0].movementType).isIn(
+            listOf(InventoryMovementType.OPENING_BALANCE.name, InventoryMovementType.COUNT_ADJUSTMENT.name)
+        )
+
+        val tempFile1 = File(context.cacheDir, "stock_count_complete_backup.zip")
+        if (tempFile1.exists()) tempFile1.delete()
+        tempFile1.createNewFile()
+
+        try {
+            val results = backupRepository.createBackup(Uri.fromFile(tempFile1).toString()).toList()
+            if (results.last() is BackupOperationStatus.Error) {
+                val err = results.last() as BackupOperationStatus.Error
+                println("STOCK COUNT CREATE ERROR: ${err.result}")
+            }
+            assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+
+            val validation = backupRepository.validateBackup(Uri.fromFile(tempFile1).toString())
+            assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
+        } finally {
+            tempFile1.delete()
+        }
+
+        stockCountRepository.voidCount(countId)
+
+        val movesAfterVoid = db.backupDao().createSnapshot(restaurantIdStr).inventoryMovements
+        assertThat(movesAfterVoid).hasSize(2)
+        val reversalMove = movesAfterVoid.find { it.movementType == InventoryMovementType.REVERSAL.name }
+        assertThat(reversalMove).isNotNull()
+        assertThat(reversalMove?.reversalOfMovementId).isEqualTo(movesAfterComplete[0].id)
+
+        val tempFile2 = File(context.cacheDir, "stock_count_void_backup.zip")
+        if (tempFile2.exists()) tempFile2.delete()
+        tempFile2.createNewFile()
+
+        try {
+            val results = backupRepository.createBackup(Uri.fromFile(tempFile2).toString()).toList()
+            assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+
+            val validation = backupRepository.validateBackup(Uri.fromFile(tempFile2).toString())
+            assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
+        } finally {
+            tempFile2.delete()
         }
     }
 }

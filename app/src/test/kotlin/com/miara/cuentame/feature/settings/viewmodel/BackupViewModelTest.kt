@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -203,5 +204,39 @@ class BackupViewModelTest {
 
         // State must not be Error
         assertThat(viewModel.uiState.value).isNotInstanceOf(BackupUiState.Error::class.java)
+    }
+
+    @Test
+    fun `filename preparation error maps to FilenamePreparationFailure`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } throws RuntimeException("DB offline")
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state).isInstanceOf(BackupUiState.Error::class.java)
+        val err = state as BackupUiState.Error
+        assertThat(err.result).isInstanceOf(BackupResult.Error.FilenamePreparationFailure::class.java)
+    }
+
+    @Test
+    fun `concurrent onFileSelected calls across separate coroutines select exactly one`() = runTest {
+        val flow1 = flow { emit(BackupOperationStatus.Creating); delay(1000) }
+        val flow2 = flow { emit(BackupOperationStatus.Creating); delay(1000) }
+        every { backupRepository.createBackup("uri-1") } returns flow1
+        every { backupRepository.createBackup("uri-2") } returns flow2
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        every { timeProvider.now() } returns Instant.EPOCH
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val j1 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch { viewModel.onFileSelected("uri-1") }
+        val j2 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch { viewModel.onFileSelected("uri-2") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        j1.join()
+        j2.join()
+
+        verify(exactly = 1) { backupRepository.createBackup("uri-1") }
+        verify(exactly = 0) { backupRepository.createBackup("uri-2") }
     }
 }

@@ -8,6 +8,7 @@ import javax.inject.Inject
 interface ChecksumProvider {
     fun calculateChecksum(inputStream: InputStream): String
     fun computeAttachmentId(uri: Uri): String
+    fun computeAttachmentId(uriString: String): String
 }
 
 class Sha256ChecksumProvider @Inject constructor() : ChecksumProvider {
@@ -22,8 +23,12 @@ class Sha256ChecksumProvider @Inject constructor() : ChecksumProvider {
     }
 
     override fun computeAttachmentId(uri: Uri): String {
+        return computeAttachmentId(uri.toString())
+    }
+
+    override fun computeAttachmentId(uriString: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(uri.toString().toByteArray(Charsets.UTF_8))
+        digest.update(uriString.toByteArray(Charsets.UTF_8))
         return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }.substring(0, 16)
     }
 }

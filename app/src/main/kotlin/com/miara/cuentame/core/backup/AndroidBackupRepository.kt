@@ -26,6 +26,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
@@ -59,86 +60,148 @@ class AndroidBackupRepository @Inject constructor(
 
     override fun createBackup(destinationUri: String): Flow<BackupOperationStatus> = flow {
         emit(BackupOperationStatus.Creating)
+        var tempFile: File? = null
+        var destStreamOpened = false
+        var destUri: Uri? = null
+
         try {
-            val manifest = writeBackupToDestination(destinationUri)
+            tempFile = File.createTempFile("staging_backup_", ".zip", context.cacheDir)
+            val manifest = writeStagingBackup(tempFile)
+
             emit(BackupOperationStatus.Validating)
-            when (val validation = validateBackup(destinationUri)) {
-                is BackupValidationResult.Valid -> emit(BackupOperationStatus.Success(validation.manifest))
-                is BackupValidationResult.Invalid -> emit(BackupOperationStatus.Error(BackupResult.Error.ArchiveValidationFailure(validation.code, validation.reason)))
+            val validation = validateBackup("file://${tempFile.absolutePath}")
+            if (validation !is BackupValidationResult.Valid) {
+                val invalid = validation as BackupValidationResult.Invalid
+                throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure(invalid.code, invalid.reason))
             }
+
+            destUri = try { Uri.parse(destinationUri) } catch (_: Exception) { null }
+            val outputStream = try {
+                openDestinationStream(destinationUri)
+            } catch (e: SecurityException) {
+                throw BackupCreationException(BackupResult.Error.PermissionDenied)
+            } catch (e: BackupCreationException) {
+                throw e
+            } catch (e: Exception) {
+                throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
+            }
+            destStreamOpened = true
+
+            try {
+                outputStream.use { out ->
+                    tempFile.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                    out.flush()
+                }
+            } catch (e: Exception) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+
+                if (e is IOException && isNoSpaceError(e)) {
+                    throw BackupCreationException(BackupResult.Error.InsufficientStorage)
+                }
+                if (e is SecurityException) {
+                    throw BackupCreationException(BackupResult.Error.PermissionDenied)
+                }
+                throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
+            }
+
+            emit(BackupOperationStatus.Success(validation.manifest))
         } catch (e: CancellationException) {
+            if (destStreamOpened) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
             throw e
         } catch (e: BackupCreationException) {
+            if (destStreamOpened) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
             emit(BackupOperationStatus.Error(e.error))
         } catch (e: IOException) {
+            if (destStreamOpened) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
             if (isNoSpaceError(e)) {
                 emit(BackupOperationStatus.Error(BackupResult.Error.InsufficientStorage))
             } else {
                 emit(BackupOperationStatus.Error(BackupResult.Error.SystemIOFailure(e)))
             }
         } catch (e: SecurityException) {
+            if (destStreamOpened) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
             emit(BackupOperationStatus.Error(BackupResult.Error.PermissionDenied))
         } catch (e: Exception) {
+            if (destStreamOpened) {
+                destUri?.let { try { context.contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
             emit(BackupOperationStatus.Error(BackupResult.Error.SystemIOFailure(e)))
+        } finally {
+            tempFile?.let { if (it.exists()) it.delete() }
         }
     }.flowOn(Dispatchers.IO)
 
-    private suspend fun writeBackupToDestination(destinationUri: String): BackupManifest {
-        val uri = Uri.parse(destinationUri)
-        val outputStream = try {
-            context.contentResolver.openOutputStream(uri)
-                ?: throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
-        } catch (e: SecurityException) {
-            throw BackupCreationException(BackupResult.Error.PermissionDenied)
+    private suspend fun writeStagingBackup(stagingFile: File): BackupManifest {
+        val restaurant = try {
+            restaurantRepository.getRestaurant()
+                ?: throw BackupCreationException(BackupResult.Error.RestaurantUnavailable)
         } catch (e: BackupCreationException) {
             throw e
+        } catch (e: SecurityException) {
+            throw BackupCreationException(BackupResult.Error.PermissionDenied)
         } catch (e: Exception) {
-            throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
+            throw BackupCreationException(BackupResult.Error.RestaurantUnavailable)
         }
 
-        val restaurant = restaurantRepository.getRestaurant()
-            ?: throw BackupCreationException(BackupResult.Error.UnsupportedPersistentData)
+        val prefs = try {
+            preferencesRepository.observePreferences().first()
+        } catch (e: Exception) {
+            throw BackupCreationException(BackupResult.Error.PreferencesReadFailure(e))
+        }
 
-        val prefs = preferencesRepository.observePreferences().first()
-        val snapshot = backupDao.createSnapshot(restaurant.id.value)
+        val snapshot = try {
+            backupDao.createSnapshot(restaurant.id.value)
+        } catch (e: Exception) {
+            throw BackupCreationException(BackupResult.Error.DatabaseSnapshotFailure(e))
+        }
 
         val attachmentIdMap = mutableMapOf<String, String>()
         snapshot.purchaseReceipts.forEach { receipt ->
             receipt.attachmentPath?.let { path ->
-                val uri = Uri.parse(path)
-                attachmentIdMap[path] = checksumProvider.computeAttachmentId(uri)
+                attachmentIdMap[path] = checksumProvider.computeAttachmentId(path)
             }
         }
         snapshot.wasteEvents.forEach { waste ->
             waste.attachmentPath?.let { path ->
-                val uri = Uri.parse(path)
-                attachmentIdMap[path] = checksumProvider.computeAttachmentId(uri)
+                attachmentIdMap[path] = checksumProvider.computeAttachmentId(path)
             }
         }
 
-        val snapshotDto = BackupMapper.mapToDto(snapshot, attachmentIdMap)
+        val snapshotDto = try {
+            BackupMapper.mapToDto(snapshot, attachmentIdMap)
+        } catch (e: Exception) {
+            throw BackupCreationException(BackupResult.Error.SerializationFailure(e))
+        }
 
         var currentTotalUncompressedBytes = 0L
 
-        ZipOutputStream(outputStream).use { zos ->
+        ZipOutputStream(java.io.FileOutputStream(stagingFile)).use { zos ->
             val entryChecksums = mutableMapOf<String, String>()
 
             // Collect attachment references
             val pendingAttachments = mutableMapOf<String, PendingAttachment>()
             snapshot.purchaseReceipts.forEach { receipt ->
                 receipt.attachmentPath?.let { path ->
-                    val sourceUri = Uri.parse(path)
-                    val id = checksumProvider.computeAttachmentId(sourceUri)
+                    val id = checksumProvider.computeAttachmentId(path)
                     val ref = BackupAttachmentReference("PURCHASE_RECEIPT", receipt.id)
-                    pendingAttachments.getOrPut(id) { PendingAttachment(sourceUri, id, mutableListOf()) }.references.add(ref)
+                    pendingAttachments.getOrPut(id) { PendingAttachment(path, id, mutableListOf()) }.references.add(ref)
                 }
             }
             snapshot.wasteEvents.forEach { waste ->
                 waste.attachmentPath?.let { path ->
-                    val sourceUri = Uri.parse(path)
-                    val id = checksumProvider.computeAttachmentId(sourceUri)
+                    val id = checksumProvider.computeAttachmentId(path)
                     val ref = BackupAttachmentReference("WASTE_EVENT", waste.id)
-                    pendingAttachments.getOrPut(id) { PendingAttachment(sourceUri, id, mutableListOf()) }.references.add(ref)
+                    pendingAttachments.getOrPut(id) { PendingAttachment(path, id, mutableListOf()) }.references.add(ref)
                 }
             }
 
@@ -158,16 +221,20 @@ class AndroidBackupRepository @Inject constructor(
                 restaurantName = restaurant.name,
                 localeTag = restaurant.localeTag,
                 currencyCode = restaurant.currencyCode,
-                tableMetadata = emptyMap(),
+                tableMetadata = createTableMetadata(snapshotDto).entries.sortedBy { it.key }.associate { it.key to it.value },
                 attachments = emptyList(),
-                includedSections = emptyList()
+                includedSections = listOf("data", "preferences", "attachments").sorted()
             )
             val integrityResult = BackupSnapshotIntegrityValidator.validate(snapshotDto, contextManifest)
             if (integrityResult.isFailure) {
                 throw BackupCreationException(BackupResult.Error.DatabaseSnapshotFailure(integrityResult.exceptionOrNull()!!))
             }
 
-            val snapshotJson = backupWriterJson.encodeToString(snapshotDto)
+            val snapshotJson = try {
+                backupWriterJson.encodeToString(snapshotDto)
+            } catch (e: Exception) {
+                throw BackupCreationException(BackupResult.Error.SerializationFailure(e))
+            }
             val snapshotBytes = snapshotJson.toByteArray(Charsets.UTF_8)
             if (snapshotBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) {
                 throw BackupCreationException(BackupResult.Error.LimitExceeded("Database JSON too large"))
@@ -184,7 +251,11 @@ class AndroidBackupRepository @Inject constructor(
                 dynamicColorEnabled = prefs.dynamicColorEnabled,
                 appLocaleTag = prefs.appLocaleTag
             )
-            val prefsJson = backupWriterJson.encodeToString(prefsDto)
+            val prefsJson = try {
+                backupWriterJson.encodeToString(prefsDto)
+            } catch (e: Exception) {
+                throw BackupCreationException(BackupResult.Error.SerializationFailure(e))
+            }
             val prefsBytes = prefsJson.toByteArray(Charsets.UTF_8)
             if (prefsBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) {
                 throw BackupCreationException(BackupResult.Error.LimitExceeded("Preferences JSON too large"))
@@ -201,8 +272,10 @@ class AndroidBackupRepository @Inject constructor(
 
             for (pending in sortedPending) {
                 try {
-                    openAttachmentStream(pending.sourceUri)?.use { inputStream ->
-                        val originalDisplayName = queryDisplayName(pending.sourceUri)
+                    val stream = openAttachmentStream(pending.sourceUriString)
+                        ?: throw BackupCreationException(BackupResult.Error.MissingAttachment(pending.attachmentId))
+                    stream.use { inputStream ->
+                        val originalDisplayName = queryDisplayName(pending.sourceUriString)
                         val effectiveDisplayName = AttachmentFilenameSanitizer.sanitize(originalDisplayName)
                         val archivePath = "attachments/${pending.attachmentId}/$effectiveDisplayName"
 
@@ -234,12 +307,12 @@ class AndroidBackupRepository @Inject constructor(
                             attachmentId = pending.attachmentId,
                             archivePath = archivePath,
                             displayName = effectiveDisplayName,
-                            mimeType = context.contentResolver.getType(pending.sourceUri),
+                            mimeType = getMimeType(pending.sourceUriString),
                             sizeBytes = size,
                             checksumSha256 = checksum,
                             referencedBy = pending.references.sortedWith(compareBy({ it.recordType }, { it.recordId }))
                         ))
-                    } ?: throw BackupCreationException(BackupResult.Error.MissingAttachment(pending.attachmentId))
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: SecurityException) {
@@ -273,7 +346,11 @@ class AndroidBackupRepository @Inject constructor(
                 includedSections = listOf("data", "preferences", "attachments").sorted(),
                 checksumAlgorithm = "SHA-256"
             )
-            val manifestJson = backupWriterJson.encodeToString(manifest)
+            val manifestJson = try {
+                backupWriterJson.encodeToString(manifest)
+            } catch (e: Exception) {
+                throw BackupCreationException(BackupResult.Error.SerializationFailure(e))
+            }
             val manifestBytes = manifestJson.toByteArray(Charsets.UTF_8)
             if (manifestBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) {
                 throw BackupCreationException(BackupResult.Error.LimitExceeded("Manifest JSON too large"))
@@ -286,7 +363,11 @@ class AndroidBackupRepository @Inject constructor(
 
             // 5. checksums.json
             val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
-            val checksumsJson = backupWriterJson.encodeToString(sortedChecksums)
+            val checksumsJson = try {
+                backupWriterJson.encodeToString(sortedChecksums)
+            } catch (e: Exception) {
+                throw BackupCreationException(BackupResult.Error.SerializationFailure(e))
+            }
             val checksumsBytes = checksumsJson.toByteArray(Charsets.UTF_8)
             if (checksumsBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) {
                 throw BackupCreationException(BackupResult.Error.LimitExceeded("Checksums JSON too large"))
@@ -327,8 +408,7 @@ class AndroidBackupRepository @Inject constructor(
 
     override suspend fun validateBackup(sourceUri: String): BackupValidationResult = withContext(Dispatchers.IO) {
         try {
-            val uri = Uri.parse(sourceUri)
-            val stream = context.contentResolver.openInputStream(uri)
+            val stream = openAttachmentStream(sourceUri)
                 ?: return@withContext BackupValidationResult.Invalid(BackupValidationCode.MISSING_REQUIRED_ENTRY, "Could not open source URI")
             stream.use { inputStream ->
                 ZipInputStream(inputStream).use { zis ->
@@ -542,19 +622,61 @@ class AndroidBackupRepository @Inject constructor(
         return msg.contains("ENOSPC", ignoreCase = true) || msg.contains("No space left on device", ignoreCase = true)
     }
 
-    private fun openAttachmentStream(sourceUri: Uri): InputStream? {
+    private fun getMimeType(uriStr: String): String? {
         return try {
-            context.contentResolver.openInputStream(sourceUri)
-        } catch (e: Exception) {
-            if (sourceUri.scheme == "file" && sourceUri.path != null) {
-                val file = File(sourceUri.path!!)
-                if (file.exists()) file.inputStream() else null
-            } else null
+            val uri = Uri.parse(uriStr)
+            context.contentResolver.getType(uri)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun queryDisplayName(uriStr: String): String {
+        return try {
+            val uri = Uri.parse(uriStr)
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index != -1) cursor.getString(index) else null
+                } else null
+            }
+        } catch (_: Exception) {
+            null
         } ?: run {
-            if (sourceUri.scheme == "file" && sourceUri.path != null) {
-                val file = File(sourceUri.path!!)
-                if (file.exists()) file.inputStream() else null
-            } else null
+            val path = if (uriStr.startsWith("file://")) uriStr.removePrefix("file://") else uriStr
+            File(path).name.ifBlank { null }
+        } ?: "attachment.bin"
+    }
+
+    private fun openAttachmentStream(sourceUriStr: String): InputStream? {
+        return try {
+            val uri = Uri.parse(sourceUriStr)
+            context.contentResolver.openInputStream(uri)
+        } catch (e: Exception) {
+            val path = if (sourceUriStr.startsWith("file://")) sourceUriStr.removePrefix("file://") else sourceUriStr
+            val file = File(path)
+            if (file.exists()) file.inputStream() else null
+        } ?: run {
+            val path = if (sourceUriStr.startsWith("file://")) sourceUriStr.removePrefix("file://") else sourceUriStr
+            val file = File(path)
+            if (file.exists()) file.inputStream() else null
+        }
+    }
+
+    private fun openDestinationStream(destUriStr: String): OutputStream {
+        return try {
+            val uri = Uri.parse(destUriStr)
+            context.contentResolver.openOutputStream(uri)
+                ?: throw BackupCreationException(BackupResult.Error.DestinationUnavailable)
+        } catch (e: SecurityException) {
+            throw e
+        } catch (e: BackupCreationException) {
+            throw e
+        } catch (e: Exception) {
+            val path = if (destUriStr.startsWith("file://")) destUriStr.removePrefix("file://") else destUriStr
+            val file = File(path)
+            file.parentFile?.mkdirs()
+            file.outputStream()
         }
     }
 
@@ -579,7 +701,7 @@ class AndroidBackupRepository @Inject constructor(
 
     private data class EntryInfo(val name: String, val checksum: String, val size: Long)
     private data class PendingAttachment(
-        val sourceUri: Uri,
+        val sourceUriString: String,
         val attachmentId: String,
         val references: MutableList<BackupAttachmentReference>
     )

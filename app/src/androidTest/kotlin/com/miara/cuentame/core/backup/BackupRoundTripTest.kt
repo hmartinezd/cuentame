@@ -165,13 +165,30 @@ class BackupRoundTripTest {
             assertThat(reportedChecksums).isNotNull()
             assertThat(reportedChecksums!!.containsKey("checksums.json")).isFalse()
 
-            // Assert DTO fields & lists
-            assertThat(dbDto).isNotNull()
-            assertThat(dbDto?.restaurants).hasSize(1)
-            assertThat(dbDto?.inventoryAreas).hasSize(2)
-            assertThat(dbDto?.ingredients).hasSize(2)
-            assertThat(dbDto?.inventoryMovements).hasSize(3)
-            assertThat(dbDto?.ingredientCostProjections).hasSize(2)
+            // Assert complete DTO fields & lists equality across all 16 tables
+            val expectedDto = BackupMapper.mapToDto(
+                snapshot,
+                mapOf(
+                    attUri1.toString() to checksumProvider.computeAttachmentId(attUri1),
+                    attUri2.toString() to checksumProvider.computeAttachmentId(attUri2)
+                )
+            )
+            assertThat(dbDto?.restaurants).isEqualTo(expectedDto.restaurants)
+            assertThat(dbDto?.inventoryAreas).isEqualTo(expectedDto.inventoryAreas)
+            assertThat(dbDto?.ingredientCategories).isEqualTo(expectedDto.ingredientCategories)
+            assertThat(dbDto?.units).isEqualTo(expectedDto.units)
+            assertThat(dbDto?.ingredients).isEqualTo(expectedDto.ingredients)
+            assertThat(dbDto?.ingredientUnitOptions).isEqualTo(expectedDto.ingredientUnitOptions)
+            assertThat(dbDto?.suppliers).isEqualTo(expectedDto.suppliers)
+            assertThat(dbDto?.purchaseReceipts).isEqualTo(expectedDto.purchaseReceipts)
+            assertThat(dbDto?.purchaseLines).isEqualTo(expectedDto.purchaseLines)
+            assertThat(dbDto?.stockCounts).isEqualTo(expectedDto.stockCounts)
+            assertThat(dbDto?.stockCountAreas).isEqualTo(expectedDto.stockCountAreas)
+            assertThat(dbDto?.stockCountLines).isEqualTo(expectedDto.stockCountLines)
+            assertThat(dbDto?.wasteEvents).isEqualTo(expectedDto.wasteEvents)
+            assertThat(dbDto?.inventoryMovements).isEqualTo(expectedDto.inventoryMovements)
+            assertThat(dbDto?.inventoryBalanceProjections).isEqualTo(expectedDto.inventoryBalanceProjections)
+            assertThat(dbDto?.ingredientCostProjections).isEqualTo(expectedDto.ingredientCostProjections)
 
             // Assert nullable cost projection
             val costIng2 = dbDto?.ingredientCostProjections?.find { it.ingredientId == "ing-2" }
