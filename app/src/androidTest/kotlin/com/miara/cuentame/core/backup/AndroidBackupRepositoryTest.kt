@@ -59,7 +59,7 @@ class AndroidBackupRepositoryTest {
 
     @Test
     fun createBackup_failsWhenDestinationUriCannotBeOpened() = runTest {
-        val uriString = "content://com.android.providers.downloads.documents/document/1"
+        val uriString = "content://com.android.providers.documents/document/1"
         val uri = Uri.parse(uriString)
         every { contentResolver.openFileDescriptor(uri, "w") } returns null
 
@@ -74,30 +74,30 @@ class AndroidBackupRepositoryTest {
         val tempFile = File(realContext.cacheDir, "backup_test.zip")
         if (tempFile.exists()) tempFile.delete()
         tempFile.createNewFile()
-        
+
         val uri = Uri.fromFile(tempFile)
         val uriString = uri.toString()
-        
+
         val pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_WRITE)
         every { contentResolver.openFileDescriptor(any(), "w") } returns pfd
         every { contentResolver.openInputStream(any()) } answers { tempFile.inputStream() }
         every { contentResolver.getType(any()) } returns "application/zip"
         every { contentResolver.query(any(), any(), any(), any(), any()) } returns null
-        
+
         val now = Instant.parse("2026-01-01T12:00:00Z")
         every { timeProvider.now() } returns now
-        
+
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 1
-        
+        every { appVersionProvider.databaseSchemaVersion } returns 2
+
         val restId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
-        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
+        val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
         coEvery { backupDao.createSnapshot(any()) } returns BackupSnapshot(
-            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en-US", 0L, 0L, null)),
             inventoryAreas = emptyList(),
             ingredientCategories = emptyList(),
             units = emptyList(),
@@ -114,7 +114,7 @@ class AndroidBackupRepositoryTest {
             inventoryBalanceProjections = emptyList(),
             ingredientCostProjections = emptyList()
         )
-        
+
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
 
         val results = repository.createBackup(uriString).toList()
@@ -122,7 +122,7 @@ class AndroidBackupRepositoryTest {
         assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
         val success = results.last() as BackupOperationStatus.Success
         assertThat(success.manifest.createdAtUtc).isEqualTo("2026-01-01T12:00:00Z")
-        
+
         tempFile.delete()
     }
 }

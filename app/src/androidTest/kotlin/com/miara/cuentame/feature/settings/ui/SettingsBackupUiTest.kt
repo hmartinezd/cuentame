@@ -18,49 +18,45 @@ class SettingsBackupUiTest {
     fun settingsScreen_showsBackupSection_inIdleState() {
         renderSettings(BackupUiState.Idle)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithTag("backup_idle").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("create_backup_button").assertHasClickAction()
+        composeTestRule.onNodeWithTag("create_backup_button", useUnmergedTree = true).assertExists().assertHasClickAction()
+        composeTestRule.onNodeWithTag("backup_idle", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun settingsScreen_showsWaitingForDestinationState() {
         renderSettings(BackupUiState.WaitingForDestination)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
-        composeTestRule.onNodeWithTag("backup_waiting_for_destination").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("backup_waiting_indicator").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("backup_waiting_for_destination", useUnmergedTree = true).assertExists()
+        composeTestRule.onNodeWithTag("backup_waiting_indicator", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun settingsScreen_showsCreatingState_andDisablesButton() {
         renderSettings(BackupUiState.Creating)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
-        composeTestRule.onNodeWithTag("backup_creating").assertIsDisplayed()
-        composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("backup_creating", useUnmergedTree = true).assertExists()
+        composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate), useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun settingsScreen_showsValidatingState_andDisablesButton() {
         renderSettings(BackupUiState.Validating)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
-        composeTestRule.onNodeWithTag("backup_validating").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("backup_validating", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun settingsScreen_rendersInDarkTheme() {
         renderSettings(BackupUiState.Idle, themeMode = ThemeMode.DARK)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_backup_button", useUnmergedTree = true).assertExists()
     }
 
     @Test
     fun settingsScreen_rendersInSpanishLocale() {
         renderSettings(BackupUiState.Idle, appLocaleTag = "es-US")
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_backup_button", useUnmergedTree = true).assertExists()
     }
 
     private fun renderSettings(

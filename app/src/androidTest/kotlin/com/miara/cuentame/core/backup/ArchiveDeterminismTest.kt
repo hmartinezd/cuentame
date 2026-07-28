@@ -97,7 +97,7 @@ class ArchiveDeterminismTest {
         val receipt1 = PurchaseReceiptEntity("pr-1", restId, null, "INV-1", 1000, "POSTED", null, attUri.toString(), 0, 0, 100, null)
 
         val snapshotBase = BackupSnapshot(
-            restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 0L, null)),
+            restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 100L, null)),
             inventoryAreas = listOf(area1, area2),
             ingredientCategories = emptyList(),
             units = listOf(unit1),
@@ -154,9 +154,9 @@ class ArchiveDeterminismTest {
         assertThat(bytes1).isNotEqualTo(bytesPref)
         every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT) // restore
 
-        // Proof 5: Changing database data changes bytes
+        // Proof 5: Changing database entity value changes bytes
         val snapshotChangedDb = snapshotBase.copy(
-            restaurants = listOf(RestaurantEntity(restId, "Renamed Rest", "USD", "en-US", 0L, 0L, null))
+            restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 999L, null))
         )
         coEvery { backupDao.createSnapshot(restId) } returns snapshotChangedDb
         val fDb = createTempFile("fDb")
