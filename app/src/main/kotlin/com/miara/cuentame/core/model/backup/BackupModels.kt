@@ -94,6 +94,7 @@ sealed interface BackupResult {
 }
 
 enum class BackupValidationCode {
+    SYSTEM_IO_ERROR,
     UNSAFE_ENTRY_PATH,
     DUPLICATE_ENTRY,
     MISSING_REQUIRED_ENTRY,

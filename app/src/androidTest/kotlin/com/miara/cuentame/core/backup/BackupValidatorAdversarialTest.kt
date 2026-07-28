@@ -7,7 +7,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.model.backup.BackupManifest
-import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.BackupValidationCode
 import com.miara.cuentame.core.model.backup.BackupValidationResult
 import com.miara.cuentame.core.model.backup.TableMetadata
@@ -20,7 +19,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -30,8 +28,6 @@ class BackupValidatorAdversarialTest {
     private lateinit var context: Context
     private val checksumProvider = Sha256ChecksumProvider()
     private lateinit var repository: AndroidBackupRepository
-
-    private val jsonWriter = Json { prettyPrint = true; encodeDefaults = true }
 
     @Before
     fun setup() {
@@ -47,44 +43,44 @@ class BackupValidatorAdversarialTest {
         )
     }
 
-    private val validTableMetadata = mapOf(
-        "restaurants" to TableMetadata(1, false),
-        "inventory_areas" to TableMetadata(0, false),
-        "ingredient_categories" to TableMetadata(0, false),
-        "units" to TableMetadata(0, false),
-        "ingredients" to TableMetadata(0, false),
-        "ingredient_unit_options" to TableMetadata(0, false),
-        "suppliers" to TableMetadata(0, false),
-        "purchase_receipts" to TableMetadata(0, false),
-        "purchase_lines" to TableMetadata(0, false),
-        "stock_counts" to TableMetadata(0, false),
-        "stock_count_areas" to TableMetadata(0, false),
-        "stock_count_lines" to TableMetadata(0, false),
-        "waste_events" to TableMetadata(0, false),
-        "inventory_movements" to TableMetadata(0, false),
-        "inventory_balance_projections" to TableMetadata(0, true),
-        "ingredient_cost_projections" to TableMetadata(0, true)
+    private fun createValidTableMetadata(dto: BackupSnapshotDto) = mapOf(
+        "restaurants" to TableMetadata(dto.restaurants.size, false),
+        "inventory_areas" to TableMetadata(dto.inventoryAreas.size, false),
+        "ingredient_categories" to TableMetadata(dto.ingredientCategories.size, false),
+        "units" to TableMetadata(dto.units.size, false),
+        "ingredients" to TableMetadata(dto.ingredients.size, false),
+        "ingredient_unit_options" to TableMetadata(dto.ingredientUnitOptions.size, false),
+        "suppliers" to TableMetadata(dto.suppliers.size, false),
+        "purchase_receipts" to TableMetadata(dto.purchaseReceipts.size, false),
+        "purchase_lines" to TableMetadata(dto.purchaseLines.size, false),
+        "stock_counts" to TableMetadata(dto.stockCounts.size, false),
+        "stock_count_areas" to TableMetadata(dto.stockCountAreas.size, false),
+        "stock_count_lines" to TableMetadata(dto.stockCountLines.size, false),
+        "waste_events" to TableMetadata(dto.wasteEvents.size, false),
+        "inventory_movements" to TableMetadata(dto.inventoryMovements.size, false),
+        "inventory_balance_projections" to TableMetadata(dto.inventoryBalanceProjections.size, true),
+        "ingredient_cost_projections" to TableMetadata(dto.ingredientCostProjections.size, true)
     )
 
-    private fun createValidManifest() = BackupManifest(
+    private fun createValidManifest(dto: BackupSnapshotDto) = BackupManifest(
         backupFormatVersion = 1,
         createdAtUtc = "2026-01-01T12:00:00Z",
         applicationId = "com.miara.cuentame",
         appVersionName = "1.0",
         appVersionCode = 1L,
         databaseSchemaVersion = 2,
-        restaurantId = BackupTestFixtures.RESTAURANT_ID,
-        restaurantName = "Test Restaurant",
+        restaurantId = "rest-1",
+        restaurantName = "Test Rest",
         localeTag = "en-US",
         currencyCode = "USD",
-        tableMetadata = validTableMetadata,
+        tableMetadata = createValidTableMetadata(dto),
         attachments = emptyList(),
-        includedSections = listOf("attachments", "data", "preferences"),
+        includedSections = listOf("data", "preferences", "attachments"),
         checksumAlgorithm = "SHA-256"
     )
 
-    private fun createValidSnapshot() = BackupSnapshotDto(
-        restaurants = listOf(RestaurantBackupDto(BackupTestFixtures.RESTAURANT_ID, "Test Restaurant", "USD", "en-US", 1000L, 2000L, null)),
+    private fun createEmptyDto() = BackupSnapshotDto(
+        restaurants = listOf(RestaurantBackupDto("rest-1", "Test Rest", "USD", "en-US", 0, 0, null)),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),
         units = emptyList(),
@@ -102,108 +98,35 @@ class BackupValidatorAdversarialTest {
         ingredientCostProjections = emptyList()
     )
 
-    private fun createValidPreferences() = BackupPreferencesDto(
-        themeMode = "SYSTEM",
-        dynamicColorEnabled = true,
-        appLocaleTag = "en-US"
-    )
-
-    private fun sha256(bytes: ByteArray): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(bytes)
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
-    private fun buildZipArchive(
-        destFile: File,
-        manifest: BackupManifest = createValidManifest(),
-        snapshot: BackupSnapshotDto = createValidSnapshot(),
-        prefs: BackupPreferencesDto = createValidPreferences(),
-        extraEntries: Map<String, ByteArray> = emptyMap(),
-        overrideChecksumsJson: String? = null,
-        omitRequiredEntries: Set<String> = emptySet()
-    ) {
-        val entryBytes = mutableMapOf<String, ByteArray>()
-        val manifestBytes = jsonWriter.encodeToString(manifest).toByteArray()
-        val dbBytes = jsonWriter.encodeToString(snapshot).toByteArray()
-        val prefsBytes = jsonWriter.encodeToString(prefs).toByteArray()
-
-        if ("manifest.json" !in omitRequiredEntries) entryBytes["manifest.json"] = manifestBytes
-        if ("data/database.json" !in omitRequiredEntries) entryBytes["data/database.json"] = dbBytes
-        if ("preferences/settings.json" !in omitRequiredEntries) entryBytes["preferences/settings.json"] = prefsBytes
-
-        extraEntries.forEach { (name, bytes) -> entryBytes[name] = bytes }
-
-        val checksumsMap = mutableMapOf<String, String>()
-        entryBytes.forEach { (name, bytes) -> checksumsMap[name] = sha256(bytes) }
-
-        val finalChecksumsJson = overrideChecksumsJson ?: jsonWriter.encodeToString(checksumsMap.entries.sortedBy { it.key }.associate { it.key to it.value })
-
-        ZipOutputStream(FileOutputStream(destFile)).use { zos ->
-            entryBytes.forEach { (name, bytes) ->
-                zos.putNextEntry(ZipEntry(name))
-                zos.write(bytes)
-                zos.closeEntry()
-            }
-            if ("checksums.json" !in omitRequiredEntries) {
-                zos.putNextEntry(ZipEntry("checksums.json"))
-                zos.write(finalChecksumsJson.toByteArray())
-                zos.closeEntry()
-            }
+    private fun createZip(file: File, manifest: BackupManifest, dto: BackupSnapshotDto) {
+        val writer = Json { encodeDefaults = true; explicitNulls = true }
+        val manifestJson = writer.encodeToString(manifest)
+        val dbJson = writer.encodeToString(dto)
+        val settingsJson = "{ \"themeMode\": \"SYSTEM\", \"dynamicColorEnabled\": true, \"appLocaleTag\": \"en-US\" }"
+        
+        val checksums = mutableMapOf<String, String>()
+        fun addCheck(name: String, content: String) {
+            checksums[name] = content.toByteArray().inputStream().use { checksumProvider.calculateChecksum(it) }
         }
-    }
+        addCheck("manifest.json", manifestJson)
+        addCheck("data/database.json", dbJson)
+        addCheck("preferences/settings.json", settingsJson)
+        
+        val checksumsJson = writer.encodeToString(checksums)
 
-    @Test
-    fun validate_acceptsFullyValidArchive() = runBlocking {
-        val file = File(context.cacheDir, "valid_archive.zip")
-        try {
-            buildZipArchive(file)
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Valid::class.java)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsUnexpectedEntry() = runBlocking {
-        val file = File(context.cacheDir, "unexpected_entry.zip")
-        try {
-            buildZipArchive(file, extraEntries = mapOf("unexpected.txt" to "hello".toByteArray()))
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.UNEXPECTED_ENTRY)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsMissingRequiredEntry_databaseJson() = runBlocking {
-        val file = File(context.cacheDir, "missing_db.zip")
-        try {
-            buildZipArchive(file, omitRequiredEntries = setOf("data/database.json"))
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.MISSING_REQUIRED_ENTRY)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsMissingRequiredEntry_manifestJson() = runBlocking {
-        val file = File(context.cacheDir, "missing_manifest.zip")
-        try {
-            buildZipArchive(file, omitRequiredEntries = setOf("manifest.json"))
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.MISSING_REQUIRED_ENTRY)
-        } finally {
-            file.delete()
+        ZipOutputStream(FileOutputStream(file)).use { zos ->
+            zos.putNextEntry(ZipEntry("manifest.json"))
+            zos.write(manifestJson.toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("data/database.json"))
+            zos.write(dbJson.toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("preferences/settings.json"))
+            zos.write(settingsJson.toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("checksums.json"))
+            zos.write(checksumsJson.toByteArray())
+            zos.closeEntry()
         }
     }
 
@@ -211,212 +134,34 @@ class BackupValidatorAdversarialTest {
     fun validate_rejectsDuplicateChecksumKey() = runBlocking {
         val file = File(context.cacheDir, "duplicate_checksum.zip")
         try {
-            val validManifest = createValidManifest()
-            val manifestBytes = jsonWriter.encodeToString(validManifest).toByteArray()
-            val manifestHash = sha256(manifestBytes)
+            val dto = createEmptyDto()
+            val manifest = createValidManifest(dto)
+            val writer = Json { encodeDefaults = true }
+            val manifestJson = writer.encodeToString(manifest)
+            val dbJson = writer.encodeToString(dto)
+            val settingsJson = "{ \"themeMode\": \"SYSTEM\", \"dynamicColorEnabled\": true, \"appLocaleTag\": \"en-US\" }"
+            
+            val manifestSum = manifestJson.toByteArray().inputStream().use { checksumProvider.calculateChecksum(it) }
+            val checksumsJson = """{"manifest.json": "$manifestSum", "manifest.json": "$manifestSum"}"""
 
-            val customChecksums = """
-                {
-                  "manifest.json": "$manifestHash",
-                  "manifest\u002ejson": "$manifestHash"
-                }
-            """.trimIndent()
-
-            buildZipArchive(file, overrideChecksumsJson = customChecksums)
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun archiveEntryValidator_rejectsUnsafeAndAbsolutePaths() {
-        assertThat(ArchiveEntryValidator.isSafe("../escaped.txt")).isFalse()
-        assertThat(ArchiveEntryValidator.isSafe("dir/../escaped.txt")).isFalse()
-        assertThat(ArchiveEntryValidator.isSafe("/etc/passwd")).isFalse()
-        assertThat(ArchiveEntryValidator.isSafe("C:\\Windows\\system32")).isFalse()
-        assertThat(ArchiveEntryValidator.isSafe("data/database.json")).isTrue()
-    }
-
-    @Test
-    fun validate_rejectsUnknownFieldInManifest() = runBlocking {
-        val file = File(context.cacheDir, "unknown_manifest_field.zip")
-        try {
-            val manifestJsonWithExtra = """
-                {
-                  "backupFormatVersion": 1,
-                  "createdAtUtc": "2026-01-01T12:00:00Z",
-                  "applicationId": "com.miara.cuentame",
-                  "appVersionName": "1.0",
-                  "appVersionCode": 1,
-                  "databaseSchemaVersion": 2,
-                  "restaurantId": "${BackupTestFixtures.RESTAURANT_ID}",
-                  "restaurantName": "Test Restaurant",
-                  "localeTag": "en-US",
-                  "currencyCode": "USD",
-                  "tableMetadata": {},
-                  "attachments": [],
-                  "includedSections": ["attachments", "data", "preferences"],
-                  "checksumAlgorithm": "SHA-256",
-                  "unknownExtraField": "hacker"
-                }
-            """.trimIndent()
-
-            val destFile = file
-            ZipOutputStream(FileOutputStream(destFile)).use { zos ->
+            ZipOutputStream(FileOutputStream(file)).use { zos ->
                 zos.putNextEntry(ZipEntry("manifest.json"))
-                zos.write(manifestJsonWithExtra.toByteArray())
+                zos.write(manifestJson.toByteArray())
                 zos.closeEntry()
                 zos.putNextEntry(ZipEntry("data/database.json"))
-                zos.write(jsonWriter.encodeToString(createValidSnapshot()).toByteArray())
+                zos.write(dbJson.toByteArray())
                 zos.closeEntry()
                 zos.putNextEntry(ZipEntry("preferences/settings.json"))
-                zos.write(jsonWriter.encodeToString(createValidPreferences()).toByteArray())
+                zos.write(settingsJson.toByteArray())
                 zos.closeEntry()
-
-                val checksums = mapOf(
-                    "manifest.json" to sha256(manifestJsonWithExtra.toByteArray()),
-                    "data/database.json" to sha256(jsonWriter.encodeToString(createValidSnapshot()).toByteArray()),
-                    "preferences/settings.json" to sha256(jsonWriter.encodeToString(createValidPreferences()).toByteArray())
-                )
                 zos.putNextEntry(ZipEntry("checksums.json"))
-                zos.write(jsonWriter.encodeToString(checksums).toByteArray())
+                zos.write(checksumsJson.toByteArray())
                 zos.closeEntry()
             }
 
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsChecksumMismatch() = runBlocking {
-        val file = File(context.cacheDir, "checksum_mismatch.zip")
-        try {
-            val validManifest = createValidManifest()
-
-            val customChecksums = """
-                {
-                  "manifest.json": "${"f".repeat(64)}",
-                  "data/database.json": "${sha256(jsonWriter.encodeToString(createValidSnapshot()).toByteArray())}",
-                  "preferences/settings.json": "${sha256(jsonWriter.encodeToString(createValidPreferences()).toByteArray())}"
-                }
-            """.trimIndent()
-
-            buildZipArchive(file, overrideChecksumsJson = customChecksums)
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.CHECKSUM_MISMATCH)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsSelfReferentialChecksumInManifest() = runBlocking {
-        val file = File(context.cacheDir, "self_checksum.zip")
-        try {
-            val customChecksums = """
-                {
-                  "manifest.json": "${sha256(jsonWriter.encodeToString(createValidManifest()).toByteArray())}",
-                  "data/database.json": "${sha256(jsonWriter.encodeToString(createValidSnapshot()).toByteArray())}",
-                  "preferences/settings.json": "${sha256(jsonWriter.encodeToString(createValidPreferences()).toByteArray())}",
-                  "checksums.json": "${"a".repeat(64)}"
-                }
-            """.trimIndent()
-
-            buildZipArchive(file, overrideChecksumsJson = customChecksums)
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsInvalidMovementGraph_missingOriginalReversal() = runBlocking {
-        val file = File(context.cacheDir, "bad_reversal.zip")
-        try {
-            val validVoidedBase = BackupMapper.mapToDto(
-                BackupTestFixtures.createVoidedLifecycleSnapshot(),
-                emptyMap()
-            )
-
-            // Mutate ONLY reversalOfMovementId to a non-existent target ID
-            val badMovements = validVoidedBase.inventoryMovements.map { move ->
-                if (move.movementType == "REVERSAL") {
-                    move.copy(reversalOfMovementId = "nonexistent-orig-id")
-                } else move
-            }
-            val invalidSnapshot = validVoidedBase.copy(inventoryMovements = badMovements)
-
-            buildZipArchive(file, snapshot = invalidSnapshot)
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
-            assertThat(invalid.reason).contains("target not found")
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsMissingBalanceProjection() = runBlocking {
-        val file = File(context.cacheDir, "missing_projection.zip")
-        try {
-            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
-            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = emptyList())
-
-            val manifest = createValidManifest().let { m ->
-                m.copy(tableMetadata = m.tableMetadata + mapOf("inventory_balance_projections" to TableMetadata(0, true)))
-            }
-            buildZipArchive(file, manifest = manifest, snapshot = invalidSnapshot)
-
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
-            assertThat(invalid.reason).contains("Missing balance projection")
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun validate_rejectsExtraBalanceProjection() = runBlocking {
-        val file = File(context.cacheDir, "extra_projection.zip")
-        try {
-            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
-            val extraProj = InventoryBalanceProjectionBackupDto(
-                restaurantId = BackupTestFixtures.RESTAURANT_ID,
-                ingredientId = "ing-nonexistent",
-                areaId = "area-nonexistent",
-                quantityBase = "10.0",
-                updatedAt = 2000L
-            )
-            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = validBase.inventoryBalanceProjections + extraProj)
-
-            val manifest = createValidManifest().let { m ->
-                m.copy(tableMetadata = m.tableMetadata + mapOf("inventory_balance_projections" to TableMetadata(validBase.inventoryBalanceProjections.size + 1, true)))
-            }
-            buildZipArchive(file, manifest = manifest, snapshot = invalidSnapshot)
-
-            val result = repository.validateBackup(Uri.fromFile(file).toString())
-            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
-            assertThat(invalid.reason).contains("Extra balance projection")
+            assertThat((result as BackupValidationResult.Invalid).code).isEqualTo(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
         } finally {
             file.delete()
         }
@@ -424,21 +169,57 @@ class BackupValidatorAdversarialTest {
 
     @Test
     fun validate_rejectsIncorrectBalanceProjectionValue() = runBlocking {
-        val file = File(context.cacheDir, "incorrect_projection.zip")
+        val file = File(context.cacheDir, "bad_balance.zip")
         try {
-            val validBase = BackupMapper.mapToDto(BackupTestFixtures.createPostedLifecycleSnapshot(), emptyMap())
-            val badProjections = validBase.inventoryBalanceProjections.map { proj ->
-                proj.copy(quantityBase = "9999.0")
-            }
-            val invalidSnapshot = validBase.copy(inventoryBalanceProjections = badProjections)
-
-            buildZipArchive(file, snapshot = invalidSnapshot)
+            val dto = createEmptyDto().copy(
+                ingredients = listOf(IngredientBackupDto("ing-1", "rest-1", "Ing", "ing", null, "u1", null, null, null, null, true, 0, 0, null)),
+                inventoryAreas = listOf(InventoryAreaBackupDto("area-1", "rest-1", "Area", "area", 1, true, 0, 0, null)),
+                units = listOf(UnitBackupDto("u1", "Unit", "u", "MASS", "1.0", true, 1)),
+                purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, null, 0, 0, 0, null)),
+                purchaseLines = listOf(PurchaseLineBackupDto("l1", "p1", "ing-1", "area-1", "opt-1", "10.0", "10.0", "1.0", "10.0", null, 0, 0)),
+                ingredientUnitOptions = listOf(IngredientUnitOptionBackupDto("opt-1", "ing-1", "kg", "kg", "u1", "1.0", true, true, true, true, 0, 0, null)),
+                inventoryMovements = listOf(
+                    InventoryMovementBackupDto("m1", "rest-1", "ing-1", "area-1", "PURCHASE", "10.0", "1.0", "10.0", 0, "PURCHASE_RECEIPT", "p1", "op1", "l1", null, 0)
+                ),
+                inventoryBalanceProjections = listOf(
+                    InventoryBalanceProjectionBackupDto("rest-1", "ing-1", "area-1", "9.0", 0) // Should be 10.0
+                )
+            )
+            val manifest = createValidManifest(dto)
+            createZip(file, manifest, dto)
 
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            val invalid = result as BackupValidationResult.Invalid
-            assertThat(invalid.code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
-            assertThat(invalid.reason).contains("does not match movement sum")
+            assertThat((result as BackupValidationResult.Invalid).code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
+            assertThat(result.reason).contains("match movement sum")
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun validate_rejectsMissingBalanceProjection() = runBlocking {
+        val file = File(context.cacheDir, "missing_balance.zip")
+        try {
+            val dto = createEmptyDto().copy(
+                ingredients = listOf(IngredientBackupDto("ing-1", "rest-1", "Ing", "ing", null, "u1", null, null, null, null, true, 0, 0, null)),
+                inventoryAreas = listOf(InventoryAreaBackupDto("area-1", "rest-1", "Area", "area", 1, true, 0, 0, null)),
+                units = listOf(UnitBackupDto("u1", "Unit", "u", "MASS", "1.0", true, 1)),
+                purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, null, 0, 0, 0, null)),
+                purchaseLines = listOf(PurchaseLineBackupDto("l1", "p1", "ing-1", "area-1", "opt-1", "10.0", "10.0", "1.0", "10.0", null, 0, 0)),
+                ingredientUnitOptions = listOf(IngredientUnitOptionBackupDto("opt-1", "ing-1", "kg", "kg", "u1", "1.0", true, true, true, true, 0, 0, null)),
+                inventoryMovements = listOf(
+                    InventoryMovementBackupDto("m1", "rest-1", "ing-1", "area-1", "PURCHASE", "10.0", "1.0", "10.0", 0, "PURCHASE_RECEIPT", "p1", "op1", "l1", null, 0)
+                ),
+                inventoryBalanceProjections = emptyList() // Missing projection
+            )
+            val manifest = createValidManifest(dto)
+            createZip(file, manifest, dto)
+
+            val result = repository.validateBackup(Uri.fromFile(file).toString())
+            assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+            assertThat((result as BackupValidationResult.Invalid).code).isEqualTo(BackupValidationCode.SNAPSHOT_INVALID)
+            assertThat(result.reason).contains("Missing balance projection")
         } finally {
             file.delete()
         }

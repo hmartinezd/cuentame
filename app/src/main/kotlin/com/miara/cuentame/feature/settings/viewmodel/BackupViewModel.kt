@@ -49,77 +49,89 @@ class BackupViewModel @Inject constructor(
 
     private var destinationPickerPreparationJob: Job? = null
     private var activeBackupJob: Job? = null
+    
     private val operationTokenGenerator = AtomicLong(0L)
-    @Volatile private var activeToken = 0L
+    @Volatile private var activeOperationToken: Long = -1
 
+    /**
+     * Attempts to transition to WaitingForDestination and launch picker preparation.
+     * Atomically ignores request if an operation is already in progress.
+     */
     fun onCreateBackupRequested() {
-        var transitioned = false
+        // Atomic transition from any terminal state to WaitingForDestination
         while (true) {
             val current = _uiState.value
-            if (current != BackupUiState.Idle &&
-                current !is BackupUiState.Success &&
-                current !is BackupUiState.Error &&
-                current != BackupUiState.Cancelled
-            ) {
-                return
-            }
+            if (!isTerminalState(current)) return // Already in progress
+
             if (_uiState.compareAndSet(current, BackupUiState.WaitingForDestination)) {
-                transitioned = true
-                break
+                break // Success
             }
+            // If CAS failed, someone else changed state; loop to check if it's still a terminal state
         }
-        if (!transitioned) return
 
         val token = operationTokenGenerator.incrementAndGet()
-        activeToken = token
+        activeOperationToken = token
 
-        destinationPickerPreparationJob?.cancel()
+        cancelAllJobs()
         destinationPickerPreparationJob = viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
-                if (activeToken == token && _uiState.value == BackupUiState.WaitingForDestination) {
+                
+                // Only emit if this is still the current operation and we are still waiting
+                if (activeOperationToken == token && _uiState.value == BackupUiState.WaitingForDestination) {
                     _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (activeToken == token) {
+                if (activeOperationToken == token) {
                     _uiState.value = BackupUiState.Error(BackupResult.Error.FilenamePreparationFailure(e))
                 }
             }
         }
     }
 
+    /**
+     * Handles the file selection result from the system picker.
+     * Atomically transitions to Creating.
+     */
     fun onFileSelected(uri: String) {
-        // Atomic transition from WaitingForDestination to Creating.
-        // Duplicate callbacks fail compareAndSet and return immediately without repository calls or job cancellations.
+        val token = activeOperationToken
+        
+        // Atomic transition: only proceed if we were exactly WaitingForDestination
         if (!_uiState.compareAndSet(BackupUiState.WaitingForDestination, BackupUiState.Creating)) {
-            return
+            return // Ignore duplicate or stale callback
         }
 
-        val token = activeToken
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
+        
         activeBackupJob = viewModelScope.launch {
             try {
                 backupRepository.createBackup(uri).collect { status ->
-                    if (activeToken != token) return@collect
-                    when (status) {
-                        is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
-                        is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
-                        is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
-                        is BackupOperationStatus.Error -> {
-                            _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
-                                BackupUiState.Cancelled
-                            } else {
-                                BackupUiState.Error(status.result)
-                            }
-                        }
-                    }
+                    // Only apply status if this job still owns the operation
+                    if (activeOperationToken != token) return@collect
+                    
+                    applyOperationStatus(status)
                 }
             } catch (e: CancellationException) {
                 throw e
+            }
+        }
+    }
+
+    private fun applyOperationStatus(status: BackupOperationStatus) {
+        when (status) {
+            is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
+            is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
+            is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+            is BackupOperationStatus.Error -> {
+                _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
+                    BackupUiState.Cancelled
+                } else {
+                    BackupUiState.Error(status.result)
+                }
             }
         }
     }
@@ -131,18 +143,26 @@ class BackupViewModel @Inject constructor(
     }
 
     fun resetStatus() {
-        activeToken = operationTokenGenerator.incrementAndGet()
-        destinationPickerPreparationJob?.cancel()
-        activeBackupJob?.cancel()
+        activeOperationToken = operationTokenGenerator.incrementAndGet()
+        cancelAllJobs()
         _uiState.value = BackupUiState.Idle
     }
 
     fun resetState() = resetStatus()
 
-    override fun onCleared() {
-        super.onCleared()
-        activeToken = operationTokenGenerator.incrementAndGet()
+    private fun isTerminalState(state: BackupUiState): Boolean =
+        state == BackupUiState.Idle || 
+        state is BackupUiState.Success || 
+        state is BackupUiState.Error || 
+        state == BackupUiState.Cancelled
+
+    private fun cancelAllJobs() {
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        cancelAllJobs()
     }
 }
