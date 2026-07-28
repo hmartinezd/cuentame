@@ -1,11 +1,13 @@
 package com.miara.cuentame.core.backup
 
+import android.net.Uri
 import java.io.InputStream
 import java.security.MessageDigest
 import javax.inject.Inject
 
 interface ChecksumProvider {
     fun calculateChecksum(inputStream: InputStream): String
+    fun computeAttachmentId(uri: Uri): String
 }
 
 class Sha256ChecksumProvider @Inject constructor() : ChecksumProvider {
@@ -17,5 +19,11 @@ class Sha256ChecksumProvider @Inject constructor() : ChecksumProvider {
             digest.update(buffer, 0, bytesRead)
         }
         return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }
+
+    override fun computeAttachmentId(uri: Uri): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(uri.toString().toByteArray(Charsets.UTF_8))
+        return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }.substring(0, 16)
     }
 }

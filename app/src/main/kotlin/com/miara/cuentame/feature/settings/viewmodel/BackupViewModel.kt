@@ -85,7 +85,7 @@ class BackupViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 if (activeToken == token) {
-                    _uiState.value = BackupUiState.Error(BackupResult.Error.Unknown(e))
+                    _uiState.value = BackupUiState.Error(BackupResult.Error.DatabaseSnapshotFailure(e))
                 }
             }
         }
@@ -131,17 +131,13 @@ class BackupViewModel @Inject constructor(
     }
 
     fun resetStatus() {
-        while (true) {
-            val current = _uiState.value
-            if (current !is BackupUiState.Success && current !is BackupUiState.Error && current != BackupUiState.Cancelled) {
-                return
-            }
-            if (_uiState.compareAndSet(current, BackupUiState.Idle)) {
-                activeToken = operationTokenGenerator.incrementAndGet()
-                break
-            }
-        }
+        activeToken = operationTokenGenerator.incrementAndGet()
+        destinationPickerPreparationJob?.cancel()
+        activeBackupJob?.cancel()
+        _uiState.value = BackupUiState.Idle
     }
+
+    fun resetState() = resetStatus()
 
     override fun onCleared() {
         super.onCleared()

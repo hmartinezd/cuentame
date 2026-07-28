@@ -9,7 +9,7 @@ object BackupTestFixtures {
 
     const val RESTAURANT_ID = "rest-1"
 
-    fun createValidSnapshot(
+    fun createPostedLifecycleSnapshot(
         restaurantId: String = RESTAURANT_ID,
         purchaseAttPath: String? = null,
         wasteAttPath: String? = null
@@ -249,7 +249,7 @@ object BackupTestFixtures {
             effectiveAt = 1500L,
             sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
             sourceDocumentId = receipt1.id,
-            sourceOperationId = "op-1",
+            sourceOperationId = "pr-1:post",
             sourceLineId = line1.id,
             reversalOfMovementId = null,
             createdAt = 1500L
@@ -267,8 +267,8 @@ object BackupTestFixtures {
             effectiveAt = 1550L,
             sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
             sourceDocumentId = waste1.id,
-            sourceOperationId = "op-2",
-            sourceLineId = null,
+            sourceOperationId = "we-1:post",
+            sourceLineId = waste1.id,
             reversalOfMovementId = null,
             createdAt = 1550L
         )
@@ -285,28 +285,10 @@ object BackupTestFixtures {
             effectiveAt = 1600L,
             sourceDocumentType = SourceDocumentType.STOCK_COUNT.name,
             sourceDocumentId = sc1.id,
-            sourceOperationId = "op-3",
+            sourceOperationId = "sc-1:complete",
             sourceLineId = scl1.id,
             reversalOfMovementId = null,
             createdAt = 1600L
-        )
-
-        val moveReversal = InventoryMovementEntity(
-            id = "m-4",
-            restaurantId = restaurantId,
-            ingredientId = ing1.id,
-            areaId = area1.id,
-            movementType = InventoryMovementType.REVERSAL.name,
-            quantityBaseSigned = "0.5",
-            unitCostBaseSnapshot = "2.50",
-            totalValueSnapshot = "1.25",
-            effectiveAt = 1700L,
-            sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
-            sourceDocumentId = waste1.id,
-            sourceOperationId = "op-4",
-            sourceLineId = null,
-            reversalOfMovementId = moveWaste.id,
-            createdAt = 1700L
         )
 
         val bal1 = InventoryBalanceProjectionEntity(
@@ -345,9 +327,58 @@ object BackupTestFixtures {
             stockCountAreas = listOf(sca1),
             stockCountLines = listOf(scl1),
             wasteEvents = listOf(waste1),
-            inventoryMovements = listOf(movePurchase, moveWaste, moveCount, moveReversal),
+            inventoryMovements = listOf(movePurchase, moveWaste, moveCount),
             inventoryBalanceProjections = listOf(bal1),
             ingredientCostProjections = listOf(cost1, cost2)
         )
     }
+
+    fun createVoidedLifecycleSnapshot(
+        restaurantId: String = RESTAURANT_ID
+    ): BackupSnapshot {
+        val base = createPostedLifecycleSnapshot(restaurantId)
+
+        val voidedWaste = base.wasteEvents[0].copy(
+            status = DocumentStatus.VOIDED.name,
+            voidedAt = 1700L
+        )
+
+        val moveReversal = InventoryMovementEntity(
+            id = "m-4",
+            restaurantId = restaurantId,
+            ingredientId = base.ingredients[0].id,
+            areaId = base.inventoryAreas[0].id,
+            movementType = InventoryMovementType.REVERSAL.name,
+            quantityBaseSigned = "0.5",
+            unitCostBaseSnapshot = "2.50",
+            totalValueSnapshot = "1.25",
+            effectiveAt = 1700L,
+            sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
+            sourceDocumentId = voidedWaste.id,
+            sourceOperationId = "we-1:void",
+            sourceLineId = voidedWaste.id,
+            reversalOfMovementId = base.inventoryMovements[1].id,
+            createdAt = 1700L
+        )
+
+        val bal1 = InventoryBalanceProjectionEntity(
+            restaurantId = restaurantId,
+            ingredientId = base.ingredients[0].id,
+            areaId = base.inventoryAreas[0].id,
+            quantityBase = "9.5",
+            updatedAt = 2000L
+        )
+
+        return base.copy(
+            wasteEvents = listOf(voidedWaste),
+            inventoryMovements = base.inventoryMovements + moveReversal,
+            inventoryBalanceProjections = listOf(bal1)
+        )
+    }
+
+    fun createValidSnapshot(
+        restaurantId: String = RESTAURANT_ID,
+        purchaseAttPath: String? = null,
+        wasteAttPath: String? = null
+    ): BackupSnapshot = createPostedLifecycleSnapshot(restaurantId, purchaseAttPath, wasteAttPath)
 }

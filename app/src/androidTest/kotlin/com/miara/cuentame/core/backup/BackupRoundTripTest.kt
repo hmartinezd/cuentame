@@ -64,7 +64,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun backup_roundTrip_exhaustiveFieldAndGraphVerification() = runTest {
+    fun backup_roundTrip_postedAndVoidedLifecycleGraphs_exhaustiveVerification() = runTest {
         val tempFile = File(context.cacheDir, "roundtrip_full.zip")
         if (tempFile.exists()) tempFile.delete()
         tempFile.createNewFile()
@@ -99,7 +99,7 @@ class BackupRoundTripTest {
         val attFile2 = File(context.cacheDir, "waste_photo.jpg").apply { writeBytes(attFile2Bytes) }
         val attUri2 = Uri.fromFile(attFile2)
 
-        val snapshot = BackupTestFixtures.createValidSnapshot(
+        val snapshot = BackupTestFixtures.createPostedLifecycleSnapshot(
             restaurantId = restId,
             purchaseAttPath = attUri1.toString(),
             wasteAttPath = attUri2.toString()
@@ -121,7 +121,7 @@ class BackupRoundTripTest {
             assertThat(valid.manifest.tableMetadata["restaurants"]?.entryCount).isEqualTo(1)
             assertThat(valid.manifest.tableMetadata["inventory_areas"]?.entryCount).isEqualTo(2)
             assertThat(valid.manifest.tableMetadata["ingredients"]?.entryCount).isEqualTo(2)
-            assertThat(valid.manifest.tableMetadata["inventory_movements"]?.entryCount).isEqualTo(4)
+            assertThat(valid.manifest.tableMetadata["inventory_movements"]?.entryCount).isEqualTo(3)
             assertThat(valid.manifest.tableMetadata["ingredient_cost_projections"]?.entryCount).isEqualTo(2)
 
             // 3. Inspect archive entries directly
@@ -170,7 +170,7 @@ class BackupRoundTripTest {
             assertThat(dbDto?.restaurants).hasSize(1)
             assertThat(dbDto?.inventoryAreas).hasSize(2)
             assertThat(dbDto?.ingredients).hasSize(2)
-            assertThat(dbDto?.inventoryMovements).hasSize(4)
+            assertThat(dbDto?.inventoryMovements).hasSize(3)
             assertThat(dbDto?.ingredientCostProjections).hasSize(2)
 
             // Assert nullable cost projection
@@ -190,6 +190,18 @@ class BackupRoundTripTest {
             val readAtt2 = attachmentBytesRead.values.find { it.contentEquals(attFile2Bytes) }
             assertThat(readAtt1).isNotNull()
             assertThat(readAtt2).isNotNull()
+
+            // 4. Test Voided Lifecycle Snapshot Round-Trip
+            val voidedSnapshot = BackupTestFixtures.createVoidedLifecycleSnapshot(restaurantId = restId)
+            coEvery { backupDao.createSnapshot(restId) } returns voidedSnapshot
+
+            val voidedResults = repository.createBackup(backupUri.toString()).toList()
+            assertThat(voidedResults.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+
+            val voidedValidation = repository.validateBackup(backupUri.toString())
+            assertThat(voidedValidation).isInstanceOf(BackupValidationResult.Valid::class.java)
+            val validVoided = voidedValidation as BackupValidationResult.Valid
+            assertThat(validVoided.manifest.tableMetadata["inventory_movements"]?.entryCount).isEqualTo(4) // PURCHASE + WASTE + COUNT + REVERSAL
 
         } finally {
             tempFile.delete()

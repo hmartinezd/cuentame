@@ -9,7 +9,6 @@ import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
-import com.miara.cuentame.core.database.entity.InventoryAreaEntity
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.preferences.model.AppPreferences
@@ -88,7 +87,7 @@ class ArchiveDeterminismTest {
         createdFiles.add(attFile)
         val attUri = Uri.fromFile(attFile)
 
-        val snapshotBase = BackupTestFixtures.createValidSnapshot(
+        val snapshotBase = BackupTestFixtures.createPostedLifecycleSnapshot(
             restaurantId = restId,
             purchaseAttPath = attUri.toString()
         )
@@ -96,7 +95,10 @@ class ArchiveDeterminismTest {
 
         suspend fun generateBackupBytes(file: File): ByteArray {
             val results = repository.createBackup(Uri.fromFile(file).toString()).toList()
-            assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+            val last = results.last()
+            if (last !is BackupOperationStatus.Success) {
+                throw AssertionError("Expected Success but got: $last")
+            }
             return file.readBytes()
         }
 
@@ -152,16 +154,31 @@ class ArchiveDeterminismTest {
         assertThat(bytes1).isNotEqualTo(bytesAttBytes)
         attFile.writeBytes(byteArrayOf(1, 2, 3, 4)) // restore
 
-        // Proof 8: Attachment display name only
-        val renamedAttFile = File(context.cacheDir, "att_renamed.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
-        createdFiles.add(renamedAttFile)
-        val snapshotRenamedAtt = snapshotBase.copy(
-            purchaseReceipts = listOf(snapshotBase.purchaseReceipts[0].copy(attachmentPath = Uri.fromFile(renamedAttFile).toString()))
+        // Proof 8: Attachment reference graph only (additional receipt sharing same attachment)
+        val movePurchase2 = snapshotBase.inventoryMovements[0].copy(
+            id = "m-pr2",
+            sourceDocumentId = "pr-2",
+            sourceOperationId = "pr-2:post",
+            sourceLineId = "pl-2"
         )
-        coEvery { backupDao.createSnapshot(restId) } returns snapshotRenamedAtt
-        val fAttName = createTempFile("fAttName")
-        val bytesAttName = generateBackupBytes(fAttName)
-        assertThat(bytes1).isNotEqualTo(bytesAttName)
+        val snapshotRefGraphMutated = snapshotBase.copy(
+            purchaseReceipts = listOf(
+                snapshotBase.purchaseReceipts[0],
+                snapshotBase.purchaseReceipts[0].copy(id = "pr-2", invoiceNumber = "INV-2002")
+            ),
+            purchaseLines = listOf(
+                snapshotBase.purchaseLines[0],
+                snapshotBase.purchaseLines[0].copy(id = "pl-2", purchaseReceiptId = "pr-2")
+            ),
+            inventoryMovements = snapshotBase.inventoryMovements + movePurchase2,
+            inventoryBalanceProjections = listOf(
+                snapshotBase.inventoryBalanceProjections[0].copy(quantityBase = "19.0")
+            )
+        )
+        coEvery { backupDao.createSnapshot(restId) } returns snapshotRefGraphMutated
+        val fRefGraph = createTempFile("fRefGraph")
+        val bytesRefGraph = generateBackupBytes(fRefGraph)
+        assertThat(bytes1).isNotEqualTo(bytesRefGraph)
         coEvery { backupDao.createSnapshot(restId) } returns snapshotBase // restore
     }
 }

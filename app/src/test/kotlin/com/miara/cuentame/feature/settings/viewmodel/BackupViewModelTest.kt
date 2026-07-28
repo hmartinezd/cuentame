@@ -16,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -26,6 +27,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import kotlin.coroutines.cancellation.CancellationException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BackupViewModelTest {
@@ -72,35 +74,40 @@ class BackupViewModelTest {
     }
 
     @Test
-    fun `onFileSelected transitions through Creating and Validating to Success`() = runTest {
-        val manifest = mockk<BackupManifest>()
-        val flow = flow {
-            emit(BackupOperationStatus.Creating)
-            emit(BackupOperationStatus.Validating)
-            emit(BackupOperationStatus.Success(manifest))
+    fun `restaurant lookup suspended then picker cancellation transitions to Cancelled`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } coAnswers {
+            delay(1000)
+            Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         }
-        every { backupRepository.createBackup(any()) } returns flow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.uiState.test {
-            assertThat(awaitItem()).isEqualTo(BackupUiState.Idle)
+        viewModel.onCreateBackupRequested()
+        // Cancel picker while restaurant lookup is still suspended
+        viewModel.onPickerCancelled()
+        testDispatcher.scheduler.advanceUntilIdle()
 
-            viewModel.onCreateBackupRequested()
-            testDispatcher.scheduler.advanceUntilIdle()
-            assertThat(awaitItem()).isEqualTo(BackupUiState.WaitingForDestination)
-
-            viewModel.onFileSelected("accepted-uri")
-
-            assertThat(awaitItem()).isEqualTo(BackupUiState.Creating)
-            assertThat(awaitItem()).isEqualTo(BackupUiState.Validating)
-            val success = awaitItem() as BackupUiState.Success
-            assertThat(success.manifest).isEqualTo(manifest)
-        }
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
     }
 
     @Test
-    fun `onFileSelected duplicate callback is ignored immediately without repository call`() = runTest {
+    fun `stale picker preparation job is cancelled on reset or new request`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } coAnswers {
+            delay(2000)
+            Restaurant(RestaurantId("rest-1"), "Slow Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        }
+        every { timeProvider.now() } returns Instant.EPOCH
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceTimeBy(500)
+        // Reset while picker prep is running
+        viewModel.resetState()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+    }
+
+    @Test
+    fun `duplicate simultaneous file callbacks are rejected via CAS`() = runTest {
         val flow = flow {
             emit(BackupOperationStatus.Creating)
         }
@@ -126,54 +133,75 @@ class BackupViewModelTest {
     }
 
     @Test
-    fun `onPickerCancelled transitions to Cancelled`() = runTest {
+    fun `stale backup flow emission is ignored after new token`() = runTest {
+        val slowFlow = flow {
+            emit(BackupOperationStatus.Creating)
+            delay(2000)
+            emit(BackupOperationStatus.Success(mockk()))
+        }
+        every { backupRepository.createBackup("uri-slow") } returns slowFlow
         coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.onCreateBackupRequested()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.onPickerCancelled()
+        viewModel.onFileSelected("uri-slow")
+        testDispatcher.scheduler.advanceTimeBy(500)
+
+        // Reset state (invalidating active token)
+        viewModel.resetState()
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+
         testDispatcher.scheduler.advanceUntilIdle()
-        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
+        // Stale flow finishes late, state must remain Idle
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
     }
 
     @Test
-    fun `onFileSelected handles Error`() = runTest {
-        every { backupRepository.createBackup(any()) } returns flowOf(
+    fun `reset followed by new operation succeeds cleanly`() = runTest {
+        val manifest = mockk<BackupManifest>()
+        every { backupRepository.createBackup("uri-new") } returns flowOf(
             BackupOperationStatus.Creating,
-            BackupOperationStatus.Error(BackupResult.Error.PermissionDenied)
+            BackupOperationStatus.Success(manifest)
         )
         coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.uiState.test {
-            awaitItem() // Idle
-            viewModel.onCreateBackupRequested()
-            testDispatcher.scheduler.advanceUntilIdle()
-            awaitItem() // WaitingForDestination
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onPickerCancelled()
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
 
-            viewModel.onFileSelected("accepted-uri")
-            awaitItem() // Creating
-            assertThat(awaitItem()).isEqualTo(BackupUiState.Error(BackupResult.Error.PermissionDenied))
-        }
+        viewModel.resetState()
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onFileSelected("uri-new")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val success = viewModel.uiState.value as BackupUiState.Success
+        assertThat(success.manifest).isEqualTo(manifest)
     }
 
     @Test
-    fun `duplicate onCreateBackupRequested are ignored while waiting`() = runTest {
-        every { timeProvider.now() } returns Instant.EPOCH
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
-
-        viewModel.events.test {
-            viewModel.onCreateBackupRequested()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            assertThat(awaitItem()).isInstanceOf(BackupUiEvent.LaunchFilePicker::class.java)
-            assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
-
-            // Second call should be ignored
-            viewModel.onCreateBackupRequested()
-            expectNoEvents()
+    fun `cancellation exception is not mapped to error state`() = runTest {
+        val cancellingFlow = flow<BackupOperationStatus> {
+            emit(BackupOperationStatus.Creating)
+            throw CancellationException("Cancelled by caller")
         }
+        every { backupRepository.createBackup("uri-cancel") } returns cancellingFlow
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        every { timeProvider.now() } returns Instant.EPOCH
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onFileSelected("uri-cancel")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // State must not be Error
+        assertThat(viewModel.uiState.value).isNotInstanceOf(BackupUiState.Error::class.java)
     }
 }

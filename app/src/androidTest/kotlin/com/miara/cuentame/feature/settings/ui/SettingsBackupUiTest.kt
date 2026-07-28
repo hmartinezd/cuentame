@@ -1,19 +1,23 @@
 package com.miara.cuentame.feature.settings.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
 import org.junit.Rule
 import org.junit.Test
+import java.util.Locale
 
 class SettingsBackupUiTest {
 
@@ -29,7 +33,7 @@ class SettingsBackupUiTest {
         composeTestRule.onNodeWithTag("backup_idle", useUnmergedTree = true).assertExists()
 
         composeTestRule.onNodeWithTag("create_backup_button").performClick()
-        assert(backupClicked)
+        assertThat(backupClicked).isTrue()
     }
 
     @Test
@@ -98,17 +102,40 @@ class SettingsBackupUiTest {
     }
 
     @Test
-    fun settingsScreen_rendersInDarkTheme() {
-        renderSettings(BackupUiState.Idle, themeMode = ThemeMode.DARK)
+    fun settingsScreen_rendersVisibleText_inSpanishLocale() {
+        composeTestRule.setContent {
+            val context = LocalContext.current
+            val spanishConfig = Configuration(context.resources.configuration).apply {
+                setLocale(Locale("es", "US"))
+            }
+            val spanishContext = context.createConfigurationContext(spanishConfig)
 
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed().assertIsEnabled()
-    }
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalContext provides spanishContext
+            ) {
+                Box(modifier = Modifier.size(800.dp, 2000.dp)) {
+                    SettingsScreen(
+                        themeMode = ThemeMode.SYSTEM,
+                        dynamicColorEnabled = true,
+                        appLocaleTag = "es-US",
+                        isSaving = false,
+                        backupUiState = BackupUiState.Idle,
+                        snackbarHostState = SnackbarHostState(),
+                        onThemeChanged = {},
+                        onDynamicColorToggled = {},
+                        onLocaleChanged = {},
+                        onCreateBackup = {},
+                        onNavigateToAreas = {},
+                        onNavigateToCategories = {},
+                        onNavigateToRestaurant = {},
+                        onNavigateToSuppliers = {}
+                    )
+                }
+            }
+        }
 
-    @Test
-    fun settingsScreen_rendersInSpanishLocale() {
-        renderSettings(BackupUiState.Idle, appLocaleTag = "es-US")
-
-        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        composeTestRule.onNodeWithText("Datos y copia de seguridad").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Crear copia de seguridad").performScrollTo().assertIsDisplayed()
     }
 
     private fun renderSettings(
