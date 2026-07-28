@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 1,
+    "version": 2,
     "identityHash": "b4a236aac9202bbc11f2a5c047c20471",
     "entities": [
       {
@@ -2059,7 +2059,7 @@
       },
       {
         "tableName": "ingredient_cost_projection",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))",
         "fields": [
           {
             "fieldPath": "restaurantId",
@@ -2077,7 +2077,7 @@
             "fieldPath": "averageUnitCostBase",
             "columnName": "averageUnitCostBase",
             "affinity": "TEXT",
-            "notNull": true
+            "notNull": false
           },
           {
             "fieldPath": "updatedAt",

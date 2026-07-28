@@ -13,6 +13,7 @@ The backup is a deterministic ZIP archive. To ensure bit-for-byte identity, entr
 
 ## Manifest Validation Rules
 * **Format Version**: Must be exactly 1.
+* **Database Schema Version**: Current baseline is 2.
 * **Timestamp**: Must be canonical ISO-8601 UTC (e.g., `2026-07-27T19:00:00Z`).
 * **Localization**: `localeTag` must be a valid BCP 47 tag. `currencyCode` must be a valid ISO 4217 code.
 * **Integrity**: Every declared table count must match the actual record count in `database.json`.
@@ -29,8 +30,8 @@ The backup is rejected if the internal relational graph is broken:
 * **Snaphot Integrity**: 
     - Exactly one restaurant, matching manifest ID/Name/Currency/Locale.
     - No duplicate primary keys.
-    - All records (Areas, Ingredients, Purchases, etc.) must belong to the manifest's `restaurantId`.
-    - All foreign keys (Ingredient -> Category, Purchase -> Supplier, etc.) must resolve within the backup set.
+    - All records must belong to the manifest's `restaurantId`.
+    - All foreign keys must resolve within the backup set.
 * **Attachment Mapping**:
     - `expectedSet = database.json{attachmentId + type + recordId}`
     - `manifestSet = manifest.attachments{attachmentId + referencedBy{type + recordId}}`
@@ -38,7 +39,7 @@ The backup is rejected if the internal relational graph is broken:
 
 ## Checksum Rules
 * `checksums.json` MUST NOT contain a checksum for itself.
-* Duplicate keys in `checksums.json` (even with different escapes) MUST cause rejection.
+* Duplicate decoded keys in `checksums.json` MUST cause rejection.
 * All payload entries must be covered.
 
 ## Streaming Safety Limits
@@ -49,11 +50,16 @@ The backup is rejected if the internal relational graph is broken:
 
 ## Error Mapping Policy
 Failures are mapped to structured results:
-* `DatabaseSnapshotFailure`: Room transaction or query error.
+* `DatabaseSnapshotFailure`: Room transaction or query error, or preflight integrity failure.
 * `PreferencesReadFailure`: DataStore error.
 * `InsufficientStorage`: Platform `ENOSPC` detected via cause chain.
 * `ArchiveValidationFailure`: Any integrity, limit, or relationship violation.
 * `UnreadableAttachment`: SecurityException or IOException while reading source files.
 
+## Room Migration Policy
+* Baseline: Version 1 (Initial schema).
+* Version 2: Removed NOT NULL from `ingredient_cost_projection.averageUnitCostBase`.
+* Migration 1->2 is implemented via table recreation to preserve data.
+
 ## Security Note
-Backups contain sensitive restaurant data (costs, supplier info, inventory levels). The archive is **not encrypted** by the application. Users are responsible for secure storage.
+Backups contain sensitive restaurant data. The archive is **not encrypted** by the application. Users are responsible for secure storage.

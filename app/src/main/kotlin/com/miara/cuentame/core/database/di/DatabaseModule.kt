@@ -39,7 +39,9 @@ object DatabaseModule {
             context,
             RestaurantInventoryDatabase::class.java,
             "restaurant_inventory.db"
-        ).addCallback(object : RoomDatabase.Callback() {
+        )
+        .addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2)
+        .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
                 SystemUnitSeeder.seed(db)

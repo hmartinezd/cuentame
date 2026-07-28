@@ -1,11 +1,9 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.model.backup.BackupManifest
-import com.miara.cuentame.core.model.backup.BackupSnapshot
 import org.junit.Test
-import java.math.BigDecimal
 
 class BackupSnapshotIntegrityValidatorTest {
 
@@ -16,7 +14,7 @@ class BackupSnapshotIntegrityValidatorTest {
         applicationId = "com.miara.cuentame",
         appVersionName = "1.0",
         appVersionCode = 1L,
-        databaseSchemaVersion = 1,
+        databaseSchemaVersion = 2,
         restaurantId = restId,
         restaurantName = "Test Rest",
         localeTag = "en-US",
@@ -27,8 +25,8 @@ class BackupSnapshotIntegrityValidatorTest {
         checksumAlgorithm = "SHA-256"
     )
 
-    private fun createEmptySnapshot() = BackupSnapshot(
-        restaurants = listOf(RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 0L, null)),
+    private fun createEmptyDto() = BackupSnapshotDto(
+        restaurants = listOf(RestaurantBackupDto(restId, "Test Rest", "USD", "en-US", 0, 0, null)),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),
         units = emptyList(),
@@ -48,70 +46,70 @@ class BackupSnapshotIntegrityValidatorTest {
 
     @Test
     fun `validate accepts valid simple snapshot`() {
-        val result = BackupSnapshotIntegrityValidator.validate(createEmptySnapshot(), manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(createEmptyDto(), manifest)
         assertThat(result.isSuccess).isTrue()
     }
 
     @Test
     fun `validate rejects multiple restaurants`() {
-        val snapshot = createEmptySnapshot().copy(
+        val dto = createEmptyDto().copy(
             restaurants = listOf(
-                RestaurantEntity(restId, "Test Rest", "USD", "en-US", 0L, 0L, null),
-                RestaurantEntity("rest-2", "Other", "USD", "en-US", 0L, 0L, null)
+                RestaurantBackupDto(restId, "Test Rest", "USD", "en-US", 0, 0, null),
+                RestaurantBackupDto("rest-2", "Other", "USD", "en-US", 0, 0, null)
             )
         )
-        val result = BackupSnapshotIntegrityValidator.validate(snapshot, manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()?.message).contains("Found 2")
     }
 
     @Test
     fun `validate rejects restaurant ID mismatch`() {
-        val snapshot = createEmptySnapshot().copy(
-            restaurants = listOf(RestaurantEntity("mismatch", "Test Rest", "USD", "en-US", 0L, 0L, null))
+        val dto = createEmptyDto().copy(
+            restaurants = listOf(RestaurantBackupDto("mismatch", "Test Rest", "USD", "en-US", 0, 0, null))
         )
-        val result = BackupSnapshotIntegrityValidator.validate(snapshot, manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("does not match manifest")
+        assertThat(result.exceptionOrNull()?.message).contains("restaurant ID mismatch")
     }
 
     @Test
     fun `validate rejects cross-restaurant area`() {
-        val snapshot = createEmptySnapshot().copy(
+        val dto = createEmptyDto().copy(
             inventoryAreas = listOf(
-                InventoryAreaEntity("area-1", "wrong-rest", "Area", "area", 1, true, 0L, 0L, null)
+                InventoryAreaBackupDto("area-1", "wrong-rest", "Area", "area", 1, true, 0, 0, null)
             )
         )
-        val result = BackupSnapshotIntegrityValidator.validate(snapshot, manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("data for another restaurant")
+        assertThat(result.exceptionOrNull()?.message).contains("Isolation error")
     }
 
     @Test
     fun `validate rejects broken ingredient-unit relationship`() {
-        val snapshot = createEmptySnapshot().copy(
-            units = listOf(UnitEntity("u1", "Unit", "u", "Mass", BigDecimal.ONE, true, 1)),
+        val dto = createEmptyDto().copy(
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
             ingredients = listOf(
-                IngredientEntity("ing-1", restId, "Ing", "ing", null, "missing-unit", null, null, null, null, true, 0L, 0L, null)
+                IngredientBackupDto("ing-1", restId, "Ing", "ing", null, "missing-unit", null, null, null, null, true, 0, 0, null)
             )
         )
-        val result = BackupSnapshotIntegrityValidator.validate(snapshot, manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("unknown unit")
+        assertThat(result.exceptionOrNull()?.message).contains("Broken FK: ingredient -> unit")
     }
 
     @Test
     fun `validate rejects movement self-reversal`() {
-        val snapshot = createEmptySnapshot().copy(
-            ingredients = listOf(IngredientEntity("ing-1", restId, "Ing", "ing", null, "u1", null, null, null, null, true, 0L, 0L, null)),
-            units = listOf(UnitEntity("u1", "Unit", "u", "Mass", BigDecimal.ONE, true, 1)),
-            inventoryAreas = listOf(InventoryAreaEntity("area-1", restId, "Area", "area", 1, true, 0L, 0L, null)),
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(IngredientBackupDto("ing-1", restId, "Ing", "ing", null, "u1", null, null, null, null, true, 0, 0, null)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
+            inventoryAreas = listOf(InventoryAreaBackupDto("area-1", restId, "Area", "area", 1, true, 0, 0, null)),
             inventoryMovements = listOf(
-                InventoryMovementEntity("m1", restId, "ing-1", "area-1", "WASTE", "-1", null, null, 0L, "WASTE_EVENT", "w1", "op1", null, "m1", 0L)
+                InventoryMovementBackupDto("m1", restId, "ing-1", "area-1", "WASTE", "-1", null, null, 0, "WASTE_EVENT", "w1", "op1", null, "m1", 0)
             )
         )
-        val result = BackupSnapshotIntegrityValidator.validate(snapshot, manifest)
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("reverses itself")
+        assertThat(result.exceptionOrNull()?.message).contains("Self-reversal")
     }
 }

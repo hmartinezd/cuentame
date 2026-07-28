@@ -17,7 +17,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileOutputStream
-import java.time.Instant
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -67,7 +66,7 @@ class BackupValidatorAdversarialTest {
         applicationId = "com.miara.cuentame",
         appVersionName = "1.0",
         appVersionCode = 1L,
-        databaseSchemaVersion = 1,
+        databaseSchemaVersion = 2,
         restaurantId = "rest-1",
         restaurantName = "Test Rest",
         localeTag = "en-US",
@@ -92,6 +91,15 @@ class BackupValidatorAdversarialTest {
             zos.putNextEntry(ZipEntry("manifest.json"))
             zos.write(manifestJson.toByteArray())
             zos.closeEntry()
+            
+            // Re-use manifest for other required entries to satisfy entry-set check
+            zos.putNextEntry(ZipEntry("preferences/settings.json"))
+            zos.write("{}".toByteArray()) // Invalid but checking entry set first
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("data/database.json"))
+            zos.write("{}".toByteArray())
+            zos.closeEntry()
+
             zos.putNextEntry(ZipEntry("checksums.json"))
             zos.write(checksumsJson.toByteArray())
             zos.closeEntry()
@@ -104,9 +112,22 @@ class BackupValidatorAdversarialTest {
     }
 
     @Test
-    fun validate_rejectsUnknownEntry() = runBlocking {
-        val file = File(context.cacheDir, "unknown_entry.zip")
-        // ... (similar setup with an extra file not in manifest)
+    fun validate_rejectsUnexpectedEntry() = runBlocking {
+        val file = File(context.cacheDir, "unexpected_entry.zip")
+        val manifest = createValidManifest()
+        
+        ZipOutputStream(FileOutputStream(file)).use { zos ->
+            zos.putNextEntry(ZipEntry("manifest.json"))
+            zos.write(Json.encodeToString(manifest).toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("unexpected.txt"))
+            zos.write("hi".toByteArray())
+            zos.closeEntry()
+        }
+
+        val result = repository.validateBackup(Uri.fromFile(file).toString())
+        assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
+        assertThat((result as BackupValidationResult.Invalid).reason).contains("Unexpected")
         file.delete()
     }
 }

@@ -13,5 +13,5 @@ class AndroidAppVersionProvider @Inject constructor(
     override val applicationId: String = BuildConfig.APPLICATION_ID
     override val versionName: String = BuildConfig.VERSION_NAME
     override val versionCode: Long = BuildConfig.VERSION_CODE.toLong()
-    override val databaseSchemaVersion: Int = 1 // Authoritative schema version
+    override val databaseSchemaVersion: Int = 2 // Authoritative schema version
 }

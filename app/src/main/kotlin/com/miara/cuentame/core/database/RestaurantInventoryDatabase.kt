@@ -3,35 +3,10 @@ package com.miara.cuentame.core.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.miara.cuentame.core.database.dao.IngredientCategoryDao
-import com.miara.cuentame.core.database.dao.IngredientCostProjectionDao
-import com.miara.cuentame.core.database.dao.IngredientDao
-import com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
-import com.miara.cuentame.core.database.dao.InventoryAreaDao
-import com.miara.cuentame.core.database.dao.InventoryMovementDao
-import com.miara.cuentame.core.database.dao.InventoryProjectionDao
-import com.miara.cuentame.core.database.dao.PurchaseDao
-import com.miara.cuentame.core.database.dao.RestaurantDao
-import com.miara.cuentame.core.database.dao.StockCountDao
-import com.miara.cuentame.core.database.dao.SupplierDao
-import com.miara.cuentame.core.database.dao.UnitDao
-import com.miara.cuentame.core.database.dao.WasteDao
-import com.miara.cuentame.core.database.entity.IngredientCategoryEntity
-import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
-import com.miara.cuentame.core.database.entity.IngredientEntity
-import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
-import com.miara.cuentame.core.database.entity.InventoryAreaEntity
-import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
-import com.miara.cuentame.core.database.entity.InventoryMovementEntity
-import com.miara.cuentame.core.database.entity.PurchaseLineEntity
-import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.StockCountAreaEntity
-import com.miara.cuentame.core.database.entity.StockCountEntity
-import com.miara.cuentame.core.database.entity.StockCountLineEntity
-import com.miara.cuentame.core.database.entity.SupplierEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
-import com.miara.cuentame.core.database.entity.WasteEventEntity
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.miara.cuentame.core.database.dao.*
+import com.miara.cuentame.core.database.entity.*
 
 @Database(
     entities = [
@@ -52,7 +27,7 @@ import com.miara.cuentame.core.database.entity.WasteEventEntity
         InventoryBalanceProjectionEntity::class,
         IngredientCostProjectionEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(com.miara.cuentame.core.database.converter.RoomTypeConverters::class)
@@ -70,5 +45,27 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun inventoryMovementDao(): InventoryMovementDao
     abstract fun inventoryProjectionDao(): InventoryProjectionDao
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
-    abstract fun backupDao(): com.miara.cuentame.core.database.dao.BackupDao
+    abstract fun backupDao(): BackupDao
+
+    companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create temporary table with nullable averageUnitCostBase
+                db.execSQL("CREATE TABLE IF NOT EXISTS `ingredient_cost_projection_new` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))")
+                
+                // 2. Copy all existing rows
+                db.execSQL("INSERT INTO `ingredient_cost_projection_new` (`restaurantId`, `ingredientId`, `averageUnitCostBase`, `updatedAt`) SELECT `restaurantId`, `ingredientId`, `averageUnitCostBase`, `updatedAt` FROM `ingredient_cost_projection`")
+                
+                // 3. Drop the old table
+                db.execSQL("DROP TABLE `ingredient_cost_projection`")
+                
+                // 4. Rename the temporary table
+                db.execSQL("ALTER TABLE `ingredient_cost_projection_new` RENAME TO `ingredient_cost_projection`")
+                
+                // 5. Recreate indexes
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_restaurantId` ON `ingredient_cost_projection` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_ingredientId` ON `ingredient_cost_projection` (`ingredientId`)")
+            }
+        }
+    }
 }

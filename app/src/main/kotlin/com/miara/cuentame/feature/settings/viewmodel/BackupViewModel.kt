@@ -10,6 +10,7 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,17 +46,21 @@ class BackupViewModel @Inject constructor(
     private val _events = MutableSharedFlow<BackupUiEvent>(extraBufferCapacity = 1)
     val events = _events.asSharedFlow()
 
-    private var activeJob: Job? = null
+    private var destinationPickerPreparationJob: Job? = null
+    private var activeBackupJob: Job? = null
 
     fun onCreateBackupRequested() {
         if (!canStartOperation()) return
         
         _uiState.value = BackupUiState.WaitingForDestination
-        viewModelScope.launch {
+        destinationPickerPreparationJob?.cancel()
+        destinationPickerPreparationJob = viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
                 _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = BackupUiState.Error(BackupResult.Error.Unknown(e))
             }
@@ -65,27 +70,33 @@ class BackupViewModel @Inject constructor(
     fun onFileSelected(uri: String) {
         if (_uiState.value != BackupUiState.WaitingForDestination) return
         
-        activeJob?.cancel()
-        activeJob = viewModelScope.launch {
-            backupRepository.createBackup(uri).collect { status ->
-                when (status) {
-                    is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
-                    is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
-                    is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
-                    is BackupOperationStatus.Error -> {
-                        _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
-                            BackupUiState.Cancelled
-                        } else {
-                            BackupUiState.Error(status.result)
+        destinationPickerPreparationJob?.cancel()
+        activeBackupJob?.cancel()
+        activeBackupJob = viewModelScope.launch {
+            try {
+                backupRepository.createBackup(uri).collect { status ->
+                    when (status) {
+                        is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
+                        is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
+                        is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+                        is BackupOperationStatus.Error -> {
+                            _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
+                                BackupUiState.Cancelled
+                            } else {
+                                BackupUiState.Error(status.result)
+                            }
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             }
         }
     }
 
     fun onPickerCancelled() {
         if (_uiState.value == BackupUiState.WaitingForDestination) {
+            destinationPickerPreparationJob?.cancel()
             _uiState.value = BackupUiState.Cancelled
         }
     }
@@ -103,5 +114,11 @@ class BackupViewModel @Inject constructor(
                current is BackupUiState.Success || 
                current is BackupUiState.Error || 
                current == BackupUiState.Cancelled
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        destinationPickerPreparationJob?.cancel()
+        activeBackupJob?.cancel()
     }
 }
