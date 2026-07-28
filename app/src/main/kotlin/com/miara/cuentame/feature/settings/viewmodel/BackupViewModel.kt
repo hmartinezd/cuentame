@@ -3,8 +3,10 @@ package com.miara.cuentame.feature.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.backup.BackupFilenameGenerator
+import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,8 +34,8 @@ sealed interface BackupUiEvent {
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
-    private val restaurantRepository: com.miara.cuentame.core.domain.repository.RestaurantRepository,
-    private val timeProvider: com.miara.cuentame.core.common.time.TimeProvider
+    private val restaurantRepository: RestaurantRepository,
+    private val timeProvider: TimeProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
@@ -43,7 +45,10 @@ class BackupViewModel @Inject constructor(
     val events = _events.asSharedFlow()
 
     fun onCreateBackupRequested() {
-        if (_uiState.value != BackupUiState.Idle && _uiState.value !is BackupUiState.Success && _uiState.value !is BackupUiState.Error && _uiState.value != BackupUiState.Cancelled) return
+        val current = _uiState.value
+        if (current is BackupUiState.WaitingForDestination || 
+            current is BackupUiState.Creating || 
+            current is BackupUiState.Validating) return
         
         viewModelScope.launch {
             _uiState.value = BackupUiState.WaitingForDestination
@@ -54,6 +59,9 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onFileSelected(uri: String) {
+        val current = _uiState.value
+        if (current is BackupUiState.Creating || current is BackupUiState.Validating) return
+
         viewModelScope.launch {
             backupRepository.createBackup(uri).collect { status ->
                 when (status) {
@@ -61,10 +69,10 @@ class BackupViewModel @Inject constructor(
                     is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
                     is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
                     is BackupOperationStatus.Error -> {
-                        if (status.result is BackupResult.Error.OperationCancelled) {
-                            _uiState.value = BackupUiState.Cancelled
+                        _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
+                            BackupUiState.Cancelled
                         } else {
-                            _uiState.value = BackupUiState.Error(status.result)
+                            BackupUiState.Error(status.result)
                         }
                     }
                 }

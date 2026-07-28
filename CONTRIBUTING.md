@@ -11,7 +11,7 @@ Every change that modifies user-visible behavior must review and update the foll
 3.  **docs/USER_GUIDE.es.md**: Ensure the Spanish guide remains factually synchronized with the English version.
 4.  **UI Strings**: Update English and Spanish resource files (`strings.xml`) to use consistent terminology.
 5.  **Project Status**: Update the development/milestone status in README.
-6.  **Backup Compatibility**: Changes to persisted data must evaluate backup-format compatibility. New customer data must not be added without updating backup inclusion or documenting its exclusion.
+6.  **Backup Compatibility**: Changes to persisted data must evaluate backup-format compatibility. New customer data must not be added without updating backup inclusion or documenting its exclusion. See `docs/BACKUP_INVENTORY.md` for the current strategy.
 
 ### Documentation Quality Rules
 

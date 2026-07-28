@@ -44,7 +44,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -195,7 +197,10 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SettingsHeader(stringResource(R.string.settings_data_backup_section))
             
-            val isBackupActive = backupUiState is BackupUiState.Creating || backupUiState is BackupUiState.Validating || backupUiState is BackupUiState.WaitingForDestination
+            val isBackupActive = backupUiState is BackupUiState.Creating || 
+                                backupUiState is BackupUiState.Validating || 
+                                backupUiState is BackupUiState.WaitingForDestination
+                                
             ListItem(
                 headlineContent = { Text(stringResource(R.string.create_backup_title)) },
                 supportingContent = {
@@ -205,26 +210,31 @@ fun SettingsScreen(
                         is BackupUiState.Validating -> stringResource(R.string.backup_validating)
                         else -> stringResource(R.string.create_backup_desc)
                     }
-                    Text(desc)
+                    Text(
+                        text = desc,
+                        modifier = Modifier.semantics {
+                            if (isBackupActive) {
+                                liveRegion = LiveRegionMode.Polite
+                            }
+                        }
+                    )
                 },
                 leadingContent = { Icon(Icons.Default.Backup, contentDescription = null) },
                 trailingContent = {
                     if (isBackupActive) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp).testTag(when(backupUiState) {
-                            BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
-                            BackupUiState.Creating -> "backup_creating_indicator"
-                            BackupUiState.Validating -> "backup_validating_indicator"
-                            else -> "backup_active_indicator"
-                        }))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).testTag(when(backupUiState) {
+                                BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
+                                BackupUiState.Creating -> "backup_creating_indicator"
+                                BackupUiState.Validating -> "backup_validating_indicator"
+                                else -> "backup_active_indicator"
+                            })
+                        )
                     }
                 },
                 modifier = Modifier
                     .testTag("create_backup_button")
                     .clickable(enabled = !isBackupActive) { onCreateBackup() }
-                    .semantics(mergeDescendants = true) {
-                        // Custom accessibility announcements can be handled via side effects or live regions if needed,
-                        // but ListItem with merged descendants usually handles the text content well.
-                    }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

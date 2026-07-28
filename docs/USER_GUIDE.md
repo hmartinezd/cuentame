@@ -94,15 +94,14 @@ We recommend creating regular backups to protect your data against device loss o
 4.  The file will have a `.cuentame-backup` extension and contains all your ingredients, history, and attachments.
 5.  **Validation:** After creation, the app automatically validates the backup archive to ensure it was written correctly.
 
-**Important Security Note:** Backups contain confidential business data and are not encrypted by the app. Store them in a secure location.
+**Important Security Note:** Backups contain confidential business data and are not encrypted by the app. Store them in a secure location. The backup file is a ZIP archive containing JSON data and attachments.
 
 ## 7. Local Data and Security
 
 *   **Privacy:** All your business data is stored only on this device.
-*   **Internet:** No internet connection is required.
-*   **Restoration:** Backup restoration is currently under development and will be available in a future update. Keep your backup files safe.
-
-## 8. Troubleshooting
+*   **Internet:** No internet connection is required for daily operations.
+*   **Restaurant Scope:** Backups are created for the currently active restaurant only.
+*   **Restoration:** Backup restoration is currently under development and will be available in a future update. Keep your backup files safe. CSV and Excel exports are also planned for future phases.
 
 *   **Missing Costs:** If an ingredient shows "$0.00" value, ensure you have posted at least one purchase with a valid cost for that item.
 *   **Negative Balances:** This happens if you log more waste or post more sales than you have recorded in purchases. Perform a **Stock Count** to reset to the correct level.

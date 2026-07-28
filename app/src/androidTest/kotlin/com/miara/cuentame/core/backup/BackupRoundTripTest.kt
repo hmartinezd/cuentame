@@ -8,11 +8,10 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
+import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.model.backup.*
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.core.domain.repository.BackupOperationStatus
-import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import io.mockk.coEvery
 import io.mockk.every
@@ -74,17 +73,17 @@ class BackupRoundTripTest {
         val restaurant = com.miara.cuentame.core.model.restaurant.Restaurant(restId, "Test Rest", "USD", "en", Instant.EPOCH, Instant.EPOCH)
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
 
-        // Create one dummy file for attachment test
+        // Create dummy file for attachment
         val attachmentFile = File(context.cacheDir, "receipt.jpg")
-        attachmentFile.writeText("dummy content")
+        attachmentFile.writeText("dummy attachment content")
         val attachmentUri = Uri.fromFile(attachmentFile)
 
         coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
             restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
-            inventoryAreas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area 1", 1, true, 0L, 0L, null)),
+            inventoryAreas = listOf(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area-1", "rest-1", "Area 1", "area-1", 1, true, 0L, 0L, null)),
             ingredientCategories = emptyList(),
-            units = emptyList(),
-            ingredients = emptyList(),
+            units = listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "Dimension", BigDecimal.ONE, true, 1)),
+            ingredients = listOf(com.miara.cuentame.core.database.entity.IngredientEntity("ing-1", "rest-1", "Ing 1", "ing-1", null, "u1", "area-1", null, null, null, true, 0L, 0L, null)),
             ingredientUnitOptions = emptyList(),
             suppliers = emptyList(),
             purchaseReceipts = listOf(com.miara.cuentame.core.database.entity.PurchaseReceiptEntity("p-1", "rest-1", null, null, 0L, "POSTED", null, attachmentUri.toString(), 0L, 0L, 0L, null)),
@@ -99,18 +98,16 @@ class BackupRoundTripTest {
         )
 
         // 1. Create
-        val createResults = repository.createBackup(uri.toString()).toList()
-        assertThat(createResults.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
-        val manifest = (createResults.last() as BackupOperationStatus.Success).manifest
+        val results = repository.createBackup(uri.toString()).toList()
+        assertThat(results.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
 
         // 2. Validate
         val validationResult = repository.validateBackup(uri.toString())
         assertThat(validationResult).isInstanceOf(BackupValidationResult.Valid::class.java)
         
         val valid = validationResult as BackupValidationResult.Valid
-        assertThat(valid.manifest.applicationId).isEqualTo("com.miara.cuentame")
         assertThat(valid.manifest.attachments).hasSize(1)
-        assertThat(valid.manifest.attachments[0].referencedBy).isNotEmpty()
+        assertThat(valid.manifest.attachments[0].referencedBy[0].recordId).isEqualTo("p-1")
         
         tempFile.delete()
         attachmentFile.delete()

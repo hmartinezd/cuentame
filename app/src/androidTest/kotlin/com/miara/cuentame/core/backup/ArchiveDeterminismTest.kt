@@ -2,7 +2,6 @@ package com.miara.cuentame.core.backup
 
 import android.content.Context
 import android.net.Uri
-import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -74,7 +73,10 @@ class ArchiveDeterminismTest {
 
         coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
             restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "Test Rest", "USD", "en", 0L, 0L, null)),
-            inventoryAreas = emptyList(),
+            inventoryAreas = listOf(
+                com.miara.cuentame.core.database.entity.InventoryAreaEntity("a2", "rest-1", "Area 2", "area 2", 2, true, 0L, 0L, null),
+                com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "rest-1", "Area 1", "area 1", 1, true, 0L, 0L, null)
+            ),
             ingredientCategories = emptyList(),
             units = emptyList(),
             ingredients = emptyList(),
@@ -101,13 +103,30 @@ class ArchiveDeterminismTest {
 
         assertThat(bytes1).isEqualTo(bytes2)
 
-        // 3. Create third backup (different timestamp)
-        every { timeProvider.now() } returns now.plusSeconds(1)
+        // 3. Change a value
+        coEvery { backupDao.createSnapshot("rest-1") } returns BackupSnapshot(
+            restaurants = listOf(com.miara.cuentame.core.database.entity.RestaurantEntity("rest-1", "CHANGED", "USD", "en", 0L, 0L, null)),
+            inventoryAreas = emptyList(),
+            ingredientCategories = emptyList(),
+            units = emptyList(),
+            ingredients = emptyList(),
+            ingredientUnitOptions = emptyList(),
+            suppliers = emptyList(),
+            purchaseReceipts = emptyList(),
+            purchaseLines = emptyList(),
+            stockCounts = emptyList(),
+            stockCountAreas = emptyList(),
+            stockCountLines = emptyList(),
+            wasteEvents = emptyList(),
+            inventoryMovements = emptyList(),
+            inventoryBalanceProjections = emptyList(),
+            ingredientCostProjections = emptyList()
+        )
         repository.createBackup(Uri.fromFile(file3).toString()).toList()
         val bytes3 = file3.readBytes()
-
         assertThat(bytes1).isNotEqualTo(bytes3)
 
-        listOf(file1, file2, file3).forEach { it.delete() }
+        file1.delete()
+        file2.delete()
     }
 }

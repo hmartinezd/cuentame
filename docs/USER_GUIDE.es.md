@@ -94,15 +94,14 @@ Recomendamos crear copias de seguridad periódicas para proteger sus datos contr
 4.  El archivo tendrá la extensión `.cuentame-backup` y contiene todos sus ingredientes, historial y archivos adjuntos.
 5.  **Validación:** Después de la creación, la aplicación valida automáticamente el archivo de respaldo para asegurar que se escribió correctamente.
 
-**Nota importante de seguridad:** Las copias de seguridad contienen datos comerciales confidenciales y no están cifradas por la aplicación. Guárdelas en un lugar seguro.
+**Nota importante de seguridad:** Las copias de seguridad contienen datos comerciales confidenciales y no están cifradas por la aplicación. Guárdelas en un lugar seguro. El archivo de respaldo es un archivo ZIP que contiene datos JSON y adjuntos.
 
 ## 7. Datos Locales y Seguridad
 
 *   **Privacidad:** Todos sus datos comerciales se guardan únicamente en este dispositivo.
 *   **Internet:** No se requiere conexión a internet para operar.
-*   **Restauración:** La restauración de copias de seguridad está actualmente en desarrollo y estará disponible en una futura actualización. Mantenga sus archivos de respaldo seguros.
-
-## 8. Solución de Problemas
+*   **Alcance:** Las copias de seguridad se crean únicamente para el restaurante activo.
+*   **Restauración:** La restauración de copias de seguridad está actualmente en desarrollo y estará disponible en una futura actualización. Mantenga sus archivos de respaldo seguros. Las exportaciones a CSV y Excel también están planeadas para fases futuras.
 
 *   **Costos Faltantes:** Si un ingrediente muestra un valor de "$0.00", asegúrese de haber publicado al menos una compra con un costo válido para ese artículo.
 *   **Saldos Negativos:** Esto sucede si registra más mermas o ventas de las que ha registrado en compras. Realice un **Conteo de Stock** para restablecer el nivel correcto.
