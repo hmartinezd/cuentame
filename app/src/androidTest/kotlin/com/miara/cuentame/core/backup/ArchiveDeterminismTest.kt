@@ -148,7 +148,7 @@ class ArchiveDeterminismTest {
         every { timeProvider.now() } returns now // restore
 
         // Proof 4: Changing preference changes bytes
-        every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT.copy(dynamicColorEnabled = true))
+        every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT.copy(dynamicColorEnabled = false))
         val fPref = createTempFile("fPref")
         val bytesPref = generateBackupBytes(fPref)
         assertThat(bytes1).isNotEqualTo(bytesPref)

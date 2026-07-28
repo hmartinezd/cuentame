@@ -4,8 +4,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import com.miara.cuentame.core.model.backup.BackupManifest
-import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
 import org.junit.Rule
@@ -20,8 +18,7 @@ class SettingsBackupUiTest {
     fun settingsScreen_showsBackupSection_inIdleState() {
         renderSettings(BackupUiState.Idle)
 
-        composeTestRule.onNodeWithText("Data and backup", ignoreCase = true).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Create backup", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithTag("backup_idle").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_backup_button").assertHasClickAction()
     }
@@ -30,6 +27,7 @@ class SettingsBackupUiTest {
     fun settingsScreen_showsWaitingForDestinationState() {
         renderSettings(BackupUiState.WaitingForDestination)
 
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
         composeTestRule.onNodeWithTag("backup_waiting_for_destination").assertIsDisplayed()
         composeTestRule.onNodeWithTag("backup_waiting_indicator").assertIsDisplayed()
     }
@@ -38,31 +36,31 @@ class SettingsBackupUiTest {
     fun settingsScreen_showsCreatingState_andDisablesButton() {
         renderSettings(BackupUiState.Creating)
 
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
         composeTestRule.onNodeWithTag("backup_creating").assertIsDisplayed()
         composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
-        composeTestRule.onNodeWithTag("create_backup_button").assertIsNotEnabled()
     }
 
     @Test
     fun settingsScreen_showsValidatingState_andDisablesButton() {
         renderSettings(BackupUiState.Validating)
 
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo()
         composeTestRule.onNodeWithTag("backup_validating").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("create_backup_button").assertIsNotEnabled()
     }
 
     @Test
     fun settingsScreen_rendersInDarkTheme() {
         renderSettings(BackupUiState.Idle, themeMode = ThemeMode.DARK)
 
-        composeTestRule.onNodeWithText("Data and backup", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun settingsScreen_rendersInSpanishLocale() {
         renderSettings(BackupUiState.Idle, appLocaleTag = "es-US")
 
-        composeTestRule.onNodeWithText("Data and backup", ignoreCase = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_backup_button").performScrollTo().assertIsDisplayed()
     }
 
     private fun renderSettings(

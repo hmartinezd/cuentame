@@ -221,7 +221,7 @@ class BackupValidatorAdversarialTest {
             buildZipArchive(file, extraEntries = mapOf("../escaped.txt" to "evil".toByteArray()))
             val result = repository.validateBackup(Uri.fromFile(file).toString())
             assertThat(result).isInstanceOf(BackupValidationResult.Invalid::class.java)
-            assertThat((result as BackupValidationResult.Invalid).reason).contains("Unsafe entry name")
+            assertThat((result as BackupValidationResult.Invalid).reason).contains("Invalid zip entry path")
         } finally {
             file.delete()
         }
