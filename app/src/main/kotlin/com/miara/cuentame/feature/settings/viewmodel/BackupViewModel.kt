@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 sealed interface BackupUiState {
@@ -48,33 +49,47 @@ class BackupViewModel @Inject constructor(
 
     private var destinationPickerPreparationJob: Job? = null
     private var activeBackupJob: Job? = null
+    private val operationTokenGenerator = AtomicLong(0L)
+    @Volatile private var activeToken = 0L
 
     fun onCreateBackupRequested() {
         if (!canStartOperation()) return
-        
+
+        val token = operationTokenGenerator.incrementAndGet()
+        activeToken = token
         _uiState.value = BackupUiState.WaitingForDestination
+
         destinationPickerPreparationJob?.cancel()
         destinationPickerPreparationJob = viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
-                _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+                if (activeToken == token && _uiState.value == BackupUiState.WaitingForDestination) {
+                    _events.emit(BackupUiEvent.LaunchFilePicker(suggestedName))
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.value = BackupUiState.Error(BackupResult.Error.Unknown(e))
+                if (activeToken == token) {
+                    _uiState.value = BackupUiState.Error(BackupResult.Error.Unknown(e))
+                }
             }
         }
     }
 
     fun onFileSelected(uri: String) {
         if (_uiState.value != BackupUiState.WaitingForDestination) return
-        
+
+        // Atomically update state to Creating before launching Flow
+        _uiState.value = BackupUiState.Creating
+        val token = activeToken
+
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
         activeBackupJob = viewModelScope.launch {
             try {
                 backupRepository.createBackup(uri).collect { status ->
+                    if (activeToken != token) return@collect
                     when (status) {
                         is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
                         is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
@@ -104,20 +119,22 @@ class BackupViewModel @Inject constructor(
     fun resetStatus() {
         val current = _uiState.value
         if (current is BackupUiState.Success || current is BackupUiState.Error || current == BackupUiState.Cancelled) {
+            activeToken = operationTokenGenerator.incrementAndGet()
             _uiState.value = BackupUiState.Idle
         }
     }
 
     private fun canStartOperation(): Boolean {
         val current = _uiState.value
-        return current == BackupUiState.Idle || 
-               current is BackupUiState.Success || 
-               current is BackupUiState.Error || 
+        return current == BackupUiState.Idle ||
+               current is BackupUiState.Success ||
+               current is BackupUiState.Error ||
                current == BackupUiState.Cancelled
     }
 
     override fun onCleared() {
         super.onCleared()
+        activeToken = operationTokenGenerator.incrementAndGet()
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
     }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "b4a236aac9202bbc11f2a5c047c20471",
+    "identityHash": "b2bc79efdc99df9daf5f158c180e464b",
     "entities": [
       {
         "tableName": "restaurants",
@@ -2119,7 +2119,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b4a236aac9202bbc11f2a5c047c20471')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b2bc79efdc99df9daf5f158c180e464b')"
     ]
   }
 }

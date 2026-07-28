@@ -10,22 +10,24 @@ object BackupMapper {
         attachmentIdMap: Map<String, String> // URI -> ID
     ): BackupSnapshotDto {
         return BackupSnapshotDto(
-            restaurants = snapshot.restaurants.map { it.toDto() },
-            inventoryAreas = snapshot.inventoryAreas.map { it.toDto() },
-            ingredientCategories = snapshot.ingredientCategories.map { it.toDto() },
-            units = snapshot.units.map { it.toDto() },
-            ingredients = snapshot.ingredients.map { it.toDto() },
-            ingredientUnitOptions = snapshot.ingredientUnitOptions.map { it.toDto() },
-            suppliers = snapshot.suppliers.map { it.toDto() },
-            purchaseReceipts = snapshot.purchaseReceipts.map { it.toDto(attachmentIdMap) },
-            purchaseLines = snapshot.purchaseLines.map { it.toDto() },
-            stockCounts = snapshot.stockCounts.map { it.toDto() },
-            stockCountAreas = snapshot.stockCountAreas.map { it.toDto() },
-            stockCountLines = snapshot.stockCountLines.map { it.toDto() },
-            wasteEvents = snapshot.wasteEvents.map { it.toDto(attachmentIdMap) },
-            inventoryMovements = snapshot.inventoryMovements.map { it.toDto() },
-            inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() },
+            restaurants = snapshot.restaurants.map { it.toDto() }.sortedBy { it.id },
+            inventoryAreas = snapshot.inventoryAreas.map { it.toDto() }.sortedBy { it.id },
+            ingredientCategories = snapshot.ingredientCategories.map { it.toDto() }.sortedBy { it.id },
+            units = snapshot.units.map { it.toDto() }.sortedBy { it.id },
+            ingredients = snapshot.ingredients.map { it.toDto() }.sortedBy { it.id },
+            ingredientUnitOptions = snapshot.ingredientUnitOptions.map { it.toDto() }.sortedBy { it.id },
+            suppliers = snapshot.suppliers.map { it.toDto() }.sortedBy { it.id },
+            purchaseReceipts = snapshot.purchaseReceipts.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
+            purchaseLines = snapshot.purchaseLines.map { it.toDto() }.sortedBy { it.id },
+            stockCounts = snapshot.stockCounts.map { it.toDto() }.sortedBy { it.id },
+            stockCountAreas = snapshot.stockCountAreas.map { it.toDto() }.sortedBy { it.id },
+            stockCountLines = snapshot.stockCountLines.map { it.toDto() }.sortedBy { it.id },
+            wasteEvents = snapshot.wasteEvents.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
+            inventoryMovements = snapshot.inventoryMovements.map { it.toDto() }.sortedBy { it.id },
+            inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() }
+                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }, { it.areaId })),
             ingredientCostProjections = snapshot.ingredientCostProjections.map { it.toDto() }
+                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }))
         )
     }
 

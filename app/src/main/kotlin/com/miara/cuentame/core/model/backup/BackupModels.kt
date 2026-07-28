@@ -32,7 +32,7 @@ data class TableMetadata(
 data class BackupAttachmentMetadata(
     val attachmentId: String,
     val archivePath: String,
-    val displayName: String?,
+    val displayName: String,
     val mimeType: String?,
     val sizeBytes: Long,
     val checksumSha256: String,

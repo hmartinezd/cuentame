@@ -1,57 +1,138 @@
 package com.miara.cuentame.core.backup
 
-import kotlinx.serialization.json.*
-
 object ChecksumParser {
 
     /**
-     * Strictly parses a checksums.json payload.
-     * Rejects duplicates, non-string values, and malformed SHA-256 hashes.
+     * Character-by-character parser for checksums.json.
+     * Guarantees:
+     * - Top-level JSON object containing string:string entries only.
+     * - No duplicate keys (including via different escape sequences).
+     * - Valid SHA-256 lower-case hex format for values.
+     * - Explicit rejection of "checksums.json" key.
+     * - Rejection of empty objects, nested structures, numbers, booleans, nulls, malformed escapes, trailing content.
+     * - Redacted/sanitized error messages (no raw customer payload data).
      */
     fun parse(jsonContent: String): Result<Map<String, String>> {
-        if (jsonContent.isBlank()) return Result.failure(Exception("Empty checksums.json"))
-        
+        val s = jsonContent.trim()
+        if (s.isEmpty()) return Result.failure(Exception("Checksums JSON is empty"))
+
+        var pos = 0
+        fun skipWhitespace() {
+            while (pos < s.length && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\r' || s[pos] == '\n')) {
+                pos++
+            }
+        }
+
+        fun parseString(): String {
+            if (pos >= s.length || s[pos] != '"') throw Exception("Expected string starting with quote")
+            pos++ // skip opening quote
+            val sb = StringBuilder()
+            while (pos < s.length) {
+                val ch = s[pos++]
+                if (ch == '"') {
+                    return sb.toString()
+                }
+                if (ch == '\\') {
+                    if (pos >= s.length) throw Exception("Unterminated escape sequence")
+                    when (val esc = s[pos++]) {
+                        '"' -> sb.append('"')
+                        '\\' -> sb.append('\\')
+                        '/' -> sb.append('/')
+                        'b' -> sb.append('\b')
+                        'f' -> sb.append('\u000C')
+                        'n' -> sb.append('\n')
+                        'r' -> sb.append('\r')
+                        't' -> sb.append('\t')
+                        'u' -> {
+                            if (pos + 4 > s.length) throw Exception("Truncated unicode escape")
+                            val hex = s.substring(pos, pos + 4)
+                            val code = hex.toIntOrNull(16) ?: throw Exception("Invalid hex code in unicode escape")
+                            sb.append(code.toChar())
+                            pos += 4
+                        }
+                        else -> throw Exception("Invalid escape character")
+                    }
+                } else if (ch.code < 0x20) {
+                    throw Exception("Unescaped control character in string")
+                } else {
+                    sb.append(ch)
+                }
+            }
+            throw Exception("Unterminated string")
+        }
+
         try {
-            val element = Json.parseToJsonElement(jsonContent)
-            if (element !is JsonObject) return Result.failure(Exception("checksums.json must be a single JSON object"))
+            skipWhitespace()
+            if (pos >= s.length || s[pos] != '{') {
+                return Result.failure(Exception("Checksums JSON must be a single object"))
+            }
+            pos++ // skip '{'
+            skipWhitespace()
 
-            // Manual duplicate key detection in raw string because parseToJsonElement omits them
-            val keysFound = mutableSetOf<String>()
-            val keyRegex = Regex("\"([^\"]+)\"\\s*:")
-            val matches = keyRegex.findAll(jsonContent)
-            for (match in matches) {
-                val key = match.groupValues[1]
-                val decodedKey = try { 
-                    Json.decodeFromString<String>("\"$key\"") 
-                } catch (e: Exception) {
-                    return Result.failure(Exception("Malformed key escape: $key"))
-                }
-                if (!keysFound.add(decodedKey)) {
-                    return Result.failure(Exception("Duplicate key in checksums.json: $decodedKey"))
-                }
+            if (pos < s.length && s[pos] == '}') {
+                return Result.failure(Exception("Checksums object cannot be empty"))
             }
 
+            val keysSeen = mutableSetOf<String>()
             val result = mutableMapOf<String, String>()
-            for ((key, value) in element) {
-                if (value !is JsonPrimitive || !value.isString) {
-                    return Result.failure(Exception("Checksum for $key must be a string"))
+            val shaRegex = Regex("^[a-f0-9]{64}$")
+
+            while (pos < s.length) {
+                skipWhitespace()
+                if (pos >= s.length || s[pos] != '"') {
+                    return Result.failure(Exception("Expected key string"))
                 }
-                val hash = value.content
-                if (!hash.matches(Regex("^[a-f0-9]{64}$"))) {
-                    return Result.failure(Exception("Invalid SHA-256 hash format for $key: $hash"))
+
+                val key = parseString()
+                if (key == "checksums.json") {
+                    return Result.failure(Exception("checksums.json self-referential key forbidden"))
                 }
-                result[key] = hash
+
+                if (!keysSeen.add(key)) {
+                    return Result.failure(Exception("Duplicate key detected"))
+                }
+
+                skipWhitespace()
+                if (pos >= s.length || s[pos] != ':') {
+                    return Result.failure(Exception("Expected colon after key"))
+                }
+                pos++ // skip ':'
+                skipWhitespace()
+
+                if (pos >= s.length || s[pos] != '"') {
+                    return Result.failure(Exception("Checksum value must be a string"))
+                }
+
+                val value = parseString()
+                if (!shaRegex.matches(value)) {
+                    return Result.failure(Exception("Invalid SHA-256 hash format"))
+                }
+
+                result[key] = value
+
+                skipWhitespace()
+                if (pos < s.length && s[pos] == ',') {
+                    pos++ // skip ','
+                    skipWhitespace()
+                    if (pos < s.length && s[pos] == '}') {
+                        return Result.failure(Exception("Trailing comma before closing brace"))
+                    }
+                } else if (pos < s.length && s[pos] == '}') {
+                    pos++ // skip '}'
+                    break
+                } else {
+                    return Result.failure(Exception("Expected comma or closing brace"))
+                }
             }
 
-            if (result.size != keysFound.size) {
-                return Result.failure(Exception("Duplicate keys detected in checksums.json"))
+            skipWhitespace()
+            if (pos < s.length) {
+                return Result.failure(Exception("Unexpected trailing content"))
             }
-
-            if (result.isEmpty()) return Result.failure(Exception("checksums.json cannot be empty"))
 
             return Result.success(result)
         } catch (e: Exception) {
-            return Result.failure(Exception("Malformed checksums.json: ${e.message}"))
+            return Result.failure(Exception("Checksum parsing failed: ${e.message}"))
         }
     }
 }

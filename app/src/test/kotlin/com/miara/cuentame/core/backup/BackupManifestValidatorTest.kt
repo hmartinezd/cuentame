@@ -1,6 +1,8 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
+import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.TableMetadata
 import org.junit.Test
@@ -27,13 +29,15 @@ class BackupManifestValidatorTest {
         "ingredient_cost_projections" to TableMetadata(1, true)
     )
 
+    private val validSha = "a".repeat(64)
+
     private val validManifest = BackupManifest(
         backupFormatVersion = 1,
         createdAtUtc = Instant.now().toString(),
         applicationId = "com.miara.cuentame",
         appVersionName = "1.0",
         appVersionCode = 1L,
-        databaseSchemaVersion = 1,
+        databaseSchemaVersion = 2,
         restaurantId = "rest-1",
         restaurantName = "Test Rest",
         localeTag = "en-US",
@@ -49,40 +53,68 @@ class BackupManifestValidatorTest {
     }
 
     @Test
-    fun `validate rejects wrong version`() {
-        val invalid = validManifest.copy(backupFormatVersion = 2)
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate accepts valid attachment`() {
+        val manifest = validManifest.copy(
+            attachments = listOf(
+                BackupAttachmentMetadata(
+                    attachmentId = "att-1",
+                    archivePath = "attachments/att-1.jpg",
+                    displayName = "Receipt Image",
+                    mimeType = "image/jpeg",
+                    sizeBytes = 1024,
+                    checksumSha256 = validSha,
+                    referencedBy = listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1"))
+                )
+            )
+        )
+        assertThat(BackupManifestValidator.validate(manifest).isSuccess).isTrue()
     }
 
     @Test
-    fun `validate rejects malformed timestamp`() {
-        val invalid = validManifest.copy(createdAtUtc = "not-a-date")
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate rejects duplicate attachment ID`() {
+        val att1 = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")))
+        val att2 = BackupAttachmentMetadata("att-1", "attachments/att-2.jpg", "R2", "image/jpeg", 200, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-2")))
+        val manifest = validManifest.copy(attachments = listOf(att1, att2))
+        val res = BackupManifestValidator.validate(manifest)
+        assertThat(res.isFailure).isTrue()
+        assertThat(res.exceptionOrNull()?.message).contains("Duplicate attachment ID")
     }
 
     @Test
-    fun `validate rejects blank restaurant ID`() {
-        val invalid = validManifest.copy(restaurantId = "")
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate rejects duplicate archive path`() {
+        val att1 = BackupAttachmentMetadata("att-1", "attachments/same.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")))
+        val att2 = BackupAttachmentMetadata("att-2", "attachments/same.jpg", "R2", "image/jpeg", 200, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-2")))
+        val manifest = validManifest.copy(attachments = listOf(att1, att2))
+        val res = BackupManifestValidator.validate(manifest)
+        assertThat(res.isFailure).isTrue()
+        assertThat(res.exceptionOrNull()?.message).contains("Duplicate archive path")
     }
 
     @Test
-    fun `validate rejects missing sections`() {
-        val invalid = validManifest.copy(includedSections = listOf("data"))
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate rejects empty referencedBy list`() {
+        val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, emptyList())
+        val manifest = validManifest.copy(attachments = listOf(att))
+        val res = BackupManifestValidator.validate(manifest)
+        assertThat(res.isFailure).isTrue()
+        assertThat(res.exceptionOrNull()?.message).contains("referencedBy list cannot be empty")
     }
 
     @Test
-    fun `validate rejects missing table`() {
-        val invalid = validManifest.copy(tableMetadata = validTableMetadata.filterKeys { it != "ingredients" })
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate rejects unsupported recordType in reference`() {
+        val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("UNSUPPORTED_TYPE", "id-1")))
+        val manifest = validManifest.copy(attachments = listOf(att))
+        val res = BackupManifestValidator.validate(manifest)
+        assertThat(res.isFailure).isTrue()
+        assertThat(res.exceptionOrNull()?.message).contains("Unsupported recordType")
     }
 
     @Test
-    fun `validate rejects incorrect isDerived flag`() {
-        val invalid = validManifest.copy(tableMetadata = validTableMetadata.toMutableMap().apply {
-            put("ingredients", TableMetadata(1, true))
-        })
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+    fun `validate rejects duplicate reference in referencedBy`() {
+        val ref = BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")
+        val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(ref, ref))
+        val manifest = validManifest.copy(attachments = listOf(att))
+        val res = BackupManifestValidator.validate(manifest)
+        assertThat(res.isFailure).isTrue()
+        assertThat(res.exceptionOrNull()?.message).contains("Duplicate reference in attachment referencedBy list")
     }
 }

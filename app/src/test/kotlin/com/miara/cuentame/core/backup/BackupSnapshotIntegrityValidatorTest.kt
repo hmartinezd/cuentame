@@ -60,7 +60,7 @@ class BackupSnapshotIntegrityValidatorTest {
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Found 2")
+        assertThat(result.exceptionOrNull()?.message).contains("exactly one restaurant")
     }
 
     @Test
@@ -86,16 +86,66 @@ class BackupSnapshotIntegrityValidatorTest {
     }
 
     @Test
-    fun `validate rejects broken ingredient-unit relationship`() {
-        val dto = createEmptyDto().copy(
+    fun `validate rejects unit option belonging to different ingredient in purchase lines`() {
+        val baseDto = createEmptyDto()
+        val dto = baseDto.copy(
             units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
+            inventoryAreas = listOf(InventoryAreaBackupDto("area-1", restId, "Area", "area", 1, true, 0, 0, null)),
             ingredients = listOf(
-                IngredientBackupDto("ing-1", restId, "Ing", "ing", null, "missing-unit", null, null, null, null, true, 0, 0, null)
+                IngredientBackupDto("ing-1", restId, "Ing 1", "ing 1", null, "u1", null, null, null, null, true, 0, 0, null),
+                IngredientBackupDto("ing-2", restId, "Ing 2", "ing 2", null, "u1", null, null, null, null, true, 0, 0, null)
+            ),
+            ingredientUnitOptions = listOf(
+                IngredientUnitOptionBackupDto("opt-2", "ing-2", "Option 2", "opt2", "u1", "1.0", true, true, true, true, 0, 0, null)
+            ),
+            purchaseReceipts = listOf(
+                PurchaseReceiptBackupDto("pr-1", restId, null, "INV-100", 0, "DRAFT", null, null, 0, 0, null, null)
+            ),
+            purchaseLines = listOf(
+                PurchaseLineBackupDto("pl-1", "pr-1", "ing-1", "area-1", "opt-2", "1.0", "1.0", "10.0", "10.0", null, 0, 0)
             )
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Broken FK: ingredient -> unit")
+        assertThat(result.exceptionOrNull()?.message).contains("Unit option ingredient mismatch")
+    }
+
+    @Test
+    fun `validate rejects invalid decimal strings without revealing sensitive values`() {
+        val baseDto = createEmptyDto()
+        val dto = baseDto.copy(
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "NOT_A_NUMBER", true, 1))
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Invalid decimal format in units.factorToCanonical")
+        assertThat(result.exceptionOrNull()?.message).doesNotContain("NOT_A_NUMBER")
+    }
+
+    @Test
+    fun `validate rejects invalid purchase status`() {
+        val baseDto = createEmptyDto()
+        val dto = baseDto.copy(
+            purchaseReceipts = listOf(
+                PurchaseReceiptBackupDto("pr-1", restId, null, "INV-100", 0, "UNKNOWN_STATUS", null, null, 0, 0, null, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Invalid purchase receipt status")
+    }
+
+    @Test
+    fun `validate rejects blank primary key in stock_count_lines`() {
+        val baseDto = createEmptyDto()
+        val dto = baseDto.copy(
+            stockCountLines = listOf(
+                StockCountLineBackupDto("", "sca-1", "ing-1", "opt-1", "1.0", "1.0", null, null, null, 0, 0)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("Blank ID in table stock_count_lines")
     }
 
     @Test
@@ -105,7 +155,7 @@ class BackupSnapshotIntegrityValidatorTest {
             units = listOf(UnitBackupDto("u1", "Unit", "u", "Mass", "1.0", true, 1)),
             inventoryAreas = listOf(InventoryAreaBackupDto("area-1", restId, "Area", "area", 1, true, 0, 0, null)),
             inventoryMovements = listOf(
-                InventoryMovementBackupDto("m1", restId, "ing-1", "area-1", "WASTE", "-1", null, null, 0, "WASTE_EVENT", "w1", "op1", null, "m1", 0)
+                InventoryMovementBackupDto("m1", restId, "ing-1", "area-1", "WASTE_POST", "-1", null, null, 0, "WASTE_EVENT", "w1", "op1", null, "m1", 0)
             )
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)

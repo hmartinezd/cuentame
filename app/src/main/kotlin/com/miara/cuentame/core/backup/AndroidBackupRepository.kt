@@ -7,7 +7,6 @@ import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
-import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.model.backup.*
@@ -46,10 +45,6 @@ class AndroidBackupRepository @Inject constructor(
 
     companion object {
         private const val BACKUP_FORMAT_VERSION = 1
-        private const val MAX_ARCHIVE_ENTRY_COUNT = 1000
-        private const val MAX_JSON_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
-        private const val MAX_TOTAL_UNCOMPRESSED_BYTES = 500 * 1024 * 1024 // 500MB
-        private const val MAX_ATTACHMENT_COUNT = 500
         private const val DETERMINISTIC_ZIP_TIMESTAMP = 0L
     }
 
@@ -115,7 +110,7 @@ class AndroidBackupRepository @Inject constructor(
     private fun isInsufficientStorage(e: Exception): Boolean {
         var cause: Throwable? = e
         while (cause != null) {
-            if (cause is java.io.IOException && cause.message?.contains("ENOSPC", ignoreCase = true) == true) {
+            if (cause is java.io.IOException && (cause.message?.contains("ENOSPC", ignoreCase = true) == true || cause.message?.contains("No space left", ignoreCase = true) == true)) {
                 return true
             }
             cause = cause.cause
@@ -149,6 +144,8 @@ class AndroidBackupRepository @Inject constructor(
             throw BackupCreationException(BackupResult.Error.PreferencesReadFailure(e))
         }
         
+        var currentTotalUncompressedBytes = 0L
+
         // 1. Identify attachments
         val pendingAttachments = mutableMapOf<String, PendingAttachment>() // URI string -> PendingAttachment
         
@@ -167,8 +164,8 @@ class AndroidBackupRepository @Inject constructor(
         snapshot.purchaseReceipts.forEach { addReference(it.attachmentPath, "PURCHASE_RECEIPT", it.id) }
         snapshot.wasteEvents.forEach { addReference(it.attachmentPath, "WASTE_EVENT", it.id) }
 
-        if (pendingAttachments.size > MAX_ATTACHMENT_COUNT) {
-            throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Too many attachments: ${pendingAttachments.size}"))
+        if (pendingAttachments.size > BackupLimits.MAX_ATTACHMENT_COUNT) {
+            throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Attachment limit exceeded"))
         }
 
         // 2. data/database.json
@@ -197,8 +194,10 @@ class AndroidBackupRepository @Inject constructor(
         }
 
         val snapshotJson = backupWriterJson.encodeToString(snapshotDto)
-        if (snapshotJson.toByteArray(Charsets.UTF_8).size > MAX_JSON_SIZE_BYTES) throw BackupCreationException(BackupResult.Error.SerializationFailure(Exception("Database JSON too large")))
-        writeZipEntry(zos, "data/database.json", snapshotJson, entryChecksums)
+        val snapshotBytes = snapshotJson.toByteArray(Charsets.UTF_8)
+        if (snapshotBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Database JSON too large"))
+        currentTotalUncompressedBytes += snapshotBytes.size
+        writeZipEntry(zos, "data/database.json", snapshotBytes, entryChecksums)
         
         // 3. preferences/settings.json
         val prefsDto = BackupPreferencesDto(
@@ -207,14 +206,15 @@ class AndroidBackupRepository @Inject constructor(
             appLocaleTag = prefs.appLocaleTag
         )
         val prefsJson = backupWriterJson.encodeToString(prefsDto)
-        writeZipEntry(zos, "preferences/settings.json", prefsJson, entryChecksums)
+        val prefsBytes = prefsJson.toByteArray(Charsets.UTF_8)
+        if (prefsBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Preferences JSON too large"))
+        currentTotalUncompressedBytes += prefsBytes.size
+        writeZipEntry(zos, "preferences/settings.json", prefsBytes, entryChecksums)
         
         // 4. attachments (sorted by ID)
         val attachmentMetadatas = mutableListOf<BackupAttachmentMetadata>()
         val sortedPending = pendingAttachments.values.sortedBy { it.attachmentId }
         
-        var currentTotalUncompressedBytes = 0L
-
         for (pending in sortedPending) {
             try {
                 context.contentResolver.openInputStream(pending.sourceUri)?.use { inputStream ->
@@ -223,7 +223,7 @@ class AndroidBackupRepository @Inject constructor(
                     val archivePath = "attachments/${pending.attachmentId}/$effectiveDisplayName"
                     
                     if (!ArchiveEntryValidator.isSafe(archivePath)) {
-                        throw Exception("Unsafe archive path generated")
+                        throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Unsafe archive path generated"))
                     }
 
                     zos.putNextEntry(ZipEntry(archivePath).apply { time = DETERMINISTIC_ZIP_TIMESTAMP })
@@ -237,8 +237,8 @@ class AndroidBackupRepository @Inject constructor(
                         zos.write(buffer, 0, n)
                         size += n
                         currentTotalUncompressedBytes += n
-                        if (currentTotalUncompressedBytes > MAX_TOTAL_UNCOMPRESSED_BYTES) {
-                            throw BackupCreationException(BackupResult.Error.InsufficientStorage)
+                        if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+                            throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Total uncompressed size limit exceeded"))
                         }
                     }
                     zos.closeEntry()
@@ -284,12 +284,21 @@ class AndroidBackupRepository @Inject constructor(
             checksumAlgorithm = "SHA-256"
         )
         val manifestJson = backupWriterJson.encodeToString(manifest)
-        writeZipEntry(zos, "manifest.json", manifestJson, entryChecksums)
+        val manifestBytes = manifestJson.toByteArray(Charsets.UTF_8)
+        if (manifestBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Manifest JSON too large"))
+        currentTotalUncompressedBytes += manifestBytes.size
+        writeZipEntry(zos, "manifest.json", manifestBytes, entryChecksums)
         
         // 6. checksums.json
         val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
         val checksumsJson = backupWriterJson.encodeToString(sortedChecksums)
-        writeZipEntry(zos, "checksums.json", checksumsJson, mutableMapOf())
+        val checksumsBytes = checksumsJson.toByteArray(Charsets.UTF_8)
+        if (checksumsBytes.size > BackupLimits.MAX_SINGLE_JSON_BYTES) throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Checksums JSON too large"))
+        currentTotalUncompressedBytes += checksumsBytes.size
+        if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+            throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Total uncompressed size limit exceeded"))
+        }
+        writeZipEntry(zos, "checksums.json", checksumsBytes, mutableMapOf())
     }
 
     private fun queryDisplayName(uri: Uri): String? {
@@ -302,8 +311,10 @@ class AndroidBackupRepository @Inject constructor(
         }
     }
 
-    private fun writeZipEntry(zos: ZipOutputStream, name: String, content: String, checksums: MutableMap<String, String>) {
-        val bytes = content.toByteArray(Charsets.UTF_8)
+    private fun writeZipEntry(zos: ZipOutputStream, name: String, bytes: ByteArray, checksums: MutableMap<String, String>) {
+        if (name.length > BackupLimits.MAX_ENTRY_NAME_LENGTH) {
+            throw BackupCreationException(BackupResult.Error.ArchiveValidationFailure("Archive entry name too long: $name"))
+        }
         zos.putNextEntry(ZipEntry(name).apply { time = DETERMINISTIC_ZIP_TIMESTAMP })
         zos.write(bytes)
         zos.closeEntry()
@@ -364,8 +375,8 @@ class AndroidBackupRepository @Inject constructor(
         while (entry != null) {
             val name = entry.name
             totalEntries++
-            if (totalEntries > MAX_ARCHIVE_ENTRY_COUNT) return BackupValidationResult.Invalid("Archive entry count limit exceeded")
-            if (name.length > 255) return BackupValidationResult.Invalid("Archive entry name too long: $name")
+            if (totalEntries > BackupLimits.MAX_ENTRY_COUNT) return BackupValidationResult.Invalid("Archive entry count limit exceeded")
+            if (name.length > BackupLimits.MAX_ENTRY_NAME_LENGTH) return BackupValidationResult.Invalid("Archive entry name too long: $name")
             
             if (entryMetadata.containsKey(name)) return BackupValidationResult.Invalid("Duplicate entry: $name")
             if (!ArchiveEntryValidator.isSafe(name)) return BackupValidationResult.Invalid("Unsafe entry name: $name")
@@ -380,10 +391,10 @@ class AndroidBackupRepository @Inject constructor(
                 digest.update(buffer, 0, n)
                 size += n
                 totalUncompressedSize += n
-                if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED_BYTES) return BackupValidationResult.Invalid("Total uncompressed size limit exceeded")
+                if (totalUncompressedSize > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return BackupValidationResult.Invalid("Total uncompressed size limit exceeded")
                 
                 jsonBuffer?.write(buffer, 0, n)
-                if (jsonBuffer != null && size > MAX_JSON_SIZE_BYTES) return BackupValidationResult.Invalid("JSON payload too large: $name")
+                if (jsonBuffer != null && size > BackupLimits.MAX_SINGLE_JSON_BYTES) return BackupValidationResult.Invalid("JSON payload too large: $name")
             }
             
             val checksum = digest.digest().joinToString("") { "%02x".format(it) }
@@ -414,21 +425,22 @@ class AndroidBackupRepository @Inject constructor(
             return BackupValidationResult.Invalid("Archive entry set mismatch. Unexpected: $unexpected, Missing: $missing")
         }
 
-        // 2. Strict Checksums validation (Task 3: Duplicate key rejection via strict parser)
+        // 2. Strict Checksums validation (Task 3: Character-by-character parser)
         val reportedChecksumsResult = ChecksumParser.parse(checksumsJson)
         if (reportedChecksumsResult.isFailure) {
             return BackupValidationResult.Invalid(reportedChecksumsResult.exceptionOrNull()?.message ?: "Invalid checksums.json")
         }
         val reportedChecksums = reportedChecksumsResult.getOrThrow()
 
+        // Require checksum key set to equal exactly archive entries - checksums.json
+        val expectedChecksumKeys = entryMetadata.keys - "checksums.json"
+        if (reportedChecksums.keys != expectedChecksumKeys) {
+            return BackupValidationResult.Invalid("Checksums key set mismatch")
+        }
+
         for ((name, reportedChecksum) in reportedChecksums) {
             val actual = entryMetadata[name] ?: return BackupValidationResult.Invalid("Checksum for nonexistent entry: $name")
             if (actual.checksum != reportedChecksum) return BackupValidationResult.Invalid("Checksum mismatch for $name")
-        }
-
-        for (name in entryMetadata.keys) {
-            if (name == "checksums.json") continue
-            if (!reportedChecksums.containsKey(name)) return BackupValidationResult.Invalid("Entry $name missing from checksums.json")
         }
 
         // 3. Preferences Validation
@@ -455,7 +467,7 @@ class AndroidBackupRepository @Inject constructor(
         val integrityResult = BackupSnapshotIntegrityValidator.validate(dbDto, manifest)
         if (integrityResult.isFailure) return BackupValidationResult.Invalid("Snapshot integrity failed: ${integrityResult.exceptionOrNull()?.message}")
 
-        // 5. Attachment multiplicity and relationships (Task 6)
+        // 5. Attachment multiplicity and relationships
         val manifestAttachmentIds = manifest.attachments.map { it.attachmentId }
         if (manifestAttachmentIds.distinct().size != manifestAttachmentIds.size) return BackupValidationResult.Invalid("Duplicate attachment IDs in manifest")
         
@@ -481,7 +493,7 @@ class AndroidBackupRepository @Inject constructor(
         if (manifestAttachmentIds.toSet() != dbAttIds) return BackupValidationResult.Invalid("Attachment ID set mismatch between manifest and database")
 
         for (attachment in manifest.attachments) {
-            if (attachment.displayName.isNullOrBlank()) return BackupValidationResult.Invalid("Attachment ${attachment.attachmentId} has blank display name")
+            if (attachment.displayName.isBlank()) return BackupValidationResult.Invalid("Attachment ${attachment.attachmentId} has blank display name")
             if (!AttachmentFilenameSanitizer.isValid(attachment.displayName)) {
                 return BackupValidationResult.Invalid("Invalid attachment display name: ${attachment.displayName}")
             }

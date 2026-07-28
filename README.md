@@ -56,7 +56,7 @@ Detailed instructions for every feature:
 ### Current Status (Milestone 9 — Backup and Export)
 *   **Milestone 8 — Dashboard and Reports:** COMPLETE
 *   **Milestone 9 — Backup and Export:** IN PROGRESS
-*   **Backup creation:** PASSED
+*   **Backup creation:** PARTIAL
 *   **Backup restore:** NOT STARTED
 *   **Customer data export:** NOT STARTED
 *   **CI verification:** NOT CONFIGURED
