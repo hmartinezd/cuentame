@@ -62,11 +62,12 @@ class RoomStockCountRepository @Inject constructor(
     private val historyValidator: StockCountMovementHistoryValidator,
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val activeRestaurantProvider: ActiveRestaurantProvider
 ) : StockCountRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
-        return restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
+        return activeRestaurantProvider.getActiveRestaurant()
     }
 
     private fun parseHistoryDecimal(value: String): BigDecimal {

@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.settings.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.backup.BackupFilenameGenerator
@@ -20,144 +21,143 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
+@JvmInline
+value class BackupOperationId(val value: Long)
+
 sealed interface BackupUiState {
     data object Idle : BackupUiState
-    data object WaitingForDestination : BackupUiState
-    data object Creating : BackupUiState
-    data object Validating : BackupUiState
-    data class Success(val manifest: BackupManifest) : BackupUiState
-    data class Error(val result: BackupResult.Error) : BackupUiState
-    data object Cancelled : BackupUiState
+    data class WaitingForDestination(val operationId: BackupOperationId) : BackupUiState
+    data class Creating(val operationId: BackupOperationId) : BackupUiState
+    data class Validating(val operationId: BackupOperationId) : BackupUiState
+    data class Success(val operationId: BackupOperationId, val manifest: BackupManifest) : BackupUiState
+    data class Error(val operationId: BackupOperationId?, val error: BackupResult.Error) : BackupUiState
+    data class Cancelled(val operationId: BackupOperationId) : BackupUiState
 }
 
 sealed interface BackupUiEvent {
-    /**
-     * Instructs the UI to launch the system file-picker.
-     * The UI must pass [operationId] back to [onFileSelected] or [onPickerCancelled]
-     * so that stale picker results from configuration changes are rejected.
-     */
-    data class LaunchFilePicker(val operationId: Long, val suggestedName: String) : BackupUiEvent
+    data class LaunchFilePicker(val operationId: BackupOperationId, val suggestedName: String) : BackupUiEvent
 }
 
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val restaurantRepository: RestaurantRepository,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val uiState: StateFlow<BackupUiState> = _uiState
 
-    /**
-     * Buffered channel: the event survives a brief gap between emission and collection
-     * (e.g., during an Activity recreation). Capacity 1 is intentional — a second
-     * LaunchFilePicker while one is already pending indicates a logic error upstream.
-     */
     private val _events = Channel<BackupUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     private var destinationPickerPreparationJob: Job? = null
     private var activeBackupJob: Job? = null
 
-    private val operationTokenGenerator = AtomicLong(0L)
-    @Volatile private var activeOperationToken: Long = -1
+    private val operationTokenGenerator = AtomicLong(savedStateHandle.get<Long>("last_op_id") ?: 0L)
+    @Volatile private var activeOperationToken: Long = savedStateHandle.get<Long>("active_op_id") ?: -1L
 
-    /**
-     * Attempts to transition to WaitingForDestination and launch picker preparation.
-     * Atomically ignores the request if an operation is already in progress.
-     */
     fun onCreateBackupRequested() {
         while (true) {
             val current = _uiState.value
             if (!isTerminalState(current)) return // Already in progress
 
-            if (_uiState.compareAndSet(current, BackupUiState.WaitingForDestination)) {
+            val token = operationTokenGenerator.incrementAndGet()
+            activeOperationToken = token
+            savedStateHandle["last_op_id"] = token
+            savedStateHandle["active_op_id"] = token
+
+            val opId = BackupOperationId(token)
+            if (_uiState.compareAndSet(current, BackupUiState.WaitingForDestination(opId))) {
+                launchPickerPrep(opId, token)
                 break
             }
         }
+    }
 
-        val token = operationTokenGenerator.incrementAndGet()
-        activeOperationToken = token
-
+    private fun launchPickerPrep(opId: BackupOperationId, token: Long) {
         cancelAllJobs()
         destinationPickerPreparationJob = viewModelScope.launch {
             try {
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
 
-                // Only emit if this is still the current operation and we are still waiting
-                if (activeOperationToken == token && _uiState.value == BackupUiState.WaitingForDestination) {
-                    _events.send(BackupUiEvent.LaunchFilePicker(token, suggestedName))
+                if (activeOperationToken == token && _uiState.value is BackupUiState.WaitingForDestination) {
+                    _events.send(BackupUiEvent.LaunchFilePicker(opId, suggestedName))
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (activeOperationToken == token) {
-                    _uiState.value = BackupUiState.Error(BackupResult.Error.FilenamePreparationFailure(e))
+                    _uiState.value = BackupUiState.Error(opId, BackupResult.Error.FilenamePreparationFailure(e))
                 }
             }
         }
     }
 
-    /**
-     * Handles the file selection result from the system picker.
-     * [operationId] must match the token from the [BackupUiEvent.LaunchFilePicker] event;
-     * stale or duplicate callbacks are silently discarded.
-     */
-    fun onFileSelected(operationId: Long, uri: String) {
-        if (operationId != activeOperationToken) return // Stale picker result
+    fun onFileSelected(operationId: BackupOperationId, uri: String) {
+        if (operationId.value != activeOperationToken) return // Stale picker result
 
-        // Atomic transition: only proceed if we were exactly WaitingForDestination
-        if (!_uiState.compareAndSet(BackupUiState.WaitingForDestination, BackupUiState.Creating)) {
+        val current = _uiState.value
+        if (current !is BackupUiState.WaitingForDestination || current.operationId != operationId) {
             return // Duplicate or stale callback
+        }
+
+        if (!_uiState.compareAndSet(current, BackupUiState.Creating(operationId))) {
+            return
         }
 
         destinationPickerPreparationJob?.cancel()
         activeBackupJob?.cancel()
 
-        val token = operationId
+        val token = operationId.value
         activeBackupJob = viewModelScope.launch {
             try {
                 backupRepository.createBackup(uri).collect { status ->
                     if (activeOperationToken != token) return@collect
-                    applyOperationStatus(status)
+                    applyOperationStatus(operationId, status)
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: Exception) {
+                if (activeOperationToken == token) {
+                    _uiState.value = BackupUiState.Error(operationId, BackupResult.Error.SystemIOFailure(e))
+                }
             }
         }
     }
 
-    /**
-     * Handles the case where the user dismissed the system file-picker without selecting a file.
-     * [operationId] must match the token from the [BackupUiEvent.LaunchFilePicker] event;
-     * stale callbacks are silently discarded.
-     */
-    fun onPickerCancelled(operationId: Long) {
-        if (operationId != activeOperationToken) return // Stale callback
-        if (_uiState.compareAndSet(BackupUiState.WaitingForDestination, BackupUiState.Cancelled)) {
-            destinationPickerPreparationJob?.cancel()
+    fun onPickerCancelled(operationId: BackupOperationId) {
+        if (operationId.value != activeOperationToken) return
+        val current = _uiState.value
+        if (current is BackupUiState.WaitingForDestination && current.operationId == operationId) {
+            if (_uiState.compareAndSet(current, BackupUiState.Cancelled(operationId))) {
+                destinationPickerPreparationJob?.cancel()
+            }
         }
     }
 
-    private fun applyOperationStatus(status: BackupOperationStatus) {
+    private fun applyOperationStatus(operationId: BackupOperationId, status: BackupOperationStatus) {
         when (status) {
-            is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating
-            is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating
-            is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(status.manifest)
+            is BackupOperationStatus.Creating -> _uiState.value = BackupUiState.Creating(operationId)
+            is BackupOperationStatus.Validating -> _uiState.value = BackupUiState.Validating(operationId)
+            is BackupOperationStatus.Success -> _uiState.value = BackupUiState.Success(operationId, status.manifest)
             is BackupOperationStatus.Error -> {
                 _uiState.value = if (status.result is BackupResult.Error.OperationCancelled) {
-                    BackupUiState.Cancelled
+                    BackupUiState.Cancelled(operationId)
                 } else {
-                    BackupUiState.Error(status.result)
+                    BackupUiState.Error(operationId, status.result)
                 }
             }
         }
     }
 
     fun resetStatus() {
-        activeOperationToken = operationTokenGenerator.incrementAndGet()
+        val newToken = operationTokenGenerator.incrementAndGet()
+        activeOperationToken = newToken
+        savedStateHandle["last_op_id"] = newToken
+        savedStateHandle["active_op_id"] = newToken
         cancelAllJobs()
         _uiState.value = BackupUiState.Idle
     }
@@ -168,7 +168,7 @@ class BackupViewModel @Inject constructor(
         state == BackupUiState.Idle ||
         state is BackupUiState.Success ||
         state is BackupUiState.Error ||
-        state == BackupUiState.Cancelled
+        state is BackupUiState.Cancelled
 
     private fun cancelAllJobs() {
         destinationPickerPreparationJob?.cancel()

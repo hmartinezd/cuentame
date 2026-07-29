@@ -54,12 +54,13 @@ class RoomWasteRepository @Inject constructor(
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider,
-    private val failureBoundary: IntegrationFailureBoundary
+    private val failureBoundary: IntegrationFailureBoundary,
+    private val activeRestaurantProvider: ActiveRestaurantProvider
 ) : WasteRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantId {
-        val restaurant = restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
-        return RestaurantId(restaurant.id)
+        val rest = activeRestaurantProvider.getActiveRestaurant()
+        return RestaurantId(rest.id)
     }
 
     private fun parseHistoryDecimal(value: String): BigDecimal {

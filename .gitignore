@@ -9,8 +9,10 @@
 !/.idea/compiler.xml
 !/.idea/runConfigurations.xml
 .DS_Store
-/build
-/captures
+build/
+**/build/
+.gradle/
+**/build-logic/.gradle/
 .externalNativeBuild
 .cxx
 *.apk

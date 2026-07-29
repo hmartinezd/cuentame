@@ -64,11 +64,14 @@ class RoomPurchaseRepository @Inject constructor(
     private val lineCalculator: PurchaseLineCalculator,
     private val historyValidator: PurchaseMovementHistoryValidator,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val activeRestaurantProvider: ActiveRestaurantProvider,
+    private val postingCoordinator: PurchasePostingCoordinator,
+    private val voidingCoordinator: PurchaseVoidingCoordinator
 ) : PurchaseRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
-        return restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
+        return activeRestaurantProvider.getActiveRestaurant()
     }
 
     override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> {
@@ -288,136 +291,14 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun post(id: PurchaseReceiptId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
-
-            val lines = purchaseDao.getLinesForReceipt(id.value)
-            val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-
-            if (receipt.status == DocumentStatus.POSTED.name) {
-                historyValidator.validatePostedHistory(receipt, lines, existingMovements)
-                return@withTransaction
-            }
-
-            if (receipt.status != DocumentStatus.DRAFT.name) {
-                throw ValidationError.InvalidPurchaseStatusTransition
-            }
-
-            historyValidator.validateDraftHistory(receipt, existingMovements)
-            if (lines.isEmpty()) throw ValidationError.PurchaseHasNoLines
-
-            // Re-validate references and re-calculate canonical values
-            referenceValidator.validateSupplierForPosting(receipt.supplierId, activeRestaurant.id)
-
-            val movements = lines.map { lineEntity ->
-                val lineRefs = referenceValidator.validateLineReferences(
-                    activeRestaurant.id,
-                    IngredientId(lineEntity.ingredientId),
-                    InventoryAreaId(lineEntity.areaId),
-                    IngredientUnitOptionId(lineEntity.ingredientUnitOptionId),
-                    requireActive = true
-                )
-
-                val calculation = lineCalculator.calculate(
-                    quantityEntered = BigDecimal(lineEntity.quantityEntered),
-                    lineTotal = BigDecimal(lineEntity.lineTotal),
-                    optionFactorToBase = lineRefs.unitOption.factorToBase
-                )
-
-                // Update line with canonical calculations
-                purchaseDao.updateLine(lineEntity.copy(
-                    quantityBase = calculation.quantityBase.toPlainString(),
-                    unitCostBase = calculation.unitCostBase.toPlainString(),
-                    updatedAt = timeProvider.now().toEpochMilli()
-                ))
-
-                InventoryMovementEntity(
-                    id = idGenerator.newId(),
-                    restaurantId = activeRestaurant.id,
-                    ingredientId = lineEntity.ingredientId,
-                    areaId = lineEntity.areaId,
-                    movementType = InventoryMovementType.PURCHASE.name,
-                    quantityBaseSigned = calculation.quantityBase.toPlainString(),
-                    unitCostBaseSnapshot = calculation.unitCostBase.toPlainString(),
-                    totalValueSnapshot = lineEntity.lineTotal,
-                    effectiveAt = receipt.purchaseDate,
-                    sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-                    sourceDocumentId = receipt.id,
-                    sourceOperationId = "purchase-post:${receipt.id}:${lineEntity.id}",
-                    sourceLineId = lineEntity.id,
-                    reversalOfMovementId = null,
-                    createdAt = timeProvider.now().toEpochMilli()
-                )
-            }
-
-            movementDao.insertAll(movements)
-
-            val affectedIngredients = lines.map { it.ingredientId }.distinct()
-            affectedIngredients.forEach { ingredientId ->
-                projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
-            }
-
-            val now = timeProvider.now().toEpochMilli()
-            purchaseDao.updateReceipt(receipt.copy(
-                status = DocumentStatus.POSTED.name,
-                postedAt = now,
-                updatedAt = now
-            ))
+            postingCoordinator.post(id, activeRestaurant)
         }
     }
 
     override suspend fun void(id: PurchaseReceiptId) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
-            val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
-
-            val lines = purchaseDao.getLinesForReceipt(id.value)
-            val allMovements = movementDao.getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receipt.id)
-
-            if (receipt.status == DocumentStatus.VOIDED.name) {
-                historyValidator.validateVoidedHistory(receipt, lines, allMovements)
-                return@withTransaction
-            }
-
-            if (receipt.status != DocumentStatus.POSTED.name) {
-                throw ValidationError.InvalidPurchaseStatusTransition
-            }
-
-            historyValidator.validatePostedHistory(receipt, lines, allMovements)
-
-            val originalMovements = allMovements.filter { it.movementType == InventoryMovementType.PURCHASE.name }
-            val now = timeProvider.now().toEpochMilli()
-            val reversals = originalMovements.map { original ->
-                InventoryMovementEntity(
-                    id = idGenerator.newId(),
-                    restaurantId = activeRestaurant.id,
-                    ingredientId = original.ingredientId,
-                    areaId = original.areaId,
-                    movementType = InventoryMovementType.REVERSAL.name,
-                    quantityBaseSigned = BigDecimal(original.quantityBaseSigned).negate().toPlainString(),
-                    unitCostBaseSnapshot = original.unitCostBaseSnapshot,
-                    totalValueSnapshot = original.totalValueSnapshot?.let { BigDecimal(it).negate().toPlainString() },
-                    effectiveAt = now,
-                    sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-                    sourceDocumentId = receipt.id,
-                    sourceOperationId = "reversal:${original.id}",
-                    sourceLineId = original.sourceLineId,
-                    reversalOfMovementId = original.id,
-                    createdAt = now
-                )
-            }
-
-            movementDao.insertAll(reversals)
-
-            val affectedIngredients = lines.map { it.ingredientId }.distinct()
-            affectedIngredients.forEach { ingredientId ->
-                projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
-            }
-
-            purchaseDao.updateReceipt(receipt.copy(
-                status = DocumentStatus.VOIDED.name,
-                voidedAt = now,
-                updatedAt = now
-            ))
+            voidingCoordinator.void(id, activeRestaurant)
         }
     }
 }

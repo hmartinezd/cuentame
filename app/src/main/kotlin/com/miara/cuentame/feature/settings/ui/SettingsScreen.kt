@@ -52,10 +52,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.domain.validation.toUserMessageRes
 import com.miara.cuentame.core.model.backup.toUserMessageRes
 import com.miara.cuentame.core.preferences.model.ThemeMode
+import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
 import com.miara.cuentame.feature.settings.viewmodel.BackupViewModel
@@ -79,16 +81,18 @@ fun SettingsRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
-    var pendingPickerOperationId by remember { mutableLongStateOf(-1L) }
+    var pendingPickerOperationId by rememberSaveable { mutableStateOf<BackupOperationId?>(null) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
         onResult = { uri ->
             val opId = pendingPickerOperationId
-            if (uri != null) {
-                backupViewModel.onFileSelected(opId, uri.toString())
-            } else {
-                backupViewModel.onPickerCancelled(opId)
+            if (opId != null) {
+                if (uri != null) {
+                    backupViewModel.onFileSelected(opId, uri.toString())
+                } else {
+                    backupViewModel.onPickerCancelled(opId)
+                }
             }
         }
     )
@@ -118,7 +122,7 @@ fun SettingsRoute(
                 backupViewModel.resetStatus()
             }
             is BackupUiState.Error -> {
-                val message = context.getString(state.result.toUserMessageRes())
+                val message = context.getString(state.error.toUserMessageRes())
                 snackbarHostState.showSnackbar(context.getString(R.string.backup_error_message, message))
                 backupViewModel.resetStatus()
             }
@@ -237,9 +241,9 @@ fun SettingsScreen(
                     if (isBackupActive) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp).testTag(when(backupUiState) {
-                                BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
-                                BackupUiState.Creating -> "backup_creating_indicator"
-                                BackupUiState.Validating -> "backup_validating_indicator"
+                                is BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
+                                is BackupUiState.Creating -> "backup_creating_indicator"
+                                is BackupUiState.Validating -> "backup_validating_indicator"
                                 else -> "backup_active_indicator"
                             })
                         )

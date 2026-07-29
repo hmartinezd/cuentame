@@ -37,6 +37,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    @Suppress("DEPRECATION")
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -54,6 +55,10 @@ android {
 
     testOptions {
         animationsDisabled = false
+        unitTests.all { testTask ->
+            testTask.jvmArgs("-Xmx2048m", "-XX:MaxMetaspaceSize=1024m")
+            testTask.maxParallelForks = 1
+        }
     }
 
     sourceSets {
@@ -64,7 +69,26 @@ android {
 }
 
 dependencies {
-    // Core
+    // Core Modules
+    implementation(project(":core:common"))
+    implementation(project(":core:model"))
+    implementation(project(":core:domain"))
+    implementation(project(":core:presentation"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":core:data"))
+    implementation(project(":core:backup"))
+
+    // Feature Modules
+    implementation(project(":feature:onboarding"))
+    implementation(project(":feature:home"))
+    implementation(project(":feature:inventory"))
+    implementation(project(":feature:purchases"))
+    implementation(project(":feature:counts"))
+    implementation(project(":feature:waste"))
+    implementation(project(":feature:reports"))
+    implementation(project(":feature:settings"))
+
+    // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -121,7 +145,7 @@ dependencies {
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.turbine)
-    androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.mockkAndroid)
     kspAndroidTest(libs.hilt.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
