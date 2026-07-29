@@ -108,23 +108,38 @@ class AndroidBackupRepository @Inject constructor(
     }.flowOn(Dispatchers.IO)
 
     private fun isInsufficientStorage(e: Throwable): Boolean {
-        var cause: Throwable? = e
-        while (cause != null) {
-            if (cause is IOException && cause.message?.contains("ENOSPC", ignoreCase = true) == true) {
-                return true
+        return generateSequence(e) { it.cause }.any { cause ->
+            when {
+                cause is java.io.IOException && (
+                    cause.message?.contains("ENOSPC", ignoreCase = true) == true ||
+                    cause.message?.contains("No space left on device", ignoreCase = true) == true
+                ) -> true
+                // ErrnoException errno 28 = ENOSPC (Android)
+                cause.javaClass.simpleName == "ErrnoException" -> {
+                    try {
+                        val errnoField = cause.javaClass.getField("errno")
+                        errnoField.getInt(cause) == 28
+                    } catch (_: Exception) { false }
+                }
+                else -> false
             }
-            cause = cause.cause
         }
-        return false
     }
 
+    /**
+     * Best-effort cleanup of a partially-written destination.
+     * 1. Attempts deletion via DocumentsContract.
+     * 2. Falls back to truncation (overwrite with zero bytes).
+     * Must never throw or replace the original error.
+     */
     private fun tryCleanupPartialFile(uri: Uri) {
         try {
-            // Truncate to zero bytes if possible
+            android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri)
+            return
+        } catch (_: Exception) {}
+        try {
             context.contentResolver.openFileDescriptor(uri, "wt")?.use { it.close() }
-        } catch (e: Exception) {
-            // Best effort cleanup
-        }
+        } catch (_: Exception) {}
     }
 
     private suspend fun performBackup(zos: ZipOutputStream, entryChecksums: MutableMap<String, String>) {
@@ -442,7 +457,8 @@ class AndroidBackupRepository @Inject constructor(
         } catch (e: Exception) {
             return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID, "Invalid preferences/settings.json: ${e.message}")
         }
-        if (prefsDto.appLocaleTag !in setOf("en-US", "es-US")) return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID, "Unsupported app locale: ${prefsDto.appLocaleTag}")
+        if (prefsDto.appLocaleTag !in SupportedAppLocales.ALL) return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID, "Unsupported app locale in preferences")
+        if (prefsDto.appLocaleTag != manifest.localeTag) return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID, "Preferences locale does not match manifest locale")
         try { com.miara.cuentame.core.preferences.model.ThemeMode.valueOf(prefsDto.themeMode) }
         catch (e: Exception) { return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID, "Unsupported theme mode") }
 

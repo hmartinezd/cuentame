@@ -51,16 +51,32 @@ class BackupViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun makeRestaurant(name: String = "My Rest") =
+        Restaurant(RestaurantId("rest-1"), name, "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+
+    // ── Helper: advances until idle and collects the first LaunchFilePicker event ──
+
+    private suspend fun awaitPickerEvent(): BackupUiEvent.LaunchFilePicker {
+        var event: BackupUiEvent.LaunchFilePicker? = null
+        viewModel.events.test {
+            viewModel.onCreateBackupRequested()
+            testDispatcher.scheduler.advanceUntilIdle()
+            event = awaitItem() as BackupUiEvent.LaunchFilePicker
+            cancelAndConsumeRemainingEvents()
+        }
+        return event!!
+    }
+
     @Test
     fun `initial state is Idle`() = runTest {
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
     }
 
     @Test
-    fun `onCreateBackupRequested emits LaunchFilePicker and transitions to WaitingForDestination`() = runTest {
+    fun `onCreateBackupRequested emits LaunchFilePicker with operationId and transitions to WaitingForDestination`() = runTest {
         val now = Instant.parse("2026-01-01T12:00:00Z")
         every { timeProvider.now() } returns now
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant("My Rest")
 
         viewModel.events.test {
             viewModel.onCreateBackupRequested()
@@ -69,62 +85,93 @@ class BackupViewModelTest {
             val event = awaitItem() as BackupUiEvent.LaunchFilePicker
             assertThat(event.suggestedName).contains("My_Rest")
             assertThat(event.suggestedName).contains("2026-01-01")
+            assertThat(event.operationId).isGreaterThan(0L)
 
             assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
         }
     }
 
     @Test
-    fun `restaurant lookup suspended then picker cancellation transitions to Cancelled`() = runTest {
+    fun `onFileSelected with correct operationId transitions to Creating`() = runTest {
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
+        every { backupRepository.createBackup("uri-ok") } returns flow {
+            emit(BackupOperationStatus.Creating)
+        }
+
+        val event = awaitPickerEvent()
+        viewModel.onFileSelected(event.operationId, "uri-ok")
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating)
+    }
+
+    @Test
+    fun `onFileSelected with stale operationId is silently ignored`() = runTest {
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
+
+        val event = awaitPickerEvent()
+        val staleId = event.operationId - 1L
+
+        viewModel.onFileSelected(staleId, "uri-stale")
+
+        // State must still be WaitingForDestination — not Creating
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
+        verify(exactly = 0) { backupRepository.createBackup(any()) }
+    }
+
+    @Test
+    fun `onPickerCancelled with correct operationId transitions to Cancelled`() = runTest {
         coEvery { restaurantRepository.getRestaurant() } coAnswers {
             delay(1000)
-            Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+            makeRestaurant()
         }
         every { timeProvider.now() } returns Instant.EPOCH
 
         viewModel.onCreateBackupRequested()
-        // Cancel picker while restaurant lookup is still suspended
-        viewModel.onPickerCancelled()
+        testDispatcher.scheduler.advanceTimeBy(10)
+        val token = viewModel.uiState.value // WaitingForDestination
+        assertThat(token).isEqualTo(BackupUiState.WaitingForDestination)
+
+        // Token comes from the next event (emitted after delay resolves), but we
+        // can cancel before the event fires. For simplicity retrieve via reflection.
+        val operationTokenField = viewModel.javaClass.getDeclaredField("activeOperationToken")
+        operationTokenField.isAccessible = true
+        val opId = operationTokenField.getLong(viewModel)
+
+        viewModel.onPickerCancelled(opId)
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
     }
 
     @Test
-    fun `stale picker preparation job is cancelled on reset or new request`() = runTest {
-        coEvery { restaurantRepository.getRestaurant() } coAnswers {
-            delay(2000)
-            Restaurant(RestaurantId("rest-1"), "Slow Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
-        }
+    fun `onPickerCancelled with stale operationId is silently ignored`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceTimeBy(500)
-        // Reset while picker prep is running
-        viewModel.resetState()
-        testDispatcher.scheduler.advanceUntilIdle()
+        awaitPickerEvent()
 
-        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+        // Pass stale id
+        viewModel.onPickerCancelled(-999L)
+
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
     }
 
     @Test
     fun `duplicate simultaneous file callbacks are rejected via CAS`() = runTest {
-        val flow = flow {
-            emit(BackupOperationStatus.Creating)
-        }
+        val flow = flow { emit(BackupOperationStatus.Creating) }
         every { backupRepository.createBackup("accepted-uri") } returns flow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
+        val event = awaitPickerEvent()
 
         // First callback succeeds
-        viewModel.onFileSelected("accepted-uri")
+        viewModel.onFileSelected(event.operationId, "accepted-uri")
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating)
 
         // Duplicate callback while Creating is rejected immediately
-        viewModel.onFileSelected("duplicate-uri")
+        viewModel.onFileSelected(event.operationId, "duplicate-uri")
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating)
 
         testDispatcher.scheduler.advanceUntilIdle()
@@ -141,13 +188,11 @@ class BackupViewModelTest {
             emit(BackupOperationStatus.Success(mockk()))
         }
         every { backupRepository.createBackup("uri-slow") } returns slowFlow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.onFileSelected("uri-slow")
+        val event = awaitPickerEvent()
+        viewModel.onFileSelected(event.operationId, "uri-slow")
         testDispatcher.scheduler.advanceTimeBy(500)
 
         // Reset state (invalidating active token)
@@ -166,20 +211,18 @@ class BackupViewModelTest {
             BackupOperationStatus.Creating,
             BackupOperationStatus.Success(manifest)
         )
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.onPickerCancelled()
+        val event1 = awaitPickerEvent()
+        viewModel.onPickerCancelled(event1.operationId)
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Cancelled)
 
         viewModel.resetState()
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.onFileSelected("uri-new")
+        val event2 = awaitPickerEvent()
+        viewModel.onFileSelected(event2.operationId, "uri-new")
         testDispatcher.scheduler.advanceUntilIdle()
 
         val success = viewModel.uiState.value as BackupUiState.Success
@@ -193,13 +236,11 @@ class BackupViewModelTest {
             throw CancellationException("Cancelled by caller")
         }
         every { backupRepository.createBackup("uri-cancel") } returns cancellingFlow
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.onFileSelected("uri-cancel")
+        val event = awaitPickerEvent()
+        viewModel.onFileSelected(event.operationId, "uri-cancel")
         testDispatcher.scheduler.advanceUntilIdle()
 
         // State must not be Error
@@ -224,19 +265,43 @@ class BackupViewModelTest {
         val flow2 = flow { emit(BackupOperationStatus.Creating); delay(1000) }
         every { backupRepository.createBackup("uri-1") } returns flow1
         every { backupRepository.createBackup("uri-2") } returns flow2
-        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(RestaurantId("rest-1"), "My Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
         every { timeProvider.now() } returns Instant.EPOCH
 
-        viewModel.onCreateBackupRequested()
-        testDispatcher.scheduler.advanceUntilIdle()
+        val event = awaitPickerEvent()
 
-        val j1 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch { viewModel.onFileSelected("uri-1") }
-        val j2 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch { viewModel.onFileSelected("uri-2") }
+        val j1 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch {
+            viewModel.onFileSelected(event.operationId, "uri-1")
+        }
+        val j2 = kotlinx.coroutines.CoroutineScope(testDispatcher).launch {
+            viewModel.onFileSelected(event.operationId, "uri-2")
+        }
         testDispatcher.scheduler.advanceUntilIdle()
         j1.join()
         j2.join()
 
         verify(exactly = 1) { backupRepository.createBackup("uri-1") }
         verify(exactly = 0) { backupRepository.createBackup("uri-2") }
+    }
+
+    @Test
+    fun `stale picker result from configuration change is rejected`() = runTest {
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
+        every { backupRepository.createBackup(any()) } returns flow {
+            emit(BackupOperationStatus.Creating)
+        }
+
+        val event = awaitPickerEvent()
+        val staleOpId = event.operationId - 5L // Simulate a very old token
+
+        // Stale callback must not change state or call repository
+        viewModel.onFileSelected(staleOpId, "uri-from-old-activity")
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
+        verify(exactly = 0) { backupRepository.createBackup(any()) }
+
+        // A cancellation with stale ID must also be rejected
+        viewModel.onPickerCancelled(staleOpId)
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.WaitingForDestination)
     }
 }

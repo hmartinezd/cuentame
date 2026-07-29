@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -78,13 +79,16 @@ fun SettingsRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    var pendingPickerOperationId by remember { mutableLongStateOf(-1L) }
+
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
         onResult = { uri ->
+            val opId = pendingPickerOperationId
             if (uri != null) {
-                backupViewModel.onFileSelected(uri.toString())
+                backupViewModel.onFileSelected(opId, uri.toString())
             } else {
-                backupViewModel.onPickerCancelled()
+                backupViewModel.onPickerCancelled(opId)
             }
         }
     )
@@ -93,6 +97,7 @@ fun SettingsRoute(
         backupViewModel.events.collect { event ->
             when (event) {
                 is BackupUiEvent.LaunchFilePicker -> {
+                    pendingPickerOperationId = event.operationId
                     backupLauncher.launch(event.suggestedName)
                 }
             }

@@ -7,6 +7,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.miara.cuentame.core.database.dao.*
 import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.database.DatabaseSchema
 
 @Database(
     entities = [
@@ -27,7 +28,7 @@ import com.miara.cuentame.core.database.entity.*
         InventoryBalanceProjectionEntity::class,
         IngredientCostProjectionEntity::class
     ],
-    version = 2,
+    version = DatabaseSchema.VERSION,
     exportSchema = true
 )
 @TypeConverters(com.miara.cuentame.core.database.converter.RoomTypeConverters::class)

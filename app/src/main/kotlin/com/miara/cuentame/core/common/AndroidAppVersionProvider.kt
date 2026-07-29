@@ -2,6 +2,7 @@ package com.miara.cuentame.core.common
 
 import android.content.Context
 import com.miara.cuentame.BuildConfig
+import com.miara.cuentame.core.database.DatabaseSchema
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,5 +14,5 @@ class AndroidAppVersionProvider @Inject constructor(
     override val applicationId: String = BuildConfig.APPLICATION_ID
     override val versionName: String = BuildConfig.VERSION_NAME
     override val versionCode: Long = BuildConfig.VERSION_CODE.toLong()
-    override val databaseSchemaVersion: Int = 2 // Authoritative schema version
+    override val databaseSchemaVersion: Int = DatabaseSchema.VERSION
 }

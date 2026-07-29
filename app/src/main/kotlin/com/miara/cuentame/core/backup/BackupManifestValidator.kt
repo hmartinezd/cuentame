@@ -1,8 +1,8 @@
 package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.model.backup.BackupManifest
-import java.time.format.DateTimeParseException
 import java.time.Instant
+import java.time.format.DateTimeParseException
 import java.util.Currency
 
 object BackupManifestValidator {
@@ -39,19 +39,11 @@ object BackupManifestValidator {
         if (manifest.restaurantId.isNullOrBlank()) return Result.failure(Exception("restaurantId is blank"))
         if (manifest.restaurantName.isNullOrBlank()) return Result.failure(Exception("restaurantName is blank"))
 
-        // Strict Locale/Currency check
-        try {
-            val tag = manifest.localeTag
-            if (tag.isNullOrBlank()) throw Exception("Missing localeTag")
-            if (!tag.matches(Regex("^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})+$"))) {
-                throw Exception("Invalid localeTag format: $tag")
-            }
-            val locale = java.util.Locale.forLanguageTag(tag)
-            if (locale.language.isBlank() || locale.toLanguageTag() == "und") {
-                throw Exception("Invalid localeTag format: $tag")
-            }
-        } catch (e: Exception) {
-            return Result.failure(Exception("Invalid localeTag: ${manifest.localeTag}"))
+        // Strict Locale check — only supported app locales are accepted
+        val tag = manifest.localeTag
+        if (tag.isNullOrBlank()) return Result.failure(Exception("Missing localeTag"))
+        if (tag !in SupportedAppLocales.ALL) {
+            return Result.failure(Exception("Unsupported localeTag: $tag"))
         }
         try {
             manifest.currencyCode?.let { Currency.getInstance(it) } ?: throw Exception("Missing currencyCode")
