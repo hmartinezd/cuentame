@@ -1,6 +1,5 @@
 package com.miara.cuentame.core.model.backup
 
-import com.miara.cuentame.core.database.entity.*
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -44,25 +43,6 @@ data class BackupAttachmentReference(
     val recordId: String
 )
 
-data class BackupSnapshot(
-    val restaurants: List<RestaurantEntity>,
-    val inventoryAreas: List<InventoryAreaEntity>,
-    val ingredientCategories: List<IngredientCategoryEntity>,
-    val units: List<UnitEntity>,
-    val ingredients: List<IngredientEntity>,
-    val ingredientUnitOptions: List<IngredientUnitOptionEntity>,
-    val suppliers: List<SupplierEntity>,
-    val purchaseReceipts: List<PurchaseReceiptEntity>,
-    val purchaseLines: List<PurchaseLineEntity>,
-    val stockCounts: List<StockCountEntity>,
-    val stockCountAreas: List<StockCountAreaEntity>,
-    val stockCountLines: List<StockCountLineEntity>,
-    val wasteEvents: List<WasteEventEntity>,
-    val inventoryMovements: List<InventoryMovementEntity>,
-    val inventoryBalanceProjections: List<InventoryBalanceProjectionEntity>,
-    val ingredientCostProjections: List<IngredientCostProjectionEntity>
-)
-
 @Serializable
 data class BackupPreferencesDto(
     val themeMode: String,
@@ -93,6 +73,9 @@ sealed interface BackupResult {
         data object OperationCancelled : Error
         data object UnexpectedInternalFailure : Error
         data class SystemIOFailure(val cause: Throwable) : Error
+        data object LocaleConsistencyFailure : Error
+        data object AttachmentPreflightFailure : Error
+        data object OperationInterrupted : Error
     }
 }
 

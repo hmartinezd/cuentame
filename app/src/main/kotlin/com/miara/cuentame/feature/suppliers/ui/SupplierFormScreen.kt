@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.suppliers.viewmodel.SupplierFormEvent
 import com.miara.cuentame.feature.suppliers.viewmodel.SupplierFormUiState
 import com.miara.cuentame.feature.suppliers.viewmodel.SupplierFormViewModel

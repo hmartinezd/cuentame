@@ -1,14 +1,13 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.backup.api.BackupDocumentUri
-import com.miara.cuentame.core.backup.api.BackupSnapshotResult
+import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.fakes.*
 import com.miara.cuentame.core.backup.internal.BackupCleanupCoordinator
+import com.miara.cuentame.core.backup.internal.BackupCleanupOutcome
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
-import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.coEvery
@@ -22,7 +21,6 @@ import java.time.Instant
 class BackupCleanupLifecycleTest {
 
     private val snapshotSource = FakeBackupSnapshotSource()
-    private val preferencesSource = FakeBackupPreferencesSource()
     private val attachmentSource = FakeBackupAttachmentSource()
     private val documentStore = FakeBackupDocumentStore()
     private val storageErrorClassifier = FakeBackupStorageErrorClassifier()
@@ -36,7 +34,6 @@ class BackupCleanupLifecycleTest {
     fun setup() {
         repository = AndroidBackupRepository(
             snapshotSource = snapshotSource,
-            preferencesSource = preferencesSource,
             attachmentSource = attachmentSource,
             documentStore = documentStore,
             planner = planner,
@@ -72,10 +69,13 @@ class BackupCleanupLifecycleTest {
         val rest = Restaurant(RestaurantId("r1"), "R", "USD", "en-US", Instant.now(), Instant.now())
         coEvery { restaurantRepository.getRestaurant() } returns rest
         snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyMap())
-        preferencesSource.result = BackupPreferencesDto("SYSTEM", true, "en-US")
         
-        // Planner succeeds but ZIP creation will fail because we'll throw in performBackup (simulated by closing store)
-        coEvery { planner.createPlan(any(), any(), any()) } returns Result.success(mockk(relaxed = true))
+        coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
+            mockk(relaxed = true) {
+                io.mockk.every { snapshotJson } returns ByteArray(0)
+                io.mockk.every { preferencesJson } returns ByteArray(0)
+            }
+        )
         
         // Make openForWrite throw
         documentStore.writeStream = mockk()
@@ -85,7 +85,6 @@ class BackupCleanupLifecycleTest {
         repository.createBackup(docUri).toList()
 
         assertThat(documentStore.deleteCalls).contains(BackupDocumentUri(docUri))
-        assertThat(cleanupCoordinator.lastCleanupOutcome).isEqualTo(BackupCleanupCoordinator.CleanupOutcome.Deleted)
     }
 
     @Test
@@ -93,8 +92,12 @@ class BackupCleanupLifecycleTest {
         val rest = Restaurant(RestaurantId("r1"), "R", "USD", "en-US", Instant.now(), Instant.now())
         coEvery { restaurantRepository.getRestaurant() } returns rest
         snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyMap())
-        preferencesSource.result = BackupPreferencesDto("SYSTEM", true, "en-US")
-        coEvery { planner.createPlan(any(), any(), any()) } returns Result.success(mockk(relaxed = true))
+        coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
+            mockk(relaxed = true) {
+                io.mockk.every { snapshotJson } returns ByteArray(0)
+                io.mockk.every { preferencesJson } returns ByteArray(0)
+            }
+        )
 
         documentStore.deleteResult = false
         documentStore.truncateResult = true
@@ -108,6 +111,5 @@ class BackupCleanupLifecycleTest {
 
         assertThat(documentStore.deleteCalls).contains(BackupDocumentUri(docUri))
         assertThat(documentStore.truncateCalls).contains(BackupDocumentUri(docUri))
-        assertThat(cleanupCoordinator.lastCleanupOutcome).isEqualTo(BackupCleanupCoordinator.CleanupOutcome.Truncated)
     }
 }

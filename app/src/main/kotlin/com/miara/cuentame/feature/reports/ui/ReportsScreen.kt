@@ -25,8 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
-import com.miara.cuentame.feature.home.DashboardMetricUiModel
-import com.miara.cuentame.feature.home.MetricComparisonState
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
+import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import com.miara.cuentame.feature.reports.viewmodel.ReportsScreenState
 import com.miara.cuentame.feature.reports.viewmodel.ReportsViewModel
 import java.time.ZoneId
@@ -35,8 +35,8 @@ import java.time.format.FormatStyle
 import java.util.*
 
 import androidx.compose.foundation.lazy.rememberLazyListState
-import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
-import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
+import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 
 @Composable
 fun ReportsRoute(

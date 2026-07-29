@@ -180,7 +180,7 @@ class BackupViewModelTest {
             val vm = createViewModel(handle)
             val state = vm.uiState.value as BackupUiState.Error
             assertThat(state.operationId).isEqualTo(BackupOperationId(789L))
-            assertThat(state.error).isInstanceOf(BackupResult.Error.SystemIOFailure::class.java)
+            assertThat(state.error).isEqualTo(BackupResult.Error.OperationInterrupted)
         }
     }
 

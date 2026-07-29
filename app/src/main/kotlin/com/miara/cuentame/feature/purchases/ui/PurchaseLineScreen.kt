@@ -47,7 +47,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.designsystem.util.Formatters
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseLineEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseLineScreenState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseLineUiState

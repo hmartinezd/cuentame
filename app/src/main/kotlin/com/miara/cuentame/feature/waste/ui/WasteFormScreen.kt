@@ -67,7 +67,8 @@ import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.designsystem.util.Formatters
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.ui.toLabelRes
 import com.miara.cuentame.core.model.inventory.WasteReason
 import com.miara.cuentame.feature.waste.viewmodel.WasteFormEvent
 import com.miara.cuentame.feature.waste.viewmodel.WasteFormScreenState

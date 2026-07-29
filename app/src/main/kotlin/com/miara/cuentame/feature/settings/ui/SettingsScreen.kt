@@ -35,7 +35,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,8 +53,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
-import com.miara.cuentame.core.model.backup.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.backup.toUserMessageRes
+import com.miara.cuentame.core.model.locale.SupportedAppLocale
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
@@ -103,8 +103,10 @@ fun SettingsRoute(
         backupViewModel.events.collect { event ->
             when (event) {
                 is BackupUiEvent.LaunchFilePicker -> {
-                    pendingPickerOperationIdValue = event.operationId.value
-                    backupLauncher.launch(event.suggestedName)
+                    if (backupViewModel.consumePickerLaunch(event.operationId)) {
+                        pendingPickerOperationIdValue = event.operationId.value
+                        backupLauncher.launch(event.suggestedName)
+                    }
                 }
             }
         }
@@ -145,7 +147,7 @@ fun SettingsRoute(
         snackbarHostState = snackbarHostState,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
-        onLocaleChanged = viewModel::setAppLocaleTag,
+        onLocaleChanged = { viewModel.setAppLocaleTag(it.languageTag) },
         onCreateBackup = backupViewModel::onCreateBackupRequested,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
@@ -164,7 +166,7 @@ fun SettingsScreen(
     snackbarHostState: SnackbarHostState,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
-    onLocaleChanged: (String) -> Unit,
+    onLocaleChanged: (SupportedAppLocale) -> Unit,
     onCreateBackup: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
@@ -288,7 +290,7 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             when (appLocaleTag) {
-                                "es-US" -> stringResource(R.string.lang_es)
+                                SupportedAppLocale.SPANISH_US.languageTag -> stringResource(R.string.lang_es)
                                 else -> stringResource(R.string.lang_en)
                             }
                         )
@@ -327,8 +329,6 @@ fun SettingsScreen(
             onDismiss = { if (!isSaving) showLanguageDialog = false },
             onSelect = {
                 onLocaleChanged(it)
-                // We don't close the dialog here. 
-                // We'll close it in a LaunchedEffect or when preferences change successfully.
             }
         )
     }
@@ -384,15 +384,15 @@ fun LanguageDialog(
     currentTag: String,
     isSaving: Boolean,
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (SupportedAppLocale) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_language)) },
         text = {
             Column(Modifier.selectableGroup()) {
-                LanguageOption("en-US", stringResource(R.string.lang_en), currentTag == "en-US", isSaving, onSelect)
-                LanguageOption("es-US", stringResource(R.string.lang_es), currentTag == "es-US", isSaving, onSelect)
+                LanguageOption(SupportedAppLocale.ENGLISH_US, stringResource(R.string.lang_en), currentTag == SupportedAppLocale.ENGLISH_US.languageTag, isSaving, onSelect)
+                LanguageOption(SupportedAppLocale.SPANISH_US, stringResource(R.string.lang_es), currentTag == SupportedAppLocale.SPANISH_US.languageTag, isSaving, onSelect)
             }
         },
         confirmButton = {
@@ -402,13 +402,13 @@ fun LanguageDialog(
 }
 
 @Composable
-fun LanguageOption(tag: String, label: String, selected: Boolean, isSaving: Boolean, onSelect: (String) -> Unit) {
+fun LanguageOption(locale: SupportedAppLocale, label: String, selected: Boolean, isSaving: Boolean, onSelect: (SupportedAppLocale) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .selectable(
                 selected = selected,
-                onClick = { if (!isSaving) onSelect(tag) },
+                onClick = { if (!isSaving) onSelect(locale) },
                 role = Role.RadioButton,
                 enabled = !isSaving
             )

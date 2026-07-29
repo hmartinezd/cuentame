@@ -29,8 +29,8 @@ import java.time.format.FormatStyle
 import java.util.*
 
 import androidx.compose.foundation.lazy.rememberLazyListState
-import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
-import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
+import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 
 @Composable
 fun PurchaseDetailRoute(

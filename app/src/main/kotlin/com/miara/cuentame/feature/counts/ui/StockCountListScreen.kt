@@ -42,7 +42,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.domain.repository.StockCountSummary
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.ui.StatusChip
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.counts.viewmodel.StockCountListUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountListViewModel

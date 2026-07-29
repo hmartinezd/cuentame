@@ -5,33 +5,27 @@ import com.miara.cuentame.core.backup.api.BackupDocumentUri
 import javax.inject.Inject
 import javax.inject.Singleton
 
+sealed interface BackupCleanupOutcome {
+    data object Deleted : BackupCleanupOutcome
+    data object Truncated : BackupCleanupOutcome
+    data object Failed : BackupCleanupOutcome
+}
+
 @Singleton
 class BackupCleanupCoordinator @Inject constructor(
     private val documentStore: BackupDocumentStore
 ) {
-    // For testing purposes
-    var lastCleanupOutcome: CleanupOutcome? = null
-        private set
-
-    sealed interface CleanupOutcome {
-        data object Deleted : CleanupOutcome
-        data object Truncated : CleanupOutcome
-        data object Failed : CleanupOutcome
-    }
-
-    suspend fun cleanup(uri: BackupDocumentUri) {
-        try {
+    suspend fun cleanup(uri: BackupDocumentUri): BackupCleanupOutcome {
+        return try {
             if (documentStore.delete(uri)) {
-                lastCleanupOutcome = CleanupOutcome.Deleted
-                return
+                BackupCleanupOutcome.Deleted
+            } else if (documentStore.truncate(uri)) {
+                BackupCleanupOutcome.Truncated
+            } else {
+                BackupCleanupOutcome.Failed
             }
-            if (documentStore.truncate(uri)) {
-                lastCleanupOutcome = CleanupOutcome.Truncated
-                return
-            }
-            lastCleanupOutcome = CleanupOutcome.Failed
         } catch (_: Exception) {
-            lastCleanupOutcome = CleanupOutcome.Failed
+            BackupCleanupOutcome.Failed
         }
     }
 }

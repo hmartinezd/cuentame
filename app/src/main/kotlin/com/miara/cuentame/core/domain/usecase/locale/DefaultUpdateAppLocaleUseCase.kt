@@ -31,7 +31,7 @@ class DefaultUpdateAppLocaleUseCase @Inject constructor(
             restaurantRepository.save(restaurant.copy(localeTag = targetLocaleTag))
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             return LocaleUpdateResult.Error.RoomUpdateFailed(e)
         }
 
@@ -39,28 +39,21 @@ class DefaultUpdateAppLocaleUseCase @Inject constructor(
         try {
             preferencesRepository.setAppLocaleTag(targetLocaleTag)
         } catch (e: CancellationException) {
-            // CRITICAL: Must re-evaluate if we need compensation on cancellation.
-            // If the coroutine is cancelled here, Room was updated but DataStore was not.
-            // We use NonCancellable to ensure Room is reverted to match DataStore state.
             withContext(NonCancellable) {
                 try {
                     restaurantRepository.save(restaurant.copy(localeTag = previousLocaleTag))
-                } catch (_: Throwable) {
-                    // Log failure to revert if needed
-                }
+                } catch (_: Exception) {}
             }
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             // Attempt compensation: restore previous Room locale
             var compensationSucceeded = false
             try {
-                // Ensure compensation is not interrupted if the parent scope is cancelled
-                // during this catch block (unlikely but safe).
                 withContext(NonCancellable) {
                     restaurantRepository.save(restaurant.copy(localeTag = previousLocaleTag))
                     compensationSucceeded = true
                 }
-            } catch (_: Throwable) {
+            } catch (_: Exception) {
                 compensationSucceeded = false
             }
             return LocaleUpdateResult.Error.PreferenceUpdateFailed(e, compensationSucceeded)

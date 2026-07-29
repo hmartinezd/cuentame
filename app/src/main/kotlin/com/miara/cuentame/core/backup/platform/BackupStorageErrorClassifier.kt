@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup.platform
 
+import com.miara.cuentame.core.backup.api.BackupDocumentOpenException
 import com.miara.cuentame.core.backup.api.BackupStorageFailure
 import java.io.IOException
 import javax.inject.Inject
@@ -13,29 +14,48 @@ interface BackupStorageErrorClassifier {
 class DefaultBackupStorageErrorClassifier @Inject constructor() : BackupStorageErrorClassifier {
 
     override fun classify(throwable: Throwable): BackupStorageFailure {
-        return generateSequence(throwable) { it.cause }.map { cause ->
-            when {
-                cause is SecurityException -> BackupStorageFailure.PermissionDenied
-                cause is IOException && isInsufficientSpace(cause) -> BackupStorageFailure.InsufficientSpace
-                cause is IOException -> BackupStorageFailure.GenericIo
-                cause.javaClass.simpleName == "ErrnoException" && isEnospc(cause) -> BackupStorageFailure.InsufficientSpace
-                else -> null
-            }
-        }.filterNotNull().firstOrNull() ?: BackupStorageFailure.GenericIo
-    }
+        val chain = generateSequence(throwable) { it.cause }.toList()
 
-    private fun isInsufficientSpace(e: IOException): Boolean {
-        val message = e.message ?: return false
-        return message.contains("ENOSPC", ignoreCase = true) ||
-               message.contains("No space left on device", ignoreCase = true)
-    }
-
-    private fun isEnospc(errnoException: Throwable): Boolean {
-        return try {
-            val errnoField = errnoException.javaClass.getField("errno")
-            errnoField.getInt(errnoException) == 28 // ENOSPC
-        } catch (_: Exception) {
-            false
+        // 1. SecurityException -> PermissionDenied
+        if (chain.any { it is SecurityException }) {
+            return BackupStorageFailure.PermissionDenied
         }
+
+        // 2. ENOSPC -> InsufficientSpace
+        if (chain.any { isInsufficientSpace(it) }) {
+            return BackupStorageFailure.InsufficientSpace
+        }
+
+        // 3. BackupDocumentOpenException -> DestinationUnavailable
+        if (chain.any { it is BackupDocumentOpenException }) {
+            return BackupStorageFailure.DestinationUnavailable
+        }
+
+        // 4. IOException -> GenericIo
+        if (chain.any { it is IOException }) {
+            return BackupStorageFailure.GenericIo
+        }
+
+        return BackupStorageFailure.GenericIo
+    }
+
+    private fun isInsufficientSpace(t: Throwable): Boolean {
+        if (t is IOException) {
+            val message = t.message ?: return false
+            if (message.contains("ENOSPC", ignoreCase = true) ||
+                message.contains("No space left on device", ignoreCase = true)) {
+                return true
+            }
+        }
+        
+        // ErrnoException errno 28 = ENOSPC
+        if (t.javaClass.simpleName == "ErrnoException") {
+            try {
+                val errnoField = t.javaClass.getField("errno")
+                if (errnoField.getInt(t) == 28) return true
+            } catch (_: Exception) {}
+        }
+        
+        return false
     }
 }

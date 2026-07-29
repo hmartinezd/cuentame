@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.feature.areas.viewmodel.AreaManagementEvent
 import com.miara.cuentame.feature.areas.viewmodel.AreaManagementViewModel
 

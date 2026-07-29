@@ -1,6 +1,6 @@
 package com.miara.cuentame.core.backup.platform
 
-import com.miara.cuentame.core.backup.BackupMapper
+import com.miara.cuentame.core.backup.platform.BackupMapper
 import com.miara.cuentame.core.backup.ChecksumProvider
 import com.miara.cuentame.core.backup.api.AttachmentSourceUri
 import com.miara.cuentame.core.backup.api.BackupSnapshotResult

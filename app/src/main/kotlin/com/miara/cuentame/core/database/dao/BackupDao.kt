@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.miara.cuentame.core.database.entity.*
-import com.miara.cuentame.core.model.backup.BackupSnapshot
+import com.miara.cuentame.core.database.backup.BackupSnapshot
 
 @Dao
 interface BackupDao {

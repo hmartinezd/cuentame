@@ -49,10 +49,11 @@ import coil.compose.AsyncImage
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.designsystem.util.Formatters
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.ui.toLabelRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.feature.counts.ui.StatusChip
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.StatusChip
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.waste.viewmodel.WasteDetailEvent
 import com.miara.cuentame.feature.waste.viewmodel.WasteDetailScreenState
 import com.miara.cuentame.feature.waste.viewmodel.WasteDetailUiState

@@ -6,6 +6,8 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.DashboardRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.dashboard.*
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
+import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*

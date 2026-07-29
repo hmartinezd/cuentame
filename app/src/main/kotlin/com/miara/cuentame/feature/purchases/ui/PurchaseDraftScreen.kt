@@ -60,9 +60,9 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftUiState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftViewModel

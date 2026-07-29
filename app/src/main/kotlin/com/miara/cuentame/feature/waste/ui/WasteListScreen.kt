@@ -48,7 +48,7 @@ import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.WasteSummary
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.feature.counts.ui.StatusChip
+import com.miara.cuentame.core.presentation.ui.StatusChip
 import com.miara.cuentame.feature.waste.viewmodel.WasteListUiState
 import com.miara.cuentame.feature.waste.viewmodel.WasteListViewModel
 import java.time.ZoneId

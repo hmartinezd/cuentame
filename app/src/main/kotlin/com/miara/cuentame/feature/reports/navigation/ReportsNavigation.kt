@@ -3,8 +3,8 @@ package com.miara.cuentame.feature.reports.navigation
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
-import com.miara.cuentame.app.navigation.Destination
-import com.miara.cuentame.app.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.feature.reports.ui.InventoryDetailRoute
 import com.miara.cuentame.feature.reports.ui.PurchaseDetailRoute as ReportsPurchaseDetailRoute
 import com.miara.cuentame.feature.reports.ui.ReportsRoute

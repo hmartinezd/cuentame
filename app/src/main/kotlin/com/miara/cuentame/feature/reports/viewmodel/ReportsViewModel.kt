@@ -8,8 +8,8 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import com.miara.cuentame.core.model.dashboard.DashboardSnapshot
 import com.miara.cuentame.core.model.dashboard.MetricComparison
-import com.miara.cuentame.feature.home.DashboardMetricUiModel
-import com.miara.cuentame.feature.home.MetricComparisonState
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
+import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import com.miara.cuentame.feature.reports.ui.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi

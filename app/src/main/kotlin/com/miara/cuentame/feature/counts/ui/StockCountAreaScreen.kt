@@ -54,7 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.feature.counts.viewmodel.CountUnitOptionUi
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaEvent
@@ -62,7 +62,7 @@ import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountAreaViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountLineEntry
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import java.math.BigDecimal
 
 @Composable

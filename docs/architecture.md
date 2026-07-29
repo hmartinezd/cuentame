@@ -1,109 +1,63 @@
 # Cuentame Architecture Specification
 
-This document details the architectural baseline, target multi-module design, layer boundaries, and dependency rules for the Cuentame Android application.
+This document details the architectural baseline, current single-module structure, and the postponed multi-module design for the Cuentame Android application.
 
-## 1. Architectural Principles
+## 1. Current Project Structure (Single-Module Consolidation)
 
-- **Unidirectional Data Flow (UDF)**: UI observes immutable state from ViewModels; user actions trigger intent methods.
-- **Strict Layer Isolation**: Core domain logic has zero Android framework or database dependencies.
-- **Single Responsibility**: Repositories act as thin facades delegating transactional operations, read models, and state reconciliation to dedicated coordinators.
-- **Single-Source-of-Truth**: Shared system states (such as active restaurant and application locale) are reconciled centrally before state consumption or backup serialization.
+The project is intentionally consolidated into a single Gradle module (`:app`) to ensure behavioral stability before physical modularization. Architectural boundaries are enforced via **package-level dependency rules** verified by static analysis in `ArchitectureTest.kt`.
 
----
+### Internal Package Layout
 
-## 2. Module Graph Architecture
-
-```
-                                 ┌──────────────┐
-                                 │     :app     │
-                                 └──────┬───────┘
-                                        │
-           ┌────────────────────────────┼───────────────────────────┐
-           │                            │                           │
-           ▼                            ▼                           ▼
-  ┌──────────────────┐        ┌──────────────────┐        ┌──────────────────┐
-  │:feature:onboarding│        │  :feature:home   │        │:feature:inventory│ ... (and other features)
-  └────────┬─────────┘        └────────┬─────────┘        └────────┬─────────┘
-           │                           │                           │
-           └───────────────────────────┼───────────────────────────┘
-                                       │
-           ┌───────────────────────────┼───────────────────────────┐
-           │                           │                           │
-           ▼                           ▼                           ▼
-  ┌──────────────────┐        ┌──────────────────┐        ┌──────────────────┐
-  │:core:presentation│        │   :core:domain   │        │   :core:backup   │
-  └────────┬─────────┘        └────────┬─────────┘        └────────┬─────────┘
-           │                           │                           │
-           └───────────────────────────┼───────────────────────────┘
-                                       │
-           ┌───────────────────────────┴───────────────────────────┐
-           │                                                       │
-           ▼                                                       ▼
-  ┌──────────────────┐                                   ┌──────────────────┐
-  │   :core:model    │                                   │    :core:data    │
-  └────────┬─────────┘                                   └────────┬─────────┘
-           │                                                       │
-           └───────────────────────────┬───────────────────────────┘
-                                       │
-                                       ▼
-                              ┌──────────────────┐
-                              │  :core:common    │
-                              └──────────────────┘
+```text
+com.miara.cuentame.
+  app/              # Application composition, root navigation, dependency injection
+  core/
+    common/         # Pure Kotlin helpers (IDs, time, math)
+    model/          # Pure domain models (no Room, no Android)
+    domain/         # Repository contracts, use cases (no Room, no Compose)
+    presentation/   # Shared UI models, navigation routes, sanitization
+    designsystem/   # Material 3 theme, shared UI components
+    data/           # Room/DataStore implementations, backup sources
+    database/       # Room entity definitions and DAOs
+    backup/         # Backup creation, planning, and validation logic
+  feature/          # Feature-oriented vertical slices (onboarding, inventory, etc.)
 ```
 
----
+### Dependency Direction
 
-## 3. Layer Definitions & Allowed Dependencies
-
-### `:core:common`
-- **Responsibilities**: Pure Kotlin primitive helpers, ID generators, time providers, decimal math utilities, text normalizers, app version interfaces.
-- **Allowed Dependencies**: None (Pure Kotlin module).
-
-### `:core:model`
-- **Responsibilities**: Domain entities, value objects, immutable DTOs, `SupportedAppLocale` enum, domain-level backup metadata.
-- **Allowed Dependencies**: `:core:common`.
-- **Forbidden Dependencies**: Room, Android framework, Compose, Android resources (`R.string`).
-
-### `:core:domain`
-- **Responsibilities**: Repository contracts, use cases, domain validators, calculation engines, workflow interfaces.
-- **Allowed Dependencies**: `:core:common`, `:core:model`.
-- **Forbidden Dependencies**: Android framework, Room, Compose.
-
-### `:core:presentation`
-- **Responsibilities**: Platform-neutral presentation contracts (`UiText`), shared presentation mappers, locale-agnostic UI state interfaces.
-- **Allowed Dependencies**: `:core:common`, `:core:model`, `:core:domain`.
-
-### `:core:designsystem`
-- **Responsibilities**: Color palette, typography, shapes, shared Compose UI components, layout primitives, Compose-based formatters.
-- **Allowed Dependencies**: `:core:common`, `:core:model`, Compose dependencies.
-
-### `:core:backup`
-- **Responsibilities**: Decomposed backup subsystem (archive creation, preflight checks, snapshot integrity validation, ZIP entry writing, checksum generation, platform document access).
-- **Allowed Dependencies**: `:core:common`, `:core:model`, `:core:domain`.
-
-### `:core:data`
-- **Responsibilities**: Room database, Room entities, DAOs, Room mappers, DataStore preferences implementation, backup data source adapters.
-- **Allowed Dependencies**: `:core:common`, `:core:model`, `:core:domain`, Room, DataStore, Hilt.
-
-### `:core:testing`
-- **Responsibilities**: Shared fake repositories, fake document stores, test clocks, test fixture builders.
-- **Allowed Dependencies**: Core layer interfaces.
-
-### `:feature:*` (`onboarding`, `home`, `inventory`, `purchases`, `counts`, `waste`, `reports`, `settings`)
-- **Responsibilities**: Screens, ViewModels, feature navigation graphs, feature-specific UI states, feature strings.
-- **Allowed Dependencies**: `:core:common`, `:core:model`, `:core:domain`, `:core:presentation`, `:core:designsystem`, `:core:data` (if binding requires), Compose, Hilt.
-- **Forbidden Dependencies**: Other feature modules (`feature -> feature` imports strictly prohibited).
-
-### `:app`
-- **Responsibilities**: Application entry point, Hilt root component, root `NavHost` graph composition.
-- **Allowed Dependencies**: All `:feature:*` modules and required `:core:*` modules.
+1. **core.common**: No dependencies on higher layers.
+2. **core.model**: Depends on `common`. No Room, Context, or R imports.
+3. **core.domain**: Depends on `common` and `model`. No Room, Compose, or R imports.
+4. **core.data/database**: Implements domain contracts. Depends on Room, DataStore, and `core.domain`.
+5. **feature packages**: Depend on `core` layers. Direct feature-to-feature imports are prohibited.
 
 ---
 
-## 4. Architectural Rules
+## 2. Future Multi-Module Migration
+
+Physical modularization is postponed until backup creation is fully stable, restoration is implemented, and package boundaries are verified clean.
+
+### Migration Pre-requisites
+- [x] Behavioral stabilization of backup creation.
+- [ ] Completion of backup restore functionality.
+- [x] Elimination of cross-feature UI component leaks.
+- [x] Reliable JVM-based architecture enforcement tests.
+
+### Planned Module Order
+1. `:core:common`
+2. `:core:model`
+3. `:core:domain`
+4. `:core:data`
+5. `:core:backup`
+6. Feature modules one at a time.
+
+---
+
+## 3. Core Architectural Rules
 
 1. **Decimal Precision**: All inventory quantities and financial values must use `BigDecimal`. `Double` and `Float` are forbidden for business calculations.
 2. **Cancellation Exception**: `CancellationException` must never be caught without re-throwing.
-3. **User-Facing Errors**: Never expose raw system tracebacks, URIs, database payloads, or internal paths in user error messages.
-4. **Room Database Compatibility**: Schema Version 2 and Backup Format Version 1 are strictly preserved.
-5. **No Feature-to-Feature Coupling**: Features communicate solely through domain interfaces and navigation routes composed at `:app`.
+3. **User-Facing Errors**: Never expose raw system tracebacks, URIs, database payloads, or internal paths in user error messages. Use stable programmatic codes.
+4. **Atomic UI Transitions**: ViewModel operations (like starting a backup) must be atomic and protect against concurrent requests and process death.
+5. **Room Database Compatibility**: Schema Version 2 and Backup Format Version 1 are strictly preserved.
+6. **No Feature-to-Feature Coupling**: Features communicate solely through domain interfaces and navigation routes. Shared UI components must reside in `core.presentation` or `core.designsystem`.

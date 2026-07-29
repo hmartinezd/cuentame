@@ -54,7 +54,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.UnitId
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure

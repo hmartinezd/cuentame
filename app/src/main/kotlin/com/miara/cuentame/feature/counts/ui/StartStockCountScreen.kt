@@ -52,7 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.StockCountId
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountEvent
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountUiState
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountViewModel

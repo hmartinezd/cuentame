@@ -70,25 +70,6 @@ android {
 }
 
 dependencies {
-    // Core Modules
-    implementation(project(":core:common"))
-    implementation(project(":core:model"))
-    implementation(project(":core:domain"))
-    implementation(project(":core:presentation"))
-    implementation(project(":core:designsystem"))
-    implementation(project(":core:data"))
-    implementation(project(":core:backup"))
-
-    // Feature Modules
-    implementation(project(":feature:onboarding"))
-    implementation(project(":feature:home"))
-    implementation(project(":feature:inventory"))
-    implementation(project(":feature:purchases"))
-    implementation(project(":feature:counts"))
-    implementation(project(":feature:waste"))
-    implementation(project(":feature:reports"))
-    implementation(project(":feature:settings"))
-
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

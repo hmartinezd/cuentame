@@ -1,7 +1,7 @@
 package com.miara.cuentame.feature.reports.ui
 
 import com.miara.cuentame.core.model.dashboard.WasteReportItem
-import com.miara.cuentame.feature.home.DashboardMetricUiModel
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
 import java.math.BigDecimal
 import java.time.Instant
 

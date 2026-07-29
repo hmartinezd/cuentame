@@ -47,8 +47,12 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardActivityType
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
-import com.miara.cuentame.feature.reports.ui.RefreshErrorBanner
-import com.miara.cuentame.feature.reports.ui.RefreshIndicator
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
+import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
+import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
+import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 import java.time.format.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

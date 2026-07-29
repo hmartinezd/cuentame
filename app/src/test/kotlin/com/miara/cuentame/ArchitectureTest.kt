@@ -4,98 +4,102 @@ import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 import java.io.File
 
-/**
- * Static architecture rule verifier to enforce layer boundaries across the project.
- */
 class ArchitectureTest {
 
     private val rootDir = File(requireNotNull(System.getProperty("cuentame.repoRoot")) {
-        "System property 'cuentame.repoRoot' must be set. Check app/build.gradle.kts configuration."
+        "System property 'cuentame.repoRoot' must be set."
     })
 
+    private val sourceDir = File(rootDir, "app/src/main/kotlin/com/miara/cuentame")
+
     @Test
-    fun `core model files do not import Room or Context`() {
-        val modelDirs = listOf(
-            File(rootDir, "core/model/src/main/kotlin"),
-            File(rootDir, "app/src/main/kotlin/com/miara/cuentame/core/model")
-        )
+    fun `core model does not import Room, database implementations, or Android Context`() {
+        val modelDir = File(sourceDir, "core/model")
+        assertWithMessage("Model directory must exist").that(modelDir.exists()).isTrue()
 
         var filesInspected = 0
-        modelDirs.filter { it.exists() }.forEach { dir ->
-            dir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
-                filesInspected++
-                val content = file.readText()
-                val lines = content.lines()
-                val forbiddenRoom = lines.filter { it.startsWith("import androidx.room.") }
-                val forbiddenContext = lines.filter { it.startsWith("import android.content.Context") }
-
-                assertWithMessage("Forbidden Room imports in ${file.absolutePath}")
-                    .that(forbiddenRoom)
-                    .isEmpty()
-                assertWithMessage("Forbidden Context imports in ${file.absolutePath}")
-                    .that(forbiddenContext)
-                    .isEmpty()
-            }
+        modelDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+            filesInspected++
+            val lines = file.readLines()
+            
+            assertNoImport(file, lines, "androidx.room")
+            assertNoImport(file, lines, "com.miara.cuentame.core.database")
+            assertNoImport(file, lines, "android.content.Context")
+            assertNoImport(file, lines, "com.miara.cuentame.R")
         }
-        assertWithMessage("No Kotlin files found in model directories").that(filesInspected).isGreaterThan(0)
+        assertWithMessage("Zero model files inspected").that(filesInspected).isGreaterThan(0)
     }
 
     @Test
-    fun `core domain files do not import Android UI, Room DAOs, or Data layer`() {
-        val domainDirs = listOf(
-            File(rootDir, "core/domain/src/main/kotlin"),
-            File(rootDir, "app/src/main/kotlin/com/miara/cuentame/core/domain")
-        )
+    fun `core domain does not import UI, Room, or database implementations`() {
+        val domainDir = File(sourceDir, "core/domain")
+        assertWithMessage("Domain directory must exist").that(domainDir.exists()).isTrue()
 
         var filesInspected = 0
-        domainDirs.filter { it.exists() }.forEach { dir ->
-            dir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
-                filesInspected++
-                val lines = file.readLines()
-                val forbiddenCompose = lines.filter { it.startsWith("import androidx.compose.") }
-                val forbiddenRoomDao = lines.filter { it.contains(".database.dao.") }
-                val forbiddenDatabase = lines.filter { it.contains(".core.database.") }
-                val forbiddenPreferences = lines.filter { it.contains(".core.preferences.datastore") }
+        domainDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+            filesInspected++
+            val lines = file.readLines()
 
-                assertWithMessage("Forbidden Compose imports in ${file.absolutePath}")
-                    .that(forbiddenCompose)
-                    .isEmpty()
-                assertWithMessage("Forbidden Room/Database imports in ${file.absolutePath}")
-                    .that(forbiddenRoomDao + forbiddenDatabase)
-                    .isEmpty()
-                assertWithMessage("Forbidden Preferences implementation imports in ${file.absolutePath}")
-                    .that(forbiddenPreferences)
-                    .isEmpty()
-            }
+            assertNoImport(file, lines, "androidx.compose")
+            assertNoImport(file, lines, "androidx.room")
+            assertNoImport(file, lines, "com.miara.cuentame.core.database")
+            assertNoImport(file, lines, "com.miara.cuentame.R")
         }
-        assertWithMessage("No Kotlin files found in domain directories").that(filesInspected).isGreaterThan(0)
+        assertWithMessage("Zero domain files inspected").that(filesInspected).isGreaterThan(0)
     }
 
     @Test
-    fun `feature modules do not import other feature modules directly`() {
-        val featureBaseDir = File(rootDir, "app/src/main/kotlin/com/miara/cuentame/feature")
-        if (!featureBaseDir.exists()) {
-             // If we already moved to modules, check there too
-             return
-        }
+    fun `feature packages are isolated from each other`() {
+        val featureDir = File(sourceDir, "feature")
+        assertWithMessage("Feature directory must exist").that(featureDir.exists()).isTrue()
 
-        val features = featureBaseDir.listFiles { f -> f.isDirectory } ?: return
+        val features = featureDir.listFiles { f -> f.isDirectory } ?: emptyArray()
+        assertWithMessage("No features found").that(features).isNotEmpty()
 
-        var filesInspected = 0
-        features.forEach { featureDir ->
-            val featureName = featureDir.name
-            featureDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
-                filesInspected++
+        var totalFilesInspected = 0
+        features.forEach { feature ->
+            val featureName = feature.name
+            feature.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+                totalFilesInspected++
                 val lines = file.readLines()
-                val forbiddenFeatureImports = lines.filter { 
+                
+                // Features should not import other features directly
+                // (Except through shared core or if specifically allowed, but we want strict isolation now)
+                val otherFeatureImports = lines.filter { 
                     it.startsWith("import com.miara.cuentame.feature.") && !it.contains(".feature.$featureName.")
                 }
-
-                assertWithMessage("Forbidden cross-feature import in $featureName (${file.name}): $forbiddenFeatureImports")
-                    .that(forbiddenFeatureImports)
-                    .isEmpty()
+                assertWithMessage("Forbidden cross-feature import in $featureName (${file.name})")
+                    .that(otherFeatureImports).isEmpty()
             }
         }
-        assertWithMessage("No Kotlin files found in feature directories").that(filesInspected).isGreaterThan(0)
+        assertWithMessage("Zero feature files inspected").that(totalFilesInspected).isGreaterThan(0)
+    }
+
+    @Test
+    fun `feature packages do not import app implementation packages`() {
+        val featureDir = File(sourceDir, "feature")
+        featureDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+            val lines = file.readLines()
+            assertNoImport(file, lines, "com.miara.cuentame.app.navigation")
+            // Add other app internal packages here if needed
+        }
+    }
+
+    @Test
+    fun `pure backup logic does not import Room entities`() {
+        val backupDir = File(sourceDir, "core/backup")
+        backupDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+            // Platform adapters are allowed to use Room/Android, but pure models/validators are not
+            if (!file.absolutePath.contains("/platform/") && !file.absolutePath.contains("/internal/")) {
+                 val lines = file.readLines()
+                 assertNoImport(file, lines, "com.miara.cuentame.core.database.entity")
+            }
+        }
+    }
+
+    private fun assertNoImport(file: File, lines: List<String>, forbidden: String) {
+        val violations = lines.filter { it.startsWith("import $forbidden") }
+        assertWithMessage("Forbidden import '$forbidden' in ${file.absolutePath}")
+            .that(violations).isEmpty()
     }
 }

@@ -39,8 +39,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navOptions
 import com.miara.cuentame.app.navigation.CuentameNavHost
-import com.miara.cuentame.app.navigation.Destination
-import com.miara.cuentame.app.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.domain.usecase.AppStartState
 import com.miara.cuentame.feature.onboarding.ui.OnboardingRoute
 

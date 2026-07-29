@@ -47,9 +47,9 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDetailUiState

@@ -13,6 +13,7 @@
 *   **Waste Logging:** Record spoiled, expired, or dropped items to keep your inventory accurate and understand your losses.
 *   **Dashboard & Alerts:** View real-time warnings for negative balances or missing costs.
 *   **Reporting:** Monitor your total inventory value and compare your spending and waste over 7, 30, or 90 days.
+*   **Secure Backups:** Create deterministic, bit-for-byte verifiable archives of your restaurant data and attachments.
 
 ## Getting Started
 
@@ -23,7 +24,8 @@
     *   Record a **Purchase** when an order arrives.
     *   Log **Waste** as it happens throughout the shift.
     *   Perform a **Stock Count** weekly or monthly to stay accurate.
-5.  **Review Reports:** Use the Dashboard or Reports screen to monitor inventory value, purchasing and Waste trends. Range changes update the report in place without leaving the screen.
+5.  **Review Reports:** Use the Dashboard or Reports screen to monitor inventory value, purchasing and Waste trends.
+6.  **Create a Backup:** Regularly create a backup from Settings to keep your data safe.
 
 ## Understanding Document Statuses
 
@@ -36,12 +38,12 @@
 
 Cuentame stores all your business data **locally on your device**. 
 *   No internet connection is required for daily operation.
-*   **Important:** Your data is not currently backed up to the cloud. Deleting the app or clearing its storage will permanently remove your restaurant's records.
+*   **Important:** Your data is not currently backed up to the cloud. Deleting the app or clearing its storage will permanently remove your restaurant's records unless you have created a manual backup.
 
 ## Languages and Accessibility
 
 *   Available in **English** and **Español**.
-*   Screen-reader support and accessible labels across key workflows.
+*   Full screen-reader support and accessible labels across key workflows.
 
 ## User Guides
 
@@ -53,20 +55,19 @@ Detailed instructions for every feature:
 
 ## Development & Status
 
-### Current Status (Milestone 9 — Backup and Export)
-*   **Milestone 8 — Dashboard and Reports:** COMPLETE
-*   **Milestone 9 — Backup and Export:** IN PROGRESS
-*   **Backup creation:** PARTIAL
-*   **Backup restore:** NOT STARTED
-*   **Customer data export:** NOT STARTED
-*   **CI verification:** NOT CONFIGURED
+### Current Status (Stabilization Complete)
+*   **Gradle Architecture:** Single-module (`:app`) for optimal stability.
+*   **Package Architecture:** Clean Architecture with strict layer enforcement.
+*   **Backup Creation:** COMPLETE & STABLE (Version 1).
+*   **Backup Restore:** NOT STARTED.
+*   **Customer data export:** NOT STARTED.
 
 ### Automated Test Summary
 - `clean`: PASSED
 - `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (211 tests)
+- `testDebugUnitTest`: PASSED (305 tests)
 - `lintDebug`: PASSED
-- `connectedDebugAndroidTest`: PASSED (166 tests)
+- `assembleRelease`: PASSED
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.
@@ -78,4 +79,4 @@ Detailed instructions for every feature:
 1. Open in Android Studio Ladybug or newer.
 2. Run `./gradlew assembleDebug` to verify the build.
 3. Run `./gradlew testDebugUnitTest` for JVM unit tests.
-4. Run `./gradlew connectedDebugAndroidTest` for integration and E2E verification.
+4. Run `./gradlew lintDebug` for static analysis.

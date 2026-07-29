@@ -1,7 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.database.entity.*
-import com.miara.cuentame.core.model.backup.BackupSnapshot
+import com.miara.cuentame.core.database.backup.BackupSnapshot
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
 

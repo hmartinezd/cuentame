@@ -52,7 +52,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.StockCountAreaId
 import com.miara.cuentame.core.domain.repository.StockCountAreaDetails
-import com.miara.cuentame.core.domain.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.core.presentation.ui.AreaStatusChip
+import com.miara.cuentame.core.presentation.ui.StatusChip
 import com.miara.cuentame.core.model.inventory.CountAreaStatus
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.feature.counts.viewmodel.ReviewWarning
@@ -61,7 +63,7 @@ import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountReviewLine
-import com.miara.cuentame.feature.ingredients.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import java.math.BigDecimal
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

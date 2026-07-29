@@ -2,23 +2,8 @@ package com.miara.cuentame.feature.home
 
 import com.miara.cuentame.core.model.dashboard.DashboardActivityItem
 import com.miara.cuentame.core.model.dashboard.WasteReportItem
+import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
 import java.math.BigDecimal
-
-data class DashboardMetricUiModel(
-    val value: BigDecimal,
-    val previousValue: BigDecimal?,
-    val absoluteChange: BigDecimal?,
-    val percentageChange: BigDecimal?,
-    val comparisonState: MetricComparisonState
-)
-
-enum class MetricComparisonState {
-    INCREASE,
-    DECREASE,
-    NO_CHANGE,
-    NEW,
-    UNAVAILABLE
-}
 
 data class DashboardUiModel(
     val inventoryValue: BigDecimal,

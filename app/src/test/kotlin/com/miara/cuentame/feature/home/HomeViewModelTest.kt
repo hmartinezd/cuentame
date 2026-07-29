@@ -7,6 +7,7 @@ import com.miara.cuentame.core.domain.repository.DashboardRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.dashboard.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
