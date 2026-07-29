@@ -107,7 +107,10 @@ fun MainAppContent(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Destination.SETTINGS.route) }) {
+                    IconButton(
+                        onClick = { navController.navigate(Destination.SETTINGS.route) },
+                        modifier = Modifier.testTag("nav_settings")
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(com.miara.cuentame.R.string.nav_settings)

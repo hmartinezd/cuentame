@@ -45,7 +45,7 @@ class SettingsBackupUiTest {
     @Test
     fun createBackup_buttonExists() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("nav_settings").performClick()
+            composeTestRule.onAllNodes(hasTestTag("nav_settings"))[0].performClick()
             composeTestRule.onNodeWithTag("create_backup_button").assertIsDisplayed()
         }
     }

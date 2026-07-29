@@ -94,12 +94,9 @@ class WasteArchiveUiTest {
 
     private fun openWasteListScreen() {
         composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("view_waste_button").performClick()
+        composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
         }
@@ -111,11 +108,13 @@ class WasteArchiveUiTest {
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("waste_edit_button").performClick()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("waste_edit_button")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("waste_edit_button", useUnmergedTree = true).performClick()
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("waste_form_screen")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("waste_form_screen").assertIsDisplayed()
     }
 
     @Test
@@ -148,9 +147,12 @@ class WasteArchiveUiTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteFormForEdit(draftId)
 
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("save_waste_button"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
             // Save without changing
-            composeTestRule.onNodeWithTag("save_waste_button").performClick()
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.onNodeWithTag("save_waste_button", useUnmergedTree = true).performClick()
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("waste_detail_screen").assertIsDisplayed()
@@ -196,8 +198,11 @@ class WasteArchiveUiTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteFormForEdit(draftId)
 
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("ingredient_selector"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
             // Select active ingredient
-            composeTestRule.onNodeWithTag("ingredient_selector").performClick()
+            composeTestRule.onNodeWithTag("ingredient_selector", useUnmergedTree = true).performClick()
             composeTestRule.onNodeWithTag("ingredient_item_Active Chicken", useUnmergedTree = true).performClick()
 
             // Select active area

@@ -61,7 +61,7 @@ class WasteDetailViewModel @Inject constructor(
     private val voidWasteEventUseCase: VoidWasteEventUseCase
 ) : ViewModel() {
 
-    private val wasteEventIdStr: String? = savedStateHandle["wasteEventId"]
+    private val wasteEventIdStr: String? = savedStateHandle["wasteId"] ?: savedStateHandle["wasteEventId"]
     private val wasteEventId = wasteEventIdStr?.let { WasteEventId(it) }
 
     private val _isDeleting = MutableStateFlow(false)

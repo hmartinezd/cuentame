@@ -3,11 +3,14 @@ package com.miara.cuentame.feature.reports
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import javax.inject.Inject
 
 @HiltAndroidTest
 class InventoryDetailScreenTest {
@@ -16,17 +19,21 @@ class InventoryDetailScreenTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    var composeTestRule = createAndroidComposeRule<MainActivity>()
+
+    @Inject
+    lateinit var testStateManager: TestStateManager
 
     @Before
-    fun init() {
+    fun setup() {
         hiltRule.inject()
+        runBlocking {
+            testStateManager.seedBaseline()
+        }
     }
 
     @Test
     fun inventoryDetail_exists() {
-        // This test would ideally navigate to details if data was present.
-        // For now, we verify the reports entry point can be reached.
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
         }

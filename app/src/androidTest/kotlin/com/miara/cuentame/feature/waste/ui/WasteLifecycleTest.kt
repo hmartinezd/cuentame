@@ -46,12 +46,12 @@ class WasteLifecycleTest {
     fun navigateToWasteAndBack() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("view_waste_button").performClick()
+            composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
             composeTestRule.onNodeWithTag("waste_list_screen").assertExists()
             
-            composeTestRule.onNodeWithTag("waste_back_button").performClick()
+            composeTestRule.onNodeWithTag("waste_list_back").performClick()
             composeTestRule.onNodeWithTag("home_screen").assertExists()
         }
     }

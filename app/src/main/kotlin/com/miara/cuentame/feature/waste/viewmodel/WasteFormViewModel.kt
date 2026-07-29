@@ -146,7 +146,7 @@ class WasteFormViewModel @Inject constructor(
     private val attachmentPermissionManager: LocalAttachmentPermissionManager
 ) : ViewModel() {
 
-    private val wasteEventIdStr: String? = savedStateHandle["wasteEventId"]
+    private val wasteEventIdStr: String? = savedStateHandle["wasteId"] ?: savedStateHandle["wasteEventId"]
     private val wasteEventId = wasteEventIdStr?.let { WasteEventId(it) }
 
     private val _isSaving = MutableStateFlow(false)
@@ -252,7 +252,8 @@ class WasteFormViewModel @Inject constructor(
                 
                 // Authoritative cross-ingredient or missing check
                 val invalidUnitReference = selUnitId != null && unitLoadState is UnitOptionsLoadState.Loaded && (
-                    unitLoadState.ingredientId != selIngId || allUnitOptions.none { it.id == selUnitId }
+                    (unitLoadState.ingredientId != null && unitLoadState.ingredientId != selIngId) ||
+                    (unitLoadState.ingredientId == selIngId && allUnitOptions.none { it.id == selUnitId })
                 )
 
                 val missingReference = isHydrated && wasteEventId != null && (

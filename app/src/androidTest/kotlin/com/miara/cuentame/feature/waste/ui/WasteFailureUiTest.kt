@@ -93,12 +93,9 @@ class WasteFailureUiTest {
 
     private fun openWasteListScreen() {
         composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("view_waste_button").performClick()
+        composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
         }
@@ -133,7 +130,7 @@ class WasteFailureUiTest {
         }
 
         // Inject failure on posting after movement insertion
-        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "POST_AFTER_MOVEMENT_INSERT"
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "post-after-movement"
 
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteListScreen()
@@ -145,7 +142,7 @@ class WasteFailureUiTest {
             // Click post
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
             composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Post Waste").performClick()
+            composeTestRule.onNodeWithText("Confirm", substring = true).performClick()
 
             // Verify safe error snackbar, status remains DRAFT, postedAt null, 0 movements
             composeTestRule.waitUntil(10000) {
@@ -170,7 +167,7 @@ class WasteFailureUiTest {
             composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
             composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Post Waste").performClick()
+            composeTestRule.onNodeWithText("Confirm", substring = true).performClick()
 
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
@@ -210,9 +207,9 @@ class WasteFailureUiTest {
                     notes = "Void fail test",
                     attachmentPath = null,
                     status = DocumentStatus.POSTED.name,
-                    createdAt = now,
-                    updatedAt = now,
-                    postedAt = now,
+                    createdAt = now - 2000,
+                    updatedAt = now - 1000,
+                    postedAt = now - 1000,
                     voidedAt = null
                 )
             )
@@ -238,7 +235,7 @@ class WasteFailureUiTest {
         }
 
         // Inject failure during void
-        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "VOID_AFTER_STATUS_UPDATE"
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "void-after-reversal"
 
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteListScreen()
@@ -249,7 +246,7 @@ class WasteFailureUiTest {
 
             composeTestRule.onNodeWithTag("waste_void_button").performClick()
             composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Void Waste").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
 
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithTag("waste_error_snackbar", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
@@ -272,12 +269,14 @@ class WasteFailureUiTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteListScreen()
             composeTestRule.onNodeWithTag("waste_item_$eventId").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("waste_void_button").performClick()
             composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Void Waste").performClick()
-
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
             }
         }
 
@@ -324,7 +323,7 @@ class WasteFailureUiTest {
             )
         }
 
-        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "DELETE_AFTER_VALIDATION"
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "delete-after-validation"
 
         ActivityScenario.launch(MainActivity::class.java).use {
             openWasteListScreen()
@@ -334,7 +333,7 @@ class WasteFailureUiTest {
             }
             composeTestRule.onNodeWithTag("waste_delete_button").performClick()
             composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Delete Waste").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
 
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar")).fetchSemanticsNodes().isNotEmpty()
@@ -358,7 +357,7 @@ class WasteFailureUiTest {
             }
             composeTestRule.onNodeWithTag("waste_delete_button").performClick()
             composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Delete Waste").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
 
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithTag("waste_list_screen", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()

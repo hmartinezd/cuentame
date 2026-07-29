@@ -17,7 +17,7 @@ fun NavGraphBuilder.wasteGraph(navController: NavHostController) {
             onAddWaste = { navController.navigate(Destination.WASTE_CREATE.route) },
             onWasteClick = { id, status ->
                 if (status == DocumentStatus.DRAFT) {
-                    navController.navigate("waste/${id.value}")
+                    navController.navigate("waste/draft/${id.value}")
                 } else {
                     navController.navigate("waste/${id.value}")
                 }
