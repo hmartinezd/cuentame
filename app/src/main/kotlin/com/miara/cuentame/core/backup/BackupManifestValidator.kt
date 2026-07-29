@@ -27,6 +27,10 @@ object BackupManifestValidator {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.VERSION_MISMATCH)
         }
 
+        if (manifest.databaseSchemaVersion != BackupLimits.DATABASE_SCHEMA_VERSION_BASELINE) {
+            return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.DATABASE_SCHEMA_MISMATCH)
+        }
+
         try {
             val instant = Instant.parse(manifest.createdAtUtc)
             if (instant.toString() != manifest.createdAtUtc) {
@@ -39,7 +43,7 @@ object BackupManifestValidator {
         if (manifest.applicationId.isBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         if (manifest.appVersionName.isBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         if (manifest.appVersionCode < 0) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
-        if (manifest.databaseSchemaVersion <= 0) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
+        
         if (manifest.restaurantId.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         if (manifest.restaurantName.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
 

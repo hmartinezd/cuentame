@@ -19,3 +19,4 @@ build/
 *.aar
 *.jks
 .kotlin/
+/.artifacts/

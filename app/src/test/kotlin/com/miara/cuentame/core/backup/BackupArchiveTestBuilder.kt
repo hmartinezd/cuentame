@@ -9,6 +9,8 @@ import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 data class TestZipEntry(
     val name: String,
@@ -96,16 +98,128 @@ class BackupArchiveTestBuilder(
         replaceFirstEntry("checksums.json", json)
     }
 
+    /**
+     * Builds a ZIP manually to allow duplicate entry names.
+     * Uses STORED (no compression) for simplicity in manual construction.
+     */
     fun build(): ByteArray {
-        val bos = ByteArrayOutputStream()
-        ZipOutputStream(bos).use { zos ->
-            entries.forEach { entry ->
-                zos.putNextEntry(ZipEntry(entry.name).apply { time = entry.timestamp })
-                zos.write(entry.bytes)
-                zos.closeEntry()
-            }
+        val out = ByteArrayOutputStream()
+        val entryOffsets = mutableListOf<Long>()
+        
+        // 1. Local File Headers + Data
+        for (entry in entries) {
+            entryOffsets.add(out.size().toLong())
+            val nameBytes = entry.name.toByteArray(Charsets.UTF_8)
+            val crc = crc32(entry.bytes)
+            
+            // Signature: 0x04034b50
+            out.writeLeInt(0x04034b50)
+            // Version: 10
+            out.writeLeShort(10)
+            // Flags: 0
+            out.writeLeShort(0)
+            // Compression: 0 (Stored)
+            out.writeLeShort(0)
+            // Time/Date: 0
+            out.writeLeInt(0)
+            // CRC-32
+            out.writeLeInt(crc.toInt())
+            // Compressed size
+            out.writeLeInt(entry.bytes.size)
+            // Uncompressed size
+            out.writeLeInt(entry.bytes.size)
+            // Name length
+            out.writeLeShort(nameBytes.size)
+            // Extra length: 0
+            out.writeLeShort(0)
+            
+            out.write(nameBytes)
+            out.write(entry.bytes)
         }
-        return bos.toByteArray()
+        
+        val centralDirectoryOffset = out.size().toLong()
+        
+        // 2. Central Directory Headers
+        for (i in entries.indices) {
+            val entry = entries[i]
+            val nameBytes = entry.name.toByteArray(Charsets.UTF_8)
+            val crc = crc32(entry.bytes)
+            
+            // Signature: 0x02014b50
+            out.writeLeInt(0x02014b50)
+            // Version made by
+            out.writeLeShort(20)
+            // Version needed
+            out.writeLeShort(10)
+            // Flags
+            out.writeLeShort(0)
+            // Compression
+            out.writeLeShort(0)
+            // Time/Date
+            out.writeLeInt(0)
+            // CRC-32
+            out.writeLeInt(crc.toInt())
+            // Compressed size
+            out.writeLeInt(entry.bytes.size)
+            // Uncompressed size
+            out.writeLeInt(entry.bytes.size)
+            // Name length
+            out.writeLeShort(nameBytes.size)
+            // Extra length
+            out.writeLeShort(0)
+            // Comment length
+            out.writeLeShort(0)
+            // Disk number start
+            out.writeLeShort(0)
+            // Internal attributes
+            out.writeLeShort(0)
+            // External attributes
+            out.writeLeInt(0)
+            // Relative offset of local header
+            out.writeLeInt(entryOffsets[i].toInt())
+            
+            out.write(nameBytes)
+        }
+        
+        val centralDirectorySize = out.size().toLong() - centralDirectoryOffset
+        
+        // 3. End of Central Directory Record
+        // Signature: 0x06054b50
+        out.writeLeInt(0x06054b50)
+        // Number of this disk
+        out.writeLeShort(0)
+        // Disk where central directory starts
+        out.writeLeShort(0)
+        // Number of central directory records on this disk
+        out.writeLeShort(entries.size)
+        // Total number of central directory records
+        out.writeLeShort(entries.size)
+        // Size of central directory
+        out.writeLeInt(centralDirectorySize.toInt())
+        // Offset of start of central directory
+        out.writeLeInt(centralDirectoryOffset.toInt())
+        // ZIP file comment length
+        out.writeLeShort(0)
+        
+        return out.toByteArray()
+    }
+
+    private fun ByteArrayOutputStream.writeLeInt(v: Int) {
+        write(v and 0xFF)
+        write((v shr 8) and 0xFF)
+        write((v shr 16) and 0xFF)
+        write((v shr 24) and 0xFF)
+    }
+
+    private fun ByteArrayOutputStream.writeLeShort(v: Int) {
+        write(v and 0xFF)
+        write((v shr 8) and 0xFF)
+    }
+
+    private fun crc32(bytes: ByteArray): Long {
+        val crc = java.util.zip.CRC32()
+        crc.update(bytes)
+        return crc.value
     }
 
     private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")

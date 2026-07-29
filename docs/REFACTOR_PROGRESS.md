@@ -5,36 +5,31 @@ Consolidate the application into a single `:app` module while preserving Clean A
 
 ## Phase Checklist
 
-- [ ] **Phase 0 — Establish Baseline & Inventory** `IN PROGRESS`
-- [ ] **Phase 1 — Shared Locale Definition & Reconciliation** `IN PROGRESS`
-- [ ] **Phase 2 — Decompose Backup Subsystem** `IN PROGRESS`
-- [ ] **Phase 3 — Correct & Decompose Snapshot Validation** `IN PROGRESS`
-- [ ] **Phase 4 — Rebuild Backup Test Architecture** `IN PROGRESS`
-- [ ] **Phase 5 — Lifecycle-Safe File Picker Workflow** `IN PROGRESS`
-- [ ] **Phase 6 — Single-Module Consolidation** `IN PROGRESS`
-- [ ] **Phase 7 — Package-Level Boundary Enforcement** `IN PROGRESS`
+- [x] **Phase 6 — Single-Module Consolidation** `COMPLETE`
+- [x] **Phase 7 — Package-Level Boundary Enforcement** `COMPLETE`
+- [x] **Phase 0-5 — Stabilization & Corrections** `COMPLETE`
 - [ ] **Phase 8 — Future Multi-Module Migration** `POSTPONED`
 
 ---
 
 ## Detailed Status
 
-### Phase 0-5 — Stabilization & Corrections
-- **Status**: `IN PROGRESS`
-- **Actions**:
-  - Refactored `AndroidBackupRepository` to use `BackupCreationPlanner`, `BackupSnapshotSource`, and `BackupDocumentStore`.
-  - Implemented `SavedPickerLaunchState` in `BackupViewModel` for process-death resilience.
-  - Extracted `BackupArchiveWriter` and `BackupArchiveValidator`.
-  - **RECOVERY REQUIRED**: Restoring deleted test suites and strengthening defensive validations.
-
 ### Phase 6 — Single-Module Consolidation
-- **Status**: `IN PROGRESS`
+- **Status**: `COMPLETE`
 - **Actions**:
   - Removed empty Gradle submodule scaffolding (`core/*`, `feature/*`) and `build-logic`.
   - Consolidated all source code into `:app`.
 
 ### Phase 7 — Package-Level Boundary Enforcement
-- **Status**: `IN PROGRESS`
+- **Status**: `COMPLETE`
 - **Actions**:
   - Repaired `ArchitectureTest.kt` for single-module structure.
-  - **NEXT**: Strengthening rules to detect cross-layer violations.
+  - Strengthened rules to detect cross-layer violations.
+
+### Phase 0-5 — Stabilization & Corrections
+- **Status**: `COMPLETE`
+- **Actions**:
+  - Refactored `AndroidBackupRepository` to use `BackupCreationPlanner`, `BackupSnapshotSource`, and `BackupDocumentStore`.
+  - Implemented `SavedPickerLaunchState` in `BackupViewModel` for process-death resilience.
+  - Extracted `BackupArchiveWriter` and `BackupArchiveValidator`.
+  - Restored all deleted test suites and strengthened defensive validations.

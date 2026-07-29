@@ -19,8 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
@@ -72,24 +70,28 @@ class BackupViewModel @Inject constructor(
     private var destinationPickerPreparationJob: Job? = null
     private var activeBackupJob: Job? = null
 
-    private val operationTokenGenerator = AtomicLong(savedStateHandle.get<Long>(KEY_LAST_OP_ID) ?: 0L)
-    @Volatile private var activeOperationToken: Long = savedStateHandle.get<Long>(KEY_ACTIVE_OP_ID) ?: -1L
-
-    private val mutex = Mutex()
-    private val pickerLaunchLock = Any()
+    private val operationStateLock = Any()
+    
+    private val operationTokenGenerator: AtomicLong
+    private var activeOperationToken: Long
 
     init {
+        val lastId = savedStateHandle.get<Long>(KEY_LAST_OP_ID) ?: 0L
+        val activeId = savedStateHandle.get<Long>(KEY_ACTIVE_OP_ID) ?: -1L
+        operationTokenGenerator = AtomicLong(maxOf(lastId, activeId))
+        activeOperationToken = activeId
+        
         restoreState()
     }
 
-    private fun restoreState() {
-        val activeId = savedStateHandle.get<Long>(KEY_ACTIVE_OP_ID) ?: return
+    private fun restoreState() = synchronized(operationStateLock) {
+        val activeId = activeOperationToken
         if (activeId == -1L) return
 
         val phase = savedStateHandle.get<String>(KEY_PHASE) ?: return
         val opId = BackupOperationId(activeId)
 
-        _uiState.value = when (phase) {
+        when (phase) {
             "WAITING" -> {
                 val pickerState = savedStateHandle.get<String>(KEY_PICKER_STATE)
                 val suggestedName = savedStateHandle.get<String>(KEY_SUGGESTED_NAME)
@@ -99,32 +101,34 @@ class BackupViewModel @Inject constructor(
                         _events.send(BackupUiEvent.LaunchFilePicker(opId, suggestedName))
                     }
                 }
-                BackupUiState.WaitingForDestination(opId)
+                _uiState.value = BackupUiState.WaitingForDestination(opId)
             }
             "CREATING", "VALIDATING" -> {
                 activeOperationToken = -1L
-                persistState(operationTokenGenerator.get(), -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
-                BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
+                persistStateLocked(operationTokenGenerator.get(), -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
+                _uiState.value = BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
             }
-            "CANCELLED" -> BackupUiState.Cancelled(opId)
-            else -> BackupUiState.Idle
+            "CANCELLED" -> _uiState.value = BackupUiState.Cancelled(opId)
+            else -> _uiState.value = BackupUiState.Idle
         }
     }
 
     fun onCreateBackupRequested() {
-        viewModelScope.launch {
-            mutex.withLock {
-                if (!isTerminalState(_uiState.value)) return@withLock
+        val token: Long
+        val opId: BackupOperationId
+        
+        synchronized(operationStateLock) {
+            if (!isTerminalState(_uiState.value)) return
 
-                val token = operationTokenGenerator.incrementAndGet()
-                activeOperationToken = token
-                persistState(token, token, "WAITING", SavedPickerLaunchState.NONE, null)
+            token = operationTokenGenerator.incrementAndGet()
+            activeOperationToken = token
+            persistStateLocked(token, token, "WAITING", SavedPickerLaunchState.NONE, null)
 
-                val opId = BackupOperationId(token)
-                _uiState.value = BackupUiState.WaitingForDestination(opId)
-                launchPickerPrep(opId, token)
-            }
+            opId = BackupOperationId(token)
+            _uiState.value = BackupUiState.WaitingForDestination(opId)
         }
+        
+        launchPickerPrep(opId, token)
     }
 
     private fun launchPickerPrep(opId: BackupOperationId, token: Long) {
@@ -134,30 +138,32 @@ class BackupViewModel @Inject constructor(
                 val restaurant = restaurantRepository.getRestaurant()
                 val suggestedName = BackupFilenameGenerator.generate(restaurant?.name, timeProvider.now())
 
-                mutex.withLock {
+                synchronized(operationStateLock) {
                     if (activeOperationToken == token && _uiState.value is BackupUiState.WaitingForDestination) {
                         savedStateHandle[KEY_SUGGESTED_NAME] = suggestedName
                         savedStateHandle[KEY_PICKER_STATE] = SavedPickerLaunchState.PENDING.name
-                        _events.send(BackupUiEvent.LaunchFilePicker(opId, suggestedName))
+                        viewModelScope.launch {
+                             _events.send(BackupUiEvent.LaunchFilePicker(opId, suggestedName))
+                        }
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                mutex.withLock {
+                synchronized(operationStateLock) {
                     if (activeOperationToken == token) {
                         _uiState.value = BackupUiState.Error(opId, BackupResult.Error.FilenamePreparationFailure)
-                        persistState(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.NONE, null)
+                        persistStateLocked(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.NONE, null)
                     }
                 }
             }
         }
     }
 
-    fun consumePickerLaunch(operationId: BackupOperationId): Boolean = synchronized(pickerLaunchLock) {
+    fun consumePickerLaunch(operationId: BackupOperationId): Boolean = synchronized(operationStateLock) {
         if (operationId.value != activeOperationToken) return false
-        val currentState = _uiState.value
-        if (currentState !is BackupUiState.WaitingForDestination || currentState.operationId != operationId) return false
+        val current = _uiState.value
+        if (current !is BackupUiState.WaitingForDestination || current.operationId != operationId) return false
         
         val savedState = savedStateHandle.get<String>(KEY_PICKER_STATE)
         if (savedState != SavedPickerLaunchState.PENDING.name) return false
@@ -167,18 +173,17 @@ class BackupViewModel @Inject constructor(
     }
 
     fun onFileSelected(operationId: BackupOperationId, uri: String) {
-        if (operationId.value != activeOperationToken) return
+        synchronized(operationStateLock) {
+            if (operationId.value != activeOperationToken) return
 
-        val current = _uiState.value
-        if (current !is BackupUiState.WaitingForDestination || current.operationId != operationId) {
-            return
+            val current = _uiState.value
+            if (current !is BackupUiState.WaitingForDestination || current.operationId != operationId) {
+                return
+            }
+
+            _uiState.value = BackupUiState.Creating(operationId)
+            persistStateLocked(activeOperationToken, activeOperationToken, "CREATING", SavedPickerLaunchState.CONSUMED, null)
         }
-
-        if (!_uiState.compareAndSet(current, BackupUiState.Creating(operationId))) {
-            return
-        }
-
-        persistState(activeOperationToken, activeOperationToken, "CREATING", SavedPickerLaunchState.CONSUMED, null)
 
         cancelAllJobs()
 
@@ -186,62 +191,61 @@ class BackupViewModel @Inject constructor(
         activeBackupJob = viewModelScope.launch {
             try {
                 backupRepository.createBackup(uri).collect { status ->
-                    mutex.withLock {
-                        if (activeOperationToken != token) return@withLock
-                        applyOperationStatus(operationId, status)
+                    synchronized(operationStateLock) {
+                        if (activeOperationToken != token) return@collect
+                        applyOperationStatusLocked(operationId, status)
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                mutex.withLock {
+                synchronized(operationStateLock) {
                     if (activeOperationToken == token) {
                         _uiState.value = BackupUiState.Error(operationId, BackupResult.Error.SystemIOFailure)
-                        persistState(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.CONSUMED, null)
+                        persistStateLocked(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.CONSUMED, null)
                     }
                 }
             }
         }
     }
 
-    fun onPickerCancelled(operationId: BackupOperationId) {
+    fun onPickerCancelled(operationId: BackupOperationId) = synchronized(operationStateLock) {
         if (operationId.value != activeOperationToken) return
         val current = _uiState.value
         if (current is BackupUiState.WaitingForDestination && current.operationId == operationId) {
-            if (_uiState.compareAndSet(current, BackupUiState.Cancelled(operationId))) {
-                persistState(activeOperationToken, activeOperationToken, "CANCELLED", SavedPickerLaunchState.CONSUMED, null)
-                cancelAllJobs()
-            }
+            _uiState.value = BackupUiState.Cancelled(operationId)
+            persistStateLocked(activeOperationToken, activeOperationToken, "CANCELLED", SavedPickerLaunchState.CONSUMED, null)
+            cancelAllJobs()
         }
     }
 
-    private fun applyOperationStatus(operationId: BackupOperationId, status: BackupOperationStatus) {
+    private fun applyOperationStatusLocked(operationId: BackupOperationId, status: BackupOperationStatus) {
         when (status) {
             is BackupOperationStatus.Creating -> {
                 _uiState.value = BackupUiState.Creating(operationId)
-                persistState(activeOperationToken, activeOperationToken, "CREATING", SavedPickerLaunchState.CONSUMED, null)
+                persistStateLocked(activeOperationToken, activeOperationToken, "CREATING", SavedPickerLaunchState.CONSUMED, null)
             }
             is BackupOperationStatus.Validating -> {
                 _uiState.value = BackupUiState.Validating(operationId)
-                persistState(activeOperationToken, activeOperationToken, "VALIDATING", SavedPickerLaunchState.CONSUMED, null)
+                persistStateLocked(activeOperationToken, activeOperationToken, "VALIDATING", SavedPickerLaunchState.CONSUMED, null)
             }
             is BackupOperationStatus.Success -> {
                 _uiState.value = BackupUiState.Success(operationId, status.manifest)
-                persistState(activeOperationToken, activeOperationToken, "SUCCESS", SavedPickerLaunchState.CONSUMED, null)
+                persistStateLocked(activeOperationToken, activeOperationToken, "SUCCESS", SavedPickerLaunchState.CONSUMED, null)
             }
             is BackupOperationStatus.Error -> {
                 if (status.result is BackupResult.Error.OperationCancelled) {
                     _uiState.value = BackupUiState.Cancelled(operationId)
-                    persistState(activeOperationToken, activeOperationToken, "CANCELLED", SavedPickerLaunchState.CONSUMED, null)
+                    persistStateLocked(activeOperationToken, activeOperationToken, "CANCELLED", SavedPickerLaunchState.CONSUMED, null)
                 } else {
                     _uiState.value = BackupUiState.Error(operationId, status.result)
-                    persistState(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.CONSUMED, null)
+                    persistStateLocked(activeOperationToken, activeOperationToken, "ERROR", SavedPickerLaunchState.CONSUMED, null)
                 }
             }
         }
     }
 
-    private fun persistState(lastOpId: Long, activeOpId: Long, phase: String, pickerState: SavedPickerLaunchState, suggestedName: String?) {
+    private fun persistStateLocked(lastOpId: Long, activeOpId: Long, phase: String, pickerState: SavedPickerLaunchState, suggestedName: String?) {
         savedStateHandle[KEY_LAST_OP_ID] = lastOpId
         savedStateHandle[KEY_ACTIVE_OP_ID] = activeOpId
         savedStateHandle[KEY_PHASE] = phase
@@ -249,10 +253,10 @@ class BackupViewModel @Inject constructor(
         savedStateHandle[KEY_SUGGESTED_NAME] = suggestedName
     }
 
-    fun resetStatus() {
-        val newToken = operationTokenGenerator.get()
+    fun resetStatus() = synchronized(operationStateLock) {
+        val lastId = operationTokenGenerator.get()
         activeOperationToken = -1L
-        persistState(newToken, -1L, "IDLE", SavedPickerLaunchState.NONE, null)
+        persistStateLocked(lastId, -1L, "IDLE", SavedPickerLaunchState.NONE, null)
         cancelAllJobs()
         _uiState.value = BackupUiState.Idle
     }

@@ -108,7 +108,8 @@ enum class BackupValidationDiagnostic {
     ATTACHMENT_PATH_MISMATCH,
     ATTACHMENT_REFERENCE_MISMATCH,
     SNAPSHOT_INTEGRITY_FAILURE,
-    CHECKSUM_MISSING
+    CHECKSUM_MISSING,
+    DATABASE_SCHEMA_MISMATCH
 }
 
 sealed interface BackupValidationResult {

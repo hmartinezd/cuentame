@@ -28,11 +28,18 @@ class BackupCreationPlanner @Inject constructor(
     private val jsonCodecs: BackupJsonCodecs
 ) {
 
+    private val FORMAT_V1_ATTACHMENT_ID = Regex("^[0-9a-f]{16}$")
+
     suspend fun createPlan(
         restaurant: Restaurant,
         snapshotResult: BackupSnapshotResult
     ): BackupPlanningResult {
         try {
+            // 0. Schema check
+            if (appVersionProvider.databaseSchemaVersion != BackupLimits.DATABASE_SCHEMA_VERSION_BASELINE) {
+                return failure(BackupPlanningFailure.UnsupportedDatabaseSchema)
+            }
+
             // 1. Reconcile locale
             val reconciliation = localeReconciler.reconcile()
             if (reconciliation is LocaleReconciliationResult.Failure || reconciliation is LocaleReconciliationResult.RestaurantNotFound) {
@@ -66,7 +73,7 @@ class BackupCreationPlanner @Inject constructor(
                 return failure(BackupPlanningFailure.InvalidPreferences)
             }
 
-            // 5. Snapshot Grouping and Validation
+            // 5. Snapshot Grouping
             val snapshotDto = snapshotResult.dto
             val attachmentRefs = mutableMapOf<String, MutableList<BackupAttachmentReference>>()
 
@@ -81,16 +88,29 @@ class BackupCreationPlanner @Inject constructor(
                 }
             }
 
-            if (attachmentRefs.size > BackupLimits.MAX_ATTACHMENT_COUNT) return failure(BackupPlanningFailure.AttachmentLimitExceeded)
+            // 5.1 Validation of IDs and bindings
+            val referencedIds = attachmentRefs.keys
+            val bindingGroups = snapshotResult.attachmentBindings.groupBy { it.attachmentId }
+            val bindingIds = bindingGroups.keys
 
-            val idToBindings = snapshotResult.attachmentBindings.groupBy { it.attachmentId }
+            if (referencedIds != bindingIds) {
+                val missing = referencedIds - bindingIds
+                if (missing.isNotEmpty()) return failure(BackupPlanningFailure.MissingAttachmentSource)
+                val extra = bindingIds - referencedIds
+                if (extra.isNotEmpty()) return failure(BackupPlanningFailure.ExtraAttachmentSource)
+            }
 
-            for (id in attachmentRefs.keys) {
-                val bindings = idToBindings[id] ?: return failure(BackupPlanningFailure.MissingAttachmentSource)
-                if (bindings.map { it.sourceUri }.distinct().size > 1) {
+            for (id in referencedIds) {
+                if (!FORMAT_V1_ATTACHMENT_ID.matches(id)) return failure(BackupPlanningFailure.InvalidAttachmentId)
+                
+                val group = bindingGroups[id]!!
+                val distinctUris = group.map { it.sourceUri }.distinct()
+                if (distinctUris.size > 1) {
                     return failure(BackupPlanningFailure.ConflictingAttachmentSource)
                 }
             }
+
+            if (attachmentRefs.size > BackupLimits.MAX_ATTACHMENT_COUNT) return failure(BackupPlanningFailure.AttachmentLimitExceeded)
 
             // 6. Table metadata from snapshot
             val tableMetadata = createTableMetadata(snapshotDto)
@@ -139,7 +159,7 @@ class BackupCreationPlanner @Inject constructor(
             val plannedAttachments = mutableListOf<PlannedBackupAttachment>()
 
             for ((id, refs) in attachmentRefs) {
-                val uri = idToBindings[id]!!.first().sourceUri
+                val uri = bindingGroups[id]!!.first().sourceUri
                 
                 val metadata = try {
                     attachmentSource.inspect(uri)
@@ -174,7 +194,7 @@ class BackupCreationPlanner @Inject constructor(
                 currentTotalUncompressedBytes += size
 
                 plannedAttachments.add(
-                    PlannedBackupAttachment(
+                    PlannedBackupAttachment.create(
                         sourceUri = uri,
                         attachmentId = id,
                         archivePath = archivePath,
@@ -215,15 +235,14 @@ class BackupCreationPlanner @Inject constructor(
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (checksumsJson.size > BackupLimits.MAX_CHECKSUMS_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             
-            // Recompute checksum of checksums.json self? No, contract says checksums.json doesn't contain its own hash.
-            // But writer MUST verify planned checksumsJson size correctly.
             currentTotalUncompressedBytes += checksumsJson.size
             if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
 
-            if (2 + plannedAttachments.size + 2 > BackupLimits.MAX_ARCHIVE_ENTRY_COUNT) return failure(BackupPlanningFailure.JsonLimitExceeded)
+            val expectedEntryCount = 4 + plannedAttachments.size
+            if (expectedEntryCount > BackupLimits.MAX_ARCHIVE_ENTRY_COUNT) return failure(BackupPlanningFailure.ArchiveEntryCountExceeded)
 
             return BackupPlanningResult.Success(
-                BackupPlan(
+                BackupPlan.create(
                     snapshotDto = snapshotDto,
                     snapshotJson = snapshotJson,
                     preferencesDto = preferencesDto,

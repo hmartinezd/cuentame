@@ -3,20 +3,17 @@ package com.miara.cuentame.feature.settings.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
-import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
-import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Before
@@ -98,9 +95,34 @@ class BackupViewModelTest {
         val state = viewModel.uiState.value as BackupUiState.Error
         assertThat(state.operationId).isEqualTo(BackupOperationId(789L))
         assertThat(state.error).isEqualTo(BackupResult.Error.OperationInterrupted)
+    }
+
+    @Test
+    fun `stale repository emissions are ignored after token reset`() = runTest {
+        val repositoryFlow = MutableSharedFlow<BackupOperationStatus>(extraBufferCapacity = 1)
+        coEvery { backupRepository.createBackup(any()) } returns repositoryFlow
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns mockk(relaxed = true)
+
+        val viewModel = createViewModel()
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
         
-        // Ensure active operation is cleared
-        viewModel.onFileSelected(BackupOperationId(789L), "uri")
-        assertThat(viewModel.uiState.value).isInstanceOf(BackupUiState.Error::class.java)
+        val opId = (viewModel.uiState.value as BackupUiState.WaitingForDestination).operationId
+        viewModel.consumePickerLaunch(opId)
+        viewModel.onFileSelected(opId, "uri")
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating(opId))
+        
+        // Reset
+        viewModel.resetStatus()
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+        
+        // Stale emission
+        repositoryFlow.tryEmit(BackupOperationStatus.Validating)
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
     }
 }

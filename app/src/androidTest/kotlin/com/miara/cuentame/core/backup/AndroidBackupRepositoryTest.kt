@@ -5,12 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.BackupCleanupCoordinator
-import com.miara.cuentame.core.backup.platform.AndroidBackupDocumentStore
-import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveValidator
-import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveWriter
-import com.miara.cuentame.core.backup.platform.DefaultBackupStorageErrorClassifier
+import com.miara.cuentame.core.backup.platform.*
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -57,8 +55,8 @@ class AndroidBackupRepositoryTest {
     }
 
     @Test
-    fun createBackup_orchestration_smoke_test() = runTest {
-        val backupFile = File(tempFolder.root, "smoke.zip")
+    fun createBackup_successful_sequence() = runTest {
+        val backupFile = File(tempFolder.root, "sequence.zip")
         val destinationUri = "file://${backupFile.absolutePath}"
         
         val rest = mockk<Restaurant>(relaxed = true) {
@@ -69,27 +67,36 @@ class AndroidBackupRepositoryTest {
         val snapshotResult = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyList())
         coEvery { snapshotSource.loadSnapshot("r1") } returns snapshotResult
         
-        val plan = BackupPlan(
+        val manifest = mockk<BackupManifest>(relaxed = true)
+        
+        // Use factory create
+        val plan = BackupPlan.create(
             snapshotDto = snapshotResult.dto,
             snapshotJson = "{}".toByteArray(),
-            preferencesDto = mockk(relaxed = true) { io.mockk.every { appLocaleTag } returns "en-US" },
+            preferencesDto = mockk(relaxed = true),
             preferencesJson = "{}".toByteArray(),
             attachments = emptyList(),
-            manifest = mockk(relaxed = true) {
-                io.mockk.every { localeTag } returns "en-US"
-                io.mockk.every { attachments } returns emptyList()
-            },
-            manifestJson = "{\"backupFormatVersion\":1}".toByteArray(),
-            expectedEntryChecksums = emptyMap(),
+            manifest = manifest,
+            manifestJson = "{}".toByteArray(),
+            expectedEntryChecksums = mapOf(
+                "data/database.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249", // dummy
+                "preferences/settings.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249",
+                "manifest.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249"
+            ),
             checksumsJson = "{}".toByteArray(),
             totalUncompressedBytes = 0L
         )
         
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(plan)
-        
+        coEvery { archiveWriter.write(any(), any()) } returns BackupArchiveWriteResult.Success
+        coEvery { archiveValidator.validate(any()) } returns com.miara.cuentame.core.model.backup.BackupValidationResult.Valid(manifest)
+
         val results = repository.createBackup(destinationUri).toList()
         
-        assertThat(results).isNotEmpty()
-        assertThat(results.first()).isEqualTo(BackupOperationStatus.Creating)
+        assertThat(results).containsExactly(
+            BackupOperationStatus.Creating,
+            BackupOperationStatus.Validating,
+            BackupOperationStatus.Success(manifest)
+        ).inOrder()
     }
 }

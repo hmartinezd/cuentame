@@ -89,7 +89,7 @@ object ChecksumParser {
                 }
 
                 if (!keysSeen.add(key)) {
-                    return Result.failure(ChecksumKeySetMismatchException("Duplicate key detected"))
+                    return Result.failure(ChecksumParseException("Duplicate key detected"))
                 }
 
                 skipWhitespace()
@@ -105,7 +105,7 @@ object ChecksumParser {
 
                 val value = parseString()
                 if (!shaRegex.matches(value)) {
-                    return Result.failure(ChecksumKeySetMismatchException("Invalid SHA-256 hash format"))
+                    return Result.failure(ChecksumParseException("Invalid SHA-256 hash format"))
                 }
 
                 result[key] = value
@@ -131,8 +131,6 @@ object ChecksumParser {
             }
 
             return Result.success(result)
-        } catch (e: ChecksumKeySetMismatchException) {
-            return Result.failure(e)
         } catch (e: ChecksumParseException) {
             return Result.failure(e)
         } catch (e: Exception) {
@@ -142,4 +140,3 @@ object ChecksumParser {
 }
 
 class ChecksumParseException(message: String) : Exception(message)
-class ChecksumKeySetMismatchException(message: String) : Exception(message)

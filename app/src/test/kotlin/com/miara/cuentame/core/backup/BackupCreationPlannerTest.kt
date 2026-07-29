@@ -84,18 +84,20 @@ class BackupCreationPlannerTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
+        val attId = "0123456789abcdef" // Valid format V1
         val snapshotDto = createValidSnapshotDto().copy(
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "pr1", "rest-1", null, null, 0, "DRAFT", null, "id1", 0, 0, null, null
+                "p1", "rest-1", null, null, 0, "POSTED", null, attId, 0, 0, 0, null
             ))
         )
         
         val bindings = listOf(
-            BackupAttachmentSourceBinding("id1", AttachmentSourceUri("uri1")),
-            BackupAttachmentSourceBinding("id1", AttachmentSourceUri("uri2"))
+            BackupAttachmentSourceBinding(attId, AttachmentSourceUri("uri1")),
+            BackupAttachmentSourceBinding(attId, AttachmentSourceUri("uri2"))
         )
         
         val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(snapshotDto, bindings))
+        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
         assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.ConflictingAttachmentSource)
     }
 
@@ -104,19 +106,51 @@ class BackupCreationPlannerTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
-        val longId = "i".repeat(240) 
+        val validId = "0123456789abcdef"
+        // archivePath = "attachments/$id/$sanitizedName"
+        // attachments/0123456789abcdef/ (28 chars)
+        // Sanitizer limit is 128. Total 156. Still fits 255.
+        // We need a path > 255 bytes. 
+        // We can use a very long ID if the planner doesn't validate it FIRST.
+        // But the planner DOES validate it first.
+        // Wait, FORMAT_V1_ATTACHMENT_ID is 16 chars.
+        // So the only way is if sanitizedName is very long? No, it is 128.
+        // Let's use a non-V1 ID to bypass the 16 char check if we want to test path length.
+        // But the planner checks FORMAT_V1_ATTACHMENT_ID first.
+        // So with valid inputs, path limit 255 is unreachable?
+        // Let's test InvalidAttachmentId instead.
+        
+        val invalidId = "too-long-id-for-v1"
         val snapshotDto = createValidSnapshotDto().copy(
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "pr1", "rest-1", null, null, 0, "DRAFT", null, longId, 0, 0, null, null
+                "p1", "rest-1", null, null, 0, "POSTED", null, invalidId, 0, 0, 0, null
             ))
         )
-        val bindings = listOf(BackupAttachmentSourceBinding(longId, AttachmentSourceUri("uri1")))
-        attachmentSource.metadataMap[AttachmentSourceUri("uri1")] = AttachmentSourceMetadata(AttachmentSourceUri("uri1"), "n.jpg", "image/jpeg")
-        attachmentSource.dataMap[AttachmentSourceUri("uri1")] = "d".toByteArray()
-
+        val bindings = listOf(BackupAttachmentSourceBinding(invalidId, AttachmentSourceUri("uri1")))
+        
         val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(snapshotDto, bindings))
         assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.EntryNameLimitExceeded)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.InvalidAttachmentId)
+    }
+
+    @Test
+    fun `rejects plan if extra attachment binding provided`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val snapshotDto = createValidSnapshotDto()
+        val bindings = listOf(BackupAttachmentSourceBinding("0123456789abcdef", AttachmentSourceUri("uri1")))
+        
+        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(snapshotDto, bindings))
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.ExtraAttachmentSource)
+    }
+
+    @Test
+    fun `rejects plan if schema version mismatch`() = runTest {
+        every { appVersionProvider.databaseSchemaVersion } returns 1 // Baseline is 2
+        
+        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.UnsupportedDatabaseSchema)
     }
 
     @Test

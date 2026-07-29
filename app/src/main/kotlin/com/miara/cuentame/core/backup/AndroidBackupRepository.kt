@@ -91,14 +91,18 @@ class AndroidBackupRepository @Inject constructor(
             BackupPlanningFailure.InvalidSnapshot -> BackupResult.Error.DatabaseSnapshotFailure
             BackupPlanningFailure.MissingAttachmentSource -> BackupResult.Error.MissingAttachment
             BackupPlanningFailure.ConflictingAttachmentSource -> BackupResult.Error.AttachmentPreflightFailure
+            BackupPlanningFailure.ExtraAttachmentSource -> BackupResult.Error.AttachmentPreflightFailure
             BackupPlanningFailure.UnreadableAttachment -> BackupResult.Error.UnreadableAttachment
             BackupPlanningFailure.InvalidAttachmentMetadata -> BackupResult.Error.AttachmentPreflightFailure
+            BackupPlanningFailure.InvalidAttachmentId -> BackupResult.Error.AttachmentPreflightFailure
             BackupPlanningFailure.AttachmentLimitExceeded -> BackupResult.Error.LimitExceeded
             BackupPlanningFailure.EntryNameLimitExceeded -> BackupResult.Error.LimitExceeded
             BackupPlanningFailure.TotalSizeLimitExceeded -> BackupResult.Error.LimitExceeded
+            BackupPlanningFailure.ArchiveEntryCountExceeded -> BackupResult.Error.LimitExceeded
             BackupPlanningFailure.JsonLimitExceeded -> BackupResult.Error.LimitExceeded
             BackupPlanningFailure.SerializationFailed -> BackupResult.Error.SerializationFailure
             BackupPlanningFailure.UnexpectedPlanningFailure -> BackupResult.Error.UnexpectedInternalFailure
+            BackupPlanningFailure.UnsupportedDatabaseSchema -> BackupResult.Error.UnsupportedPersistentData
         }
     }
 

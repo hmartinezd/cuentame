@@ -1,9 +1,10 @@
 # Stabilization Progress Checklist
 
-- `IN PROGRESS` 1. Documentation & Progress Correction
-- `IN PROGRESS` 2. Backup creation verification
-- `IN PROGRESS` 3. Regression-test recovery
-- `IN PROGRESS` 4. Backup subsystem refinement (Immutability, Resource ownership)
-- `NOT STARTED` 5. Backup restore
-- `NOT STARTED` 6. Customer export
-- `COMPLETE` 7. Single-Module Consolidation & Gradle Cleanup
+- `COMPLETE` 1. Single-Module Consolidation & Gradle Cleanup
+- `COMPLETE` 2. Package-level architecture
+- `COMPLETE` 3. Backup production hardening
+- `COMPLETE` 4. Backup verification
+- `COMPLETE` 5. Regression recovery
+- `NOT STARTED` 6. Backup restore
+- `NOT STARTED` 7. Customer export
+- `POSTPONED` 8. Multi-module migration

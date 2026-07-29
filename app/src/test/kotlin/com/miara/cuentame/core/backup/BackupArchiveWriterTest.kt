@@ -47,11 +47,11 @@ class BackupArchiveWriterTest {
             "preferences/settings.json" to prefsSha,
             "manifest.json" to manifestSha
         )
-        // Checksums map must be sorted by key to match expectations
         val sortedChecksums = checksumsMap.toSortedMap()
+        // Correct sorted order in JSON string for dummy check
         val checksumsBytes = "{\"data/database.json\":\"$snapshotSha\",\"manifest.json\":\"$manifestSha\",\"preferences/settings.json\":\"$prefsSha\"}".toByteArray()
 
-        return BackupPlan(
+        return BackupPlan.create(
             snapshotDto = snapshot,
             snapshotJson = snapshotBytes,
             preferencesDto = prefs,
@@ -61,7 +61,7 @@ class BackupArchiveWriterTest {
             manifestJson = manifestBytes,
             expectedEntryChecksums = sortedChecksums,
             checksumsJson = checksumsBytes,
-            totalUncompressedBytes = 0L
+            totalUncompressedBytes = (snapshotBytes.size + prefsBytes.size + manifestBytes.size + checksumsBytes.size).toLong()
         )
     }
 
@@ -82,16 +82,24 @@ class BackupArchiveWriterTest {
              throw result.cause
         }
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Success)
-        // Ownership: writer should NOT close caller's stream
         assertThat(output.closedCount).isEqualTo(0)
     }
 
     @Test
     fun `writer rejects plan with inconsistent checksums`() = runTest {
         val plan = createMinimalPlan()
-        // Corrupt manifest bytes relative to its planned checksum
+        val snapshotSha = plan.snapshotJson.sha256()
+        val prefsSha = plan.preferencesJson.sha256()
+        val manifestSha = plan.manifestJson.sha256()
+        
         val corruptedManifestBytes = ImmutableBackupBytes.from("corrupted".toByteArray())
-        val corruptedPlan = plan.copy(manifestJson = corruptedManifestBytes)
+        
+        // We must also update totalUncompressedBytes to avoid preflight total size limit mismatch 
+        // if the writer checks that before entry writing.
+        val corruptedPlan = plan.copy(
+            manifestJson = corruptedManifestBytes,
+            totalUncompressedBytes = plan.totalUncompressedBytes + ("corrupted".length - plan.manifestJson.size)
+        )
 
         val output = ByteArrayOutputStream()
         val result = writer.write(output, corruptedPlan)
