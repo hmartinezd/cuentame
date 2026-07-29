@@ -381,4 +381,25 @@ object BackupTestFixtures {
         purchaseAttPath: String? = null,
         wasteAttPath: String? = null
     ): BackupSnapshot = createPostedLifecycleSnapshot(restaurantId, purchaseAttPath, wasteAttPath)
+
+    fun createEmptySnapshotDto(): com.miara.cuentame.core.backup.model.BackupSnapshotDto {
+        return com.miara.cuentame.core.backup.model.BackupSnapshotDto(
+            restaurants = emptyList(),
+            inventoryAreas = emptyList(),
+            ingredientCategories = emptyList(),
+            units = emptyList(),
+            ingredients = emptyList(),
+            ingredientUnitOptions = emptyList(),
+            suppliers = emptyList(),
+            purchaseReceipts = emptyList(),
+            purchaseLines = emptyList(),
+            stockCounts = emptyList(),
+            stockCountAreas = emptyList(),
+            stockCountLines = emptyList(),
+            wasteEvents = emptyList(),
+            inventoryMovements = emptyList(),
+            inventoryBalanceProjections = emptyList(),
+            ingredientCostProjections = emptyList()
+        )
+    }
 }

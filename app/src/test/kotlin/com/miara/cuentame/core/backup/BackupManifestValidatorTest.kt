@@ -1,10 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
-import com.miara.cuentame.core.model.backup.BackupAttachmentReference
-import com.miara.cuentame.core.model.backup.BackupManifest
-import com.miara.cuentame.core.model.backup.TableMetadata
+import com.miara.cuentame.core.model.backup.*
 import org.junit.Test
 import java.time.Instant
 
@@ -44,12 +41,13 @@ class BackupManifestValidatorTest {
         currencyCode = "USD",
         tableMetadata = validTableMetadata,
         attachments = emptyList(),
-        includedSections = listOf("data", "preferences", "attachments")
+        includedSections = listOf("data", "preferences", "attachments"),
+        checksumAlgorithm = "SHA-256"
     )
 
     @Test
     fun `validate accepts valid manifest`() {
-        assertThat(BackupManifestValidator.validate(validManifest).isSuccess).isTrue()
+        assertThat(BackupManifestValidator.validate(validManifest)).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test
@@ -67,7 +65,7 @@ class BackupManifestValidatorTest {
                 )
             )
         )
-        assertThat(BackupManifestValidator.validate(manifest).isSuccess).isTrue()
+        assertThat(BackupManifestValidator.validate(manifest)).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test
@@ -75,9 +73,8 @@ class BackupManifestValidatorTest {
         val att1 = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")))
         val att2 = BackupAttachmentMetadata("att-1", "attachments/att-2.jpg", "R2", "image/jpeg", 200, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-2")))
         val manifest = validManifest.copy(attachments = listOf(att1, att2))
-        val res = BackupManifestValidator.validate(manifest)
-        assertThat(res.isFailure).isTrue()
-        assertThat(res.exceptionOrNull()?.message).contains("Duplicate attachment ID")
+        val res = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
+        assertThat(res.code).isEqualTo(BackupValidationCode.ATTACHMENT_INVALID)
     }
 
     @Test
@@ -85,27 +82,24 @@ class BackupManifestValidatorTest {
         val att1 = BackupAttachmentMetadata("att-1", "attachments/same.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")))
         val att2 = BackupAttachmentMetadata("att-2", "attachments/same.jpg", "R2", "image/jpeg", 200, validSha, listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "pr-2")))
         val manifest = validManifest.copy(attachments = listOf(att1, att2))
-        val res = BackupManifestValidator.validate(manifest)
-        assertThat(res.isFailure).isTrue()
-        assertThat(res.exceptionOrNull()?.message).contains("Duplicate archive path")
+        val res = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
+        assertThat(res.code).isEqualTo(BackupValidationCode.ATTACHMENT_INVALID)
     }
 
     @Test
     fun `validate rejects empty referencedBy list`() {
         val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, emptyList())
         val manifest = validManifest.copy(attachments = listOf(att))
-        val res = BackupManifestValidator.validate(manifest)
-        assertThat(res.isFailure).isTrue()
-        assertThat(res.exceptionOrNull()?.message).contains("referencedBy list cannot be empty")
+        val res = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
+        assertThat(res.code).isEqualTo(BackupValidationCode.ATTACHMENT_INVALID)
     }
 
     @Test
     fun `validate rejects unsupported recordType in reference`() {
         val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(BackupAttachmentReference("UNSUPPORTED_TYPE", "id-1")))
         val manifest = validManifest.copy(attachments = listOf(att))
-        val res = BackupManifestValidator.validate(manifest)
-        assertThat(res.isFailure).isTrue()
-        assertThat(res.exceptionOrNull()?.message).contains("Unsupported recordType")
+        val res = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
+        assertThat(res.code).isEqualTo(BackupValidationCode.ATTACHMENT_INVALID)
     }
 
     @Test
@@ -113,8 +107,7 @@ class BackupManifestValidatorTest {
         val ref = BackupAttachmentReference("PURCHASE_RECEIPT", "pr-1")
         val att = BackupAttachmentMetadata("att-1", "attachments/att-1.jpg", "R1", "image/jpeg", 100, validSha, listOf(ref, ref))
         val manifest = validManifest.copy(attachments = listOf(att))
-        val res = BackupManifestValidator.validate(manifest)
-        assertThat(res.isFailure).isTrue()
-        assertThat(res.exceptionOrNull()?.message).contains("Duplicate reference in attachment referencedBy list")
+        val res = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
+        assertThat(res.code).isEqualTo(BackupValidationCode.ATTACHMENT_INVALID)
     }
 }

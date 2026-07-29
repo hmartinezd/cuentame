@@ -1,28 +1,41 @@
 package com.miara.cuentame.core.backup.platform
 
+import com.miara.cuentame.core.backup.api.BackupStorageFailure
 import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
 
 interface BackupStorageErrorClassifier {
-    fun isInsufficientStorage(throwable: Throwable): Boolean
+    fun classify(throwable: Throwable): BackupStorageFailure
 }
 
-class DefaultBackupStorageErrorClassifier : BackupStorageErrorClassifier {
+@Singleton
+class DefaultBackupStorageErrorClassifier @Inject constructor() : BackupStorageErrorClassifier {
 
-    override fun isInsufficientStorage(throwable: Throwable): Boolean {
-        return generateSequence(throwable) { it.cause }.any { cause ->
+    override fun classify(throwable: Throwable): BackupStorageFailure {
+        return generateSequence(throwable) { it.cause }.map { cause ->
             when {
-                cause is IOException && (
-                    cause.message?.contains("ENOSPC", ignoreCase = true) == true ||
-                    cause.message?.contains("No space left on device", ignoreCase = true) == true
-                ) -> true
-                cause.javaClass.simpleName == "ErrnoException" -> {
-                    try {
-                        val errnoField = cause.javaClass.getField("errno")
-                        errnoField.getInt(cause) == 28
-                    } catch (_: Exception) { false }
-                }
-                else -> false
+                cause is SecurityException -> BackupStorageFailure.PermissionDenied
+                cause is IOException && isInsufficientSpace(cause) -> BackupStorageFailure.InsufficientSpace
+                cause is IOException -> BackupStorageFailure.GenericIo
+                cause.javaClass.simpleName == "ErrnoException" && isEnospc(cause) -> BackupStorageFailure.InsufficientSpace
+                else -> null
             }
+        }.filterNotNull().firstOrNull() ?: BackupStorageFailure.GenericIo
+    }
+
+    private fun isInsufficientSpace(e: IOException): Boolean {
+        val message = e.message ?: return false
+        return message.contains("ENOSPC", ignoreCase = true) ||
+               message.contains("No space left on device", ignoreCase = true)
+    }
+
+    private fun isEnospc(errnoException: Throwable): Boolean {
+        return try {
+            val errnoField = errnoException.javaClass.getField("errno")
+            errnoField.getInt(errnoException) == 28 // ENOSPC
+        } catch (_: Exception) {
+            false
         }
     }
 }

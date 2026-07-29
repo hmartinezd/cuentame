@@ -2,6 +2,9 @@ package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.backup.BackupValidationCode
+import com.miara.cuentame.core.model.backup.BackupValidationDiagnostic
+import com.miara.cuentame.core.model.backup.BackupValidationResult
 import com.miara.cuentame.core.model.backup.TableMetadata
 import org.junit.Test
 
@@ -45,36 +48,38 @@ class BackupManifestHardeningTest {
 
     @Test
     fun `validate accepts valid manifest`() {
-        assertThat(BackupManifestValidator.validate(validManifest).isSuccess).isTrue()
+        assertThat(BackupManifestValidator.validate(validManifest)).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test
     fun `validate rejects non-canonical timestamp`() {
         val invalid = validManifest.copy(createdAtUtc = "2026-01-01T12:00:00.000Z") 
-        val result = BackupManifestValidator.validate(invalid)
-        assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("canonical")
+        val result = BackupManifestValidator.validate(invalid) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
+        assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.TIMESTAMP_INVALID)
     }
 
     @Test
     fun `validate rejects invalid currency`() {
         val invalid = validManifest.copy(currencyCode = "INVALID")
-        val result = BackupManifestValidator.validate(invalid)
-        assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("currencyCode")
+        val result = BackupManifestValidator.validate(invalid) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
+        assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.CURRENCY_INVALID)
     }
 
     @Test
     fun `validate rejects invalid locale`() {
         val invalid = validManifest.copy(localeTag = "invalid")
-        assertThat(BackupManifestValidator.validate(invalid).isFailure).isTrue()
+        val result = BackupManifestValidator.validate(invalid) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
+        assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.LOCALE_UNSUPPORTED)
     }
     
     @Test
     fun `validate rejects missing table metadata keys`() {
         val invalid = validManifest.copy(tableMetadata = validTableMetadata.filterKeys { it != "ingredients" })
-        val result = BackupManifestValidator.validate(invalid)
-        assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()?.message).contains("Missing: [ingredients]")
+        val result = BackupManifestValidator.validate(invalid) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
+        assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
     }
 }

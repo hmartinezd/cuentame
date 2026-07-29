@@ -76,14 +76,17 @@ sealed interface BackupResult {
         data object DestinationUnavailable : Error
         data object PermissionDenied : Error
         data object InsufficientStorage : Error
-        data class LimitExceeded(val message: String) : Error
+        data object LimitExceeded : Error
         data class SerializationFailure(val cause: Throwable) : Error
         data class DatabaseSnapshotFailure(val cause: Throwable) : Error
         data class PreferencesReadFailure(val cause: Throwable) : Error
         data class MissingAttachment(val attachmentId: String) : Error
         data class UnreadableAttachment(val attachmentId: String, val cause: Throwable) : Error
         data class ChecksumFailure(val entryName: String) : Error
-        data class ArchiveValidationFailure(val code: BackupValidationCode, val reason: String) : Error
+        data class ArchiveValidationFailure(
+            val code: BackupValidationCode,
+            val diagnostic: BackupValidationDiagnostic? = null
+        ) : Error
         data object RestaurantUnavailable : Error
         data class FilenamePreparationFailure(val cause: Throwable) : Error
         data object UnsupportedPersistentData : Error
@@ -109,7 +112,25 @@ enum class BackupValidationCode {
     LIMIT_EXCEEDED
 }
 
+enum class BackupValidationDiagnostic {
+    VERSION_MISMATCH,
+    TIMESTAMP_INVALID,
+    LOCALE_UNSUPPORTED,
+    CURRENCY_INVALID,
+    TABLE_METADATA_MISMATCH,
+    ATTACHMENT_COUNT_EXCEEDED,
+    ATTACHMENT_CHECKSUM_MISMATCH,
+    ATTACHMENT_SIZE_MISMATCH,
+    ATTACHMENT_PATH_MISMATCH,
+    ATTACHMENT_REFERENCE_MISMATCH,
+    SNAPSHOT_INTEGRITY_FAILURE,
+    CHECKSUM_MISSING
+}
+
 sealed interface BackupValidationResult {
     data class Valid(val manifest: BackupManifest) : BackupValidationResult
-    data class Invalid(val code: BackupValidationCode, val reason: String) : BackupValidationResult
+    data class Invalid(
+        val code: BackupValidationCode,
+        val diagnostic: BackupValidationDiagnostic? = null
+    ) : BackupValidationResult
 }

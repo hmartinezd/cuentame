@@ -58,6 +58,7 @@ android {
         unitTests.all { testTask ->
             testTask.jvmArgs("-Xmx2048m", "-XX:MaxMetaspaceSize=1024m")
             testTask.maxParallelForks = 1
+            testTask.systemProperty("cuentame.repoRoot", rootProject.projectDir.absolutePath)
         }
     }
 

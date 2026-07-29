@@ -81,18 +81,20 @@ fun SettingsRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
-    var pendingPickerOperationId by rememberSaveable { mutableStateOf<BackupOperationId?>(null) }
+    var pendingPickerOperationIdValue by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
         onResult = { uri ->
-            val opId = pendingPickerOperationId
-            if (opId != null) {
+            val opIdValue = pendingPickerOperationIdValue
+            if (opIdValue != null) {
+                val opId = BackupOperationId(opIdValue)
                 if (uri != null) {
                     backupViewModel.onFileSelected(opId, uri.toString())
                 } else {
                     backupViewModel.onPickerCancelled(opId)
                 }
+                pendingPickerOperationIdValue = null
             }
         }
     )
@@ -101,7 +103,7 @@ fun SettingsRoute(
         backupViewModel.events.collect { event ->
             when (event) {
                 is BackupUiEvent.LaunchFilePicker -> {
-                    pendingPickerOperationId = event.operationId
+                    pendingPickerOperationIdValue = event.operationId.value
                     backupLauncher.launch(event.suggestedName)
                 }
             }

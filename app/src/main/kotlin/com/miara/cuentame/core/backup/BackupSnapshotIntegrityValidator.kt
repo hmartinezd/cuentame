@@ -301,6 +301,16 @@ object BackupSnapshotIntegrityValidator {
             for ((value, field) in listOf(
                 line.quantityEntered to "purchase_lines.quantityEntered",
                 line.quantityBase to "purchase_lines.quantityBase",
+            )) {
+                val r = parseDecimal(value, "Invalid numeric format in $field")
+                when (r) {
+                    is BigDecimalResult.Err -> return err(r.code, r.msg)
+                    is BigDecimalResult.Ok -> {
+                        if (r.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "$field must be > 0")
+                    }
+                }
+            }
+            for ((value, field) in listOf(
                 line.unitCostBase to "purchase_lines.unitCostBase",
                 line.lineTotal to "purchase_lines.lineTotal",
             )) {
@@ -335,12 +345,7 @@ object BackupSnapshotIntegrityValidator {
             }
             if (scl.expectedQuantityBaseSnapshot != null) {
                 val r = parseDecimal(scl.expectedQuantityBaseSnapshot, "Invalid numeric format in stock_count_lines.expectedQuantityBaseSnapshot")
-                when (r) {
-                    is BigDecimalResult.Err -> return err(r.code, r.msg)
-                    is BigDecimalResult.Ok -> {
-                        if (r.value < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "stock_count_lines.expectedQuantityBaseSnapshot must be >= 0")
-                    }
-                }
+                if (r is BigDecimalResult.Err) return err(r.code, r.msg)
             }
         }
 
@@ -357,7 +362,7 @@ object BackupSnapshotIntegrityValidator {
                 when (r) {
                     is BigDecimalResult.Err -> return err(r.code, r.msg)
                     is BigDecimalResult.Ok -> {
-                        if (r.value < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "$field must be >= 0")
+                        if (r.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "$field must be > 0")
                     }
                 }
             }
@@ -604,9 +609,24 @@ object BackupSnapshotIntegrityValidator {
                         move.areaId != original.areaId ||
                         move.sourceDocumentType != original.sourceDocumentType ||
                         move.sourceDocumentId != original.sourceDocumentId ||
-                        move.sourceLineId != original.sourceLineId ||
-                        move.unitCostBaseSnapshot != original.unitCostBaseSnapshot) {
+                        move.sourceLineId != original.sourceLineId) {
                         return err(INVALID_REVERSAL, "REVERSAL movement identity fields do not match original movement")
+                    }
+
+                    val revCostResult = parseNullableDecimal(move.unitCostBaseSnapshot, "Invalid numeric format in REVERSAL unit cost")
+                    val origCostResult = parseNullableDecimal(original.unitCostBaseSnapshot, "Invalid numeric format in original unit cost")
+                    
+                    if (revCostResult is NullableDecimalResult.Err) return err(revCostResult.code, revCostResult.msg)
+                    if (origCostResult is NullableDecimalResult.Err) return err(origCostResult.code, origCostResult.msg)
+                    
+                    val costsMatch = when {
+                        revCostResult is NullableDecimalResult.Null && origCostResult is NullableDecimalResult.Null -> true
+                        revCostResult is NullableDecimalResult.Ok && origCostResult is NullableDecimalResult.Ok -> 
+                            revCostResult.value.compareTo(origCostResult.value) == 0
+                        else -> false
+                    }
+                    if (!costsMatch) {
+                        return err(INVALID_REVERSAL, "REVERSAL and original movement unit cost snapshots do not match")
                     }
 
                     if (move.effectiveAt < original.effectiveAt) {
@@ -685,6 +705,9 @@ object BackupSnapshotIntegrityValidator {
                     if (purchaseMoves.mapNotNull { it.sourceLineId }.toSet() != lineIds) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED purchase receipt line IDs must match movement sourceLineIds 1-to-1")
                     }
+                    if (purchaseMoves.mapNotNull { it.sourceLineId }.size != purchaseMoves.size) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED purchase receipt contains movements with null sourceLineId")
+                    }
                     if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED purchase receipt must not have REVERSAL movements")
                     }
@@ -694,6 +717,12 @@ object BackupSnapshotIntegrityValidator {
                     val reversalMoves = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
                     if (purchaseMoves.size != lines.size || reversalMoves.size != lines.size) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED purchase receipt must have matching PURCHASE and REVERSAL movements per line")
+                    }
+                    if (purchaseMoves.mapNotNull { it.sourceLineId }.toSet() != lineIds) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED purchase receipt line IDs must match movement sourceLineIds 1-to-1")
+                    }
+                    if (purchaseMoves.mapNotNull { it.sourceLineId }.size != purchaseMoves.size) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED purchase receipt contains movements with null sourceLineId")
                     }
                     val reversedTargetIds = reversalMoves.mapNotNull { it.reversalOfMovementId }.toSet()
                     val origMoveIds = purchaseMoves.map { it.id }.toSet()
@@ -775,6 +804,12 @@ object BackupSnapshotIntegrityValidator {
                     if (origMoves.size != countLines.size) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count must have one original movement per count line")
                     }
+                    if (origMoves.mapNotNull { it.sourceLineId }.toSet() != lineIds) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count line IDs must match movement sourceLineIds 1-to-1")
+                    }
+                    if (origMoves.mapNotNull { it.sourceLineId }.size != origMoves.size) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count contains movements with null sourceLineId")
+                    }
                     if (reversalMoves.size != origMoves.size) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count must have a REVERSAL for each original movement")
                     }
@@ -797,7 +832,11 @@ object BackupSnapshotIntegrityValidator {
         for (move in dto.inventoryMovements) {
             val key = Pair(move.ingredientId, move.areaId)
             keysWithMovements.add(key)
-            val q = try { BigDecimal(move.quantityBaseSigned) } catch (_: Exception) { BigDecimal.ZERO }
+            val qr = parseDecimal(move.quantityBaseSigned, "Invalid numeric format in inventory_movements.quantityBaseSigned")
+            val q = when (qr) {
+                is BigDecimalResult.Err -> return err(qr.code, qr.msg)
+                is BigDecimalResult.Ok -> qr.value
+            }
             computedBalances[key] = computedBalances.getOrDefault(key, BigDecimal.ZERO).add(q)
         }
 

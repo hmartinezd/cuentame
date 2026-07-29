@@ -2,10 +2,9 @@ package com.miara.cuentame.core.backup.di
 
 import com.miara.cuentame.core.backup.api.BackupAttachmentSource
 import com.miara.cuentame.core.backup.api.BackupDocumentStore
-import com.miara.cuentame.core.backup.platform.AndroidBackupAttachmentSource
-import com.miara.cuentame.core.backup.platform.AndroidBackupDocumentStore
-import com.miara.cuentame.core.backup.platform.BackupStorageErrorClassifier
-import com.miara.cuentame.core.backup.platform.DefaultBackupStorageErrorClassifier
+import com.miara.cuentame.core.backup.api.BackupPreferencesSource
+import com.miara.cuentame.core.backup.api.BackupSnapshotSource
+import com.miara.cuentame.core.backup.platform.*
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -28,6 +27,18 @@ abstract class BackupModule {
     abstract fun bindBackupAttachmentSource(
         impl: AndroidBackupAttachmentSource
     ): BackupAttachmentSource
+
+    @Binds
+    @Singleton
+    abstract fun bindBackupSnapshotSource(
+        impl: RoomBackupSnapshotSource
+    ): BackupSnapshotSource
+
+    @Binds
+    @Singleton
+    abstract fun bindBackupPreferencesSource(
+        impl: DataStoreBackupPreferencesSource
+    ): BackupPreferencesSource
 
     companion object {
         @Provides

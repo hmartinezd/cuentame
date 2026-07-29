@@ -32,15 +32,26 @@ class AndroidBackupDocumentStore @Inject constructor(
 
     override suspend fun delete(document: BackupDocumentUri): Boolean {
         val uri = Uri.parse(document.value)
-        return try {
-            DocumentsContract.deleteDocument(context.contentResolver, uri)
-        } catch (_: Exception) {
-            try {
-                context.contentResolver.delete(uri, null, null) > 0
-            } catch (_: Exception) {
-                false
-            }
+        val resolver = context.contentResolver
+
+        val deletedByDocumentsContract = runCatching {
+            DocumentsContract.deleteDocument(
+                resolver,
+                uri
+            )
+        }.getOrDefault(false)
+
+        if (deletedByDocumentsContract) {
+            return true
         }
+
+        return runCatching {
+            resolver.delete(
+                uri,
+                null,
+                null
+            ) > 0
+        }.getOrDefault(false)
     }
 
     override suspend fun truncate(document: BackupDocumentUri): Boolean {
