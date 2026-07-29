@@ -6,14 +6,14 @@ This log tracks progress across all phases of the architecture stabilization.
 
 ## Phase Checklist
 
-- [x] **Phase 0 — Establish Baseline & Inventory** `COMPLETE`
-- [x] **Phase 1 — Shared Locale Definition & Reconciliation** `COMPLETE`
-- [x] **Phase 2 — Decompose Backup Subsystem** `COMPLETE`
-- [x] **Phase 3 — Correct & Decompose Snapshot Validation** `COMPLETE`
-- [x] **Phase 4 — Rebuild Backup Test Architecture** `COMPLETE`
-- [x] **Phase 5 — Lifecycle-Safe File Picker Workflow** `COMPLETE`
-- [x] **Phase 6 — Single-Module Consolidation** `COMPLETE`
-- [x] **Phase 7 — Package-Level Boundary Enforcement** `COMPLETE`
+- [ ] **Phase 0 — Establish Baseline & Inventory** `IN PROGRESS`
+- [ ] **Phase 1 — Shared Locale Definition & Reconciliation** `IN PROGRESS`
+- [ ] **Phase 2 — Decompose Backup Subsystem** `IN PROGRESS`
+- [ ] **Phase 3 — Correct & Decompose Snapshot Validation** `IN PROGRESS`
+- [ ] **Phase 4 — Rebuild Backup Test Architecture** `IN PROGRESS`
+- [ ] **Phase 5 — Lifecycle-Safe File Picker Workflow** `IN PROGRESS`
+- [ ] **Phase 6 — Single-Module Consolidation** `IN PROGRESS`
+- [ ] **Phase 7 — Package-Level Boundary Enforcement** `IN PROGRESS`
 - [ ] **Phase 8 — Future Multi-Module Migration** `POSTPONED`
 
 ---
@@ -21,7 +21,7 @@ This log tracks progress across all phases of the architecture stabilization.
 ## Execution Summary
 
 ### Phase 0-5 — Stabilization & Corrections
-- **Status**: `COMPLETE`
+- **Status**: `IN PROGRESS`
 - **Actions**:
   - Refactored `AndroidBackupRepository` to use `BackupCreationPlanner`, `BackupSnapshotSource`, and `BackupDocumentStore`.
   - Hardened `BackupViewModel` with `SavedStateHandle`, `Mutex`, and atomic state transitions.
@@ -31,7 +31,7 @@ This log tracks progress across all phases of the architecture stabilization.
 - **Result**: `ALL TESTS PASSED`
 
 ### Phase 6 — Single-Module Consolidation
-- **Status**: `COMPLETE`
+- **Status**: `IN PROGRESS`
 - **Actions**:
   - Removed empty Gradle submodule scaffolding (`core/*`, `feature/*`) and `build-logic`.
   - Consolidated all production and test code into the `:app` module.
@@ -39,7 +39,7 @@ This log tracks progress across all phases of the architecture stabilization.
 - **Result**: `BUILD SUCCESSFUL`
 
 ### Phase 7 — Package-Level Boundary Enforcement
-- **Status**: `COMPLETE`
+- **Status**: `IN PROGRESS`
 - **Actions**:
   - Repaired `ArchitectureTest.kt` for single-module structure.
   - Enforced model-purity and domain-isolation rules via package-based checks.

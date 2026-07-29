@@ -54,7 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
-import com.miara.cuentame.core.presentation.backup.toUserMessageRes
+import com.miara.cuentame.feature.settings.presentation.toUserMessageRes
 import com.miara.cuentame.core.model.locale.SupportedAppLocale
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId

@@ -43,10 +43,9 @@ object BackupManifestValidator {
         if (manifest.restaurantId.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         if (manifest.restaurantName.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
 
-        // Strict Locale check — only supported app locales are accepted
+        // Strict Locale check
         val tag = manifest.localeTag
-        if (tag.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.LOCALE_UNSUPPORTED)
-        if (tag !in SupportedAppLocale.languageTags) {
+        if (tag.isNullOrBlank() || SupportedAppLocale.fromLanguageTag(tag) == null) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.LOCALE_UNSUPPORTED)
         }
         try {
@@ -60,10 +59,7 @@ object BackupManifestValidator {
         }
 
         val sections = manifest.includedSections.toSet()
-        if (sections != REQUIRED_SECTIONS) {
-            return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
-        }
-        if (manifest.includedSections.size != sections.size) {
+        if (sections != REQUIRED_SECTIONS || manifest.includedSections.size != sections.size) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         }
 
@@ -82,48 +78,26 @@ object BackupManifestValidator {
             }
         }
 
-        // Attachment multiplicity & validation (before converting anything to a set)
         if (manifest.attachments.size > BackupLimits.MAX_ATTACHMENT_COUNT) {
             return BackupValidationResult.Invalid(BackupValidationCode.LIMIT_EXCEEDED, BackupValidationDiagnostic.ATTACHMENT_COUNT_EXCEEDED)
         }
 
         val attachmentIds = manifest.attachments.map { it.attachmentId }
-        if (attachmentIds.any { it.isBlank() }) {
-            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-        }
-        if (attachmentIds.distinct().size != attachmentIds.size) {
+        if (attachmentIds.any { it.isBlank() } || attachmentIds.distinct().size != attachmentIds.size) {
             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
 
         val archivePaths = manifest.attachments.map { it.archivePath }
-        if (archivePaths.any { it.isBlank() }) {
-            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-        }
-        if (archivePaths.distinct().size != archivePaths.size) {
+        if (archivePaths.any { it.isBlank() } || archivePaths.distinct().size != archivePaths.size) {
             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
 
         for (att in manifest.attachments) {
-            if (att.displayName.isBlank()) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            }
-            if (att.sizeBytes < 0) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            }
-            if (!SHA256_REGEX.matches(att.checksumSha256)) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_CHECKSUM_MISMATCH)
-            }
-            if (att.referencedBy.isEmpty()) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            }
-            if (att.referencedBy.distinct().size != att.referencedBy.size) {
+            if (att.displayName.isBlank() || att.sizeBytes < 0 || !SHA256_REGEX.matches(att.checksumSha256) || att.referencedBy.isEmpty() || att.referencedBy.distinct().size != att.referencedBy.size) {
                 return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
             }
             for (ref in att.referencedBy) {
-                if (ref.recordId.isBlank()) {
-                    return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-                }
-                if (ref.recordType !in SUPPORTED_RECORD_TYPES) {
+                if (ref.recordId.isBlank() || ref.recordType !in SUPPORTED_RECORD_TYPES) {
                     return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
                 }
             }

@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.fakes.*
 import com.miara.cuentame.core.backup.internal.BackupCleanupCoordinator
-import com.miara.cuentame.core.backup.internal.BackupCleanupOutcome
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -21,12 +20,13 @@ import java.time.Instant
 class BackupCleanupLifecycleTest {
 
     private val snapshotSource = FakeBackupSnapshotSource()
-    private val attachmentSource = FakeBackupAttachmentSource()
     private val documentStore = FakeBackupDocumentStore()
     private val storageErrorClassifier = FakeBackupStorageErrorClassifier()
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val planner = mockk<BackupCreationPlanner>()
     private val cleanupCoordinator = BackupCleanupCoordinator(documentStore)
+    private val archiveWriter = mockk<BackupArchiveWriter>()
+    private val archiveValidator = mockk<BackupArchiveValidator>()
 
     private lateinit var repository: AndroidBackupRepository
 
@@ -34,12 +34,13 @@ class BackupCleanupLifecycleTest {
     fun setup() {
         repository = AndroidBackupRepository(
             snapshotSource = snapshotSource,
-            attachmentSource = attachmentSource,
             documentStore = documentStore,
             planner = planner,
             errorClassifier = storageErrorClassifier,
             restaurantRepository = restaurantRepository,
-            cleanupCoordinator = cleanupCoordinator
+            cleanupCoordinator = cleanupCoordinator,
+            archiveWriter = archiveWriter,
+            archiveValidator = archiveValidator
         )
 
         val rest = Restaurant(
@@ -68,7 +69,7 @@ class BackupCleanupLifecycleTest {
     fun `creation failure triggers cleanup`() = runTest {
         val rest = Restaurant(RestaurantId("r1"), "R", "USD", "en-US", Instant.now(), Instant.now())
         coEvery { restaurantRepository.getRestaurant() } returns rest
-        snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyMap())
+        snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyList())
         
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
             mockk(relaxed = true) {
@@ -77,9 +78,8 @@ class BackupCleanupLifecycleTest {
             }
         )
         
-        // Make openForWrite throw
-        documentStore.writeStream = mockk()
-        io.mockk.every { documentStore.writeStream.write(any<ByteArray>()) } throws java.io.IOException("Disk full")
+        // Make writer throw
+        coEvery { archiveWriter.write(any(), any()) } throws java.io.IOException("Disk full")
 
         val docUri = "content://fail.zip"
         repository.createBackup(docUri).toList()
@@ -91,7 +91,7 @@ class BackupCleanupLifecycleTest {
     fun `failed deletion falls back to truncate`() = runTest {
         val rest = Restaurant(RestaurantId("r1"), "R", "USD", "en-US", Instant.now(), Instant.now())
         coEvery { restaurantRepository.getRestaurant() } returns rest
-        snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyMap())
+        snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyList())
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
             mockk(relaxed = true) {
                 io.mockk.every { snapshotJson } returns ByteArray(0)
@@ -103,8 +103,7 @@ class BackupCleanupLifecycleTest {
         documentStore.truncateResult = true
         
         // Force failure after open
-        documentStore.writeStream = mockk()
-        io.mockk.every { documentStore.writeStream.write(any<Int>()) } throws java.io.IOException("Fail")
+        coEvery { archiveWriter.write(any(), any()) } throws java.io.IOException("Fail")
 
         val docUri = "content://truncate.zip"
         repository.createBackup(docUri).toList()

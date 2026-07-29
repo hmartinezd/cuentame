@@ -2,9 +2,14 @@ package com.miara.cuentame.core.backup.api
 
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 
+data class BackupAttachmentSourceBinding(
+    val attachmentId: String,
+    val sourceUri: AttachmentSourceUri
+)
+
 data class BackupSnapshotResult(
     val dto: BackupSnapshotDto,
-    val attachmentUris: Map<String, AttachmentSourceUri> // ID -> URI
+    val attachmentBindings: List<BackupAttachmentSourceBinding>
 )
 
 interface BackupSnapshotSource {

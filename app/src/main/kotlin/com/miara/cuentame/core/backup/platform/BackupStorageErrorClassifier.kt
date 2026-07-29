@@ -16,12 +16,12 @@ class DefaultBackupStorageErrorClassifier @Inject constructor() : BackupStorageE
     override fun classify(throwable: Throwable): BackupStorageFailure {
         val chain = generateSequence(throwable) { it.cause }.toList()
 
-        // 1. SecurityException -> PermissionDenied
+        // 1. SecurityException anywhere -> PermissionDenied
         if (chain.any { it is SecurityException }) {
             return BackupStorageFailure.PermissionDenied
         }
 
-        // 2. ENOSPC -> InsufficientSpace
+        // 2. ENOSPC anywhere -> InsufficientSpace
         if (chain.any { isInsufficientSpace(it) }) {
             return BackupStorageFailure.InsufficientSpace
         }
@@ -52,7 +52,7 @@ class DefaultBackupStorageErrorClassifier @Inject constructor() : BackupStorageE
         if (t.javaClass.simpleName == "ErrnoException") {
             try {
                 val errnoField = t.javaClass.getField("errno")
-                if (errnoField.getInt(t) == 28) return true
+                if (errnoField.get(t) == 28) return true
             } catch (_: Exception) {}
         }
         

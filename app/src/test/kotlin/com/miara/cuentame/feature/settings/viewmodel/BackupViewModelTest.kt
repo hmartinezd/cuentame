@@ -259,4 +259,17 @@ class BackupViewModelTest {
         val err = state as BackupUiState.Error
         assertThat(err.error).isInstanceOf(BackupResult.Error.FilenamePreparationFailure::class.java)
     }
+
+    @Test
+    fun `consumePickerLaunch returns true and Consumed on first call`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } returns makeRestaurant()
+        every { timeProvider.now() } returns Instant.EPOCH
+
+        val event = awaitPickerEvent()
+        val success = viewModel.consumePickerLaunch(event.operationId)
+        assertThat(success).isTrue()
+        
+        val secondSuccess = viewModel.consumePickerLaunch(event.operationId)
+        assertThat(secondSuccess).isFalse()
+    }
 }

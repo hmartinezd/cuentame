@@ -4,6 +4,7 @@ import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -15,26 +16,38 @@ class FakeBackupDocumentStore : BackupDocumentStore {
 
     var deleteResult = true
     var truncateResult = true
-    var writeStream = ByteArrayOutputStream()
-    var readStream: InputStream = ByteArrayInputStream(ByteArray(0))
+    var storage = mutableMapOf<BackupDocumentUri, ByteArray>()
+    
+    var openForWriteError: Exception? = null
+    var openForReadError: Exception? = null
 
     override suspend fun openForWrite(destination: BackupDocumentUri): OutputStream {
         openForWriteCalls.add(destination)
-        return writeStream
+        openForWriteError?.let { throw it }
+        return object : ByteArrayOutputStream() {
+            override fun close() {
+                super.close()
+                storage[destination] = toByteArray()
+            }
+        }
     }
 
     override suspend fun openForRead(source: BackupDocumentUri): InputStream {
         openForReadCalls.add(source)
-        return readStream
+        openForReadError?.let { throw it }
+        val data = storage[source] ?: throw IOException("Not found")
+        return ByteArrayInputStream(data)
     }
 
     override suspend fun delete(document: BackupDocumentUri): Boolean {
         deleteCalls.add(document)
+        if (deleteResult) storage.remove(document)
         return deleteResult
     }
 
     override suspend fun truncate(document: BackupDocumentUri): Boolean {
         truncateCalls.add(document)
+        if (truncateResult) storage[document] = ByteArray(0)
         return truncateResult
     }
 }
@@ -65,16 +78,21 @@ class FakeBackupAttachmentSource : BackupAttachmentSource {
     
     var metadataMap = mutableMapOf<AttachmentSourceUri, AttachmentSourceMetadata>()
     var dataMap = mutableMapOf<AttachmentSourceUri, ByteArray>()
-    var exception: Exception? = null
+    var inspectException: Exception? = null
+    var openException: Exception? = null
+    
+    var openCountMap = mutableMapOf<AttachmentSourceUri, Int>()
 
     override suspend fun inspect(uri: AttachmentSourceUri): AttachmentSourceMetadata {
         inspectedUris.add(uri)
+        inspectException?.let { throw it }
         return metadataMap[uri] ?: throw Exception("Not found")
     }
 
     override suspend fun open(uri: AttachmentSourceUri): InputStream {
         openedUris.add(uri)
-        exception?.let { throw it }
+        openException?.let { throw it }
+        openCountMap[uri] = (openCountMap[uri] ?: 0) + 1
         val data = dataMap[uri] ?: throw Exception("Not found")
         return ByteArrayInputStream(data)
     }

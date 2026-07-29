@@ -4,9 +4,9 @@ import com.miara.cuentame.core.backup.api.BackupStorageFailure
 import com.miara.cuentame.core.backup.platform.BackupStorageErrorClassifier
 
 class FakeBackupStorageErrorClassifier : BackupStorageErrorClassifier {
-    var nextFailure: BackupStorageFailure = BackupStorageFailure.GenericIo
+    var result: BackupStorageFailure = BackupStorageFailure.GenericIo
 
     override fun classify(throwable: Throwable): BackupStorageFailure {
-        return nextFailure
+        return result
     }
 }

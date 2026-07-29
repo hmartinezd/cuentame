@@ -57,25 +57,26 @@ sealed interface BackupResult {
         data object PermissionDenied : Error
         data object InsufficientStorage : Error
         data object LimitExceeded : Error
-        data class SerializationFailure(val cause: Throwable) : Error
-        data class DatabaseSnapshotFailure(val cause: Throwable) : Error
-        data class PreferencesReadFailure(val cause: Throwable) : Error
-        data class MissingAttachment(val attachmentId: String) : Error
-        data class UnreadableAttachment(val attachmentId: String, val cause: Throwable) : Error
-        data class ChecksumFailure(val entryName: String) : Error
+        data object SerializationFailure : Error
+        data object DatabaseSnapshotFailure : Error
+        data object PreferencesReadFailure : Error
+        data object MissingAttachment : Error
+        data object UnreadableAttachment : Error
+        data object ChecksumFailure : Error
+        data object RestaurantUnavailable : Error
+        data object FilenamePreparationFailure : Error
+        data object UnsupportedPersistentData : Error
+        data object OperationCancelled : Error
+        data object UnexpectedInternalFailure : Error
+        data object SystemIOFailure : Error
+        data object LocaleConsistencyFailure : Error
+        data object AttachmentPreflightFailure : Error
+        data object OperationInterrupted : Error
+
         data class ArchiveValidationFailure(
             val code: BackupValidationCode,
             val diagnostic: BackupValidationDiagnostic? = null
         ) : Error
-        data object RestaurantUnavailable : Error
-        data class FilenamePreparationFailure(val cause: Throwable) : Error
-        data object UnsupportedPersistentData : Error
-        data object OperationCancelled : Error
-        data object UnexpectedInternalFailure : Error
-        data class SystemIOFailure(val cause: Throwable) : Error
-        data object LocaleConsistencyFailure : Error
-        data object AttachmentPreflightFailure : Error
-        data object OperationInterrupted : Error
     }
 }
 
