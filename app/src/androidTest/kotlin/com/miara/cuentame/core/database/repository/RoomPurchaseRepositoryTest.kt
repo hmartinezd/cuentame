@@ -4,11 +4,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.test.TestSeeder
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -34,23 +33,19 @@ class RoomPurchaseRepositoryTest {
     @Inject
     lateinit var repository: RoomPurchaseRepository
 
-    private val restId = RestaurantId("rest-1")
+    private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
-            database.restaurantDao().insert(RestaurantEntity(restId.value, "R", "USD", "en", 0L, 0L, null))
-            
-            // Seed a unit
-            database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+            TestSeeder.seedBaseline(database)
         }
     }
 
     @After
     fun tearDown() {
-        database.close()
     }
 
     @Test
@@ -59,15 +54,11 @@ class RoomPurchaseRepositoryTest {
         val command = CreatePurchaseDraftCommand(restId, null, "INV-1", Instant.now(), null)
         val receiptId = repository.createDraft(command)
         
-        // 2. Add Line
-        val ingId = IngredientId("i1")
-        val areaId = InventoryAreaId("a1")
-        val optId = IngredientUnitOptionId("o1")
-        
-        database.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restId.value, "A", "a", 0, true, 0, 0, null))
-        database.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", areaId.value, null, null, null, true, 0, 0, null))
-        database.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(optId.value, ingId.value, "O", "o", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+        val ingId = IngredientId(TestSeeder.ING_ID)
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val optId = IngredientUnitOptionId(TestSeeder.OPTION_ID)
 
+        // 2. Add Line
         repository.saveLine(SavePurchaseLineCommand(
             receiptId = receiptId,
             lineId = null,
@@ -85,10 +76,17 @@ class RoomPurchaseRepositoryTest {
         val posted = repository.getReceipt(receiptId)
         assertThat(posted?.status).isEqualTo(DocumentStatus.POSTED)
         
-        // Verify movement created
+        // Verify movement created and values correct
         val movements = database.inventoryMovementDao().getBySourceDocument("PURCHASE_RECEIPT", receiptId.value)
         assertThat(movements).hasSize(1)
-        assertThat(movements[0].quantityBaseSigned).isEqualTo("10.0")
+        
+        val movement = movements[0]
+        assertThat(BigDecimal(movement.quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertThat(BigDecimal(movement.totalValueSnapshot!!).compareTo(BigDecimal("100"))).isEqualTo(0)
+        
+        // Verify balance projection updated
+        val projection = database.inventoryProjectionDao().getBalance(ingId.value, areaId.value)
+        assertThat(BigDecimal(projection!!.quantityBase).compareTo(BigDecimal("10"))).isEqualTo(0)
         
         // 4. Void
         repository.void(receiptId)
@@ -99,6 +97,11 @@ class RoomPurchaseRepositoryTest {
         // Verify reversal created
         val allMovements = database.inventoryMovementDao().getBySourceDocument("PURCHASE_RECEIPT", receiptId.value)
         assertThat(allMovements).hasSize(2)
-        assertThat(allMovements.any { it.movementType == "REVERSAL" }).isTrue()
+        val reversal = allMovements.find { it.movementType == "REVERSAL" }!!
+        assertThat(BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal("-10"))).isEqualTo(0)
+        
+        // Verify balance projection restored to 0
+        val finalProjection = database.inventoryProjectionDao().getBalance(ingId.value, areaId.value)
+        assertThat(BigDecimal(finalProjection!!.quantityBase).compareTo(BigDecimal.ZERO)).isEqualTo(0)
     }
 }

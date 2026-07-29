@@ -18,28 +18,28 @@ class AndroidBackupDocumentStore @Inject constructor(
 ) : BackupDocumentStore {
 
     override suspend fun openForWrite(destination: BackupDocumentUri): OutputStream {
-        return try {
-            val uri = Uri.parse(destination.value)
-            val pfd = context.contentResolver.openFileDescriptor(uri, "w")
-                ?: throw BackupDocumentOpenException(BackupDocumentOperation.WRITE)
+        return openStream(destination, "w", BackupDocumentOperation.WRITE) { pfd ->
             ParcelFileDescriptor.AutoCloseOutputStream(pfd)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: SecurityException) {
-            throw e
-        } catch (e: BackupDocumentOpenException) {
-            throw e
-        } catch (e: Exception) {
-            throw BackupDocumentOpenException(BackupDocumentOperation.WRITE, e)
         }
     }
 
     override suspend fun openForRead(source: BackupDocumentUri): InputStream {
-        return try {
-            val uri = Uri.parse(source.value)
-            val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-                ?: throw BackupDocumentOpenException(BackupDocumentOperation.READ)
+        return openStream(source, "r", BackupDocumentOperation.READ) { pfd ->
             ParcelFileDescriptor.AutoCloseInputStream(pfd)
+        }
+    }
+
+    private inline fun <T> openStream(
+        uriWrapper: BackupDocumentUri,
+        mode: String,
+        operation: BackupDocumentOperation,
+        createStream: (ParcelFileDescriptor) -> T
+    ): T {
+        try {
+            val uri = Uri.parse(uriWrapper.value)
+            val pfd = context.contentResolver.openFileDescriptor(uri, mode)
+                ?: throw BackupDocumentOpenException(operation)
+            return createStream(pfd)
         } catch (e: CancellationException) {
             throw e
         } catch (e: SecurityException) {
@@ -47,7 +47,7 @@ class AndroidBackupDocumentStore @Inject constructor(
         } catch (e: BackupDocumentOpenException) {
             throw e
         } catch (e: Exception) {
-            throw BackupDocumentOpenException(BackupDocumentOperation.READ, e)
+            throw BackupDocumentOpenException(operation, e)
         }
     }
 
@@ -76,8 +76,8 @@ class AndroidBackupDocumentStore @Inject constructor(
     }
 
     override suspend fun truncate(document: BackupDocumentUri): Boolean {
-        val uri = Uri.parse(document.value)
         return try {
+            val uri = Uri.parse(document.value)
             context.contentResolver.openFileDescriptor(uri, "wt")?.use { true } ?: false
         } catch (_: Exception) {
             false

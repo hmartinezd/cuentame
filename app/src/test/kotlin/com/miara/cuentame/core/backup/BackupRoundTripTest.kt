@@ -52,7 +52,7 @@ class BackupRoundTripTest {
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 2
+        every { appVersionProvider.databaseSchemaVersion } returns BackupFormatV1Contract.DATABASE_SCHEMA_VERSION
     }
 
     private fun makeRestaurant() = Restaurant(
@@ -65,7 +65,7 @@ class BackupRoundTripTest {
     )
 
     @Test
-    fun `complete round trip without attachments`() = runTest {
+    fun `complete round trip with no attachments`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -76,23 +76,16 @@ class BackupRoundTripTest {
         )
         val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
 
-        // 1. Plan
-        val planningResult = planner.createPlan(makeRestaurant(), snapshotResult)
-        assertThat(planningResult).isInstanceOf(BackupPlanningResult.Success::class.java)
-        val plan = (planningResult as BackupPlanningResult.Success).plan
-
-        // 2. Write
-        val output = ByteArrayOutputStream()
-        val writeResult = writer.write(output, plan)
-        if (writeResult is BackupArchiveWriteResult.Failure.IoError) throw writeResult.cause
-        assertThat(writeResult).isEqualTo(BackupArchiveWriteResult.Success)
-
-        // 3. Validate
-        val validationResult = validator.validate(ByteArrayInputStream(output.toByteArray()))
-        assertThat(validationResult).isInstanceOf(BackupValidationResult.Valid::class.java)
+        val planResult = planner.createPlan(makeRestaurant(), snapshotResult)
+        if (planResult is BackupPlanningResult.Failure) throw Exception("Planning failed: ${planResult.reason}")
         
-        val valid = validationResult as BackupValidationResult.Valid
-        assertThat(valid.manifest.restaurantId).isEqualTo(plan.manifest.restaurantId)
+        val plan = (planResult as BackupPlanningResult.Success).plan
+        val output = ByteArrayOutputStream()
+        val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Success)
+
+        val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
+        assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test
@@ -101,32 +94,25 @@ class BackupRoundTripTest {
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
         val attId = "0123456789abcdef"
-        val attUri = AttachmentSourceUri("content://img1")
-        val attData = "binary data".toByteArray()
-        
-        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "receipt.jpg", "image/jpeg")
+        val attUri = AttachmentSourceUri("content://shared")
+        val attData = "shared data".toByteArray()
+        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "file.jpg", "image/jpeg")
         attachmentSource.dataMap[attUri] = attData
 
         val snapshotDto = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto(
-                "rest-1", "Test Restaurant", "USD", "en-US", 0L, 0L, null
-            )),
-            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "rest-1", null, null, 0, "POSTED", null, attId, 0, 0, 0, null
-            )),
-            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto(
-                "w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 0L, null, attId, "POSTED", 0L, 0L, 0L, null
-            )),
-            // Minimal integrity requires i1, a1, o1 exists
+            restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("rest-1", "Test Restaurant", "USD", "en-US", 0L, 0L, null)),
+            // Shared between purchase and waste
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, attId, 0, 0, 0, null)),
+            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto("w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 0, null, attId, "POSTED", 0, 0, 0, null)),
+            // Prereqs
             ingredients = listOf(com.miara.cuentame.core.backup.model.IngredientBackupDto("i1", "rest-1", "I", "i", null, "u1", "a1", null, null, null, true, 0, 0, null)),
             inventoryAreas = listOf(com.miara.cuentame.core.backup.model.InventoryAreaBackupDto("a1", "rest-1", "A", "a", 0, true, 0, 0, null)),
             units = listOf(com.miara.cuentame.core.backup.model.UnitBackupDto("u1", "U", "u", "MASS", "1.0", true, 0)),
             ingredientUnitOptions = listOf(com.miara.cuentame.core.backup.model.IngredientUnitOptionBackupDto("o1", "i1", "O", "o", null, "1.0", true, true, true, true, 0, 0, null)),
             inventoryMovements = listOf(
-                com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m1", "rest-1", "i1", "a1", "PURCHASE", "1.0", "1.0", "1.0", 0L, "PURCHASE_RECEIPT", "p1", "p1-op", "p1-l1", null, 0L),
+                com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m1", "rest-1", "i1", "a1", "PURCHASE", "1.0", "1.0", "1.0", 0L, "PURCHASE_RECEIPT", "p1", "op1", "p1-l1", null, 0L),
                 com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m2", "rest-1", "i1", "a1", "WASTE", "-1.0", "1.0", "-1.0", 0L, "WASTE_EVENT", "w1", "w1-op", "w1", null, 0L)
             ),
-            // Bijection fix for purchase
             purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto("p1-l1", "p1", "i1", "a1", "o1", "1.0", "1.0", "1.0", "1.0", null, 0, 0)),
             inventoryBalanceProjections = listOf(com.miara.cuentame.core.backup.model.InventoryBalanceProjectionBackupDto("rest-1", "i1", "a1", "0.0", 0L)),
             ingredientCostProjections = listOf(com.miara.cuentame.core.backup.model.IngredientCostProjectionBackupDto("rest-1", "i1", "1.0", 0L))
@@ -144,8 +130,9 @@ class BackupRoundTripTest {
         val output = ByteArrayOutputStream()
         writer.write(output, plan)
         
-        val validationResult = validator.validate(ByteArrayInputStream(output.toByteArray()))
-        assertThat(validationResult).isInstanceOf(BackupValidationResult.Valid::class.java)
+        val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
+        if (validation is BackupValidationResult.Invalid) throw Exception("Validation failed: ${validation.code} ${validation.diagnostic}")
+        assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test

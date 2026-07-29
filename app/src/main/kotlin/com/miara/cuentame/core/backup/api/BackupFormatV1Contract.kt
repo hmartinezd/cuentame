@@ -29,3 +29,9 @@ object BackupFormatV1Contract {
     fun attachmentArchivePath(attachmentId: String, displayName: String): String =
         "attachments/$attachmentId/$displayName"
 }
+
+data class AttachmentReferenceKey(
+    val attachmentId: String,
+    val recordType: String,
+    val recordId: String
+)

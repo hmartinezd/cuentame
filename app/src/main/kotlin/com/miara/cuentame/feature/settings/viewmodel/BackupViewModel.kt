@@ -107,8 +107,10 @@ class BackupViewModel @Inject constructor(
             "CREATING", "VALIDATING" -> {
                 invalidateActiveTokenLocked()
                 _uiState.value = BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
+                persistStateLocked(operationTokenGenerator.get(), -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
             }
             "CANCELLED" -> _uiState.value = BackupUiState.Cancelled(opId)
+            "INTERRUPTED" -> _uiState.value = BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
             else -> _uiState.value = BackupUiState.Idle
         }
     }
@@ -157,6 +159,7 @@ class BackupViewModel @Inject constructor(
                 if (activeOperationToken == token) {
                     _uiState.value = BackupUiState.Error(opId, BackupResult.Error.FilenamePreparationFailure)
                     invalidateActiveTokenLocked()
+                    persistStateLocked(operationTokenGenerator.get(), -1L, "ERROR", SavedPickerLaunchState.NONE, null)
                 }
             }
         }
@@ -213,6 +216,7 @@ class BackupViewModel @Inject constructor(
                 if (activeOperationToken == token) {
                     _uiState.value = BackupUiState.Error(operationId, BackupResult.Error.SystemIOFailure)
                     invalidateActiveTokenLocked()
+                    persistStateLocked(operationTokenGenerator.get(), -1L, "ERROR", SavedPickerLaunchState.CONSUMED, null)
                 }
             }
         }

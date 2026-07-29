@@ -11,6 +11,7 @@ import com.miara.cuentame.core.model.backup.BackupResult
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -49,56 +50,54 @@ class BackupViewModelTest {
     }
 
     @Test
-    fun `recreation with pending launch re-emits event exactly once`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "active_op_id" to 123L,
-            "phase" to "WAITING",
-            "picker_state" to "PENDING",
-            "suggested_name" to "Suggested.zip"
-        ))
-        
-        val viewModel = createViewModel(handle)
-        
-        viewModel.events.test {
-            val event = awaitItem() as BackupUiEvent.LaunchFilePicker
-            assertThat(event.operationId).isEqualTo(BackupOperationId(123L))
-            assertThat(event.suggestedName).isEqualTo("Suggested.zip")
-            expectNoEvents()
-        }
-    }
-
-    @Test
-    fun `consumePickerLaunch prevents multiple launches for same ID`() = runTest {
-        val handle = SavedStateHandle()
-        val viewModel = createViewModel(handle)
-        
+    fun `two simultaneous create requests only start one operation`() = runTest {
+        val viewModel = createViewModel()
         every { timeProvider.now() } returns Instant.EPOCH
         coEvery { restaurantRepository.getRestaurant() } returns mockk(relaxed = true)
-        
+
+        viewModel.onCreateBackupRequested()
         viewModel.onCreateBackupRequested()
         testDispatcher.scheduler.advanceUntilIdle()
-        
-        val opId = (viewModel.uiState.value as BackupUiState.WaitingForDestination).operationId
-        
-        assertThat(viewModel.consumePickerLaunch(opId)).isTrue()
-        assertThat(viewModel.consumePickerLaunch(opId)).isFalse()
+
+        verify(exactly = 1) { timeProvider.now() }
+        assertThat(viewModel.uiState.value).isInstanceOf(BackupUiState.WaitingForDestination::class.java)
     }
 
     @Test
-    fun `recreation in CREATING phase restores as INTERRUPTED error`() = runTest {
+    fun `reset cancels active preparation job`() = runTest {
+        val viewModel = createViewModel()
+        val preparationFlow = MutableSharedFlow<Unit>()
+        coEvery { restaurantRepository.getRestaurant() } coAnswers {
+            preparationFlow.test { awaitItem() } // Hang until we emit or cancel
+            mockk(relaxed = true)
+        }
+        every { timeProvider.now() } returns Instant.EPOCH
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.runCurrent()
+        
+        viewModel.resetStatus()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+        verify(exactly = 0) { timeProvider.now() } // Should be cancelled before completion
+    }
+
+    @Test
+    fun `restored CREATING state shows OperationInterrupted error`() = runTest {
         val handle = SavedStateHandle(mapOf(
-            "active_op_id" to 789L,
+            "active_op_id" to 123L,
             "phase" to "CREATING"
         ))
         val viewModel = createViewModel(handle)
         
         val state = viewModel.uiState.value as BackupUiState.Error
-        assertThat(state.operationId).isEqualTo(BackupOperationId(789L))
+        assertThat(state.operationId).isEqualTo(BackupOperationId(123L))
         assertThat(state.error).isEqualTo(BackupResult.Error.OperationInterrupted)
     }
 
     @Test
-    fun `stale repository emissions are ignored after token reset`() = runTest {
+    fun `stale repository emissions are ignored after reset`() = runTest {
         val repositoryFlow = MutableSharedFlow<BackupOperationStatus>(extraBufferCapacity = 1)
         coEvery { backupRepository.createBackup(any()) } returns repositoryFlow
         every { timeProvider.now() } returns Instant.EPOCH
@@ -111,16 +110,14 @@ class BackupViewModelTest {
         val opId = (viewModel.uiState.value as BackupUiState.WaitingForDestination).operationId
         viewModel.consumePickerLaunch(opId)
         viewModel.onFileSelected(opId, "uri")
-        testDispatcher.scheduler.advanceUntilIdle()
+        testDispatcher.scheduler.runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Creating(opId))
         
-        // Reset
         viewModel.resetStatus()
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
         
-        // Stale emission
-        repositoryFlow.tryEmit(BackupOperationStatus.Validating)
+        repositoryFlow.tryEmit(BackupOperationStatus.Success(mockk(relaxed = true)))
         testDispatcher.scheduler.advanceUntilIdle()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)

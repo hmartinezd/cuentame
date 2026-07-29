@@ -58,8 +58,9 @@ class DefaultBackupArchiveValidator @Inject constructor(
                     var n: Int
                     while (zip.read(buffer).also { n = it } != -1) {
                         digest.update(buffer, 0, n)
-                        entrySize += n
-                        currentTotalUncompressedSize += n
+                        entrySize = BackupByteMath.addExact(entrySize, n.toLong())
+                        currentTotalUncompressedSize = BackupByteMath.addExact(currentTotalUncompressedSize, n.toLong())
+                        
                         if (currentTotalUncompressedSize > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
                             return BackupValidationResult.Invalid(BackupValidationCode.LIMIT_EXCEEDED)
                         }
@@ -67,11 +68,11 @@ class DefaultBackupArchiveValidator @Inject constructor(
                         entryBuffer?.write(buffer, 0, n)
                         if (shouldBuffer) {
                             val limit = when (name) {
-                                BackupFormatV1Contract.MANIFEST_ENTRY -> BackupLimits.MAX_MANIFEST_JSON_BYTES
-                                BackupFormatV1Contract.PREFERENCES_ENTRY -> BackupLimits.MAX_SETTINGS_JSON_BYTES
-                                BackupFormatV1Contract.DATABASE_ENTRY -> BackupLimits.MAX_DATABASE_JSON_BYTES
-                                BackupFormatV1Contract.CHECKSUMS_ENTRY -> BackupLimits.MAX_CHECKSUMS_JSON_BYTES
-                                else -> 0
+                                BackupFormatV1Contract.MANIFEST_ENTRY -> BackupLimits.MAX_MANIFEST_JSON_BYTES.toLong()
+                                BackupFormatV1Contract.PREFERENCES_ENTRY -> BackupLimits.MAX_SETTINGS_JSON_BYTES.toLong()
+                                BackupFormatV1Contract.DATABASE_ENTRY -> BackupLimits.MAX_DATABASE_JSON_BYTES.toLong()
+                                BackupFormatV1Contract.CHECKSUMS_ENTRY -> BackupLimits.MAX_CHECKSUMS_JSON_BYTES.toLong()
+                                else -> 0L
                             }
                             if (entrySize > limit) {
                                 return BackupValidationResult.Invalid(BackupValidationCode.LIMIT_EXCEEDED)
@@ -87,6 +88,8 @@ class DefaultBackupArchiveValidator @Inject constructor(
                     entry = zip.nextEntry
                 }
             }
+        } catch (e: BackupSizeOverflowException) {
+            return BackupValidationResult.Invalid(BackupValidationCode.LIMIT_EXCEEDED)
         } catch (e: Exception) {
             return BackupValidationResult.Invalid(BackupValidationCode.SYSTEM_IO_ERROR)
         }
@@ -120,7 +123,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.MISSING_REQUIRED_ENTRY)
         }
 
-        // 4. Checksums validation (Logic: SUCCESS -> KEY SET -> HASHES)
+        // 4. Checksums validation
         val checksumsBytes = jsonBytes[BackupFormatV1Contract.CHECKSUMS_ENTRY]!!
         val checksumsJson = decodeStrictUtf8(checksumsBytes) ?:
             return BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_PARSE_FAILURE)

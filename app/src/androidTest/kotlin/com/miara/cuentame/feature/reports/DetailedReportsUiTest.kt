@@ -1,8 +1,8 @@
 package com.miara.cuentame.feature.reports
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -22,7 +22,7 @@ class DetailedReportsUiTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -35,16 +35,28 @@ class DetailedReportsUiTest {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
+            preferencesRepository.clearAll()
             TestSeeder.seedBaseline(database)
             preferencesRepository.setOnboardingCompleted(true)
+            preferencesRepository.setAppLocaleTag("en-US")
         }
     }
 
     @Test
-    fun navigateToReportsAndBack() {
-        composeTestRule.onNodeWithTag("home_reports_button").performClick()
-        composeTestRule.onNodeWithTag("reports_screen").assertExists()
+    fun reports_display_seeded_values() {
+        runBlocking {
+            TestSeeder.seedPostedPurchase(database, "p1", "123.45")
+        }
         
-        composeTestRule.onNodeWithTag("reports_header").assertExists()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("home_reports_button").performClick()
+            
+            // Wait for loading to finish and dashboard data to appear
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithText("$123.45", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            composeTestRule.onNodeWithText("$123.45", substring = true).assertIsDisplayed()
+        }
     }
 }

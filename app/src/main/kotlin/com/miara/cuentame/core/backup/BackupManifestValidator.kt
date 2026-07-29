@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupValidationCode
 import com.miara.cuentame.core.model.backup.BackupValidationDiagnostic
@@ -20,14 +21,13 @@ object BackupManifestValidator {
         "ingredient_cost_projections"
     )
     private val SUPPORTED_RECORD_TYPES = setOf("PURCHASE_RECEIPT", "WASTE_EVENT")
-    private val SHA256_REGEX = Regex("^[a-f0-9]{64}$")
 
     fun validate(manifest: BackupManifest): BackupValidationResult {
-        if (manifest.backupFormatVersion != 1) {
+        if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.VERSION_MISMATCH)
         }
 
-        if (manifest.databaseSchemaVersion != BackupLimits.DATABASE_SCHEMA_VERSION_BASELINE) {
+        if (manifest.databaseSchemaVersion != BackupFormatV1Contract.DATABASE_SCHEMA_VERSION) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.DATABASE_SCHEMA_MISMATCH)
         }
 
@@ -47,7 +47,6 @@ object BackupManifestValidator {
         if (manifest.restaurantId.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         if (manifest.restaurantName.isNullOrBlank()) return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
 
-        // Strict Locale check
         val tag = manifest.localeTag
         if (tag.isNullOrBlank() || SupportedAppLocale.fromLanguageTag(tag) == null) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.LOCALE_UNSUPPORTED)
@@ -97,7 +96,7 @@ object BackupManifestValidator {
         }
 
         for (att in manifest.attachments) {
-            if (att.displayName.isBlank() || att.sizeBytes < 0 || !SHA256_REGEX.matches(att.checksumSha256) || att.referencedBy.isEmpty() || att.referencedBy.distinct().size != att.referencedBy.size) {
+            if (att.displayName.isBlank() || att.sizeBytes < 0 || !BackupFormatV1Contract.isValidChecksum(att.checksumSha256) || att.referencedBy.isEmpty() || att.referencedBy.distinct().size != att.referencedBy.size) {
                 return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
             }
             for (ref in att.referencedBy) {

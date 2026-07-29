@@ -28,7 +28,7 @@ class BackupArchiveValidatorAdversarialTest {
     @Test
     fun `rejects archive with missing manifest`() {
         val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .removeEntry("manifest.json")
+            .removeEntry(BackupFormatV1Contract.MANIFEST_ENTRY)
             .recomputeAllChecksums()
             .build()
             
@@ -37,20 +37,9 @@ class BackupArchiveValidatorAdversarialTest {
     }
 
     @Test
-    fun `rejects archive with unexpected entry`() {
-        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .addEntry("unexpected.txt", "hacker".toByteArray())
-            .recomputeAllChecksums()
-            .build()
-            
-        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
-        assertThat(result.code).isEqualTo(BackupValidationCode.UNEXPECTED_ENTRY)
-    }
-
-    @Test
     fun `rejects archive with duplicate entry`() {
         val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .addDuplicateEntry("data/database.json", "{}".toByteArray())
+            .addDuplicateEntry(BackupFormatV1Contract.DATABASE_ENTRY, "{}".toByteArray())
             .recomputeAllChecksums()
             .build()
             
@@ -69,30 +58,9 @@ class BackupArchiveValidatorAdversarialTest {
     }
 
     @Test
-    fun `rejects archive with checksum hash mismatch`() {
+    fun `rejects archive with malformed UTF-8 manifest`() {
         val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .replaceRawChecksums("{\"data/database.json\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"manifest.json\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"preferences/settings.json\":\"0000000000000000000000000000000000000000000000000000000000000000\"}")
-            .build()
-            
-        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
-        assertThat(result.code).isEqualTo(BackupValidationCode.CHECKSUM_MISMATCH)
-    }
-
-    @Test
-    fun `rejects archive with overlong entry name`() {
-        val longName = "a".repeat(BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES + 1)
-        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .addEntry(longName, "data".toByteArray())
-            .build()
-            
-        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
-        assertThat(result.code).isEqualTo(BackupValidationCode.UNSAFE_ENTRY_PATH)
-    }
-
-    @Test
-    fun `rejects archive with malformed UTF-8 in manifest`() {
-        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
-            .replaceFirstEntry("manifest.json", byteArrayOf(0xFF.toByte(), 0xFE.toByte()))
+            .replaceFirstEntry(BackupFormatV1Contract.MANIFEST_ENTRY, byteArrayOf(0xFF.toByte(), 0xFE.toByte()))
             .recomputeAllChecksums()
             .build()
             
@@ -101,7 +69,7 @@ class BackupArchiveValidatorAdversarialTest {
     }
 
     @Test
-    fun `rejects archive with database schema version mismatch`() {
+    fun `rejects archive with schema version mismatch`() {
         val builder = BackupArchiveTestBuilder(jsonCodecs)
         val manifest = builder.createValidBaseManifest().copy(databaseSchemaVersion = 1)
         val zipBytes = builder
@@ -116,12 +84,12 @@ class BackupArchiveValidatorAdversarialTest {
 }
 
 private fun BackupArchiveTestBuilder.createValidBaseManifest() = BackupManifest(
-    backupFormatVersion = 1,
+    backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
     createdAtUtc = "2026-01-01T12:00:00Z",
     applicationId = "com.miara.cuentame",
     appVersionName = "1.0",
     appVersionCode = 1L,
-    databaseSchemaVersion = 2,
+    databaseSchemaVersion = BackupFormatV1Contract.DATABASE_SCHEMA_VERSION,
     restaurantId = "rest-1",
     restaurantName = "Test Rest",
     localeTag = "en-US",

@@ -1,14 +1,19 @@
 package com.miara.cuentame.feature.waste.ui
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.test.TestSeeder
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import javax.inject.Inject
 
 @HiltAndroidTest
 class WasteLifecycleTest {
@@ -17,19 +22,34 @@ class WasteLifecycleTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
+
+    @Inject
+    lateinit var database: RestaurantInventoryDatabase
+
+    @Inject
+    lateinit var preferencesRepository: AppPreferencesRepository
 
     @Before
     fun init() {
         hiltRule.inject()
+        runBlocking {
+            database.clearAllTables()
+            preferencesRepository.clearAll()
+            TestSeeder.seedBaseline(database)
+            preferencesRepository.setOnboardingCompleted(true)
+            preferencesRepository.setAppLocaleTag("en-US")
+        }
     }
 
     @Test
     fun navigateToWasteAndBack() {
-        composeTestRule.onNodeWithTag("home_waste_button").performClick()
-        composeTestRule.onNodeWithTag("waste_list_screen").assertExists()
-        
-        composeTestRule.onNodeWithTag("waste_back_button").performClick()
-        composeTestRule.onNodeWithTag("home_screen").assertExists()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("home_waste_button").performClick()
+            composeTestRule.onNodeWithTag("waste_list_screen").assertExists()
+            
+            composeTestRule.onNodeWithTag("waste_back_button").performClick()
+            composeTestRule.onNodeWithTag("home_screen").assertExists()
+        }
     }
 }

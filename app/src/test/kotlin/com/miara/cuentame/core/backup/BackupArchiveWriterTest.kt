@@ -1,12 +1,10 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.backup.api.BackupArchiveWriteResult
-import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
-import com.miara.cuentame.core.backup.api.BackupPlan
-import com.miara.cuentame.core.backup.api.ImmutableBackupBytes
+import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.fakes.FakeBackupAttachmentSource
 import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveWriter
+import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import io.mockk.every
@@ -87,26 +85,92 @@ class BackupArchiveWriterTest {
     }
 
     @Test
-    fun `writer rejects plan with inconsistent checksums`() = runTest {
-        // We use a mock to provide inconsistent data that eludes the factory check
+    fun `writer rejects plan with checksum map mismatch`() = runTest {
+        val validPlan = createValidMinimalPlan()
+        // We use a mock to bypass BackupPlan.create() validation
         val plan = mockk<BackupPlan> {
-            every { snapshotJson } returns ImmutableBackupBytes.from("{}".toByteArray())
-            every { preferencesJson } returns ImmutableBackupBytes.from("{}".toByteArray())
-            every { manifestJson } returns ImmutableBackupBytes.from("corrupted".toByteArray())
+            every { snapshotJson } returns validPlan.snapshotJson
+            every { preferencesJson } returns validPlan.preferencesJson
+            every { manifestJson } returns validPlan.manifestJson
             every { attachments } returns emptyList()
-            every { expectedEntryChecksums } returns mapOf(
-                "data/database.json" to "0".repeat(64),
-                "preferences/settings.json" to "0".repeat(64),
-                "manifest.json" to "1".repeat(64) // mismatch
-            )
-            every { checksumsJson } returns ImmutableBackupBytes.from("{}".toByteArray())
-            every { totalUncompressedBytes } returns 100L
+            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes
+            
+            // checksumsJson contents (decoded string) will NOT match expectedEntryChecksums map
+            every { checksumsJson } returns ImmutableBackupBytes.from("{\"data/database.json\":\"${"0".repeat(64)}\",\"manifest.json\":\"${"0".repeat(64)}\",\"preferences/settings.json\":\"${"0".repeat(64)}\"}".toByteArray())
+            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums
         }
 
         val output = ByteArrayOutputStream()
         val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.ChecksumInconsistency)
+    }
+
+    @Test
+    fun `writer detects attachment growth during write`() = runTest {
+        val attId = "0123456789abcdef"
+        val attUri = AttachmentSourceUri("uri1")
+        val plannedData = "planned".toByteArray()
+        val actualData = "planned and grown".toByteArray()
         
-        // Should fail during prevalidatePlan (checksums JSON check) or writeEntry
-        assertThat(result).isInstanceOf(BackupArchiveWriteResult.Failure::class.java)
+        attachmentSource.dataMap[attUri] = actualData
+
+        val snapshot = BackupTestFixtures.createEmptySnapshotDto()
+        val prefs = BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val ref = BackupAttachmentReference("WASTE_EVENT", "w1")
+        val plannedAtt = PlannedBackupAttachment.create(
+            sourceUri = attUri,
+            attachmentId = attId,
+            archivePath = "attachments/$attId/a.jpg",
+            displayName = "a.jpg",
+            mimeType = "image/jpeg",
+            sizeBytes = plannedData.size.toLong(),
+            checksumSha256 = ImmutableBackupBytes.from(plannedData).sha256(),
+            references = listOf(ref)
+        )
+
+        val manifest = mockk<BackupManifest>(relaxed = true) {
+            every { localeTag } returns "en-US"
+            every { databaseSchemaVersion } returns 2
+            every { backupFormatVersion } returns 1
+            every { attachments } returns listOf(mockk(relaxed = true) {
+                every { attachmentId } returns attId
+                every { archivePath } returns plannedAtt.archivePath
+                every { displayName } returns plannedAtt.displayName
+                every { mimeType } returns plannedAtt.mimeType
+                every { sizeBytes } returns plannedAtt.sizeBytes
+                every { checksumSha256 } returns plannedAtt.checksumSha256
+                every { referencedBy } returns listOf(ref)
+            })
+        }
+
+        val snapshotBytes = "{}".toByteArray()
+        val prefsBytes = "{}".toByteArray()
+        val manifestBytes = "{\"v\":1}".toByteArray()
+        val checksumsMap = mapOf(
+            BackupFormatV1Contract.DATABASE_ENTRY to ImmutableBackupBytes.from(snapshotBytes).sha256(),
+            BackupFormatV1Contract.PREFERENCES_ENTRY to ImmutableBackupBytes.from(prefsBytes).sha256(),
+            BackupFormatV1Contract.MANIFEST_ENTRY to ImmutableBackupBytes.from(manifestBytes).sha256(),
+            plannedAtt.archivePath to plannedAtt.checksumSha256
+        )
+        
+        val checksumsJson = "{\"attachments/$attId/a.jpg\":\"${plannedAtt.checksumSha256}\",\"data/database.json\":\"${checksumsMap[BackupFormatV1Contract.DATABASE_ENTRY]}\",\"manifest.json\":\"${checksumsMap[BackupFormatV1Contract.MANIFEST_ENTRY]}\",\"preferences/settings.json\":\"${checksumsMap[BackupFormatV1Contract.PREFERENCES_ENTRY]}\"}".toByteArray()
+
+        val plan = BackupPlan.create(
+            snapshotDto = snapshot,
+            snapshotJson = snapshotBytes,
+            preferencesDto = prefs,
+            preferencesJson = prefsBytes,
+            attachments = listOf(plannedAtt),
+            manifest = manifest,
+            manifestJson = manifestBytes,
+            expectedEntryChecksums = checksumsMap,
+            checksumsJson = checksumsJson,
+            totalUncompressedBytes = (snapshotBytes.size + prefsBytes.size + manifestBytes.size + checksumsJson.size + plannedAtt.sizeBytes).toLong()
+        )
+
+        val output = ByteArrayOutputStream()
+        val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.AttachmentChanged)
     }
 }

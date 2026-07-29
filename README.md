@@ -10,10 +10,11 @@
 *   **Backup production hardening:** IN PROGRESS
 *   **Backup verification:** IN PROGRESS
 *   **Regression recovery:** IN PROGRESS
+*   **Android instrumentation verification:** IN PROGRESS
+*   **CI verification:** NOT VERIFIED
 *   **Backup restore:** NOT STARTED
 *   **Customer export:** NOT STARTED
 *   **Multi-module migration:** POSTPONED
-*   **CI verification:** NOT VERIFIED
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.

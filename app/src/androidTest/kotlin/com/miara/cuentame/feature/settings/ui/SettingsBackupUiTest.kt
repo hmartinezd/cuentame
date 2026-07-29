@@ -1,7 +1,8 @@
 package com.miara.cuentame.feature.settings.ui
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -21,7 +22,7 @@ class SettingsBackupUiTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -34,25 +35,18 @@ class SettingsBackupUiTest {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
+            preferencesRepository.clearAll()
             TestSeeder.seedBaseline(database)
             preferencesRepository.setOnboardingCompleted(true)
+            preferencesRepository.setAppLocaleTag("en-US")
         }
     }
 
     @Test
     fun createBackup_buttonExists() {
-        // Navigate to settings
-        composeTestRule.onNodeWithTag("home_settings_button").performClick()
-        
-        // Assert backup button exists
-        composeTestRule.onNodeWithTag("create_backup_button").assertExists()
-    }
-    
-    @Test
-    fun backupProgress_is_visible_during_operation() {
-        // This test would need a mock repository that hangs to verify progress.
-        // For now, we verify the initial screen.
-        composeTestRule.onNodeWithTag("home_settings_button").performClick()
-        composeTestRule.onNodeWithTag("create_backup_button").assertIsDisplayed()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("home_settings_button").performClick()
+            composeTestRule.onNodeWithTag("create_backup_button").assertIsDisplayed()
+        }
     }
 }

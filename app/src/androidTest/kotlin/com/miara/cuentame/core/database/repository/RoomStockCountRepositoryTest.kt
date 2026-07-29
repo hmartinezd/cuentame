@@ -4,11 +4,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
 import com.miara.cuentame.core.model.inventory.StockCountStatus
+import com.miara.cuentame.test.TestSeeder
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
@@ -35,32 +34,26 @@ class RoomStockCountRepositoryTest {
     @Inject
     lateinit var repository: RoomStockCountRepository
 
-    private val restId = RestaurantId("rest-1")
+    private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
             database.clearAllTables()
-            database.restaurantDao().insert(RestaurantEntity(restId.value, "R", "USD", "en", 0L, 0L, null))
-            database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+            TestSeeder.seedBaseline(database)
         }
     }
 
     @After
     fun tearDown() {
-        database.close()
     }
 
     @Test
     fun fullLifecycle_start_save_complete_void() = runBlocking {
-        val areaId = InventoryAreaId("a1")
-        val ingId = IngredientId("i1")
-        val optId = IngredientUnitOptionId("o1")
-        
-        database.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restId.value, "A", "a", 0, true, 0, 0, null))
-        database.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", areaId.value, null, null, null, true, 0, 0, null))
-        database.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(optId.value, ingId.value, "O", "o", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val ingId = IngredientId(TestSeeder.ING_ID)
+        val optId = IngredientUnitOptionId(TestSeeder.OPTION_ID)
 
         // 1. Start
         val countId = repository.start(StartStockCountCommand(restId, "C1", Instant.now(), listOf(areaId), null))
@@ -78,9 +71,19 @@ class RoomStockCountRepositoryTest {
         val finalDetails = repository.observeCount(countId).first()!!
         assertThat(finalDetails.count.status).isEqualTo(StockCountStatus.COMPLETED)
         
+        // Verify adjustment created. Since seeded balance was 0, adjustment is 10.
+        val movements = database.inventoryMovementDao().getBySourceDocument("STOCK_COUNT", countId.value)
+        assertThat(movements).hasSize(1)
+        assertThat(BigDecimal(movements[0].quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
+
         // 4. Void
         repository.voidCount(countId)
         val voidedDetails = repository.observeCount(countId).first()!!
         assertThat(voidedDetails.count.status).isEqualTo(StockCountStatus.VOIDED)
+        
+        // Verify reversal
+        val allMovements = database.inventoryMovementDao().getBySourceDocument("STOCK_COUNT", countId.value)
+        assertThat(allMovements).hasSize(2)
+        assertThat(allMovements.any { it.movementType == "REVERSAL" }).isTrue()
     }
 }
