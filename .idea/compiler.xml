@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="CompilerConfiguration">
-    <bytecodeTargetLevel target="21" />
+    <bytecodeTargetLevel target="21">
+      <module name="Cuentame.core.common.main" target="17" />
+      <module name="Cuentame.core.common.test" target="17" />
+      <module name="Cuentame.core.domain.main" target="17" />
+      <module name="Cuentame.core.domain.test" target="17" />
+      <module name="Cuentame.core.model.main" target="17" />
+      <module name="Cuentame.core.model.test" target="17" />
+      <module name="Cuentame.core.presentation.main" target="17" />
+      <module name="Cuentame.core.presentation.test" target="17" />
+      <module name="Cuentame.core.testing.main" target="17" />
+      <module name="Cuentame.core.testing.test" target="17" />
+    </bytecodeTargetLevel>
   </component>
 </project>

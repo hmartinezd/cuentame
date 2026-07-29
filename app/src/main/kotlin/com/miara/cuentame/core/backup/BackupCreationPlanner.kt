@@ -10,6 +10,8 @@ import com.miara.cuentame.core.model.locale.SupportedAppLocale
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 import java.security.MessageDigest
 import java.time.format.DateTimeFormatter
@@ -208,10 +210,13 @@ class BackupCreationPlanner @Inject constructor(
 
             val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
             val checksumsJson = try {
-                jsonCodecs.writer.encodeToString(sortedChecksums).toByteArray(Charsets.UTF_8)
+                val serializer = MapSerializer(String.serializer(), String.serializer())
+                jsonCodecs.writer.encodeToString(serializer, sortedChecksums.toSortedMap()).toByteArray(Charsets.UTF_8)
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (checksumsJson.size > BackupLimits.MAX_CHECKSUMS_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             
+            // Recompute checksum of checksums.json self? No, contract says checksums.json doesn't contain its own hash.
+            // But writer MUST verify planned checksumsJson size correctly.
             currentTotalUncompressedBytes += checksumsJson.size
             if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
 

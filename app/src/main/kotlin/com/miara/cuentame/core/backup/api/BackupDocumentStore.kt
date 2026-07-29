@@ -1,6 +1,5 @@
 package com.miara.cuentame.core.backup.api
 
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -14,8 +13,8 @@ enum class BackupDocumentOperation {
 
 class BackupDocumentOpenException(
     val operation: BackupDocumentOperation,
-    cause: Throwable? = null
-) : IOException(cause)
+    override val cause: Throwable? = null
+) : Exception("Failed to open backup document for $operation")
 
 interface BackupDocumentStore {
     suspend fun openForWrite(destination: BackupDocumentUri): OutputStream

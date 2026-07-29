@@ -1,8 +1,7 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.*
-import com.miara.cuentame.core.backup.api.BackupArchiveValidator
-import com.miara.cuentame.core.backup.api.BackupJsonCodecs
+import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.*
 import com.miara.cuentame.core.model.locale.SupportedAppLocale
@@ -116,12 +115,12 @@ class DefaultBackupArchiveValidator @Inject constructor(
         // 4. Strict Checksums Validation
         val reportedChecksumsResult = ChecksumParser.parse(checksumsJson)
         if (reportedChecksumsResult.isFailure) {
-            val failure = reportedChecksumsResult.exceptionOrNull()
-            return if (failure is ChecksumKeySetMismatchException) {
-                BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_KEY_SET_MISMATCH)
-            } else {
-                BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
-            }
+             val exception = reportedChecksumsResult.exceptionOrNull()
+             return if (exception is ChecksumKeySetMismatchException) {
+                 BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_KEY_SET_MISMATCH)
+             } else {
+                 BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
+             }
         }
         val reportedChecksums = reportedChecksumsResult.getOrThrow()
 
@@ -177,6 +176,14 @@ class DefaultBackupArchiveValidator @Inject constructor(
 
         // 8. Complete attachment cross-validation
         val manifestAttachments = manifest.attachments
+        
+        // V1 ID contract check: exactly 16 lowercase hex chars
+        val v1IdRegex = Regex("^[0-9a-f]{16}$")
+
+        if (manifestAttachments.map { it.attachmentId }.any { !v1IdRegex.matches(it) }) {
+            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
+        }
+
         if (manifestAttachments.map { it.attachmentId }.distinct().size != manifestAttachments.size) {
             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
@@ -184,29 +191,27 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
 
-        val dbAttachmentIds = mutableSetOf<String>()
-        val dbAttachmentRefs = mutableSetOf<String>()
+        val dbAttachmentRefs = mutableSetOf<AttachmentReferenceKey>()
 
         dbDto.purchaseReceipts.forEach { r ->
             r.attachmentId?.let { id ->
-                dbAttachmentIds.add(id)
-                dbAttachmentRefs.add("$id|PURCHASE_RECEIPT|${r.id}")
+                dbAttachmentRefs.add(AttachmentReferenceKey(id, "PURCHASE_RECEIPT", r.id))
             }
         }
         dbDto.wasteEvents.forEach { w ->
             w.attachmentId?.let { id ->
-                dbAttachmentIds.add(id)
-                dbAttachmentRefs.add("$id|WASTE_EVENT|${w.id}")
+                dbAttachmentRefs.add(AttachmentReferenceKey(id, "WASTE_EVENT", w.id))
             }
         }
 
+        val dbAttachmentIds = dbAttachmentRefs.map { it.attachmentId }.toSet()
         val manifestAttachmentIds = manifestAttachments.map { it.attachmentId }.toSet()
         if (dbAttachmentIds != manifestAttachmentIds) {
             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
 
         val manifestAttachmentRefs = manifestAttachments.flatMap { att ->
-            att.referencedBy.map { ref -> "${att.attachmentId}|${ref.recordType}|${ref.recordId}" }
+            att.referencedBy.map { ref -> AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId) }
         }.toSet()
 
         if (dbAttachmentRefs != manifestAttachmentRefs) {
@@ -226,9 +231,6 @@ class DefaultBackupArchiveValidator @Inject constructor(
             }
             if (actual.checksum != att.checksumSha256) {
                 return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_CHECKSUM_MISMATCH)
-            }
-            if (!Regex("^[0-9a-f]{16}$").matches(att.attachmentId)) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
             }
         }
 

@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import com.miara.cuentame.core.backup.api.*
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import java.io.InputStream
 import java.io.OutputStream
 import javax.inject.Inject
@@ -17,19 +18,37 @@ class AndroidBackupDocumentStore @Inject constructor(
 ) : BackupDocumentStore {
 
     override suspend fun openForWrite(destination: BackupDocumentUri): OutputStream {
-        val uri = Uri.parse(destination.value)
-        val pfd = context.contentResolver.openFileDescriptor(uri, "w")
-            ?: throw BackupDocumentOpenException(BackupDocumentOperation.WRITE)
-        
-        return ParcelFileDescriptor.AutoCloseOutputStream(pfd)
+        return try {
+            val uri = Uri.parse(destination.value)
+            val pfd = context.contentResolver.openFileDescriptor(uri, "w")
+                ?: throw BackupDocumentOpenException(BackupDocumentOperation.WRITE)
+            ParcelFileDescriptor.AutoCloseOutputStream(pfd)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            throw e
+        } catch (e: BackupDocumentOpenException) {
+            throw e
+        } catch (e: Exception) {
+            throw BackupDocumentOpenException(BackupDocumentOperation.WRITE, e)
+        }
     }
 
     override suspend fun openForRead(source: BackupDocumentUri): InputStream {
-        val uri = Uri.parse(source.value)
-        val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-            ?: throw BackupDocumentOpenException(BackupDocumentOperation.READ)
-        
-        return ParcelFileDescriptor.AutoCloseInputStream(pfd)
+        return try {
+            val uri = Uri.parse(source.value)
+            val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                ?: throw BackupDocumentOpenException(BackupDocumentOperation.READ)
+            ParcelFileDescriptor.AutoCloseInputStream(pfd)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            throw e
+        } catch (e: BackupDocumentOpenException) {
+            throw e
+        } catch (e: Exception) {
+            throw BackupDocumentOpenException(BackupDocumentOperation.READ, e)
+        }
     }
 
     override suspend fun delete(document: BackupDocumentUri): Boolean {

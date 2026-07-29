@@ -4,12 +4,16 @@ object PackageArchitectureRules {
     data class ArchitectureViolation(val file: String, val forbiddenImport: String)
 
     fun violations(relativePath: String, sourceText: String): List<ArchitectureViolation> {
-        val lines = sourceText.lines()
+        val lines = sourceText.lines().map { it.trim() }
         val violations = mutableListOf<ArchitectureViolation>()
 
         fun check(forbidden: String) {
-            if (lines.any { it.startsWith("import $forbidden") }) {
+            if (lines.any { it.startsWith("import $forbidden") || it.startsWith("import ") && it.endsWith(".$forbidden") }) {
                 violations.add(ArchitectureViolation(relativePath, forbidden))
+            }
+            // Detect aliases
+            if (lines.any { it.startsWith("import ") && it.contains(" as ") && it.contains(forbidden) }) {
+                violations.add(ArchitectureViolation(relativePath, "Alias of $forbidden"))
             }
         }
 
@@ -41,8 +45,18 @@ object PackageArchitectureRules {
                     violations.add(ArchitectureViolation(relativePath, "com.miara.cuentame.feature"))
                 }
             }
-            relativePath.startsWith("core/backup/") && !relativePath.contains("/platform/") && !relativePath.contains("/internal/") -> {
-                check("com.miara.cuentame.core.database.entity")
+            relativePath.startsWith("core/backup/api/") || relativePath.startsWith("core/backup/model/") -> {
+                check("com.miara.cuentame.core.database")
+                check("androidx.room")
+            }
+            relativePath.startsWith("core/backup/platform/") || relativePath.startsWith("core/backup/internal/") -> {
+                // Allowed to depend on platform
+            }
+            relativePath.startsWith("core/backup/") -> {
+                 // General backup logic should not depend on DB entities directly (use DTOs or repos)
+                 if (!relativePath.contains("platform/") && !relativePath.contains("internal/")) {
+                      check("com.miara.cuentame.core.database.entity")
+                 }
             }
         }
 

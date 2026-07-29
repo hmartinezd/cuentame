@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,14 +25,39 @@ jobs:
         run: chmod +x gradlew
 
       - name: Verify Single Module
-        run: ./gradlew projects | grep -v ":app" | grep "Project ':" && exit 1 || exit 0
-
-      - name: Build and Test
         run: |
-          ./gradlew clean
-          ./gradlew :app:assembleDebug
-          ./gradlew :app:testDebugUnitTest
-          ./gradlew :app:lintDebug
-          ./gradlew :app:assembleRelease
-          ./gradlew :app:compileDebugAndroidTestKotlin
-          ./gradlew :app:assembleDebugAndroidTest
+          set -euo pipefail
+          PROJECT_OUTPUT="$(./gradlew projects --console=plain)"
+          printf '%s\n' "$PROJECT_OUTPUT"
+          PROJECT_LINES="$(printf '%s\n' "$PROJECT_OUTPUT" | grep -o "Project ':[^']*'" || true)"
+          test "$PROJECT_LINES" = "Project ':app'"
+
+      - name: Clean
+        run: ./gradlew clean
+      
+      - name: Assemble Debug
+        run: ./gradlew :app:assembleDebug
+        
+      - name: Run JVM Unit Tests
+        run: ./gradlew :app:testDebugUnitTest
+        
+      - name: Run Lint
+        run: ./gradlew :app:lintDebug
+        
+      - name: Assemble Release
+        run: ./gradlew :app:assembleRelease
+        
+      - name: Compile Android Tests
+        run: ./gradlew :app:compileDebugAndroidTestKotlin
+        
+      - name: Assemble Android Test APK
+        run: ./gradlew :app:assembleDebugAndroidTest
+
+      - name: Upload Test Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html

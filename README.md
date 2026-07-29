@@ -56,18 +56,13 @@ Detailed instructions for every feature:
 ## Development & Status
 
 ### Current Status (Stabilization: IN PROGRESS)
-*   **Gradle Architecture:** Single-module (`:app`) for optimal stability.
-*   **Package Architecture:** Clean Architecture with strict layer enforcement.
-*   **Backup Creation:** COMPLETE & STABLE (Version 1).
-*   **Backup Restore:** NOT STARTED.
-*   **Customer data export:** NOT STARTED.
-
-### Automated Test Summary
-- `clean`: PASSED
-- `assembleDebug`: PASSED
-- `testDebugUnitTest`: PASSED (305 tests)
-- `lintDebug`: PASSED
-- `assembleRelease`: PASSED
+*   **Backup stabilization:** IN PROGRESS
+*   **Backup creation verification:** IN PROGRESS
+*   **Regression-test recovery:** IN PROGRESS
+*   **Backup restore:** NOT STARTED
+*   **Customer export:** NOT STARTED
+*   **Gradle architecture:** single :app module
+*   **Physical multi-module migration:** postponed
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.
@@ -78,5 +73,5 @@ Detailed instructions for every feature:
 ### Development Setup
 1. Open in Android Studio Ladybug or newer.
 2. Run `./gradlew assembleDebug` to verify the build.
-3. Run `./gradlew testDebugUnitTest` for JVM unit tests.
-4. Run `./gradlew lintDebug` for static analysis.
+3. Run `./gradlew :app:testDebugUnitTest` for JVM unit tests.
+4. Run `./gradlew :app:lintDebug` for static analysis.

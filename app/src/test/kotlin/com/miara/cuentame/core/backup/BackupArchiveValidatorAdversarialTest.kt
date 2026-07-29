@@ -7,86 +7,32 @@ import com.miara.cuentame.core.model.backup.*
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class BackupArchiveValidatorAdversarialTest {
 
     private val jsonCodecs = BackupJsonCodecs()
     private lateinit var validator: DefaultBackupArchiveValidator
-    private lateinit var builder: BackupArchiveTestBuilder
 
     @Before
     fun setup() {
         validator = DefaultBackupArchiveValidator(jsonCodecs)
-        builder = BackupArchiveTestBuilder(jsonCodecs)
-    }
-
-    private fun createValidTableMetadata() = mapOf(
-        "restaurants" to TableMetadata(0, false),
-        "inventory_areas" to TableMetadata(0, false),
-        "ingredient_categories" to TableMetadata(0, false),
-        "units" to TableMetadata(0, false),
-        "ingredients" to TableMetadata(0, false),
-        "ingredient_unit_options" to TableMetadata(0, false),
-        "suppliers" to TableMetadata(0, false),
-        "purchase_receipts" to TableMetadata(0, false),
-        "purchase_lines" to TableMetadata(0, false),
-        "stock_counts" to TableMetadata(0, false),
-        "stock_count_areas" to TableMetadata(0, false),
-        "stock_count_lines" to TableMetadata(0, false),
-        "waste_events" to TableMetadata(0, false),
-        "inventory_movements" to TableMetadata(0, false),
-        "inventory_balance_projections" to TableMetadata(0, true),
-        "ingredient_cost_projections" to TableMetadata(0, true)
-    ).entries.sortedBy { it.key }.associate { it.key to it.value }
-
-    private fun createValidBaseManifest() = BackupManifest(
-        backupFormatVersion = 1,
-        createdAtUtc = "2026-01-01T12:00:00Z",
-        applicationId = "com.miara.cuentame",
-        appVersionName = "1.0",
-        appVersionCode = 1L,
-        databaseSchemaVersion = 2,
-        restaurantId = "rest-1",
-        restaurantName = "Test Rest",
-        localeTag = "en-US",
-        currencyCode = "USD",
-        tableMetadata = createValidTableMetadata(),
-        attachments = emptyList(),
-        includedSections = listOf("data", "preferences", "attachments").sorted()
-    )
-
-    private fun hash(bytes: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    @Test
-    fun `rejects archive with unexpected entry`() {
-        val manifest = createValidBaseManifest()
-        val manifestJson = jsonCodecs.writer.encodeToString(BackupManifest.serializer(), manifest).toByteArray()
-        val dbJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.backup.model.BackupSnapshotDto.serializer(), BackupTestFixtures.createEmptySnapshotDto()).toByteArray()
-        val settingsJson = jsonCodecs.writer.encodeToString(BackupPreferencesDto.serializer(), BackupPreferencesDto("SYSTEM", true, "en-US")).toByteArray()
-
-        val checksums = mapOf(
-            "manifest.json" to hash(manifestJson),
-            "data/database.json" to hash(dbJson),
-            "preferences/settings.json" to hash(settingsJson),
-            "unexpected.txt" to hash("hacker".toByteArray())
-        )
-
-        val zipBytes = builder
-            .withEntry("manifest.json", manifestJson)
-            .withEntry("data/database.json", dbJson)
-            .withEntry("preferences/settings.json", settingsJson)
-            .withEntry("unexpected.txt", "hacker".toByteArray())
-            .withChecksums(checksums) 
-            .build()
-            
-        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
-        assertThat(result.code).isEqualTo(BackupValidationCode.UNEXPECTED_ENTRY)
     }
 
     @Test
-    fun `rejects archive with missing required entry`() {
-        val zipBytes = builder
-            .withEntry("data/database.json", "{}".toByteArray())
+    fun `positive control - valid archive passes`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val result = validator.validate(ByteArrayInputStream(zipBytes))
+        assertThat(result).isInstanceOf(BackupValidationResult.Valid::class.java)
+    }
+
+    @Test
+    fun `rejects archive with missing manifest`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .removeEntry("manifest.json")
+            .recomputeAllChecksums()
             .build()
             
         val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
@@ -94,17 +40,21 @@ class BackupArchiveValidatorAdversarialTest {
     }
 
     @Test
+    fun `rejects archive with unexpected entry`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addEntry("unexpected.txt", "hacker".toByteArray())
+            .recomputeAllChecksums()
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.UNEXPECTED_ENTRY)
+    }
+
+    @Test
     fun `rejects archive with checksum key mismatch`() {
-        val manifest = createValidBaseManifest()
-        val manifestJson = jsonCodecs.writer.encodeToString(BackupManifest.serializer(), manifest).toByteArray()
-        val dbJson = "{}".toByteArray()
-        val settingsJson = "{}".toByteArray()
-        
-        val zipBytes = builder
-            .withEntry("manifest.json", manifestJson)
-            .withEntry("data/database.json", dbJson)
-            .withEntry("preferences/settings.json", settingsJson)
-            .withChecksums(mapOf("data/database.json" to hash(dbJson))) 
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            // Manual corruption of checksums JSON key set
+            .replaceRawChecksums("{\"data/database.json\":\"hash\"}")
             .build()
             
         val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
@@ -113,25 +63,33 @@ class BackupArchiveValidatorAdversarialTest {
 
     @Test
     fun `rejects archive with checksum hash mismatch`() {
-        val manifest = createValidBaseManifest()
-        val manifestJson = jsonCodecs.writer.encodeToString(BackupManifest.serializer(), manifest).toByteArray()
-        val dbJson = "{}".toByteArray()
-        val settingsJson = "{}".toByteArray()
-
-        val checksums = mapOf(
-            "manifest.json" to hash(manifestJson),
-            "data/database.json" to hash(dbJson),
-            "preferences/settings.json" to "0000000000000000000000000000000000000000000000000000000000000000"
-        )
-
-        val zipBytes = builder
-            .withEntry("manifest.json", manifestJson)
-            .withEntry("data/database.json", dbJson)
-            .withEntry("preferences/settings.json", settingsJson)
-            .withChecksums(checksums)
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            // Valid JSON but wrong hash
+            .replaceRawChecksums("{\"data/database.json\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"manifest.json\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"preferences/settings.json\":\"0000000000000000000000000000000000000000000000000000000000000000\"}")
             .build()
             
         val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
         assertThat(result.code).isEqualTo(BackupValidationCode.CHECKSUM_MISMATCH)
+    }
+
+    @Test
+    fun `rejects archive with overlong entry name`() {
+        val longName = "a".repeat(BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES + 1)
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addEntry(longName, "data".toByteArray())
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.UNSAFE_ENTRY_PATH)
+    }
+
+    @Test
+    fun `rejects archive with unsafe relative path`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addEntry("../outside.json", "data".toByteArray())
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.UNSAFE_ENTRY_PATH)
     }
 }

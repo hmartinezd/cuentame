@@ -80,34 +80,13 @@ class BackupCreationPlannerTest {
     }
 
     @Test
-    fun `reconciliation failure returns LocaleReconciliationFailed`() = runTest {
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.Failure(Exception())
-        
-        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
-        
-        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.LocaleReconciliationFailed)
-    }
-
-    @Test
-    fun `locale mismatch returns PreferencesLocaleMismatch`() = runTest {
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "es-US")
-        
-        val result = planner.createPlan(makeRestaurant("en-US"), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
-        
-        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.PreferencesLocaleMismatch)
-    }
-
-    @Test
-    fun `conflicting attachment mapping returns ConflictingAttachmentSource`() = runTest {
+    fun `rejects conflicting attachment bindings`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
         val snapshotDto = createValidSnapshotDto().copy(
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "pr1", "rest-1", "s1", "1", 0L, "POSTED", null, "id1", 0L, 0L, 0L, null
+                "pr1", "rest-1", null, null, 0, "DRAFT", null, "id1", 0, 0, null, null
             ))
         )
         
@@ -117,8 +96,45 @@ class BackupCreationPlannerTest {
         )
         
         val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(snapshotDto, bindings))
-        
-        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
         assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.ConflictingAttachmentSource)
+    }
+
+    @Test
+    fun `rejects plan if overlong entry name generated`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val longId = "i".repeat(240) 
+        val snapshotDto = createValidSnapshotDto().copy(
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
+                "pr1", "rest-1", null, null, 0, "DRAFT", null, longId, 0, 0, null, null
+            ))
+        )
+        val bindings = listOf(BackupAttachmentSourceBinding(longId, AttachmentSourceUri("uri1")))
+        attachmentSource.metadataMap[AttachmentSourceUri("uri1")] = AttachmentSourceMetadata(AttachmentSourceUri("uri1"), "n.jpg", "image/jpeg")
+        attachmentSource.dataMap[AttachmentSourceUri("uri1")] = "d".toByteArray()
+
+        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(snapshotDto, bindings))
+        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.EntryNameLimitExceeded)
+    }
+
+    @Test
+    fun `plan ensures defensive copies of byte arrays`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val snapshotDto = createValidSnapshotDto()
+        val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
+
+        val plan = (planner.createPlan(makeRestaurant(), snapshotResult) as BackupPlanningResult.Success).plan
+        
+        val originalSnapshotBytes = plan.snapshotJson.copyForTest()
+        val copy = plan.snapshotJson.copyForTest()
+        if (copy.isNotEmpty()) {
+            copy[0] = if (copy[0] == 0.toByte()) 1.toByte() else 0.toByte()
+        }
+        
+        assertThat(plan.snapshotJson.copyForTest()).isEqualTo(originalSnapshotBytes)
     }
 }

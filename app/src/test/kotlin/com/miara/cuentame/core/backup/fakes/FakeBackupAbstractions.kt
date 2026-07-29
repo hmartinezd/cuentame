@@ -8,7 +8,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
-class FakeBackupDocumentStore : BackupDocumentStore {
+open class FakeBackupDocumentStore : BackupDocumentStore {
     val openForWriteCalls = mutableListOf<BackupDocumentUri>()
     val openForReadCalls = mutableListOf<BackupDocumentUri>()
     val deleteCalls = mutableListOf<BackupDocumentUri>()

@@ -16,15 +16,21 @@ class BackupCleanupCoordinator @Inject constructor(
     private val documentStore: BackupDocumentStore
 ) {
     suspend fun cleanup(uri: BackupDocumentUri): BackupCleanupOutcome {
-        return try {
-            if (documentStore.delete(uri)) {
-                BackupCleanupOutcome.Deleted
-            } else if (documentStore.truncate(uri)) {
-                BackupCleanupOutcome.Truncated
-            } else {
-                BackupCleanupOutcome.Failed
-            }
-        } catch (_: Exception) {
+        val deleted = runCatching {
+            documentStore.delete(uri)
+        }.getOrDefault(false)
+
+        if (deleted) {
+            return BackupCleanupOutcome.Deleted
+        }
+
+        val truncated = runCatching {
+            documentStore.truncate(uri)
+        }.getOrDefault(false)
+
+        return if (truncated) {
+            BackupCleanupOutcome.Truncated
+        } else {
             BackupCleanupOutcome.Failed
         }
     }

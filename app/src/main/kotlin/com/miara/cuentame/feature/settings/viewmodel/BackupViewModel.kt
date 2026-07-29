@@ -84,6 +84,8 @@ class BackupViewModel @Inject constructor(
 
     private fun restoreState() {
         val activeId = savedStateHandle.get<Long>(KEY_ACTIVE_OP_ID) ?: return
+        if (activeId == -1L) return
+
         val phase = savedStateHandle.get<String>(KEY_PHASE) ?: return
         val opId = BackupOperationId(activeId)
 
@@ -101,8 +103,7 @@ class BackupViewModel @Inject constructor(
             }
             "CREATING", "VALIDATING" -> {
                 activeOperationToken = -1L
-                savedStateHandle[KEY_ACTIVE_OP_ID] = -1L
-                savedStateHandle[KEY_PHASE] = "INTERRUPTED"
+                persistState(operationTokenGenerator.get(), -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
                 BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
             }
             "CANCELLED" -> BackupUiState.Cancelled(opId)
@@ -155,10 +156,11 @@ class BackupViewModel @Inject constructor(
 
     fun consumePickerLaunch(operationId: BackupOperationId): Boolean = synchronized(pickerLaunchLock) {
         if (operationId.value != activeOperationToken) return false
-        if (_uiState.value !is BackupUiState.WaitingForDestination) return false
+        val currentState = _uiState.value
+        if (currentState !is BackupUiState.WaitingForDestination || currentState.operationId != operationId) return false
         
-        val currentState = savedStateHandle.get<String>(KEY_PICKER_STATE)
-        if (currentState != SavedPickerLaunchState.PENDING.name) return false
+        val savedState = savedStateHandle.get<String>(KEY_PICKER_STATE)
+        if (savedState != SavedPickerLaunchState.PENDING.name) return false
         
         savedStateHandle[KEY_PICKER_STATE] = SavedPickerLaunchState.CONSUMED.name
         return true
@@ -178,8 +180,7 @@ class BackupViewModel @Inject constructor(
 
         persistState(activeOperationToken, activeOperationToken, "CREATING", SavedPickerLaunchState.CONSUMED, null)
 
-        destinationPickerPreparationJob?.cancel()
-        activeBackupJob?.cancel()
+        cancelAllJobs()
 
         val token = operationId.value
         activeBackupJob = viewModelScope.launch {
@@ -209,7 +210,7 @@ class BackupViewModel @Inject constructor(
         if (current is BackupUiState.WaitingForDestination && current.operationId == operationId) {
             if (_uiState.compareAndSet(current, BackupUiState.Cancelled(operationId))) {
                 persistState(activeOperationToken, activeOperationToken, "CANCELLED", SavedPickerLaunchState.CONSUMED, null)
-                destinationPickerPreparationJob?.cancel()
+                cancelAllJobs()
             }
         }
     }
@@ -249,8 +250,8 @@ class BackupViewModel @Inject constructor(
     }
 
     fun resetStatus() {
-        val newToken = operationTokenGenerator.incrementAndGet()
-        activeOperationToken = newToken
+        val newToken = operationTokenGenerator.get()
+        activeOperationToken = -1L
         persistState(newToken, -1L, "IDLE", SavedPickerLaunchState.NONE, null)
         cancelAllJobs()
         _uiState.value = BackupUiState.Idle

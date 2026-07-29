@@ -1,10 +1,7 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.BackupLimits
-import com.miara.cuentame.core.backup.api.BackupArchiveWriteResult
-import com.miara.cuentame.core.backup.api.BackupArchiveWriter
-import com.miara.cuentame.core.backup.api.BackupAttachmentSource
-import com.miara.cuentame.core.backup.api.BackupPlan
+import com.miara.cuentame.core.backup.api.*
 import kotlinx.coroutines.CancellationException
 import java.io.OutputStream
 import java.security.MessageDigest
@@ -24,18 +21,21 @@ class DefaultBackupArchiveWriter @Inject constructor(
         outputStream: OutputStream,
         plan: BackupPlan
     ): BackupArchiveWriteResult {
-        val zos = ZipOutputStream(outputStream)
+        val precheck = validatePlanLimits(plan)
+        if (precheck != null) return precheck
+
+        val zos = ZipOutputStream(NonClosingOutputStream(outputStream))
         zos.setLevel(java.util.zip.Deflater.DEFAULT_COMPRESSION)
 
         var currentTotalUncompressedBytes = 0L
 
         try {
             // 1. data/database.json
-            writeZipEntry(zos, "data/database.json", plan.snapshotJson)
+            writeZipEntry(zos, "data/database.json", plan.snapshotJson, plan)
             currentTotalUncompressedBytes += plan.snapshotJson.size
 
             // 2. preferences/settings.json
-            writeZipEntry(zos, "preferences/settings.json", plan.preferencesJson)
+            writeZipEntry(zos, "preferences/settings.json", plan.preferencesJson, plan)
             currentTotalUncompressedBytes += plan.preferencesJson.size
 
             // 3. attachments
@@ -73,30 +73,68 @@ class DefaultBackupArchiveWriter @Inject constructor(
                     if (entrySize != att.sizeBytes || checksum != att.checksumSha256) {
                         return BackupArchiveWriteResult.Failure.AttachmentChanged
                     }
+                    
+                    if (plan.expectedEntryChecksums[att.archivePath] != checksum) {
+                        return BackupArchiveWriteResult.Failure.AttachmentChanged
+                    }
                 }
             }
 
             // 4. manifest.json
-            writeZipEntry(zos, "manifest.json", plan.manifestJson)
+            writeZipEntry(zos, "manifest.json", plan.manifestJson, plan)
             currentTotalUncompressedBytes += plan.manifestJson.size
 
             // 5. checksums.json
-            writeZipEntry(zos, "checksums.json", plan.checksumsJson)
+            zos.putNextEntry(ZipEntry("checksums.json").apply { time = DETERMINISTIC_ZIP_TIMESTAMP })
+            plan.checksumsJson.writeTo(zos)
+            zos.closeEntry()
             currentTotalUncompressedBytes += plan.checksumsJson.size
 
             zos.finish()
+            zos.flush()
             return BackupArchiveWriteResult.Success
 
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             return BackupArchiveWriteResult.Failure.IoError(e)
+        } finally {
+            runCatching { zos.close() }
         }
     }
 
-    private fun writeZipEntry(zos: ZipOutputStream, name: String, content: ByteArray) {
+    private fun validatePlanLimits(plan: BackupPlan): BackupArchiveWriteResult.Failure? {
+        if (plan.attachments.size > BackupLimits.MAX_ATTACHMENT_COUNT) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (2 + plan.attachments.size + 2 > BackupLimits.MAX_ARCHIVE_ENTRY_COUNT) return BackupArchiveWriteResult.Failure.LimitExceeded
+        
+        if (plan.snapshotJson.size > BackupLimits.MAX_DATABASE_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.preferencesJson.size > BackupLimits.MAX_SETTINGS_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.manifestJson.size > BackupLimits.MAX_MANIFEST_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.checksumsJson.size > BackupLimits.MAX_CHECKSUMS_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+
+        val allNames = listOf("data/database.json", "preferences/settings.json", "manifest.json", "checksums.json") + 
+                plan.attachments.map { it.archivePath }
+        if (allNames.any { it.toByteArray(Charsets.UTF_8).size > BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES }) {
+             return BackupArchiveWriteResult.Failure.LimitExceeded
+        }
+
+        val expectedKeys = setOf("data/database.json", "preferences/settings.json", "manifest.json") + 
+                plan.attachments.map { it.archivePath }.toSet()
+        if (plan.expectedEntryChecksums.keys != expectedKeys) {
+             return BackupArchiveWriteResult.Failure.LimitExceeded
+        }
+
+        return null
+    }
+
+    private fun writeZipEntry(zos: ZipOutputStream, name: String, bytes: ImmutableBackupBytes, plan: BackupPlan) {
+        val actualHash = bytes.sha256()
+        if (plan.expectedEntryChecksums[name] != actualHash) {
+             throw IllegalStateException("Inconsistent plan: checksum mismatch for $name")
+        }
+        
         zos.putNextEntry(ZipEntry(name).apply { time = DETERMINISTIC_ZIP_TIMESTAMP })
-        zos.write(content)
+        bytes.writeTo(zos)
         zos.closeEntry()
     }
 }

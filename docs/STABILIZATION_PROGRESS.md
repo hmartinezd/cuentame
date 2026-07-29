@@ -1,21 +1,9 @@
 # Stabilization Progress Checklist
 
 - `IN PROGRESS` 1. Documentation & Progress Correction
-- `IN PROGRESS` 2. BackupViewModel Operation-Start Race Fix
-- `IN PROGRESS` 3. BackupViewModel SavedStateHandle Integration (Phase Persistence)
-- `IN PROGRESS` 4. Picker UI State Saveable Primitives
-- `IN PROGRESS` 5. Locale Components Cancellation Safety
-- `IN PROGRESS` 6. Locale Definition Consolidation
-- `IN PROGRESS` 7. Backup Abstractions Implementation (Missing Sources)
-- `IN PROGRESS` 8. Backup Repository Refactoring & Integration
-- `IN PROGRESS` 9. Backup Creation Planner Integration
-- `IN PROGRESS` 10. BackupDocumentStore Ownership & Cleanup Logic
-- `IN PROGRESS` 11. Production Storage Classifier Integration
-- `IN PROGRESS` 12. Snapshot Numeric Validation Corrections
-- `IN PROGRESS` 13. Snapshot Source-Line Bijection Corrections
-- `IN PROGRESS` 14. Reversal Cost Comparison & Nullability Fixes
-- `IN PROGRESS` 15. Movement Quantity Fallback Removal
-- `IN PROGRESS` 16. Public Validation Error Sanitization
-- `IN PROGRESS` 17. Architecture Test Repair
-- `IN PROGRESS` 18. Verification & Final Testing
-- `IN PROGRESS` 19. Single-Module Consolidation & Gradle Cleanup
+- `IN PROGRESS` 2. Backup creation verification
+- `IN PROGRESS` 3. Regression-test recovery
+- `IN PROGRESS` 4. Backup subsystem refinement (Immutability, Resource ownership)
+- `NOT STARTED` 5. Backup restore
+- `NOT STARTED` 6. Customer export
+- `COMPLETE` 7. Single-Module Consolidation & Gradle Cleanup

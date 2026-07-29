@@ -73,8 +73,8 @@ class BackupCleanupLifecycleTest {
         
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
             mockk(relaxed = true) {
-                io.mockk.every { snapshotJson } returns ByteArray(0)
-                io.mockk.every { preferencesJson } returns ByteArray(0)
+                io.mockk.every { snapshotJson } returns ImmutableBackupBytes.from(ByteArray(0))
+                io.mockk.every { preferencesJson } returns ImmutableBackupBytes.from(ByteArray(0))
             }
         )
         
@@ -94,8 +94,8 @@ class BackupCleanupLifecycleTest {
         snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyList())
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(
             mockk(relaxed = true) {
-                io.mockk.every { snapshotJson } returns ByteArray(0)
-                io.mockk.every { preferencesJson } returns ByteArray(0)
+                io.mockk.every { snapshotJson } returns ImmutableBackupBytes.from(ByteArray(0))
+                io.mockk.every { preferencesJson } returns ImmutableBackupBytes.from(ByteArray(0))
             }
         )
 

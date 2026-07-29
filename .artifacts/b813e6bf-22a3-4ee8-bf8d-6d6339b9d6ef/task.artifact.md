@@ -1,0 +1,31 @@
+# Task List - Regression Recovery and Backup Pipeline Correctness
+
+- [ ] **Phase 1: Status and Documentation**
+    - [ ] Update `README.md`
+    - [ ] Update `docs/STABILIZATION_PROGRESS.md`
+    - [ ] Update `docs/REFACTOR_PROGRESS.md`
+    - [ ] Create `docs/TEST_COVERAGE_LEDGER.md`
+- [ ] **Phase 2: Test Fixtures Cleanup**
+    - [ ] Remove `app/src/debug/kotlin/com/miara/cuentame/core/backup/BackupTestFixtures.kt`
+    - [ ] Create `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupTestFixtures.kt`
+    - [ ] Create `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/BackupTestFixtures.kt`
+- [ ] **Phase 3: Production Code Refinement**
+    - [ ] Implement `ImmutableBackupBytes` and update `BackupPlan`
+    - [ ] Implement `NonClosingOutputStream`
+    - [ ] Refine `DefaultBackupArchiveWriter` (resource ownership, defense-in-depth)
+    - [ ] Refine `BackupCleanupCoordinator` (independent delete/truncate)
+    - [ ] Refine `AndroidBackupDocumentStore` (error wrapping)
+    - [ ] Refine `ChecksumParser` and `DefaultBackupArchiveValidator`
+- [ ] **Phase 4: Test Suite Restoration**
+    - [ ] Implement new `BackupArchiveTestBuilder`
+    - [ ] Restore and adapt all 14 deleted JVM backup tests
+    - [ ] Restore/replace all 22 deleted Android/Product integration tests
+    - [ ] Add complete JVM backup round-trip integration test
+    - [ ] Expand `BackupViewModelTest` (lifecycle, concurrency)
+    - [ ] Restore/add locale cancellation tests
+    - [ ] Strengthen `ArchitectureTest` rules and add fixtures
+- [ ] **Phase 5: Verification and CI**
+    - [ ] Run all JVM tests
+    - [ ] Verify Android test compilation and APK assembly
+    - [ ] Verify bit-identical determinism
+    - [ ] Update and verify CI workflow

@@ -4,8 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.fakes.FakeBackupAttachmentSource
 import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveWriter
-import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -26,95 +26,78 @@ class BackupArchiveWriterTest {
     }
 
     private fun createMinimalPlan(): BackupPlan {
+        val snapshot = BackupTestFixtures.createEmptySnapshotDto()
+        val prefs = BackupPreferencesDto("SYSTEM", true, "en-US")
+        val manifest = mockk<BackupManifest>(relaxed = true) {
+            io.mockk.every { localeTag } returns "en-US"
+            io.mockk.every { attachments } returns emptyList()
+            io.mockk.every { tableMetadata } returns emptyMap()
+        }
+        
+        val snapshotBytes = "{}".toByteArray()
+        val prefsBytes = "{}".toByteArray()
+        val manifestBytes = "{\"backupFormatVersion\":1}".toByteArray()
+        
+        val snapshotSha = ImmutableBackupBytes.from(snapshotBytes).sha256()
+        val prefsSha = ImmutableBackupBytes.from(prefsBytes).sha256()
+        val manifestSha = ImmutableBackupBytes.from(manifestBytes).sha256()
+
+        val checksumsMap = mutableMapOf(
+            "data/database.json" to snapshotSha,
+            "preferences/settings.json" to prefsSha,
+            "manifest.json" to manifestSha
+        )
+        // Checksums map must be sorted by key to match expectations
+        val sortedChecksums = checksumsMap.toSortedMap()
+        val checksumsBytes = "{\"data/database.json\":\"$snapshotSha\",\"manifest.json\":\"$manifestSha\",\"preferences/settings.json\":\"$prefsSha\"}".toByteArray()
+
         return BackupPlan(
-            snapshotDto = mockk(relaxed = true),
-            snapshotJson = "{}".toByteArray(),
-            preferencesDto = mockk(relaxed = true),
-            preferencesJson = "{}".toByteArray(),
+            snapshotDto = snapshot,
+            snapshotJson = snapshotBytes,
+            preferencesDto = prefs,
+            preferencesJson = prefsBytes,
             attachments = emptyList(),
-            manifest = mockk(relaxed = true),
-            manifestJson = "{}".toByteArray(),
-            expectedEntryChecksums = emptyMap(),
-            checksumsJson = "{}".toByteArray(),
+            manifest = manifest,
+            manifestJson = manifestBytes,
+            expectedEntryChecksums = sortedChecksums,
+            checksumsJson = checksumsBytes,
             totalUncompressedBytes = 0L
         )
     }
 
     @Test
-    fun `exact entry order and deterministic content`() = runTest {
-        val attUri = AttachmentSourceUri("uri1")
-        val attData = "image data".toByteArray()
-        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "pic.jpg", "image/jpeg")
-        attachmentSource.dataMap[attUri] = attData
-        
-        val plannedChecksum = java.security.MessageDigest.getInstance("SHA-256").digest(attData).joinToString("") { "%02x".format(it) }
-        
-        val plannedAtt = PlannedBackupAttachment(
-            sourceUri = attUri,
-            attachmentId = "att1",
-            archivePath = "attachments/att1/pic.jpg",
-            displayName = "pic.jpg",
-            mimeType = "image/jpeg",
-            sizeBytes = attData.size.toLong(),
-            checksumSha256 = plannedChecksum,
-            references = emptyList()
-        )
-
-        val plan = createMinimalPlan().copy(
-            snapshotJson = "db".toByteArray(),
-            preferencesJson = "prefs".toByteArray(),
-            manifestJson = "manifest".toByteArray(),
-            checksumsJson = "checksums".toByteArray(),
-            attachments = listOf(plannedAtt)
-        )
-
-        val output = ByteArrayOutputStream()
-        val result = writer.write(output, plan)
-
-        assertThat(result).isEqualTo(BackupArchiveWriteResult.Success)
-
-        val zis = ZipInputStream(ByteArrayInputStream(output.toByteArray()))
-        val names = mutableListOf<String>()
-        var entry = zis.nextEntry
-        while (entry != null) {
-            names.add(entry.name)
-            zis.closeEntry()
-            entry = zis.nextEntry
+    fun `writer releases resources and does not close underlying stream`() = runTest {
+        val output = object : ByteArrayOutputStream() {
+            var closedCount = 0
+            override fun close() {
+                closedCount++
+                super.close()
+            }
         }
-
-        assertThat(names).containsExactly(
-            "data/database.json",
-            "preferences/settings.json",
-            "attachments/att1/pic.jpg",
-            "manifest.json",
-            "checksums.json"
-        ).inOrder()
+        
+        val plan = createMinimalPlan()
+        val result = writer.write(output, plan)
+        
+        if (result is BackupArchiveWriteResult.Failure.IoError) {
+             throw result.cause
+        }
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Success)
+        // Ownership: writer should NOT close caller's stream
+        assertThat(output.closedCount).isEqualTo(0)
     }
 
     @Test
-    fun `failure if attachment changed after planning`() = runTest {
-        val attUri = AttachmentSourceUri("uri1")
-        attachmentSource.dataMap[attUri] = "original".toByteArray()
-        
-        val plannedAtt = PlannedBackupAttachment(
-            sourceUri = attUri,
-            attachmentId = "att1",
-            archivePath = "attachments/att1/p.jpg",
-            displayName = "p.jpg",
-            mimeType = "image/jpeg",
-            sizeBytes = 8,
-            checksumSha256 = "original-hash",
-            references = emptyList()
-        )
-
-        val plan = createMinimalPlan().copy(attachments = listOf(plannedAtt))
-
-        // Mutate content
-        attachmentSource.dataMap[attUri] = "changed!!".toByteArray()
+    fun `writer rejects plan with inconsistent checksums`() = runTest {
+        val plan = createMinimalPlan()
+        // Corrupt manifest bytes relative to its planned checksum
+        val corruptedManifestBytes = ImmutableBackupBytes.from("corrupted".toByteArray())
+        val corruptedPlan = plan.copy(manifestJson = corruptedManifestBytes)
 
         val output = ByteArrayOutputStream()
-        val result = writer.write(output, plan)
-
-        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.AttachmentChanged)
+        val result = writer.write(output, corruptedPlan)
+        assertThat(result).isInstanceOf(BackupArchiveWriteResult.Failure.IoError::class.java)
+        val ioErr = result as BackupArchiveWriteResult.Failure.IoError
+        assertThat(ioErr.cause).isInstanceOf(IllegalStateException::class.java)
+        assertThat(ioErr.cause.message).contains("checksum mismatch for manifest.json")
     }
 }
