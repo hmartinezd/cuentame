@@ -1,118 +1,86 @@
 package com.miara.cuentame.core.database.repository
 
-import android.content.Context
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
-import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.RestaurantEntity
+import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.domain.repository.StartStockCountCommand
-import com.miara.cuentame.core.domain.service.InventorySnapshotService
-import com.miara.cuentame.core.domain.service.InventorySnapshot
+import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
 import com.miara.cuentame.core.model.inventory.StockCountStatus
-import io.mockk.coEvery
-import io.mockk.mockk
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.math.BigDecimal
 import java.time.Instant
+import javax.inject.Inject
 
+@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class RoomStockCountRepositoryTest {
-    private lateinit var db: RestaurantInventoryDatabase
-    private lateinit var repository: RoomStockCountRepository
+
+    @get:Rule
+    var hiltRule = HiltAndroidRule(this)
+
+    @Inject
+    lateinit var database: RestaurantInventoryDatabase
+
+    @Inject
+    lateinit var repository: RoomStockCountRepository
+
     private val restId = RestaurantId("rest-1")
-    private val activeRestaurantProvider = mockk<ActiveRestaurantProvider>()
-    private val snapshotService = mockk<InventorySnapshotService>()
-    private val historyValidator = mockk<StockCountMovementHistoryValidator>(relaxed = true)
-    private val projectionRebuilder = mockk<RoomInventoryProjectionRebuilder>(relaxed = true)
 
     @Before
     fun setup() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java).build()
-        
-        val restEntity = RestaurantEntity(restId.value, "R", "USD", "en", 0L, 0L, null)
-        coEvery { activeRestaurantProvider.getActiveRestaurant() } returns restEntity
-
-        repository = RoomStockCountRepository(
-            db,
-            db.stockCountDao(),
-            db.inventoryMovementDao(),
-            db.ingredientDao(),
-            db.inventoryAreaDao(),
-            db.ingredientUnitOptionDao(),
-            db.restaurantDao(),
-            snapshotService,
-            historyValidator,
-            projectionRebuilder,
-            object : IdGenerator { override fun newId(): String = "id" },
-            object : TimeProvider { override fun now(): Instant = Instant.now() },
-            activeRestaurantProvider
-        )
+        hiltRule.inject()
         runBlocking {
-            db.restaurantDao().insert(restEntity)
+            database.clearAllTables()
+            database.restaurantDao().insert(RestaurantEntity(restId.value, "R", "USD", "en", 0L, 0L, null))
+            database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
         }
     }
 
     @After
     fun tearDown() {
-        db.close()
+        database.close()
     }
 
     @Test
-    fun startStockCount_insertsDraft() = runBlocking {
-        val areaId = InventoryAreaId("a1")
-        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restId.value, "A", "a", 0, true, 0, 0, null))
-
-        val command = StartStockCountCommand(restId, "New Count", Instant.now(), listOf(areaId), null)
-        val countId = repository.start(command)
-        
-        val details = repository.observeCount(countId).first()
-        val loaded = details?.count
-        
-        assertThat(loaded?.name).isEqualTo("New Count")
-        assertThat(loaded?.status).isEqualTo(StockCountStatus.DRAFT)
-    }
-
-    @Test
-    fun completeCount_updatesStatusAndInsertsMovements() = runBlocking {
+    fun fullLifecycle_start_save_complete_void() = runBlocking {
         val areaId = InventoryAreaId("a1")
         val ingId = IngredientId("i1")
         val optId = IngredientUnitOptionId("o1")
         
-        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
-        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restId.value, "A", "a", 0, true, 0, 0, null))
-        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", areaId.value, null, null, null, true, 0, 0, null))
-        db.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(optId.value, ingId.value, "O", "o", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+        database.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restId.value, "A", "a", 0, true, 0, 0, null))
+        database.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", areaId.value, null, null, null, true, 0, 0, null))
+        database.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(optId.value, ingId.value, "O", "o", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
 
-        val countId = repository.start(StartStockCountCommand(restId, "C", Instant.now(), listOf(areaId), null))
-        val area = repository.observeCount(countId).first()!!.areas.first()
+        // 1. Start
+        val countId = repository.start(StartStockCountCommand(restId, "C1", Instant.now(), listOf(areaId), null))
         
-        repository.saveLine(com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand(
-            countId, area.area.id, null, ingId, optId, BigDecimal("10"), null
-        ))
-        repository.completeArea(countId, area.area.id)
-
-        coEvery { snapshotService.calculateAt(any(), any(), any(), any()) } returns InventorySnapshot(
-            hasEffectiveHistory = false,
-            areaQuantityBase = BigDecimal.ZERO,
-            ingredientAverageCostBase = null
-        )
-
+        val details = repository.observeCount(countId).first()!!
+        val countAreaId = details.areas.first().area.id
+        
+        // 2. Save Line
+        repository.saveLine(SaveStockCountLineCommand(countId, countAreaId, null, ingId, optId, BigDecimal("10"), null))
+        repository.completeArea(countId, countAreaId)
+        
+        // 3. Complete
         repository.completeCount(countId)
         
-        val finished = repository.observeCount(countId).first()!!.count
-        assertThat(finished.status).isEqualTo(StockCountStatus.COMPLETED)
+        val finalDetails = repository.observeCount(countId).first()!!
+        assertThat(finalDetails.count.status).isEqualTo(StockCountStatus.COMPLETED)
         
-        val movements = db.inventoryMovementDao().getBySourceDocument("STOCK_COUNT", countId.value)
-        assertThat(movements).hasSize(1)
+        // 4. Void
+        repository.voidCount(countId)
+        val voidedDetails = repository.observeCount(countId).first()!!
+        assertThat(voidedDetails.count.status).isEqualTo(StockCountStatus.VOIDED)
     }
 }

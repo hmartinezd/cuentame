@@ -28,15 +28,13 @@ class BackupCreationPlanner @Inject constructor(
     private val jsonCodecs: BackupJsonCodecs
 ) {
 
-    private val FORMAT_V1_ATTACHMENT_ID = Regex("^[0-9a-f]{16}$")
-
     suspend fun createPlan(
         restaurant: Restaurant,
         snapshotResult: BackupSnapshotResult
     ): BackupPlanningResult {
         try {
             // 0. Schema check
-            if (appVersionProvider.databaseSchemaVersion != BackupLimits.DATABASE_SCHEMA_VERSION_BASELINE) {
+            if (appVersionProvider.databaseSchemaVersion != BackupFormatV1Contract.DATABASE_SCHEMA_VERSION) {
                 return failure(BackupPlanningFailure.UnsupportedDatabaseSchema)
             }
 
@@ -101,7 +99,7 @@ class BackupCreationPlanner @Inject constructor(
             }
 
             for (id in referencedIds) {
-                if (!FORMAT_V1_ATTACHMENT_ID.matches(id)) return failure(BackupPlanningFailure.InvalidAttachmentId)
+                if (!BackupFormatV1Contract.isValidAttachmentId(id)) return failure(BackupPlanningFailure.InvalidAttachmentId)
                 
                 val group = bindingGroups[id]!!
                 val distinctUris = group.map { it.sourceUri }.distinct()
@@ -117,7 +115,7 @@ class BackupCreationPlanner @Inject constructor(
 
             // 7. Base manifest
             val baseManifest = BackupManifest(
-                backupFormatVersion = BackupLimits.BACKUP_FORMAT_VERSION,
+                backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
                 createdAtUtc = DateTimeFormatter.ISO_INSTANT.format(timeProvider.now()),
                 applicationId = appVersionProvider.applicationId,
                 appVersionName = appVersionProvider.versionName,
@@ -146,14 +144,14 @@ class BackupCreationPlanner @Inject constructor(
                 jsonCodecs.writer.encodeToString(snapshotDto).toByteArray(Charsets.UTF_8)
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (snapshotJson.size > BackupLimits.MAX_DATABASE_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
-            entryChecksums["data/database.json"] = computeSha256(snapshotJson)
+            entryChecksums[BackupFormatV1Contract.DATABASE_ENTRY] = computeSha256(snapshotJson)
             currentTotalUncompressedBytes += snapshotJson.size
 
             val preferencesJson = try {
                 jsonCodecs.writer.encodeToString(preferencesDto).toByteArray(Charsets.UTF_8)
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (preferencesJson.size > BackupLimits.MAX_SETTINGS_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
-            entryChecksums["preferences/settings.json"] = computeSha256(preferencesJson)
+            entryChecksums[BackupFormatV1Contract.PREFERENCES_ENTRY] = computeSha256(preferencesJson)
             currentTotalUncompressedBytes += preferencesJson.size
 
             val plannedAttachments = mutableListOf<PlannedBackupAttachment>()
@@ -168,7 +166,7 @@ class BackupCreationPlanner @Inject constructor(
 
                 val sanitizedName = AttachmentFilenameSanitizer.sanitize(metadata.displayName)
                 if (sanitizedName.isBlank()) return failure(BackupPlanningFailure.InvalidAttachmentMetadata)
-                val archivePath = "attachments/$id/$sanitizedName"
+                val archivePath = BackupFormatV1Contract.attachmentArchivePath(id, sanitizedName)
                 if (!ArchiveEntryValidator.isSafe(archivePath)) return failure(BackupPlanningFailure.InvalidAttachmentMetadata)
                 if (archivePath.toByteArray(Charsets.UTF_8).size > BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES) return failure(BackupPlanningFailure.EntryNameLimitExceeded)
 
@@ -225,7 +223,7 @@ class BackupCreationPlanner @Inject constructor(
                 jsonCodecs.writer.encodeToString(finalManifest).toByteArray(Charsets.UTF_8)
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (manifestJson.size > BackupLimits.MAX_MANIFEST_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
-            entryChecksums["manifest.json"] = computeSha256(manifestJson)
+            entryChecksums[BackupFormatV1Contract.MANIFEST_ENTRY] = computeSha256(manifestJson)
             currentTotalUncompressedBytes += manifestJson.size
 
             val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }

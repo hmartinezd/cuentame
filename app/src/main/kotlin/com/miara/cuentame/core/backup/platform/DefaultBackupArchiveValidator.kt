@@ -21,13 +21,6 @@ class DefaultBackupArchiveValidator @Inject constructor(
     private val jsonCodecs: BackupJsonCodecs
 ) : BackupArchiveValidator {
 
-    private val CORE_JSON_ENTRIES = setOf(
-        "data/database.json",
-        "preferences/settings.json",
-        "manifest.json",
-        "checksums.json"
-    )
-
     override fun validate(inputStream: InputStream): BackupValidationResult {
         val zis = ZipInputStream(NonClosingInputStream(inputStream))
         val entryMetadata = mutableMapOf<String, EntryInfo>()
@@ -59,7 +52,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
                     val digest = MessageDigest.getInstance("SHA-256")
                     var entrySize = 0L
                     val buffer = ByteArray(8192)
-                    val shouldBuffer = CORE_JSON_ENTRIES.contains(name)
+                    val shouldBuffer = BackupFormatV1Contract.CORE_ENTRIES.contains(name)
                     val entryBuffer = if (shouldBuffer) ByteArrayOutputStream() else null
 
                     var n: Int
@@ -74,11 +67,11 @@ class DefaultBackupArchiveValidator @Inject constructor(
                         entryBuffer?.write(buffer, 0, n)
                         if (shouldBuffer) {
                             val limit = when (name) {
-                                "manifest.json" -> BackupLimits.MAX_MANIFEST_JSON_BYTES
-                                "preferences/settings.json" -> BackupLimits.MAX_SETTINGS_JSON_BYTES
-                                "data/database.json" -> BackupLimits.MAX_DATABASE_JSON_BYTES
-                                "checksums.json" -> BackupLimits.MAX_CHECKSUMS_JSON_BYTES
-                                else -> 0 // Should not happen given CORE_JSON_ENTRIES
+                                BackupFormatV1Contract.MANIFEST_ENTRY -> BackupLimits.MAX_MANIFEST_JSON_BYTES
+                                BackupFormatV1Contract.PREFERENCES_ENTRY -> BackupLimits.MAX_SETTINGS_JSON_BYTES
+                                BackupFormatV1Contract.DATABASE_ENTRY -> BackupLimits.MAX_DATABASE_JSON_BYTES
+                                BackupFormatV1Contract.CHECKSUMS_ENTRY -> BackupLimits.MAX_CHECKSUMS_JSON_BYTES
+                                else -> 0
                             }
                             if (entrySize > limit) {
                                 return BackupValidationResult.Invalid(BackupValidationCode.LIMIT_EXCEEDED)
@@ -99,14 +92,15 @@ class DefaultBackupArchiveValidator @Inject constructor(
         }
 
         // 1. Required entries existence
-        for (required in CORE_JSON_ENTRIES) {
+        for (required in BackupFormatV1Contract.CORE_ENTRIES) {
             if (!entryMetadata.containsKey(required)) {
                 return BackupValidationResult.Invalid(BackupValidationCode.MISSING_REQUIRED_ENTRY)
             }
         }
 
         // 2. Decode manifest with strict UTF-8
-        val manifestJson = decodeStrictUtf8(jsonBytes["manifest.json"]!!) ?: 
+        val manifestBytes = jsonBytes[BackupFormatV1Contract.MANIFEST_ENTRY]!!
+        val manifestJson = decodeStrictUtf8(manifestBytes) ?: 
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         
         val manifest = try {
@@ -117,7 +111,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
 
         // 3. Exact entry set check
         val manifestAttachmentPaths = manifest.attachments.map { it.archivePath }.toSet()
-        val expectedEntries = CORE_JSON_ENTRIES + manifestAttachmentPaths
+        val expectedEntries = BackupFormatV1Contract.CORE_ENTRIES + manifestAttachmentPaths
         val actualEntries = entryMetadata.keys
 
         if (actualEntries != expectedEntries) {
@@ -126,12 +120,9 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.MISSING_REQUIRED_ENTRY)
         }
 
-        // 4. Basic manifest rules
-        val manifestResult = BackupManifestValidator.validate(manifest)
-        if (manifestResult is BackupValidationResult.Invalid) return manifestResult
-
-        // 5. Checksums
-        val checksumsJson = decodeStrictUtf8(jsonBytes["checksums.json"]!!) ?:
+        // 4. Checksums validation (Logic: SUCCESS -> KEY SET -> HASHES)
+        val checksumsBytes = jsonBytes[BackupFormatV1Contract.CHECKSUMS_ENTRY]!!
+        val checksumsJson = decodeStrictUtf8(checksumsBytes) ?:
             return BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_PARSE_FAILURE)
             
         val reportedChecksumsResult = ChecksumParser.parse(checksumsJson)
@@ -140,7 +131,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
         }
         val reportedChecksums = reportedChecksumsResult.getOrThrow()
 
-        if (reportedChecksums.keys != actualEntries - "checksums.json") {
+        if (reportedChecksums.keys != actualEntries - BackupFormatV1Contract.CHECKSUMS_ENTRY) {
             return BackupValidationResult.Invalid(BackupValidationCode.CHECKSUM_KEY_SET_MISMATCH)
         }
 
@@ -150,8 +141,13 @@ class DefaultBackupArchiveValidator @Inject constructor(
             }
         }
 
+        // 5. Basic manifest rules
+        val manifestResult = BackupManifestValidator.validate(manifest)
+        if (manifestResult is BackupValidationResult.Invalid) return manifestResult
+
         // 6. Preferences
-        val settingsJson = decodeStrictUtf8(jsonBytes["preferences/settings.json"]!!) ?:
+        val settingsBytes = jsonBytes[BackupFormatV1Contract.PREFERENCES_ENTRY]!!
+        val settingsJson = decodeStrictUtf8(settingsBytes) ?:
             return BackupValidationResult.Invalid(BackupValidationCode.PREFERENCES_INVALID)
             
         val prefsDto = try {
@@ -172,7 +168,8 @@ class DefaultBackupArchiveValidator @Inject constructor(
         }
 
         // 7. Database
-        val dbJson = decodeStrictUtf8(jsonBytes["data/database.json"]!!) ?:
+        val dbBytes = jsonBytes[BackupFormatV1Contract.DATABASE_ENTRY]!!
+        val dbJson = decodeStrictUtf8(dbBytes) ?:
             return BackupValidationResult.Invalid(BackupValidationCode.SNAPSHOT_INVALID)
             
         val dbDto = try {
@@ -191,7 +188,6 @@ class DefaultBackupArchiveValidator @Inject constructor(
         }
 
         // 8. Attachments
-        val v1IdRegex = Regex("^[0-9a-f]{16}$")
         val dbAttachmentRefs = mutableSetOf<AttachmentReferenceKey>()
 
         dbDto.purchaseReceipts.forEach { r ->
@@ -210,7 +206,9 @@ class DefaultBackupArchiveValidator @Inject constructor(
         val manifestAttachmentIds = manifestAttachments.map { it.attachmentId }.toSet()
 
         if (dbAttachmentIds != manifestAttachmentIds) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-        if (manifestAttachments.any { !v1IdRegex.matches(it.attachmentId) }) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
+        if (manifestAttachments.any { !BackupFormatV1Contract.isValidAttachmentId(it.attachmentId) }) {
+             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
+        }
 
         val manifestAttachmentRefs = manifestAttachments.flatMap { att ->
             att.referencedBy.map { ref -> AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId) }
@@ -222,7 +220,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
 
         for (att in manifestAttachments) {
             if (!AttachmentFilenameSanitizer.isValid(att.displayName)) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            if (att.archivePath != "attachments/${att.attachmentId}/${att.displayName}") {
+            if (att.archivePath != BackupFormatV1Contract.attachmentArchivePath(att.attachmentId, att.displayName)) {
                 return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_PATH_MISMATCH)
             }
             val actual = entryMetadata[att.archivePath] ?: return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)

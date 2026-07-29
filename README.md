@@ -13,6 +13,7 @@
 *   **Backup restore:** NOT STARTED
 *   **Customer export:** NOT STARTED
 *   **Multi-module migration:** POSTPONED
+*   **CI verification:** NOT VERIFIED
 
 ### Tech Stack
 - **UI:** Jetpack Compose with Material 3.

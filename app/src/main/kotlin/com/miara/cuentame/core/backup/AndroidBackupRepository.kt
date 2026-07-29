@@ -111,6 +111,8 @@ class AndroidBackupRepository @Inject constructor(
             BackupArchiveWriteResult.Failure.AttachmentUnreadable -> BackupResult.Error.UnreadableAttachment
             BackupArchiveWriteResult.Failure.AttachmentChanged -> BackupResult.Error.AttachmentPreflightFailure
             BackupArchiveWriteResult.Failure.LimitExceeded -> BackupResult.Error.LimitExceeded
+            BackupArchiveWriteResult.Failure.InvalidPlan -> BackupResult.Error.UnexpectedInternalFailure
+            BackupArchiveWriteResult.Failure.ChecksumInconsistency -> BackupResult.Error.ChecksumFailure
             is BackupArchiveWriteResult.Failure.IoError -> mapGeneralException(failure.cause)
         }
     }

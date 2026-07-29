@@ -117,6 +117,7 @@ class BackupRoundTripTest {
             wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto(
                 "w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 0L, null, attId, "POSTED", 0L, 0L, 0L, null
             )),
+            // Minimal integrity requires i1, a1, o1 exists
             ingredients = listOf(com.miara.cuentame.core.backup.model.IngredientBackupDto("i1", "rest-1", "I", "i", null, "u1", "a1", null, null, null, true, 0, 0, null)),
             inventoryAreas = listOf(com.miara.cuentame.core.backup.model.InventoryAreaBackupDto("a1", "rest-1", "A", "a", 0, true, 0, 0, null)),
             units = listOf(com.miara.cuentame.core.backup.model.UnitBackupDto("u1", "U", "u", "MASS", "1.0", true, 0)),
@@ -125,6 +126,7 @@ class BackupRoundTripTest {
                 com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m1", "rest-1", "i1", "a1", "PURCHASE", "1.0", "1.0", "1.0", 0L, "PURCHASE_RECEIPT", "p1", "p1-op", "p1-l1", null, 0L),
                 com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m2", "rest-1", "i1", "a1", "WASTE", "-1.0", "1.0", "-1.0", 0L, "WASTE_EVENT", "w1", "w1-op", "w1", null, 0L)
             ),
+            // Bijection fix for purchase
             purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto("p1-l1", "p1", "i1", "a1", "o1", "1.0", "1.0", "1.0", "1.0", null, 0, 0)),
             inventoryBalanceProjections = listOf(com.miara.cuentame.core.backup.model.InventoryBalanceProjectionBackupDto("rest-1", "i1", "a1", "0.0", 0L)),
             ingredientCostProjections = listOf(com.miara.cuentame.core.backup.model.IngredientCostProjectionBackupDto("rest-1", "i1", "1.0", 0L))

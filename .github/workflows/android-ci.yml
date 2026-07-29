@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,7 +40,7 @@ jobs:
         run: ./gradlew :app:assembleDebug
         
       - name: Run JVM Unit Tests
-        run: ./gradlew :app:testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest --rerun-tasks
         
       - name: Run Lint
         run: ./gradlew :app:lintDebug
@@ -54,10 +55,11 @@ jobs:
         run: ./gradlew :app:assembleDebugAndroidTest
 
       - name: Upload Test Reports
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.html
+            app/build/outputs/apk/

@@ -44,4 +44,18 @@ class ArchitectureTest {
         val violations = PackageArchitectureRules.violations("core/backup/api/V.kt", source)
         assertWithMessage("Pure backup API should not depend on database entities").that(violations).isNotEmpty()
     }
+
+    @Test
+    fun ruleDomainToComposeViolationDetected() {
+        val source = "import androidx.compose.runtime.Composable\nfun D()"
+        val violations = PackageArchitectureRules.violations("core/domain/D.kt", source)
+        assertWithMessage("Should detect compose import in domain").that(violations).isNotEmpty()
+    }
+
+    @Test
+    fun aliasedForbiddenImportDetected() {
+        val source = "import com.miara.cuentame.core.database.entity.UserEntity as U\nclass M"
+        val violations = PackageArchitectureRules.violations("core/model/M.kt", source)
+        assertWithMessage("Should detect aliased forbidden import").that(violations).isNotEmpty()
+    }
 }

@@ -54,17 +54,6 @@ class PlannedBackupAttachment private constructor(
     val references: List<BackupAttachmentReference>
         get() = Collections.unmodifiableList(_references)
 
-    fun copy(
-        sourceUri: AttachmentSourceUri = this.sourceUri,
-        attachmentId: String = this.attachmentId,
-        archivePath: String = this.archivePath,
-        displayName: String = this.displayName,
-        mimeType: String? = this.mimeType,
-        sizeBytes: Long = this.sizeBytes,
-        checksumSha256: String = this.checksumSha256,
-        references: List<BackupAttachmentReference> = this._references
-    ) = create(sourceUri, attachmentId, archivePath, displayName, mimeType, sizeBytes, checksumSha256, references)
-
     companion object {
         fun create(
             sourceUri: AttachmentSourceUri,
@@ -76,6 +65,10 @@ class PlannedBackupAttachment private constructor(
             checksumSha256: String,
             references: List<BackupAttachmentReference>
         ): PlannedBackupAttachment {
+            require(sizeBytes >= 0) { "sizeBytes must be non-negative" }
+            require(BackupFormatV1Contract.isValidAttachmentId(attachmentId)) { "Invalid attachment ID format" }
+            require(references.isNotEmpty()) { "Attachment must be referenced by at least one record" }
+            
             return PlannedBackupAttachment(
                 sourceUri = sourceUri,
                 attachmentId = attachmentId,
@@ -84,7 +77,7 @@ class PlannedBackupAttachment private constructor(
                 mimeType = mimeType,
                 sizeBytes = sizeBytes,
                 checksumSha256 = checksumSha256,
-                _references = references.toList()
+                _references = references.toList() // Defensive copy
             )
         }
     }
@@ -108,23 +101,6 @@ class BackupPlan private constructor(
     val expectedEntryChecksums: Map<String, String>
         get() = Collections.unmodifiableMap(_expectedEntryChecksums)
 
-    fun copy(
-        snapshotDto: BackupSnapshotDto = this.snapshotDto,
-        snapshotJson: ImmutableBackupBytes = this.snapshotJson,
-        preferencesDto: BackupPreferencesDto = this.preferencesDto,
-        preferencesJson: ImmutableBackupBytes = this.preferencesJson,
-        attachments: List<PlannedBackupAttachment> = this._attachments,
-        manifest: BackupManifest = this.manifest,
-        manifestJson: ImmutableBackupBytes = this.manifestJson,
-        expectedEntryChecksums: Map<String, String> = this._expectedEntryChecksums,
-        checksumsJson: ImmutableBackupBytes = this.checksumsJson,
-        totalUncompressedBytes: Long = this.totalUncompressedBytes
-    ) = BackupPlan(
-        snapshotDto, snapshotJson, preferencesDto, preferencesJson,
-        attachments.toList(), manifest, manifestJson, expectedEntryChecksums.toMap(),
-        checksumsJson, totalUncompressedBytes
-    )
-
     companion object {
         fun create(
             snapshotDto: BackupSnapshotDto,
@@ -140,20 +116,55 @@ class BackupPlan private constructor(
         ): BackupPlan {
             require(totalUncompressedBytes >= 0) { "totalUncompressedBytes must be non-negative" }
             
+            val sJson = ImmutableBackupBytes.from(snapshotJson)
+            val pJson = ImmutableBackupBytes.from(preferencesJson)
+            val mJson = ImmutableBackupBytes.from(manifestJson)
+            val cJson = ImmutableBackupBytes.from(checksumsJson)
+
+            // Recalculate total for verification
+            val recalculatedTotal = sJson.size.toLong() +
+                    pJson.size.toLong() +
+                    attachments.sumOf { it.sizeBytes } +
+                    mJson.size.toLong() +
+                    cJson.size.toLong()
+            
+            require(recalculatedTotal == totalUncompressedBytes) { 
+                "Supplied total ($totalUncompressedBytes) does not match calculated total ($recalculatedTotal)" 
+            }
+
+            // Verify attachment consistency
+            val plannedIds = attachments.map { it.attachmentId }.toSet()
+            val manifestIds = manifest.attachments.map { it.attachmentId }.toSet()
+            require(plannedIds == manifestIds) { "Attachment ID set mismatch between plan and manifest" }
+
+            val plannedPaths = attachments.map { it.archivePath }.toSet()
+            val manifestPaths = manifest.attachments.map { it.archivePath }.toSet()
+            require(plannedPaths == manifestPaths) { "Archive path set mismatch between plan and manifest" }
+
+            // Verify checksum key set
+            val expectedKeys = setOf(
+                BackupFormatV1Contract.DATABASE_ENTRY,
+                BackupFormatV1Contract.PREFERENCES_ENTRY,
+                BackupFormatV1Contract.MANIFEST_ENTRY
+            ) + plannedPaths
+            
+            require(expectedEntryChecksums.keys == expectedKeys) { "Expected checksum keys do not match planned entries" }
+            require(!expectedEntryChecksums.containsKey(BackupFormatV1Contract.CHECKSUMS_ENTRY)) { "checksums.json must not be in the checksum map" }
+
             return BackupPlan(
                 snapshotDto = snapshotDto,
-                snapshotJson = ImmutableBackupBytes.from(snapshotJson),
+                snapshotJson = sJson,
                 preferencesDto = preferencesDto,
-                preferencesJson = ImmutableBackupBytes.from(preferencesJson),
+                preferencesJson = pJson,
                 _attachments = attachments.toList(),
                 manifest = manifest.copy(
                     tableMetadata = Collections.unmodifiableMap(manifest.tableMetadata.toMap()),
                     attachments = manifest.attachments.map { it.copy(referencedBy = it.referencedBy.toList()) }.toList(),
                     includedSections = manifest.includedSections.toList()
                 ),
-                manifestJson = ImmutableBackupBytes.from(manifestJson),
+                manifestJson = mJson,
                 _expectedEntryChecksums = expectedEntryChecksums.toMap(),
-                checksumsJson = ImmutableBackupBytes.from(checksumsJson),
+                checksumsJson = cJson,
                 totalUncompressedBytes = totalUncompressedBytes
             )
         }
