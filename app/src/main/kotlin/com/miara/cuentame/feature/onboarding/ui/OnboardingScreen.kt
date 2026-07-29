@@ -58,8 +58,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
-import com.miara.cuentame.feature.onboarding.model.OnboardingItemUiModel
-import com.miara.cuentame.feature.onboarding.model.OnboardingStep
+import com.miara.cuentame.core.model.onboarding.OnboardingItemUiModel
+import com.miara.cuentame.core.model.onboarding.OnboardingStep
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingEvent
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingUiState
 import com.miara.cuentame.feature.onboarding.viewmodel.OnboardingViewModel

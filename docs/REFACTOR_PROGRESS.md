@@ -6,8 +6,8 @@ Consolidate the application into a single `:app` module while preserving Clean A
 ## Phase Checklist
 
 - [x] **Phase 6 — Single-Module Consolidation** `COMPLETE`
-- [x] **Phase 7 — Package-Level Boundary Enforcement** `COMPLETE`
-- [x] **Phase 0-5 — Stabilization & Corrections** `COMPLETE`
+- [ ] **Phase 7 — Package-Level Boundary Enforcement** `IN PROGRESS`
+- [ ] **Phase 0-5 — Stabilization & Corrections** `IN PROGRESS`
 - [ ] **Phase 8 — Future Multi-Module Migration** `POSTPONED`
 
 ---
@@ -21,16 +21,15 @@ Consolidate the application into a single `:app` module while preserving Clean A
   - Consolidated all source code into `:app`.
 
 ### Phase 7 — Package-Level Boundary Enforcement
-- **Status**: `COMPLETE`
+- **Status**: `IN PROGRESS`
 - **Actions**:
   - Repaired `ArchitectureTest.kt` for single-module structure.
-  - Strengthened rules to detect cross-layer violations and forbidden Compose imports in domain.
+  - **NEXT**: Strengthening rules to detect cross-layer violations.
 
 ### Phase 0-5 — Stabilization & Corrections
-- **Status**: `COMPLETE`
+- **Status**: `IN PROGRESS`
 - **Actions**:
   - Refactored `AndroidBackupRepository` to use `BackupCreationPlanner`, `BackupSnapshotSource`, and `BackupDocumentStore`.
-  - Implemented deep immutability and strict validation in `BackupPlan` and `PlannedBackupAttachment`.
-  - Hardened `BackupArchiveWriter` with pre-validation and resource-management safeguards.
-  - Fixed ViewModel races and implemented robust process-death restoration.
-  - Restored full regression suite for purchase, stock count, and waste lifecycles.
+  - Implemented `SavedPickerLaunchState` in `BackupViewModel` for process-death resilience.
+  - Extracted `BackupArchiveWriter` and `BackupArchiveValidator`.
+  - **RECOVERY REQUIRED**: Restoring deleted test suites and strengthening defensive validations.

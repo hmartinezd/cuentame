@@ -11,7 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.preferences.model.ThemeMode
-import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingDraft
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel

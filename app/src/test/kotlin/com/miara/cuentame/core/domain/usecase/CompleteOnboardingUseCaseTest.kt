@@ -8,7 +8,7 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

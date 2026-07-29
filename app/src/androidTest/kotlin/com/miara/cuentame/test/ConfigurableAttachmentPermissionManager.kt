@@ -1,11 +1,7 @@
-package com.miara.cuentame.core.di
+package com.miara.cuentame.test
 
 import android.net.Uri
 import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.components.SingletonComponent
-import dagger.hilt.testing.TestInstallIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,15 +15,4 @@ class ConfigurableAttachmentPermissionManager @Inject constructor() : LocalAttac
             Result.success(Unit)
         }
     }
-}
-
-@Module
-@TestInstallIn(
-    components = [SingletonComponent::class],
-    replaces = [LocalAttachmentModule::class]
-)
-object TestLocalAttachmentModule {
-    @Provides
-    @Singleton
-    fun provideLocalAttachmentPermissionManager(): LocalAttachmentPermissionManager = ConfigurableAttachmentPermissionManager()
 }

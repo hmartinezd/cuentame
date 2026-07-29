@@ -5,14 +5,12 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.domain.repository.CreateWasteDraftCommand
-import com.miara.cuentame.core.domain.service.InventorySnapshot
-import com.miara.cuentame.core.domain.service.InventorySnapshotService
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.WasteReason
 import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import io.mockk.coEvery
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -36,19 +34,21 @@ class RoomWasteRepositoryTest {
     @Inject
     lateinit var repository: RoomWasteRepository
 
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
-        runBlocking {
-            database.clearAllTables()
-            TestSeeder.seedBaseline(database)
-        }
+        testStateManager.resetAll()
+        testStateManager.seedBaseline()
     }
 
     @After
     fun tearDown() {
+        testStateManager.resetAll()
     }
 
     @Test
@@ -65,9 +65,6 @@ class RoomWasteRepositoryTest {
         assertThat(draft?.status).isEqualTo(DocumentStatus.DRAFT)
         
         // 2. Post
-        // Note: RoomWasteRepository depends on InventorySnapshotService.
-        // In our TestStorageModule, we didn't override it, so it uses the production one.
-        // We might need to seed a movement to have a cost, or just post and expect null cost.
         repository.post(eventId)
         val posted = repository.getById(eventId)
         assertThat(posted?.status).isEqualTo(DocumentStatus.POSTED)
@@ -75,7 +72,7 @@ class RoomWasteRepositoryTest {
         // Verify movement
         val movements = database.inventoryMovementDao().getBySourceDocument("WASTE_EVENT", eventId.value)
         assertThat(movements).hasSize(1)
-        assertThat(BigDecimal(movements[0].quantityBaseSigned).compareTo(BigDecimal("-1"))).isEqualTo(0)
+        assertBigDecimalEquivalent(movements[0].quantityBaseSigned, "-1")
 
         // 3. Void
         repository.void(eventId)
@@ -85,6 +82,11 @@ class RoomWasteRepositoryTest {
         // Verify reversal
         val allMovements = database.inventoryMovementDao().getBySourceDocument("WASTE_EVENT", eventId.value)
         assertThat(allMovements).hasSize(2)
-        assertThat(allMovements.any { it.movementType == "REVERSAL" }).isTrue()
+        val reversal = allMovements.find { it.movementType == "REVERSAL" }!!
+        assertBigDecimalEquivalent(reversal.quantityBaseSigned, "1")
+    }
+
+    private fun assertBigDecimalEquivalent(actual: String, expected: String) {
+        assertThat(BigDecimal(actual).compareTo(BigDecimal(expected))).isEqualTo(0)
     }
 }

@@ -17,6 +17,43 @@ object BackupFormatV1Contract {
         CHECKSUMS_ENTRY
     )
 
+    const val CHECKSUM_ALGORITHM = "SHA-256"
+
+    val REQUIRED_SECTIONS = setOf(
+        "data",
+        "preferences",
+        "attachments"
+    )
+
+    val SUPPORTED_ATTACHMENT_RECORD_TYPES = setOf(
+        "PURCHASE_RECEIPT",
+        "WASTE_EVENT"
+    )
+
+    val EXPECTED_TABLES = setOf(
+        "restaurants",
+        "inventory_areas",
+        "ingredient_categories",
+        "units",
+        "ingredients",
+        "ingredient_unit_options",
+        "suppliers",
+        "purchase_receipts",
+        "purchase_lines",
+        "stock_counts",
+        "stock_count_areas",
+        "stock_count_lines",
+        "waste_events",
+        "inventory_movements",
+        "inventory_balance_projections",
+        "ingredient_cost_projections"
+    )
+
+    val DERIVED_TABLES = setOf(
+        "inventory_balance_projections",
+        "ingredient_cost_projections"
+    )
+
     private val attachmentIdRegex = Regex("^[0-9a-f]{16}$")
     private val checksumRegex = Regex("^[0-9a-f]{64}$")
 

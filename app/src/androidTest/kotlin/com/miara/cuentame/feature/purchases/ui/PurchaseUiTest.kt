@@ -62,10 +62,6 @@ class PurchaseUiTest {
 
     @org.junit.After
     fun teardown() {
-        runBlocking {
-            db.clearAllTables()
-            preferencesRepository.clearAll()
-        }
     }
 
     private fun waitForPurchaseStatus(expected: String) {

@@ -12,16 +12,6 @@ import java.util.Currency
 
 object BackupManifestValidator {
 
-    private val REQUIRED_SECTIONS = setOf("data", "preferences", "attachments")
-    private val EXPECTED_TABLES = setOf(
-        "restaurants", "inventory_areas", "ingredient_categories", "units",
-        "ingredients", "ingredient_unit_options", "suppliers", "purchase_receipts",
-        "purchase_lines", "stock_counts", "stock_count_areas", "stock_count_lines",
-        "waste_events", "inventory_movements", "inventory_balance_projections",
-        "ingredient_cost_projections"
-    )
-    private val SUPPORTED_RECORD_TYPES = setOf("PURCHASE_RECEIPT", "WASTE_EVENT")
-
     fun validate(manifest: BackupManifest): BackupValidationResult {
         if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.VERSION_MISMATCH)
@@ -57,17 +47,17 @@ object BackupManifestValidator {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.CURRENCY_INVALID)
         }
 
-        if (manifest.checksumAlgorithm != "SHA-256") {
+        if (manifest.checksumAlgorithm != BackupFormatV1Contract.CHECKSUM_ALGORITHM) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         }
 
         val sections = manifest.includedSections.toSet()
-        if (sections != REQUIRED_SECTIONS || manifest.includedSections.size != sections.size) {
+        if (sections != BackupFormatV1Contract.REQUIRED_SECTIONS || manifest.includedSections.size != sections.size) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID)
         }
 
         val tables = manifest.tableMetadata.keys
-        if (tables != EXPECTED_TABLES) {
+        if (tables != BackupFormatV1Contract.EXPECTED_TABLES) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
         }
 
@@ -75,7 +65,7 @@ object BackupManifestValidator {
             if (metadata.entryCount < 0) {
                 return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
             }
-            val expectedDerived = tableName == "inventory_balance_projections" || tableName == "ingredient_cost_projections"
+            val expectedDerived = BackupFormatV1Contract.DERIVED_TABLES.contains(tableName)
             if (metadata.isDerived != expectedDerived) {
                 return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
             }
@@ -100,7 +90,7 @@ object BackupManifestValidator {
                 return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
             }
             for (ref in att.referencedBy) {
-                if (ref.recordId.isBlank() || ref.recordType !in SUPPORTED_RECORD_TYPES) {
+                if (ref.recordId.isBlank() || ref.recordType !in BackupFormatV1Contract.SUPPORTED_ATTACHMENT_RECORD_TYPES) {
                     return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
                 }
             }

@@ -103,7 +103,7 @@ class BackupCreationPlannerTest {
     }
 
     @Test
-    fun `plan reflects defensive copy of attachment list`() = runTest {
+    fun `plan reflects attachment list from binding`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -114,16 +114,17 @@ class BackupCreationPlannerTest {
 
         val snapshotDto = createValidSnapshotDto().copy(
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "rest-1", null, null, 0, "DRAFT", null, attId, 0, 0, 0, null
+                "p1", "rest-1", null, null, 0, "DRAFT", null, attId, 0, 0, null, null
             ))
         )
         val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
 
-        val plan = (planner.createPlan(makeRestaurant(), snapshotResult) as BackupPlanningResult.Success).plan
-        assertThat(plan.attachments).hasSize(1)
+        val result = planner.createPlan(makeRestaurant(), snapshotResult)
+        if (result is BackupPlanningResult.Failure) throw Exception("Planning failed: ${result.reason}")
         
-        // Even if we could mutate the internal list (we can't since it's unmodifiable),
-        // we've proven the planner builds it from its own logic.
+        val plan = (result as BackupPlanningResult.Success).plan
+        assertThat(plan.attachments).hasSize(1)
+        assertThat(plan.attachments.first().attachmentId).isEqualTo(attId)
     }
 
     @Test

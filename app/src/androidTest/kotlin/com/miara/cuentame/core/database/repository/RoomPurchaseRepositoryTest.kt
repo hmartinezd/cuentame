@@ -8,6 +8,7 @@ import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -33,19 +34,21 @@ class RoomPurchaseRepositoryTest {
     @Inject
     lateinit var repository: RoomPurchaseRepository
 
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
-        runBlocking {
-            database.clearAllTables()
-            TestSeeder.seedBaseline(database)
-        }
+        testStateManager.resetAll()
+        testStateManager.seedBaseline()
     }
 
     @After
     fun tearDown() {
+        testStateManager.resetAll()
     }
 
     @Test
@@ -76,17 +79,17 @@ class RoomPurchaseRepositoryTest {
         val posted = repository.getReceipt(receiptId)
         assertThat(posted?.status).isEqualTo(DocumentStatus.POSTED)
         
-        // Verify movement created and values correct
+        // Verify movement created and values correct numerically
         val movements = database.inventoryMovementDao().getBySourceDocument("PURCHASE_RECEIPT", receiptId.value)
         assertThat(movements).hasSize(1)
         
         val movement = movements[0]
-        assertThat(BigDecimal(movement.quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
-        assertThat(BigDecimal(movement.totalValueSnapshot!!).compareTo(BigDecimal("100"))).isEqualTo(0)
+        assertBigDecimalEquivalent(movement.quantityBaseSigned, "10")
+        assertBigDecimalEquivalent(movement.totalValueSnapshot!!, "100")
         
         // Verify balance projection updated
         val projection = database.inventoryProjectionDao().getBalance(ingId.value, areaId.value)
-        assertThat(BigDecimal(projection!!.quantityBase).compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertBigDecimalEquivalent(projection!!.quantityBase, "10")
         
         // 4. Void
         repository.void(receiptId)
@@ -98,10 +101,14 @@ class RoomPurchaseRepositoryTest {
         val allMovements = database.inventoryMovementDao().getBySourceDocument("PURCHASE_RECEIPT", receiptId.value)
         assertThat(allMovements).hasSize(2)
         val reversal = allMovements.find { it.movementType == "REVERSAL" }!!
-        assertThat(BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal("-10"))).isEqualTo(0)
+        assertBigDecimalEquivalent(reversal.quantityBaseSigned, "-10")
         
         // Verify balance projection restored to 0
         val finalProjection = database.inventoryProjectionDao().getBalance(ingId.value, areaId.value)
-        assertThat(BigDecimal(finalProjection!!.quantityBase).compareTo(BigDecimal.ZERO)).isEqualTo(0)
+        assertBigDecimalEquivalent(finalProjection!!.quantityBase, "0")
+    }
+
+    private fun assertBigDecimalEquivalent(actual: String, expected: String) {
+        assertThat(BigDecimal(actual).compareTo(BigDecimal(expected))).isEqualTo(0)
     }
 }

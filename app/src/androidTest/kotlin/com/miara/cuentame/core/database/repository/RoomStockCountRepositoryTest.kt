@@ -8,6 +8,7 @@ import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
@@ -34,19 +35,21 @@ class RoomStockCountRepositoryTest {
     @Inject
     lateinit var repository: RoomStockCountRepository
 
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
-        runBlocking {
-            database.clearAllTables()
-            TestSeeder.seedBaseline(database)
-        }
+        testStateManager.resetAll()
+        testStateManager.seedBaseline()
     }
 
     @After
     fun tearDown() {
+        testStateManager.resetAll()
     }
 
     @Test
@@ -71,10 +74,10 @@ class RoomStockCountRepositoryTest {
         val finalDetails = repository.observeCount(countId).first()!!
         assertThat(finalDetails.count.status).isEqualTo(StockCountStatus.COMPLETED)
         
-        // Verify adjustment created. Since seeded balance was 0, adjustment is 10.
+        // Verify adjustment numerically
         val movements = database.inventoryMovementDao().getBySourceDocument("STOCK_COUNT", countId.value)
         assertThat(movements).hasSize(1)
-        assertThat(BigDecimal(movements[0].quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertBigDecimalEquivalent(movements[0].quantityBaseSigned, "10")
 
         // 4. Void
         repository.voidCount(countId)
@@ -84,6 +87,11 @@ class RoomStockCountRepositoryTest {
         // Verify reversal
         val allMovements = database.inventoryMovementDao().getBySourceDocument("STOCK_COUNT", countId.value)
         assertThat(allMovements).hasSize(2)
-        assertThat(allMovements.any { it.movementType == "REVERSAL" }).isTrue()
+        val reversal = allMovements.find { it.movementType == "REVERSAL" }!!
+        assertBigDecimalEquivalent(reversal.quantityBaseSigned, "-10")
+    }
+
+    private fun assertBigDecimalEquivalent(actual: String, expected: String) {
+        assertThat(BigDecimal(actual).compareTo(BigDecimal(expected))).isEqualTo(0)
     }
 }

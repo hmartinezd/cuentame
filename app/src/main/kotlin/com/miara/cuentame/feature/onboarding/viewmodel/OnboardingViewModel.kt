@@ -12,11 +12,11 @@ import com.miara.cuentame.core.domain.repository.SetupCategoryInput
 import com.miara.cuentame.core.domain.usecase.CompleteOnboardingUseCase
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
-import com.miara.cuentame.feature.onboarding.model.OnboardingItemDraft
-import com.miara.cuentame.feature.onboarding.model.OnboardingItemUiModel
-import com.miara.cuentame.feature.onboarding.model.OnboardingStep
-import com.miara.cuentame.feature.onboarding.model.OnboardingTemplates
+import com.miara.cuentame.core.model.onboarding.OnboardingDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingItemDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingItemUiModel
+import com.miara.cuentame.core.model.onboarding.OnboardingStep
+import com.miara.cuentame.core.model.onboarding.OnboardingTemplates
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job

@@ -53,6 +53,13 @@ class ArchitectureTest {
     }
 
     @Test
+    fun ruleCoreToFeatureViolationDetected() {
+        val source = "import com.miara.cuentame.feature.home.HomeViewModel\nclass P"
+        val violations = PackageArchitectureRules.violations("core/preferences/P.kt", source)
+        assertWithMessage("Core should not depend on feature").that(violations).isNotEmpty()
+    }
+
+    @Test
     fun aliasedForbiddenImportDetected() {
         val source = "import com.miara.cuentame.core.database.entity.UserEntity as U\nclass M"
         val violations = PackageArchitectureRules.violations("core/model/M.kt", source)

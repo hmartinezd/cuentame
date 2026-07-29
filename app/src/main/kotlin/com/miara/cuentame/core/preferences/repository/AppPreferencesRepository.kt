@@ -2,7 +2,7 @@ package com.miara.cuentame.core.preferences.repository
 
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
-import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingDraft
 import kotlinx.coroutines.flow.Flow
 
 interface AppPreferencesRepository {

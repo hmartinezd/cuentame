@@ -1,5 +1,10 @@
 package com.miara.cuentame.core.backup.api
 
+import com.miara.cuentame.core.backup.ArchiveEntryValidator
+import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
+import com.miara.cuentame.core.backup.BackupLimits
+import com.miara.cuentame.core.backup.BackupSnapshotIntegrityValidator
+import com.miara.cuentame.core.backup.ChecksumParser
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
@@ -54,7 +59,7 @@ class PlannedBackupAttachment private constructor(
     val references: List<BackupAttachmentReference>
         get() = Collections.unmodifiableList(_references)
 
-    fun copy(
+    internal fun copyInternal(
         sourceUri: AttachmentSourceUri = this.sourceUri,
         attachmentId: String = this.attachmentId,
         archivePath: String = this.archivePath,
@@ -81,16 +86,26 @@ class PlannedBackupAttachment private constructor(
             require(sizeBytes >= 0) { "sizeBytes must be non-negative" }
             require(BackupFormatV1Contract.isValidAttachmentId(attachmentId)) { "Invalid attachment ID format" }
             require(references.isNotEmpty()) { "Attachment must be referenced by at least one record" }
+            require(displayName.isNotBlank()) { "Display name cannot be blank" }
+            require(AttachmentFilenameSanitizer.isValid(displayName)) { "Invalid display name" }
+            require(ArchiveEntryValidator.isSafe(archivePath)) { "Unsafe archive path" }
+            
             require(archivePath == BackupFormatV1Contract.attachmentArchivePath(attachmentId, displayName)) {
                 "Archive path must be canonical"
             }
+
+            val nameBytes = archivePath.toByteArray(Charsets.UTF_8)
+            require(nameBytes.size <= BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES) { "Entry name exceeds limit" }
+
+            require(BackupFormatV1Contract.isValidChecksum(checksumSha256)) { "Invalid checksum format" }
             
-            // Validate references
-            val refKeys = references.map { 
+            val refKeys = mutableSetOf<AttachmentReferenceKey>()
+            references.forEach { 
                 require(it.recordId.isNotBlank()) { "Reference record ID cannot be blank" }
-                AttachmentReferenceKey(attachmentId, it.recordType, it.recordId) 
+                require(it.recordType in BackupFormatV1Contract.SUPPORTED_ATTACHMENT_RECORD_TYPES) { "Unsupported record type: ${it.recordType}" }
+                val key = AttachmentReferenceKey(attachmentId, it.recordType, it.recordId)
+                require(refKeys.add(key)) { "Duplicate reference detected" }
             }
-            require(refKeys.distinct().size == refKeys.size) { "Duplicate references detected" }
 
             return PlannedBackupAttachment(
                 sourceUri = sourceUri,
@@ -145,15 +160,15 @@ class BackupPlan private constructor(
             val cJson = ImmutableBackupBytes.from(checksumsJson)
 
             // Recalculate total for verification
-            var calculatedTotal = 0L
-            calculatedTotal = BackupByteMath.addExact(calculatedTotal, sJson.size.toLong())
-            calculatedTotal = BackupByteMath.addExact(calculatedTotal, pJson.size.toLong())
-            attachments.forEach { calculatedTotal = BackupByteMath.addExact(calculatedTotal, it.sizeBytes) }
-            calculatedTotal = BackupByteMath.addExact(calculatedTotal, mJson.size.toLong())
-            calculatedTotal = BackupByteMath.addExact(calculatedTotal, cJson.size.toLong())
+            var recalculatedTotal = 0L
+            recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, sJson.size.toLong())
+            recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, pJson.size.toLong())
+            attachments.forEach { recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, it.sizeBytes) }
+            recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, mJson.size.toLong())
+            recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, cJson.size.toLong())
             
-            require(calculatedTotal == totalUncompressedBytes) { 
-                "Supplied total ($totalUncompressedBytes) does not match calculated total ($calculatedTotal)" 
+            require(recalculatedTotal == totalUncompressedBytes) { 
+                "Supplied total ($totalUncompressedBytes) does not match calculated total ($recalculatedTotal)" 
             }
 
             // Verify attachment consistency
@@ -194,6 +209,10 @@ class BackupPlan private constructor(
             
             require(expectedEntryChecksums.keys == expectedKeys) { "Expected checksum keys do not match planned entries" }
             require(!expectedEntryChecksums.containsKey(BackupFormatV1Contract.CHECKSUMS_ENTRY)) { "checksums.json must not be in the checksum map" }
+            
+            expectedEntryChecksums.values.forEach { 
+                require(BackupFormatV1Contract.isValidChecksum(it)) { "Invalid expected checksum value" }
+            }
 
             // Final deep copies
             return BackupPlan(
@@ -218,7 +237,7 @@ class BackupPlan private constructor(
                 snapshotJson = sJson,
                 preferencesDto = preferencesDto.copy(),
                 preferencesJson = pJson,
-                _attachments = attachments.map { it.copy() },
+                _attachments = attachments.map { it.copyInternal() },
                 manifest = manifest.copy(
                     tableMetadata = Collections.unmodifiableMap(manifest.tableMetadata.toMap()),
                     attachments = manifest.attachments.map { it.copy(referencedBy = it.referencedBy.map { r -> r.copy() }) },

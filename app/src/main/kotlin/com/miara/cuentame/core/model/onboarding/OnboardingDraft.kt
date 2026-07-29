@@ -1,4 +1,4 @@
-package com.miara.cuentame.feature.onboarding.model
+package com.miara.cuentame.core.model.onboarding
 
 import kotlinx.serialization.Serializable
 

@@ -3,11 +3,10 @@ package com.miara.cuentame
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
-import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -23,49 +22,45 @@ class NavigationTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject
-    lateinit var database: RestaurantInventoryDatabase
+    lateinit var testStateManager: TestStateManager
 
     @Before
     fun init() {
         hiltRule.inject()
+        testStateManager.resetAll()
+    }
+
+    @After
+    fun tearDown() {
+        testStateManager.resetAll()
     }
 
     @Test
     fun app_startsOnOnboarding_whenNoRestaurant() {
-        runBlocking {
-            database.clearAllTables()
-        }
-        
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("onboarding_screen").assertExists()
+            composeTestRule.onNodeWithTag("onboarding_screen").assertIsDisplayed()
         }
     }
 
     @Test
     fun app_startsOnHome_whenRestaurantExists() {
-        runBlocking {
-            database.clearAllTables()
-            TestSeeder.seedBaseline(database)
-        }
+        testStateManager.seedBaseline()
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("home_screen").assertExists()
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 
     @Test
     fun navigateToSettingsAndBack() {
-        runBlocking {
-            database.clearAllTables()
-            TestSeeder.seedBaseline(database)
-        }
+        testStateManager.seedBaseline()
         
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.onNodeWithTag("home_settings_button").performClick()
-            composeTestRule.onNodeWithTag("settings_screen").assertExists()
+            composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
             
             composeTestRule.onNodeWithTag("settings_back_button").performClick()
-            composeTestRule.onNodeWithTag("home_screen").assertExists()
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 }

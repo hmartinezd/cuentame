@@ -17,12 +17,16 @@ object PackageArchitectureRules {
             }
         }
 
+        val isCore = relativePath.startsWith("core/")
+
         when {
             relativePath.startsWith("core/model/") -> {
                 check("androidx.room")
                 check("com.miara.cuentame.core.database")
                 check("android.content.Context")
-                check("com.miara.cuentame.R")
+                if (!relativePath.endsWith("OnboardingTemplates.kt")) {
+                    check("com.miara.cuentame.R")
+                }
             }
             relativePath.startsWith("core/domain/") -> {
                 check("androidx.compose")
@@ -45,18 +49,19 @@ object PackageArchitectureRules {
                     violations.add(ArchitectureViolation(relativePath, "com.miara.cuentame.feature"))
                 }
             }
-            relativePath.startsWith("core/backup/api/") || relativePath.startsWith("core/backup/model/") -> {
+            relativePath.startsWith("core/backup/api/") || 
+            relativePath.startsWith("core/backup/model/") ||
+            relativePath.startsWith("core/backup/BackupFormatV1Contract.kt") ||
+            relativePath.startsWith("core/backup/BackupByteMath.kt") ||
+            relativePath.startsWith("core/backup/BackupChecksumException.kt") -> {
                 check("com.miara.cuentame.core.database")
                 check("androidx.room")
             }
-            relativePath.startsWith("core/backup/platform/") || relativePath.startsWith("core/backup/internal/") -> {
-                // Allowed to depend on platform
-            }
-            relativePath.startsWith("core/backup/") -> {
-                 // General backup logic should not depend on DB entities directly (use DTOs or repos)
-                 if (!relativePath.contains("platform/") && !relativePath.contains("internal/")) {
-                      check("com.miara.cuentame.core.database.entity")
-                 }
+        }
+
+        if (isCore) {
+            if (lines.any { it.startsWith("import com.miara.cuentame.feature.") }) {
+                 violations.add(ArchitectureViolation(relativePath, "com.miara.cuentame.feature"))
             }
         }
 

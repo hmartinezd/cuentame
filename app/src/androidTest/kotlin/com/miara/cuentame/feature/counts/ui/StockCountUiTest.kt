@@ -45,8 +45,7 @@ class StockCountUiTest {
         
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
-            preferencesRepository.clearOnboardingDraft()
+            preferencesRepository.clearAll()
             
             val now = Instant.now()
             database.restaurantDao().insert(Restaurant(RestaurantId("rest_ui_test"), "Test UI Rest", "USD", "en-US", now, now, null).toEntity())
@@ -73,8 +72,7 @@ class StockCountUiTest {
     fun teardown() {
         runBlocking {
             database.clearAllTables()
-            preferencesRepository.setOnboardingCompleted(false)
-            preferencesRepository.clearOnboardingDraft()
+            preferencesRepository.clearAll()
         }
     }
 

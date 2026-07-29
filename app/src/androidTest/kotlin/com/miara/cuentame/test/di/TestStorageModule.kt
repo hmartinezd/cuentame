@@ -2,33 +2,40 @@ package com.miara.cuentame.test.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
+import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.*
 import com.miara.cuentame.core.database.di.DatabaseModule
+import com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary
+import com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
 import com.miara.cuentame.core.database.repository.RoomDetailedReportsRepository
+import com.miara.cuentame.core.di.IntegrationModule
+import com.miara.cuentame.core.di.LocalAttachmentModule
 import com.miara.cuentame.core.domain.repository.DetailedReportsRepository
 import com.miara.cuentame.core.preferences.di.PreferencesModule
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.core.preferences.datastore.DataStoreAppPreferencesRepository
+import com.miara.cuentame.test.ConfigurableAttachmentPermissionManager
+import com.miara.cuentame.test.TestDataStoreOwner
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 
 @Module
 @TestInstallIn(
     components = [SingletonComponent::class],
-    replaces = [DatabaseModule::class, PreferencesModule::class]
+    replaces = [
+        DatabaseModule::class, 
+        PreferencesModule::class,
+        IntegrationModule::class,
+        LocalAttachmentModule::class
+    ]
 )
 object TestStorageModule {
 
@@ -83,12 +90,7 @@ object TestStorageModule {
 
     @Provides
     @Singleton
-    fun provideTestDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
-        return PreferenceDataStoreFactory.create(
-            scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-            produceFile = { context.preferencesDataStoreFile("test_settings_${System.currentTimeMillis()}") }
-        )
-    }
+    fun provideDataStore(owner: TestDataStoreOwner): DataStore<Preferences> = owner.dataStore
 
     @Provides
     @Singleton
@@ -102,5 +104,24 @@ object TestStorageModule {
                 coerceInputValues = true
             }
         )
+    }
+
+    @Provides
+    @Singleton
+    fun provideConfigurableFailureBoundary(): ConfigurableFailureBoundary = ConfigurableFailureBoundary()
+
+    @Provides
+    @Singleton
+    fun provideIntegrationFailureBoundary(configurable: ConfigurableFailureBoundary): IntegrationFailureBoundary = configurable
+
+    @Provides
+    @Singleton
+    fun provideLocalAttachmentPermissionManager(): LocalAttachmentPermissionManager = ConfigurableAttachmentPermissionManager()
+
+    @Provides
+    @Singleton
+    fun provideJson(): Json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
     }
 }

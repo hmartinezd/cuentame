@@ -22,6 +22,7 @@ import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.test.ConfigurableAttachmentPermissionManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -58,7 +59,7 @@ class StockCountLifecycleTest {
     fun setup() {
         hiltRule.inject()
         (failureBoundary as? com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary)?.reset()
-        (attachmentPermissionManager as? com.miara.cuentame.core.di.ConfigurableAttachmentPermissionManager)?.shouldFail = false
+        (attachmentPermissionManager as? ConfigurableAttachmentPermissionManager)?.shouldFail = false
         
         runBlocking {
             database.clearAllTables()

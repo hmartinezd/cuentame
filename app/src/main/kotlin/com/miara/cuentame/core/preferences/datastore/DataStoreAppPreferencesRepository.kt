@@ -11,7 +11,7 @@ import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.feature.onboarding.model.OnboardingDraft
+import com.miara.cuentame.core.model.onboarding.OnboardingDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
