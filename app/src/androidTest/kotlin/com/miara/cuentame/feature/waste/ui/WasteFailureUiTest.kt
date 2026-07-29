@@ -3,18 +3,28 @@ package com.miara.cuentame.feature.waste.ui
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
 import com.miara.cuentame.core.database.entity.InventoryAreaEntity
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
+import com.miara.cuentame.core.database.entity.WasteEventEntity
+import com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary
 import com.miara.cuentame.core.database.seed.UnitSeeds
+import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.WasteReason
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.ConfigurableAttachmentPermissionManager
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,38 +52,323 @@ class WasteFailureUiTest {
     lateinit var failureBoundary: com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
 
     @Inject
+    lateinit var testStateManager: TestStateManager
+
+    @Inject
     lateinit var attachmentPermissionManager: com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 
     private val restaurantId = "rest_fail_test"
     private val ingId = "ing_test"
+    private val areaId = "area_test"
+    private val optId = "opt_test"
 
     @Before
     fun setup() {
         hiltRule.inject()
-        (failureBoundary as? com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary)?.reset()
+        (failureBoundary as? ConfigurableFailureBoundary)?.reset()
         (attachmentPermissionManager as? ConfigurableAttachmentPermissionManager)?.shouldFail = false
         
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
 
             val now = Instant.now()
-            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en", now.toEpochMilli(), now.toEpochMilli(), null))
+            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now.toEpochMilli(), now.toEpochMilli(), null))
             database.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
-            database.inventoryAreaDao().upsert(InventoryAreaEntity("area_test", restaurantId, "Area", "area", 0, true, now.toEpochMilli(), now.toEpochMilli(), null))
-            database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", "area_test", null, null, null, true, now.toEpochMilli(), now.toEpochMilli(), null))
-            database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt_test", ingId, "lb", "lb", null, BigDecimal.ONE, true, true, true, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId, restaurantId, "Main Area", "main area", 0, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", areaId, null, null, null, true, now.toEpochMilli(), now.toEpochMilli(), null))
+            database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "Pound", "lb", null, BigDecimal.ONE, true, true, true, true, now.toEpochMilli(), now.toEpochMilli(), null))
 
             preferencesRepository.setOnboardingCompleted(true)
-            preferencesRepository.setAppLocaleTag("en")
+            preferencesRepository.setAppLocaleTag("en-US")
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+            testStateManager.resetAll()
+        }
+    }
+
+    private fun openWasteListScreen() {
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("view_waste_button").performClick()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
     @Test
-    fun wastePost_showsGenericError_onUnexpectedFailure() {
+    fun wastePost_failureRollback_andRetrySuccess() {
+        val now = Instant.now().toEpochMilli()
+        val draftId = "waste_post_fail"
+
+        runBlocking {
+            database.wasteDao().insert(
+                WasteEventEntity(
+                    id = draftId,
+                    restaurantId = restaurantId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    ingredientUnitOptionId = optId,
+                    quantityEntered = "5.0",
+                    quantityBase = "5.0",
+                    reason = WasteReason.SPOILED.name,
+                    effectiveAt = now,
+                    notes = "Post fail test",
+                    attachmentPath = null,
+                    status = DocumentStatus.DRAFT.name,
+                    createdAt = now,
+                    updatedAt = now,
+                    postedAt = null,
+                    voidedAt = null
+                )
+            )
+        }
+
+        // Inject failure on posting after movement insertion
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "POST_AFTER_MOVEMENT_INSERT"
+
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("home_waste_button").performClick()
-            composeTestRule.onNodeWithTag("waste_list_screen").assertIsDisplayed()
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            // Click post
+            composeTestRule.onNodeWithTag("waste_post_button").performClick()
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Post Waste").performClick()
+
+            // Verify safe error snackbar, status remains DRAFT, postedAt null, 0 movements
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_error_snackbar", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        runBlocking {
+            val event = database.wasteDao().getById(draftId)
+            assertThat(event?.status).isEqualTo(DocumentStatus.DRAFT.name)
+            assertThat(event?.postedAt).isNull()
+
+            val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, draftId)
+            assertThat(movements).isEmpty()
+        }
+
+        // Clear failure and retry
+        (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
+            composeTestRule.onNodeWithTag("waste_post_button").performClick()
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Post Waste").performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        // Verify POSTED status and exactly 1 movement
+        runBlocking {
+            val event = database.wasteDao().getById(draftId)
+            assertThat(event?.status).isEqualTo(DocumentStatus.POSTED.name)
+            assertThat(event?.postedAt).isNotNull()
+
+            val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, draftId)
+            assertThat(movements).hasSize(1)
+            assertThat(movements[0].movementType).isEqualTo(InventoryMovementType.WASTE.name)
+        }
+    }
+
+    @Test
+    fun wasteVoid_failureRollback_andRetrySuccess() {
+        val now = Instant.now().toEpochMilli()
+        val eventId = "waste_void_fail"
+        val movementId = "mov_waste_orig"
+
+        runBlocking {
+            database.wasteDao().insert(
+                WasteEventEntity(
+                    id = eventId,
+                    restaurantId = restaurantId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    ingredientUnitOptionId = optId,
+                    quantityEntered = "3.0",
+                    quantityBase = "3.0",
+                    reason = WasteReason.EXPIRED.name,
+                    effectiveAt = now,
+                    notes = "Void fail test",
+                    attachmentPath = null,
+                    status = DocumentStatus.POSTED.name,
+                    createdAt = now,
+                    updatedAt = now,
+                    postedAt = now,
+                    voidedAt = null
+                )
+            )
+            database.inventoryMovementDao().insert(
+                InventoryMovementEntity(
+                    id = movementId,
+                    restaurantId = restaurantId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    movementType = InventoryMovementType.WASTE.name,
+                    quantityBaseSigned = "-3.0",
+                    unitCostBaseSnapshot = "2.50",
+                    totalValueSnapshot = "-7.50",
+                    effectiveAt = now,
+                    sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
+                    sourceDocumentId = eventId,
+                    sourceOperationId = "waste-post:$eventId",
+                    sourceLineId = null,
+                    reversalOfMovementId = null,
+                    createdAt = now
+                )
+            )
+        }
+
+        // Inject failure during void
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "VOID_AFTER_STATUS_UPDATE"
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$eventId").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            composeTestRule.onNodeWithTag("waste_void_button").performClick()
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Void Waste").performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_error_snackbar", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        // Verify status remains POSTED, no reversal created
+        runBlocking {
+            val event = database.wasteDao().getById(eventId)
+            assertThat(event?.status).isEqualTo(DocumentStatus.POSTED.name)
+            assertThat(event?.voidedAt).isNull()
+
+            val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)
+            assertThat(movements).hasSize(1) // Only original movement
+        }
+
+        // Clear failure and retry voiding
+        (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$eventId").performClick()
+            composeTestRule.onNodeWithTag("waste_void_button").performClick()
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Void Waste").performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        // Verify VOIDED status and reversal movement
+        runBlocking {
+            val event = database.wasteDao().getById(eventId)
+            assertThat(event?.status).isEqualTo(DocumentStatus.VOIDED.name)
+            assertThat(event?.voidedAt).isNotNull()
+
+            val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)
+            assertThat(movements).hasSize(2) // Original + Reversal
+            val reversal = movements.find { it.movementType == InventoryMovementType.REVERSAL.name }
+            assertThat(reversal).isNotNull()
+            assertThat(reversal?.reversalOfMovementId).isEqualTo(movementId)
+            assertThat(reversal?.quantityBaseSigned).isEqualTo("3.0") // Negated -3.0
+        }
+    }
+
+    @Test
+    fun wasteDelete_failureIntegrity_andRetrySuccess() {
+        val now = Instant.now().toEpochMilli()
+        val draftId = "waste_del_fail"
+
+        runBlocking {
+            database.wasteDao().insert(
+                WasteEventEntity(
+                    id = draftId,
+                    restaurantId = restaurantId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    ingredientUnitOptionId = optId,
+                    quantityEntered = "1.0",
+                    quantityBase = "1.0",
+                    reason = WasteReason.DROPPED_OR_DAMAGED.name,
+                    effectiveAt = now,
+                    notes = "Delete fail test",
+                    attachmentPath = null,
+                    status = DocumentStatus.DRAFT.name,
+                    createdAt = now,
+                    updatedAt = now,
+                    postedAt = null,
+                    voidedAt = null
+                )
+            )
+        }
+
+        (failureBoundary as? ConfigurableFailureBoundary)?.failurePoint = "DELETE_AFTER_VALIDATION"
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_delete_button").performClick()
+            composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Delete Waste").performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar")).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        // Verify draft still exists in DB
+        runBlocking {
+            val event = database.wasteDao().getById(draftId)
+            assertThat(event).isNotNull()
+        }
+
+        // Clear failure and retry delete
+        (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteListScreen()
+            composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_delete_button").performClick()
+            composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Delete Waste").performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_list_screen", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+
+        // Verify draft deleted from DB
+        runBlocking {
+            val event = database.wasteDao().getById(draftId)
+            assertThat(event).isNull()
         }
     }
 }

@@ -85,47 +85,62 @@ class BackupViewModel @Inject constructor(
         restoreState()
     }
 
-    private fun restoreState() = synchronized(operationStateLock) {
-        val activeId = activeOperationToken
-        val phase = savedStateHandle.get<String>(KEY_PHASE) ?: return
+    private fun restoreState() {
+        var eventToSend: BackupUiEvent? = null
 
-        when (phase) {
-            "WAITING" -> {
-                if (activeId == -1L) {
-                    _uiState.value = BackupUiState.Idle
-                    return
-                }
-                val opId = BackupOperationId(activeId)
-                val pickerState = savedStateHandle.get<String>(KEY_PICKER_STATE)
-                val suggestedName = savedStateHandle.get<String>(KEY_SUGGESTED_NAME)
-                
-                if (pickerState == "PENDING" && suggestedName != null) {
-                    viewModelScope.launch {
-                        _events.send(BackupUiEvent.LaunchFilePicker(opId, suggestedName))
+        synchronized(operationStateLock) {
+            val lastId = savedStateHandle.get<Long>(KEY_LAST_OP_ID) ?: -1L
+            val activeId = activeOperationToken
+            val phase = savedStateHandle.get<String>(KEY_PHASE) ?: return
+
+            when (phase) {
+                "WAITING" -> {
+                    if (activeId <= 0L) {
+                        _uiState.value = BackupUiState.Idle
+                        return
                     }
+                    val opId = BackupOperationId(activeId)
+                    val pickerState = savedStateHandle.get<String>(KEY_PICKER_STATE)
+                    val suggestedName = savedStateHandle.get<String>(KEY_SUGGESTED_NAME)
+                    
+                    if (pickerState == SavedPickerLaunchState.PENDING.name && !suggestedName.isNullOrBlank()) {
+                        eventToSend = BackupUiEvent.LaunchFilePicker(opId, suggestedName)
+                    }
+                    _uiState.value = BackupUiState.WaitingForDestination(opId)
                 }
-                _uiState.value = BackupUiState.WaitingForDestination(opId)
+                "CREATING", "VALIDATING" -> {
+                    if (activeId <= 0L) {
+                        _uiState.value = BackupUiState.Error(
+                            if (lastId > 0L) BackupOperationId(lastId) else null,
+                            BackupResult.Error.OperationInterrupted
+                        )
+                        return
+                    }
+                    val opId = BackupOperationId(activeId)
+                    invalidateActiveTokenLocked()
+                    _uiState.value = BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
+                    persistStateLocked(opId.value, -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
+                }
+                "INTERRUPTED" -> {
+                    _uiState.value = BackupUiState.Error(
+                        if (lastId > 0L) BackupOperationId(lastId) else null,
+                        BackupResult.Error.OperationInterrupted
+                    )
+                }
+                "CANCELLED" -> {
+                    _uiState.value = if (lastId > 0L) BackupUiState.Cancelled(BackupOperationId(lastId)) else BackupUiState.Idle
+                }
+                "SUCCESS", "ERROR" -> {
+                    _uiState.value = BackupUiState.Idle
+                }
+                else -> _uiState.value = BackupUiState.Idle
             }
-            "CREATING", "VALIDATING" -> {
-                val opId = BackupOperationId(activeId)
-                invalidateActiveTokenLocked()
-                _uiState.value = BackupUiState.Error(opId, BackupResult.Error.OperationInterrupted)
-                persistStateLocked(opId.value, -1L, "INTERRUPTED", SavedPickerLaunchState.NONE, null)
+        }
+
+        eventToSend?.let { event ->
+            viewModelScope.launch {
+                _events.send(event)
             }
-            "INTERRUPTED" -> {
-                 val lastId = savedStateHandle.get<Long>(KEY_LAST_OP_ID) ?: -1L
-                 _uiState.value = BackupUiState.Error(if (lastId != -1L) BackupOperationId(lastId) else null, BackupResult.Error.OperationInterrupted)
-            }
-            "CANCELLED" -> {
-                val lastId = savedStateHandle.get<Long>(KEY_LAST_OP_ID) ?: -1L
-                _uiState.value = if (lastId != -1L) BackupUiState.Cancelled(BackupOperationId(lastId)) else BackupUiState.Idle
-            }
-            "SUCCESS", "ERROR" -> {
-                 // Terminal states could be restored if we persist enough data. 
-                 // For now, let's keep them as Idle or implement display only.
-                 _uiState.value = BackupUiState.Idle
-            }
-            else -> _uiState.value = BackupUiState.Idle
         }
     }
 

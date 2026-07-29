@@ -53,6 +53,12 @@ class AndroidBackupDocumentStore @Inject constructor(
 
     override suspend fun delete(document: BackupDocumentUri): Boolean {
         val uri = Uri.parse(document.value)
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return false
+            val file = java.io.File(path)
+            return if (file.exists()) file.delete() else true
+        }
+
         val resolver = context.contentResolver
 
         val deletedByDocumentsContract = runCatching {

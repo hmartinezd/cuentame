@@ -1,8 +1,7 @@
 package com.miara.cuentame.feature.reports
 
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import com.miara.cuentame.MainActivity
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -26,7 +25,10 @@ class WasteDetailScreenTest {
 
     @Test
     fun wasteDetail_exists() {
-        composeTestRule.onNodeWithTag("home_reports_button").performClick()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("nav_reports", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("reports_screen").assertExists()
     }
 }

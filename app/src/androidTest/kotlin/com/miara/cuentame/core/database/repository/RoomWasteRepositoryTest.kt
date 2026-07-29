@@ -42,13 +42,15 @@ class RoomWasteRepositoryTest {
     @Before
     fun setup() {
         hiltRule.inject()
-        testStateManager.resetAll()
-        testStateManager.seedBaseline()
+        runBlocking {
+            testStateManager.resetAll()
+            testStateManager.seedBaseline()
+        }
     }
 
     @After
     fun tearDown() {
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @Test

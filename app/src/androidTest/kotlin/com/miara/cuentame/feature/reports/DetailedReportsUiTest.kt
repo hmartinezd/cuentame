@@ -49,14 +49,14 @@ class DetailedReportsUiTest {
         }
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("home_reports_button").performClick()
+            composeTestRule.onNodeWithTag("nav_reports").performClick()
             
             // Wait for loading to finish and dashboard data to appear
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithText("$123.45", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             
-            composeTestRule.onNodeWithText("$123.45", substring = true).assertIsDisplayed()
+            composeTestRule.onAllNodesWithText("$123.45", substring = true)[0].assertIsDisplayed()
         }
     }
 }

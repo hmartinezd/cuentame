@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+
 object ChecksumParser {
 
     /**
@@ -75,7 +77,6 @@ object ChecksumParser {
 
             val keysSeen = mutableSetOf<String>()
             val result = mutableMapOf<String, String>()
-            val shaRegex = Regex("^[a-f0-9]{64}$")
 
             while (pos < s.length) {
                 skipWhitespace()
@@ -84,7 +85,7 @@ object ChecksumParser {
                 }
 
                 val key = parseString()
-                if (key == "checksums.json") {
+                if (key == BackupFormatV1Contract.CHECKSUMS_ENTRY) {
                     return Result.failure(ChecksumParseException("checksums.json self-referential key forbidden"))
                 }
 
@@ -104,7 +105,7 @@ object ChecksumParser {
                 }
 
                 val value = parseString()
-                if (!shaRegex.matches(value)) {
+                if (!BackupFormatV1Contract.isValidChecksum(value)) {
                     return Result.failure(ChecksumParseException("Invalid SHA-256 hash format"))
                 }
 

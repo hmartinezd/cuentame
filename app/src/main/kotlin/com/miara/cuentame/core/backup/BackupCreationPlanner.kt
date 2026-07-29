@@ -127,8 +127,8 @@ class BackupCreationPlanner @Inject constructor(
                 currencyCode = restaurant.currencyCode,
                 tableMetadata = tableMetadata,
                 attachments = emptyList(),
-                includedSections = listOf("data", "preferences", "attachments").sorted(),
-                checksumAlgorithm = "SHA-256"
+                includedSections = BackupFormatV1Contract.REQUIRED_SECTIONS.toList().sorted(),
+                checksumAlgorithm = BackupFormatV1Contract.CHECKSUM_ALGORITHM
             )
 
             // 8. Snapshot integrity
@@ -145,14 +145,14 @@ class BackupCreationPlanner @Inject constructor(
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (snapshotJson.size > BackupLimits.MAX_DATABASE_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             entryChecksums[BackupFormatV1Contract.DATABASE_ENTRY] = computeSha256(snapshotJson)
-            currentTotalUncompressedBytes += snapshotJson.size
+            currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, snapshotJson.size.toLong())
 
             val preferencesJson = try {
                 jsonCodecs.writer.encodeToString(preferencesDto).toByteArray(Charsets.UTF_8)
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (preferencesJson.size > BackupLimits.MAX_SETTINGS_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             entryChecksums[BackupFormatV1Contract.PREFERENCES_ENTRY] = computeSha256(preferencesJson)
-            currentTotalUncompressedBytes += preferencesJson.size
+            currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, preferencesJson.size.toLong())
 
             val plannedAttachments = mutableListOf<PlannedBackupAttachment>()
 
@@ -178,18 +178,24 @@ class BackupCreationPlanner @Inject constructor(
                         var n: Int
                         while (stream.read(buffer).also { n = it } != -1) {
                             digest.update(buffer, 0, n)
-                            totalRead += n
-                            if (currentTotalUncompressedBytes + totalRead > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+                            totalRead = BackupByteMath.addExact(totalRead, n.toLong())
+                            val projectedTotal = BackupByteMath.addExact(currentTotalUncompressedBytes, totalRead)
+                            if (projectedTotal > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
                                 return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
                             }
                         }
                         totalRead to digest.digest().joinToString("") { "%02x".format(it) }
                     }
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { return failure(BackupPlanningFailure.UnreadableAttachment) }
+                } catch (e: BackupSizeOverflowException) {
+                    return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    return failure(BackupPlanningFailure.UnreadableAttachment)
+                }
 
                 entryChecksums[archivePath] = checksum
-                currentTotalUncompressedBytes += size
+                currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, size)
 
                 plannedAttachments.add(
                     PlannedBackupAttachment.create(
@@ -224,7 +230,7 @@ class BackupCreationPlanner @Inject constructor(
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (manifestJson.size > BackupLimits.MAX_MANIFEST_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             entryChecksums[BackupFormatV1Contract.MANIFEST_ENTRY] = computeSha256(manifestJson)
-            currentTotalUncompressedBytes += manifestJson.size
+            currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, manifestJson.size.toLong())
 
             val sortedChecksums = entryChecksums.entries.sortedBy { it.key }.associate { it.key to it.value }
             val checksumsJson = try {
@@ -233,7 +239,7 @@ class BackupCreationPlanner @Inject constructor(
             } catch (e: Exception) { return failure(BackupPlanningFailure.SerializationFailed) }
             if (checksumsJson.size > BackupLimits.MAX_CHECKSUMS_JSON_BYTES) return failure(BackupPlanningFailure.JsonLimitExceeded)
             
-            currentTotalUncompressedBytes += checksumsJson.size
+            currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, checksumsJson.size.toLong())
             if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
 
             val expectedEntryCount = 4 + plannedAttachments.size
@@ -254,6 +260,8 @@ class BackupCreationPlanner @Inject constructor(
                 )
             )
 
+        } catch (e: BackupSizeOverflowException) {
+            return failure(BackupPlanningFailure.TotalSizeLimitExceeded)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -45,7 +45,10 @@ class WasteLifecycleTest {
     @Test
     fun navigateToWasteAndBack() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("home_waste_button").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("view_waste_button").performClick()
             composeTestRule.onNodeWithTag("waste_list_screen").assertExists()
             
             composeTestRule.onNodeWithTag("waste_back_button").performClick()

@@ -42,13 +42,15 @@ class RoomPurchaseRepositoryTest {
     @Before
     fun setup() {
         hiltRule.inject()
-        testStateManager.resetAll()
-        testStateManager.seedBaseline()
+        runBlocking {
+            testStateManager.resetAll()
+            testStateManager.seedBaseline()
+        }
     }
 
     @After
     fun tearDown() {
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @Test
@@ -105,7 +107,8 @@ class RoomPurchaseRepositoryTest {
         
         // Verify balance projection restored to 0
         val finalProjection = database.inventoryProjectionDao().getBalance(ingId.value, areaId.value)
-        assertBigDecimalEquivalent(finalProjection!!.quantityBase, "0")
+        val qty = finalProjection?.quantityBase ?: "0"
+        assertBigDecimalEquivalent(qty, "0")
     }
 
     private fun assertBigDecimalEquivalent(actual: String, expected: String) {

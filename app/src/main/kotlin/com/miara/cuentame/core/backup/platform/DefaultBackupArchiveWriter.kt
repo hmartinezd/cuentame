@@ -1,9 +1,19 @@
 package com.miara.cuentame.core.backup.platform
 
-import com.miara.cuentame.core.backup.BackupChecksumException
+import com.miara.cuentame.core.backup.ArchiveEntryValidator
+import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.BackupLimits
 import com.miara.cuentame.core.backup.ChecksumParser
-import com.miara.cuentame.core.backup.api.*
+import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
+import com.miara.cuentame.core.backup.api.BackupArchiveWriteResult
+import com.miara.cuentame.core.backup.api.BackupArchiveWriter
+import com.miara.cuentame.core.backup.api.BackupAttachmentSource
+import com.miara.cuentame.core.backup.api.BackupByteMath
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+import com.miara.cuentame.core.backup.api.BackupPlan
+import com.miara.cuentame.core.backup.api.BackupSizeOverflowException
+import com.miara.cuentame.core.backup.api.ImmutableBackupBytes
+import com.miara.cuentame.core.backup.api.NonClosingOutputStream
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.io.OutputStream
@@ -26,7 +36,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
         outputStream: OutputStream,
         plan: BackupPlan
     ): BackupArchiveWriteResult {
-        // 1. Pre-writing verification
+        // 1. Writer prevalidation before opening ZipOutputStream
         val precheck = prevalidatePlan(plan)
         if (precheck != null) return precheck
 
@@ -34,7 +44,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
         zos.setLevel(java.util.zip.Deflater.DEFAULT_COMPRESSION)
 
         var primaryFailure: Throwable? = null
-        var result: BackupArchiveWriteResult = BackupArchiveWriteResult.Failure.InvalidPlan // Default
+        var result: BackupArchiveWriteResult = BackupArchiveWriteResult.Failure.InvalidPlan
 
         try {
             var currentTotalUncompressedBytes = 0L
@@ -51,6 +61,13 @@ class DefaultBackupArchiveWriter @Inject constructor(
 
             // 3. attachments
             for (att in plan.attachments) {
+                val expectedArchiveHash = plan.expectedEntryChecksums[att.archivePath]
+                    ?: throw ChecksumInconsistencyException("Missing expected checksum for attachment ${att.archivePath}")
+
+                if (att.checksumSha256 != expectedArchiveHash) {
+                    throw ChecksumInconsistencyException("Checksum mismatch between attachment and expected map for ${att.archivePath}")
+                }
+
                 val inputStream = try {
                     attachmentSource.open(att.sourceUri)
                 } catch (e: CancellationException) {
@@ -81,8 +98,8 @@ class DefaultBackupArchiveWriter @Inject constructor(
                         }
 
                         val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (actualSize != att.sizeBytes || actualHash != att.checksumSha256) {
-                            throw AttachmentChangedException("Attachment mismatch: size or hash changed")
+                        if (actualSize != att.sizeBytes || actualHash != att.checksumSha256 || actualHash != expectedArchiveHash) {
+                            throw AttachmentChangedException("Attachment mismatch: size or hash changed during writing")
                         }
                     }
                 }
@@ -99,7 +116,10 @@ class DefaultBackupArchiveWriter @Inject constructor(
             }
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.checksumsJson.size.toLong())
             
-            require(currentTotalUncompressedBytes == plan.totalUncompressedBytes) { "Total byte count mismatch" }
+            if (currentTotalUncompressedBytes != plan.totalUncompressedBytes) {
+                result = BackupArchiveWriteResult.Failure.InvalidPlan
+                return result
+            }
 
             zos.finish()
             zos.flush()
@@ -108,17 +128,26 @@ class DefaultBackupArchiveWriter @Inject constructor(
         } catch (e: CancellationException) {
             primaryFailure = e
             throw e
+        } catch (e: BackupSizeOverflowException) {
+            primaryFailure = e
+            result = BackupArchiveWriteResult.Failure.LimitExceeded
         } catch (e: LimitExceededException) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.LimitExceeded
         } catch (e: AttachmentChangedException) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.AttachmentChanged
         } catch (e: AttachmentUnreadableException) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.AttachmentUnreadable
-        } catch (e: BackupChecksumException) {
+        } catch (e: ChecksumInconsistencyException) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.ChecksumInconsistency
         } catch (e: IOException) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.IoError(e)
         } catch (e: Exception) {
+            primaryFailure = e
             result = BackupArchiveWriteResult.Failure.IoError(IOException(e))
         } finally {
             try {
@@ -136,6 +165,68 @@ class DefaultBackupArchiveWriter @Inject constructor(
     }
 
     private fun prevalidatePlan(plan: BackupPlan): BackupArchiveWriteResult.Failure? {
+        // Individual JSON limit checks
+        if (plan.snapshotJson.size > BackupLimits.MAX_DATABASE_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.preferencesJson.size > BackupLimits.MAX_SETTINGS_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.manifestJson.size > BackupLimits.MAX_MANIFEST_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (plan.checksumsJson.size > BackupLimits.MAX_CHECKSUMS_JSON_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+
+        // Count limits
+        if (plan.attachments.size > BackupLimits.MAX_ATTACHMENT_COUNT) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (4 + plan.attachments.size > BackupLimits.MAX_ARCHIVE_ENTRY_COUNT) return BackupArchiveWriteResult.Failure.LimitExceeded
+
+        // Entry-name limits and attachment invariant checks
+        val seenIds = mutableSetOf<String>()
+        val seenPaths = mutableSetOf<String>()
+
+        for (att in plan.attachments) {
+            if (!seenIds.add(att.attachmentId)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (!seenPaths.add(att.archivePath)) return BackupArchiveWriteResult.Failure.InvalidPlan
+
+            if (!BackupFormatV1Contract.isValidAttachmentId(att.attachmentId)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (att.displayName.isBlank() || !AttachmentFilenameSanitizer.isValid(att.displayName)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (!ArchiveEntryValidator.isSafe(att.archivePath)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (att.archivePath != BackupFormatV1Contract.attachmentArchivePath(att.attachmentId, att.displayName)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (att.archivePath.toByteArray(Charsets.UTF_8).size > BackupLimits.MAX_ENTRY_NAME_LENGTH_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+            if (att.sizeBytes < 0) return BackupArchiveWriteResult.Failure.InvalidPlan
+            if (!BackupFormatV1Contract.isValidChecksum(att.checksumSha256)) return BackupArchiveWriteResult.Failure.InvalidPlan
+
+            val refKeys = mutableSetOf<AttachmentReferenceKey>()
+            for (ref in att.references) {
+                if (ref.recordId.isBlank() || ref.recordType !in BackupFormatV1Contract.SUPPORTED_ATTACHMENT_RECORD_TYPES) {
+                    return BackupArchiveWriteResult.Failure.InvalidPlan
+                }
+                val key = AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId)
+                if (!refKeys.add(key)) return BackupArchiveWriteResult.Failure.InvalidPlan
+            }
+        }
+
+        // Expected checksum key set & parser prevalidation
+        val expectedKeys = setOf(
+            BackupFormatV1Contract.DATABASE_ENTRY,
+            BackupFormatV1Contract.PREFERENCES_ENTRY,
+            BackupFormatV1Contract.MANIFEST_ENTRY
+        ) + seenPaths
+
+        if (plan.expectedEntryChecksums.keys != expectedKeys) return BackupArchiveWriteResult.Failure.ChecksumInconsistency
+
+        val checksumsJsonStr = decodeStrictUtf8(plan.checksumsJson.copyForTest()) ?: return BackupArchiveWriteResult.Failure.InvalidPlan
+        val parsedChecksums = ChecksumParser.parse(checksumsJsonStr).getOrElse { return BackupArchiveWriteResult.Failure.InvalidPlan }
+        
+        if (parsedChecksums != plan.expectedEntryChecksums) return BackupArchiveWriteResult.Failure.ChecksumInconsistency
+
+        // Payload hash prevalidation
+        if (plan.expectedEntryChecksums[BackupFormatV1Contract.DATABASE_ENTRY] != plan.snapshotJson.sha256()) {
+            return BackupArchiveWriteResult.Failure.ChecksumInconsistency
+        }
+        if (plan.expectedEntryChecksums[BackupFormatV1Contract.PREFERENCES_ENTRY] != plan.preferencesJson.sha256()) {
+            return BackupArchiveWriteResult.Failure.ChecksumInconsistency
+        }
+        if (plan.expectedEntryChecksums[BackupFormatV1Contract.MANIFEST_ENTRY] != plan.manifestJson.sha256()) {
+            return BackupArchiveWriteResult.Failure.ChecksumInconsistency
+        }
+
+        // Overflow-safe total bytes calculation
         val calculatedTotal = try {
             var total = 0L
             total = BackupByteMath.addExact(total, plan.snapshotJson.size.toLong())
@@ -151,23 +242,14 @@ class DefaultBackupArchiveWriter @Inject constructor(
         if (calculatedTotal != plan.totalUncompressedBytes) return BackupArchiveWriteResult.Failure.InvalidPlan
         if (calculatedTotal > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
 
-        // Entry count check
-        if (4 + plan.attachments.size > BackupLimits.MAX_ARCHIVE_ENTRY_COUNT) return BackupArchiveWriteResult.Failure.LimitExceeded
-
-        // Checksums validation
-        val checksumsJsonStr = decodeStrictUtf8(plan.checksumsJson.copyForTest()) ?: return BackupArchiveWriteResult.Failure.InvalidPlan
-        val parsedChecksums = ChecksumParser.parse(checksumsJsonStr).getOrElse { return BackupArchiveWriteResult.Failure.InvalidPlan }
-        
-        if (parsedChecksums != plan.expectedEntryChecksums) return BackupArchiveWriteResult.Failure.ChecksumInconsistency
-
         return null
     }
 
     private fun writeZipEntry(zos: ZipOutputStream, name: String, bytes: ImmutableBackupBytes, plan: BackupPlan) {
-        val expectedHash = plan.expectedEntryChecksums[name] ?: throw BackupChecksumException("Plan missing checksum for $name")
+        val expectedHash = plan.expectedEntryChecksums[name] ?: throw ChecksumInconsistencyException("Plan missing checksum for $name")
         val actualHash = bytes.sha256()
         if (expectedHash != actualHash) {
-             throw BackupChecksumException("Inconsistent plan: checksum mismatch for $name")
+            throw ChecksumInconsistencyException("Inconsistent plan: checksum mismatch for $name")
         }
         writeZipEntryInternal(zos, name) {
             bytes.writeTo(zos)
@@ -212,5 +294,6 @@ class DefaultBackupArchiveWriter @Inject constructor(
 
     private class AttachmentChangedException(message: String) : IOException(message)
     private class AttachmentUnreadableException : IOException("Attachment became unreadable during write")
+    private class ChecksumInconsistencyException(message: String) : IOException(message)
     private class LimitExceededException : IOException("Archive limit exceeded during write")
 }

@@ -50,6 +50,6 @@ class ChickenIntegrationTest {
         
         val loadedOptions = db.ingredientUnitOptionDao().getAllOptions("i1")
         assertThat(loadedOptions).hasSize(2)
-        assertThat(loadedOptions.find { it.id == "o2" }?.factorToBase).isEqualTo(BigDecimal("40").toPlainString())
+        assertThat(loadedOptions.find { it.id == "o2" }?.factorToBase).isEqualTo(BigDecimal("40"))
     }
 }

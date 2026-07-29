@@ -94,7 +94,7 @@ class PurchaseUiTest {
             waitForHome()
 
             // 1. Navigate to Activity (Purchases)
-            composeTestRule.onNodeWithTag("nav_activity", useUnmergedTree = true).performClick()
+            composeTestRule.onNodeWithTag("nav_purchases", useUnmergedTree = true).performClick()
             composeTestRule.waitForIdle()
             
             // 2. Create Draft

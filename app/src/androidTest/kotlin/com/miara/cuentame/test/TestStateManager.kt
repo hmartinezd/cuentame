@@ -4,7 +4,6 @@ import android.content.Context
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,22 +16,28 @@ class TestStateManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    fun resetAll() = runBlocking {
+    suspend fun resetAll() {
         database.clearAllTables()
         dataStoreOwner.clear()
         removeTestFiles()
     }
 
     private fun removeTestFiles() {
-        context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
-        context.filesDir.listFiles()?.forEach { 
-            if (it.name.contains("test") && it.name != dataStoreOwner.file.name) {
-                it.deleteRecursively()
+        val targetPatterns = listOf("integration_test", "cuentame_test_backup", "test_attachment", "test_document")
+        
+        fun cleanDir(dir: File) {
+            dir.listFiles()?.forEach { file ->
+                if (targetPatterns.any { pattern -> file.name.contains(pattern) }) {
+                    file.deleteRecursively()
+                }
             }
         }
+
+        cleanDir(context.cacheDir)
+        cleanDir(context.filesDir)
     }
 
-    fun seedBaseline() = runBlocking {
+    suspend fun seedBaseline() {
         TestSeeder.seedBaseline(database)
         preferences.setOnboardingCompleted(true)
         preferences.setAppLocaleTag("en-US")

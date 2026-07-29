@@ -31,16 +31,15 @@ class AndroidBackupRepositoryTest {
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val planner = mockk<BackupCreationPlanner>()
     
+    private val archiveWriter = mockk<BackupArchiveWriter>()
+    private val archiveValidator = mockk<BackupArchiveValidator>()
+    
     private lateinit var documentStore: AndroidBackupDocumentStore
-    private lateinit var archiveWriter: DefaultBackupArchiveWriter
-    private lateinit var archiveValidator: DefaultBackupArchiveValidator
     private lateinit var repository: AndroidBackupRepository
 
     @Before
     fun setup() {
         documentStore = AndroidBackupDocumentStore(context)
-        archiveWriter = DefaultBackupArchiveWriter(attachmentSource)
-        archiveValidator = DefaultBackupArchiveValidator(BackupJsonCodecs())
         
         repository = AndroidBackupRepository(
             snapshotSource = snapshotSource,
@@ -70,21 +69,32 @@ class AndroidBackupRepositoryTest {
         val manifest = mockk<BackupManifest>(relaxed = true)
         
         // Use factory create
+        val emptyJsonBytes = "{}".toByteArray()
+        val emptyHash = java.security.MessageDigest.getInstance("SHA-256").digest(emptyJsonBytes).joinToString("") { "%02x".format(it) }
+        val checksumsMap = mapOf(
+            BackupFormatV1Contract.DATABASE_ENTRY to emptyHash,
+            BackupFormatV1Contract.PREFERENCES_ENTRY to emptyHash,
+            BackupFormatV1Contract.MANIFEST_ENTRY to emptyHash
+        )
+        val checksumsJsonBytes = kotlinx.serialization.json.Json.encodeToString(
+            kotlinx.serialization.serializer(),
+            checksumsMap
+        ).toByteArray(Charsets.UTF_8)
+        val checksumsHash = java.security.MessageDigest.getInstance("SHA-256").digest(checksumsJsonBytes).joinToString("") { "%02x".format(it) }
+
+        val totalBytes = (emptyJsonBytes.size * 3 + checksumsJsonBytes.size).toLong()
+
         val plan = BackupPlan.create(
             snapshotDto = snapshotResult.dto,
-            snapshotJson = "{}".toByteArray(),
+            snapshotJson = emptyJsonBytes,
             preferencesDto = mockk(relaxed = true),
-            preferencesJson = "{}".toByteArray(),
+            preferencesJson = emptyJsonBytes,
             attachments = emptyList(),
             manifest = manifest,
-            manifestJson = "{}".toByteArray(),
-            expectedEntryChecksums = mapOf(
-                "data/database.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249", // dummy
-                "preferences/settings.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249",
-                "manifest.json" to "d8e8fca2dc0f896fd7cb4cb0031ba249"
-            ),
-            checksumsJson = "{}".toByteArray(),
-            totalUncompressedBytes = 0L
+            manifestJson = emptyJsonBytes,
+            expectedEntryChecksums = checksumsMap,
+            checksumsJson = checksumsJsonBytes,
+            totalUncompressedBytes = totalBytes
         )
         
         coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Success(plan)

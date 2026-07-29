@@ -1,35 +1,34 @@
 # Refactor Progress Tracking
 
-## Goal
-Consolidate the application into a single `:app` module while preserving Clean Architecture layers, ensuring production-grade backup integrity, and maintaining full regression test coverage.
+## System Status
 
-## Phase Checklist
-
-- [x] **Phase 6 — Single-Module Consolidation** `COMPLETE`
-- [ ] **Phase 7 — Package-Level Boundary Enforcement** `IN PROGRESS`
-- [ ] **Phase 0-5 — Stabilization & Corrections** `IN PROGRESS`
-- [ ] **Phase 8 — Future Multi-Module Migration** `POSTPONED`
+- Single-module consolidation: COMPLETE
+- Package-level architecture: IN PROGRESS
+- Backup production hardening: IN PROGRESS
+- Backup verification: IN PROGRESS
+- Regression recovery: IN PROGRESS
+- Android instrumentation verification: IN PROGRESS
+- CI verification: NOT VERIFIED
+- Backup restore: NOT STARTED
+- Customer export: NOT STARTED
+- Multi-module migration: POSTPONED
 
 ---
 
-## Detailed Status
+## Detailed Phase Progress
 
-### Phase 6 — Single-Module Consolidation
+### Single-Module Consolidation
 - **Status**: `COMPLETE`
-- **Actions**:
-  - Removed empty Gradle submodule scaffolding (`core/*`, `feature/*`) and `build-logic`.
-  - Consolidated all source code into `:app`.
+- All source code resides in the single `:app` module. Submodules are eliminated.
 
-### Phase 7 — Package-Level Boundary Enforcement
+### Package-Level Architecture
 - **Status**: `IN PROGRESS`
-- **Actions**:
-  - Repaired `ArchitectureTest.kt` for single-module structure.
-  - **NEXT**: Strengthening rules to detect cross-layer violations.
+- Clean architecture package boundaries enforced within `:app`.
 
-### Phase 0-5 — Stabilization & Corrections
+### Backup Production Hardening & Verification
 - **Status**: `IN PROGRESS`
-- **Actions**:
-  - Refactored `AndroidBackupRepository` to use `BackupCreationPlanner`, `BackupSnapshotSource`, and `BackupDocumentStore`.
-  - Implemented `SavedPickerLaunchState` in `BackupViewModel` for process-death resilience.
-  - Extracted `BackupArchiveWriter` and `BackupArchiveValidator`.
-  - **RECOVERY REQUIRED**: Restoring deleted test suites and strengthening defensive validations.
+- Defensive validations, overflow-safe math, immutability, and checksum verification undergoing complete pass.
+
+### Regression Recovery & Instrumentation Verification
+- **Status**: `IN PROGRESS`
+- Test baseline created (`docs/TEST_BASELINE_BEFORE_FINAL_GATE.md`). Restoring behavioral test suites.

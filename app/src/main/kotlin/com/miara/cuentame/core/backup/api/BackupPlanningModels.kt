@@ -59,20 +59,20 @@ class PlannedBackupAttachment private constructor(
     val references: List<BackupAttachmentReference>
         get() = Collections.unmodifiableList(_references)
 
-    internal fun copyInternal(
-        sourceUri: AttachmentSourceUri = this.sourceUri,
-        attachmentId: String = this.attachmentId,
-        archivePath: String = this.archivePath,
-        displayName: String = this.displayName,
-        mimeType: String? = this.mimeType,
-        sizeBytes: Long = this.sizeBytes,
-        checksumSha256: String = this.checksumSha256,
-        references: List<BackupAttachmentReference> = this._references
-    ): PlannedBackupAttachment = create(
-        sourceUri, attachmentId, archivePath, displayName, mimeType, sizeBytes, checksumSha256, references
-    )
-
     companion object {
+        fun deepCopyOf(
+            attachment: PlannedBackupAttachment
+        ): PlannedBackupAttachment = create(
+            sourceUri = attachment.sourceUri,
+            attachmentId = attachment.attachmentId,
+            archivePath = attachment.archivePath,
+            displayName = attachment.displayName,
+            mimeType = attachment.mimeType,
+            sizeBytes = attachment.sizeBytes,
+            checksumSha256 = attachment.checksumSha256,
+            references = attachment.references
+        )
+
         fun create(
             sourceUri: AttachmentSourceUri,
             attachmentId: String,
@@ -115,7 +115,7 @@ class PlannedBackupAttachment private constructor(
                 mimeType = mimeType,
                 sizeBytes = sizeBytes,
                 checksumSha256 = checksumSha256,
-                _references = references.map { it.copy() } // Deep copy
+                _references = Collections.unmodifiableList(references.map { it.copy() })
             )
         }
     }
@@ -159,6 +159,22 @@ class BackupPlan private constructor(
             val mJson = ImmutableBackupBytes.from(manifestJson)
             val cJson = ImmutableBackupBytes.from(checksumsJson)
 
+            // Verify checksum values match planned payloads
+            require(expectedEntryChecksums[BackupFormatV1Contract.DATABASE_ENTRY] == sJson.sha256()) {
+                "Checksum mismatch for database entry"
+            }
+            require(expectedEntryChecksums[BackupFormatV1Contract.PREFERENCES_ENTRY] == pJson.sha256()) {
+                "Checksum mismatch for preferences entry"
+            }
+            require(expectedEntryChecksums[BackupFormatV1Contract.MANIFEST_ENTRY] == mJson.sha256()) {
+                "Checksum mismatch for manifest entry"
+            }
+            attachments.forEach { att ->
+                require(expectedEntryChecksums[att.archivePath] == att.checksumSha256) {
+                    "Checksum mismatch for attachment ${att.archivePath}"
+                }
+            }
+
             // Recalculate total for verification
             var recalculatedTotal = 0L
             recalculatedTotal = BackupByteMath.addExact(recalculatedTotal, sJson.size.toLong())
@@ -185,6 +201,32 @@ class BackupPlan private constructor(
             val manifestPaths = manifest.attachments.map { it.archivePath }.toSet()
             require(manifestPaths.size == manifest.attachments.size) { "Duplicate manifest archive paths" }
             require(plannedPaths == manifestPaths) { "Archive path set mismatch between plan and manifest" }
+
+            // Reject duplicate references in planned and manifest attachments explicitly
+            manifest.attachments.forEach { m ->
+                val manifestKeys = m.referencedBy.map {
+                    AttachmentReferenceKey(
+                        attachmentId = m.attachmentId,
+                        recordType = it.recordType,
+                        recordId = it.recordId
+                    )
+                }
+                require(manifestKeys.distinct().size == manifestKeys.size) {
+                    "Duplicate manifest references"
+                }
+            }
+            attachments.forEach { planned ->
+                val plannedKeys = planned.references.map {
+                    AttachmentReferenceKey(
+                        attachmentId = planned.attachmentId,
+                        recordType = it.recordType,
+                        recordId = it.recordId
+                    )
+                }
+                require(plannedKeys.distinct().size == plannedKeys.size) {
+                    "Duplicate planned references"
+                }
+            }
 
             // Metadata agreement
             attachments.forEach { planned ->
@@ -214,37 +256,37 @@ class BackupPlan private constructor(
                 require(BackupFormatV1Contract.isValidChecksum(it)) { "Invalid expected checksum value" }
             }
 
-            // Final deep copies
+            // Final deep unmodifiable copies
             return BackupPlan(
                 snapshotDto = snapshotDto.copy(
-                    restaurants = snapshotDto.restaurants.map { it.copy() },
-                    inventoryAreas = snapshotDto.inventoryAreas.map { it.copy() },
-                    ingredientCategories = snapshotDto.ingredientCategories.map { it.copy() },
-                    units = snapshotDto.units.map { it.copy() },
-                    ingredients = snapshotDto.ingredients.map { it.copy() },
-                    ingredientUnitOptions = snapshotDto.ingredientUnitOptions.map { it.copy() },
-                    suppliers = snapshotDto.suppliers.map { it.copy() },
-                    purchaseReceipts = snapshotDto.purchaseReceipts.map { it.copy() },
-                    purchaseLines = snapshotDto.purchaseLines.map { it.copy() },
-                    stockCounts = snapshotDto.stockCounts.map { it.copy() },
-                    stockCountAreas = snapshotDto.stockCountAreas.map { it.copy() },
-                    stockCountLines = snapshotDto.stockCountLines.map { it.copy() },
-                    wasteEvents = snapshotDto.wasteEvents.map { it.copy() },
-                    inventoryMovements = snapshotDto.inventoryMovements.map { it.copy() },
-                    inventoryBalanceProjections = snapshotDto.inventoryBalanceProjections.map { it.copy() },
-                    ingredientCostProjections = snapshotDto.ingredientCostProjections.map { it.copy() }
+                    restaurants = Collections.unmodifiableList(snapshotDto.restaurants.map { it.copy() }),
+                    inventoryAreas = Collections.unmodifiableList(snapshotDto.inventoryAreas.map { it.copy() }),
+                    ingredientCategories = Collections.unmodifiableList(snapshotDto.ingredientCategories.map { it.copy() }),
+                    units = Collections.unmodifiableList(snapshotDto.units.map { it.copy() }),
+                    ingredients = Collections.unmodifiableList(snapshotDto.ingredients.map { it.copy() }),
+                    ingredientUnitOptions = Collections.unmodifiableList(snapshotDto.ingredientUnitOptions.map { it.copy() }),
+                    suppliers = Collections.unmodifiableList(snapshotDto.suppliers.map { it.copy() }),
+                    purchaseReceipts = Collections.unmodifiableList(snapshotDto.purchaseReceipts.map { it.copy() }),
+                    purchaseLines = Collections.unmodifiableList(snapshotDto.purchaseLines.map { it.copy() }),
+                    stockCounts = Collections.unmodifiableList(snapshotDto.stockCounts.map { it.copy() }),
+                    stockCountAreas = Collections.unmodifiableList(snapshotDto.stockCountAreas.map { it.copy() }),
+                    stockCountLines = Collections.unmodifiableList(snapshotDto.stockCountLines.map { it.copy() }),
+                    wasteEvents = Collections.unmodifiableList(snapshotDto.wasteEvents.map { it.copy() }),
+                    inventoryMovements = Collections.unmodifiableList(snapshotDto.inventoryMovements.map { it.copy() }),
+                    inventoryBalanceProjections = Collections.unmodifiableList(snapshotDto.inventoryBalanceProjections.map { it.copy() }),
+                    ingredientCostProjections = Collections.unmodifiableList(snapshotDto.ingredientCostProjections.map { it.copy() })
                 ),
                 snapshotJson = sJson,
                 preferencesDto = preferencesDto.copy(),
                 preferencesJson = pJson,
-                _attachments = attachments.map { it.copyInternal() },
+                _attachments = Collections.unmodifiableList(attachments.map { PlannedBackupAttachment.deepCopyOf(it) }),
                 manifest = manifest.copy(
                     tableMetadata = Collections.unmodifiableMap(manifest.tableMetadata.toMap()),
-                    attachments = manifest.attachments.map { it.copy(referencedBy = it.referencedBy.map { r -> r.copy() }) },
-                    includedSections = manifest.includedSections.toList()
+                    attachments = Collections.unmodifiableList(manifest.attachments.map { it.copy(referencedBy = Collections.unmodifiableList(it.referencedBy.map { r -> r.copy() })) }),
+                    includedSections = Collections.unmodifiableList(manifest.includedSections.toList())
                 ),
                 manifestJson = mJson,
-                _expectedEntryChecksums = expectedEntryChecksums.toMap(),
+                _expectedEntryChecksums = Collections.unmodifiableMap(expectedEntryChecksums.toMap()),
                 checksumsJson = cJson,
                 totalUncompressedBytes = totalUncompressedBytes
             )

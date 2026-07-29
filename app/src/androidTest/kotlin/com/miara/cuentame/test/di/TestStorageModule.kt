@@ -100,7 +100,7 @@ object TestStorageModule {
         return DataStoreAppPreferencesRepository(
             dataStore,
             Json { 
-                ignoreUnknownKeys = true 
+                ignoreUnknownKeys = false 
                 coerceInputValues = true
             }
         )
@@ -121,7 +121,7 @@ object TestStorageModule {
     @Provides
     @Singleton
     fun provideJson(): Json = Json {
-        ignoreUnknownKeys = true
+        ignoreUnknownKeys = false
         coerceInputValues = true
     }
 }

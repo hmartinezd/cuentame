@@ -19,7 +19,7 @@ fun NavGraphBuilder.wasteGraph(navController: NavHostController) {
                 if (status == DocumentStatus.DRAFT) {
                     navController.navigate("waste/${id.value}")
                 } else {
-                    navController.navigate("waste/${id.value}/detail")
+                    navController.navigate("waste/${id.value}")
                 }
             }
         )

@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.test.TestStateManager
+import kotlinx.coroutines.runBlocking
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.After
@@ -27,24 +28,24 @@ class NavigationTest {
     @Before
     fun init() {
         hiltRule.inject()
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @After
     fun tearDown() {
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @Test
     fun app_startsOnOnboarding_whenNoRestaurant() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("onboarding_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("onboarding_screen_root").assertIsDisplayed()
         }
     }
 
     @Test
     fun app_startsOnHome_whenRestaurantExists() {
-        testStateManager.seedBaseline()
+        runBlocking { testStateManager.seedBaseline() }
         
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
@@ -53,10 +54,16 @@ class NavigationTest {
 
     @Test
     fun navigateToSettingsAndBack() {
-        testStateManager.seedBaseline()
+        runBlocking { testStateManager.seedBaseline() }
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("home_settings_button").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("nav_settings").performClick()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("settings_screen").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
             
             composeTestRule.onNodeWithTag("settings_back_button").performClick()

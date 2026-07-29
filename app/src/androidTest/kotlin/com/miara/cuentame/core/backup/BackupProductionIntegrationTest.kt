@@ -12,6 +12,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -34,12 +35,12 @@ class BackupProductionIntegrationTest {
     @Before
     fun init() {
         hiltRule.inject()
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @After
     fun tearDown() {
-        testStateManager.resetAll()
+        runBlocking { testStateManager.resetAll() }
     }
 
     @Test

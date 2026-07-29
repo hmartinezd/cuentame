@@ -1,18 +1,34 @@
-# Stabilization Progress Checklist
+# Stabilization Progress Log
 
-- `COMPLETE` 1. Single-Module Consolidation & Gradle Cleanup
-- `COMPLETE` 2. Package-level architecture
-- `COMPLETE` 3. Backup production hardening
-- `COMPLETE` 4. Backup verification
-- `COMPLETE` 5. Regression recovery
-- `COMPLETE` 6. Android instrumentation verification
-- `NOT STARTED` 7. Backup restore
-- `NOT STARTED` 8. Customer export
-- `POSTPONED` 9. Multi-module migration
-- `READY` 10. CI verification (Workflow updated, manual run needed)
+All progress tracking across the stabilization pass agrees on the following baseline status:
 
-## Verification Evidence
-- JVM Unit Tests: 257 PASS
-- Android Instrumentation Compilation: PASS
-- Single Module Status: Project ':app' verified
-- Archive Determinism: VERIFIED
+- Single-module consolidation: COMPLETE
+- Package-level architecture: IN PROGRESS
+- Backup production hardening: IN PROGRESS
+- Backup verification: IN PROGRESS
+- Regression recovery: IN PROGRESS
+- Android instrumentation verification: IN PROGRESS
+- CI verification: NOT VERIFIED
+- Backup restore: NOT STARTED
+- Customer export: NOT STARTED
+- Multi-module migration: POSTPONED
+
+---
+
+## Detailed Gate Checklist
+
+- [x] **1. Single-module consolidation**: COMPLETE
+- [ ] **2. Package-level architecture**: IN PROGRESS
+- [ ] **3. Backup production hardening**: IN PROGRESS
+- [ ] **4. Backup verification**: IN PROGRESS
+- [ ] **5. Regression recovery**: IN PROGRESS
+- [ ] **6. Android instrumentation verification**: IN PROGRESS
+- [ ] **7. CI verification**: NOT VERIFIED
+- [ ] **8. Backup restore**: NOT STARTED
+- [ ] **9. Customer export**: NOT STARTED
+- [ ] **10. Multi-module migration**: POSTPONED
+
+## Active Execution Log
+
+- Initialized test baseline in `docs/TEST_BASELINE_BEFORE_FINAL_GATE.md`.
+- Synchronized all documentation statuses across README and docs directory.
