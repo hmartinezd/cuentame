@@ -2,10 +2,10 @@
 
 ## JVM Unit Tests
 - **Command**: `./gradlew :app:testDebugUnitTest --rerun-tasks`
-- **Execution Timestamp**: 2026-07-30T15:10:00Z
+- **Execution Timestamp**: 2026-07-30T17:15:00Z
 - **Environment**: Local Development
 - **Exit Code**: 0
-- **Passed**: 326
+- **Passed**: 343
 - **Failed**: 0
 - **Skipped**: 0
 - **Result**: PASS
@@ -13,11 +13,11 @@
 
 ## Android Instrumented Tests (Focused)
 - **HomeUiTest**: NOT EXECUTED
+- **SettingsRestoreUiTest**: NOT EXECUTED
 - **PurchaseFailureUiTest**: NOT EXECUTED
 - **WasteFailureUiTest**: NOT EXECUTED
 - **BackupHardeningRepositoryTest**: NOT EXECUTED
 - **AndroidBackupDocumentStoreTest**: NOT EXECUTED
-- **NavigationTest**: NOT EXECUTED
 
 ## Android Instrumented Tests (Full Suite)
 - **Result**: NOT EXECUTED

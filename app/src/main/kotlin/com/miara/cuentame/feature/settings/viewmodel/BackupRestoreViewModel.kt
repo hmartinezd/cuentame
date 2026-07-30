@@ -15,7 +15,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
+
+@JvmInline
+value class RestoreOperationId(val value: Long)
 
 sealed interface BackupRestoreUiState {
     data object Idle : BackupRestoreUiState
@@ -38,52 +42,90 @@ class BackupRestoreViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<BackupRestoreUiState>(BackupRestoreUiState.Idle)
+    companion object {
+        private const val KEY_INSPECTION_ACTIVE = "inspection_active"
+    }
+
+    private val _uiState = MutableStateFlow<BackupRestoreUiState>(
+        if (savedStateHandle.get<Boolean>(KEY_INSPECTION_ACTIVE) == true) {
+            BackupRestoreUiState.Error(BackupRestoreFailure.OperationInterrupted)
+        } else {
+            BackupRestoreUiState.Idle
+        }
+    )
     val uiState: StateFlow<BackupRestoreUiState> = _uiState.asStateFlow()
 
+    private val operationTokenGenerator = AtomicLong(0)
+    private var activeOperationToken: Long = -1
     private var activeInspectionJob: Job? = null
+
+    init {
+        // Clear interruption marker after first state emission
+        savedStateHandle[KEY_INSPECTION_ACTIVE] = false
+    }
 
     fun onSelectFileClicked() {
         if (_uiState.value == BackupRestoreUiState.Inspecting) return
-        activeInspectionJob?.cancel()
+        cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.SelectingFile
     }
 
-    fun onFileSelected(uri: String) {
+    fun onFileSelected(uri: String?) {
+        if (uri == null) {
+            _uiState.value = BackupRestoreUiState.Idle
+            return
+        }
         val source = BackupDocumentUri(uri)
         inspectArchive(source)
     }
 
     private fun inspectArchive(source: BackupDocumentUri) {
-        activeInspectionJob?.cancel()
+        cancelActiveOperation()
+        val token = operationTokenGenerator.incrementAndGet()
+        activeOperationToken = token
+        
         _uiState.value = BackupRestoreUiState.Inspecting
+        savedStateHandle[KEY_INSPECTION_ACTIVE] = true
         
         activeInspectionJob = viewModelScope.launch {
             try {
                 val result = restoreRepository.inspect(source)
+                if (activeOperationToken != token) return@launch
+                
                 _uiState.value = when (result) {
                     is BackupArchiveInspectionResult.Ready -> BackupRestoreUiState.PreviewReady(result.preview, source)
                     is BackupArchiveInspectionResult.Failure -> BackupRestoreUiState.Error(result.reason)
                 }
             } catch (e: CancellationException) {
-                // Keep Inspecting or move to Idle? Plan says cancellation is not shown as an error.
-                if (_uiState.value == BackupRestoreUiState.Inspecting) {
+                if (activeOperationToken == token) {
                     _uiState.value = BackupRestoreUiState.Idle
                 }
                 throw e
             } catch (e: Exception) {
-                _uiState.value = BackupRestoreUiState.Error(BackupRestoreFailure.GenericIo)
+                if (activeOperationToken == token) {
+                    _uiState.value = BackupRestoreUiState.Error(BackupRestoreFailure.GenericIo)
+                }
+            } finally {
+                if (activeOperationToken == token) {
+                    savedStateHandle[KEY_INSPECTION_ACTIVE] = false
+                }
             }
         }
     }
 
     fun onDismissRequest() {
-        activeInspectionJob?.cancel()
+        cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.Idle
+    }
+
+    private fun cancelActiveOperation() {
+        activeOperationToken = -1
+        activeInspectionJob?.cancel()
+        savedStateHandle[KEY_INSPECTION_ACTIVE] = false
     }
 
     override fun onCleared() {
         super.onCleared()
-        activeInspectionJob?.cancel()
+        cancelActiveOperation()
     }
 }

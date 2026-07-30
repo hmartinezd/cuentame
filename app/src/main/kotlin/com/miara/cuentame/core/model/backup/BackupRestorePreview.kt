@@ -2,6 +2,7 @@ package com.miara.cuentame.core.model.backup
 
 /**
  * Non-destructive preview of a backup archive to help the user identify and confirm the data.
+ * Contains only validated, safe-to-display metadata.
  */
 data class BackupRestorePreview(
     val restaurantName: String,
@@ -9,7 +10,7 @@ data class BackupRestorePreview(
     val backupFormatVersion: Int,
     val databaseSchemaVersion: Int,
     val localeTag: String,
-    val tableCounts: Map<String, Int>,
+    val totalRecordCount: Long,
     val attachmentCount: Int,
     val totalAttachmentBytes: Long
 )

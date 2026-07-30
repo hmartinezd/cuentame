@@ -67,6 +67,8 @@ class BackupArchiveTestBuilder(
         val idx = entries.indexOfFirst { it.name == name }
         if (idx != -1) {
             entries[idx] = TestZipEntry(name, content)
+        } else {
+            entries.add(TestZipEntry(name, content))
         }
     }
 

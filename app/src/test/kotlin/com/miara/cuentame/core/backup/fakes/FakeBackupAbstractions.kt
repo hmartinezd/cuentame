@@ -20,12 +20,15 @@ open class FakeBackupDocumentStore : BackupDocumentStore {
     
     var openForWriteError: Exception? = null
     var openForReadError: Exception? = null
+    
+    var closeCountMap = mutableMapOf<BackupDocumentUri, Int>()
 
     override suspend fun openForWrite(destination: BackupDocumentUri): OutputStream {
         openForWriteCalls.add(destination)
         openForWriteError?.let { throw it }
         return object : ByteArrayOutputStream() {
             override fun close() {
+                closeCountMap[destination] = (closeCountMap[destination] ?: 0) + 1
                 super.close()
                 storage[destination] = toByteArray()
             }
@@ -36,7 +39,12 @@ open class FakeBackupDocumentStore : BackupDocumentStore {
         openForReadCalls.add(source)
         openForReadError?.let { throw it }
         val data = storage[source] ?: throw IOException("Not found")
-        return ByteArrayInputStream(data)
+        return object : ByteArrayInputStream(data) {
+            override fun close() {
+                closeCountMap[source] = (closeCountMap[source] ?: 0) + 1
+                super.close()
+            }
+        }
     }
 
     override suspend fun delete(document: BackupDocumentUri): Boolean {

@@ -140,9 +140,22 @@ class BackupRoundTripTest {
         val writeResult = writer.write(output, plan)
         assertThat(writeResult).isEqualTo(BackupArchiveWriteResult.Success)
         
-        val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
-        if (validation is BackupValidationResult.Invalid) throw Exception("Validation failed: ${validation.code} ${validation.diagnostic}")
-        assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
+        val inspection = reader.inspect(ByteArrayInputStream(output.toByteArray()), BackupDocumentUri("uri"))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        
+        assertThat(ready.archive.attachmentSummaries).hasSize(1)
+        val att = ready.archive.attachmentSummaries.first()
+        assertThat(att.attachmentId).isEqualTo(attId)
+        assertThat(att.sizeBytes).isEqualTo(attData.size.toLong())
+        
+        assertThat(ready.archive.manifest.attachments.first().referencedBy).hasSize(2)
+        assertThat(ready.archive.snapshot.purchaseReceipts.first().attachmentId).isEqualTo(attId)
+        assertThat(ready.archive.snapshot.wasteEvents.first().attachmentId).isEqualTo(attId)
+        
+        assertThat(ready.preview.attachmentCount).isEqualTo(1)
+        assertThat(ready.preview.totalAttachmentBytes).isEqualTo(attData.size.toLong())
+        assertThat(ready.preview.totalRecordCount).isAtLeast(1)
     }
 
     @Test

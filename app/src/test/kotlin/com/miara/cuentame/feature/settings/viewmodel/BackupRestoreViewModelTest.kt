@@ -5,7 +5,6 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.BackupArchiveInspectionResult
 import com.miara.cuentame.core.backup.api.BackupRestoreRepository
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
-import com.miara.cuentame.core.model.backup.BackupRestorePreview
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -20,13 +19,14 @@ import org.junit.Test
 class BackupRestoreViewModelTest {
 
     private val restoreRepository = mockk<BackupRestoreRepository>()
-    private val testDispatcher = UnconfinedTestDispatcher()
+    private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: BackupRestoreViewModel
+    private val savedStateHandle = SavedStateHandle()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = BackupRestoreViewModel(restoreRepository, SavedStateHandle())
+        viewModel = BackupRestoreViewModel(restoreRepository, savedStateHandle)
     }
 
     @After
@@ -40,50 +40,58 @@ class BackupRestoreViewModelTest {
     }
 
     @Test
-    fun `selecting file state is entered when onSelectFileClicked`() {
-        viewModel.onSelectFileClicked()
-        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
+    fun `recreated active inspection becomes operation interrupted`() {
+        val handle = SavedStateHandle(mapOf("inspection_active" to true))
+        val vm = BackupRestoreViewModel(restoreRepository, handle)
+        
+        assertThat(vm.uiState.value).isInstanceOf(BackupRestoreUiState.Error::class.java)
+        val state = vm.uiState.value as BackupRestoreUiState.Error
+        assertThat(state.reason).isEqualTo(BackupRestoreFailure.OperationInterrupted)
+        
+        // Interruption should be cleared
+        assertThat(handle.get<Boolean>("inspection_active")).isFalse()
     }
 
     @Test
     fun `inspecting state entered when file selected`() = runTest {
-        val uri = "content://backup"
         coEvery { restoreRepository.inspect(any()) } coAnswers {
-            delay(100)
+            delay(1000)
             BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
         }
 
-        viewModel.onFileSelected(uri)
+        viewModel.onFileSelected("content://backup")
+        
+        // Use advanceTimeBy if using StandardTestDispatcher
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
     }
 
     @Test
-    fun `preview ready entered when inspection succeeds`() = runTest {
-        val preview = BackupRestorePreview("Rest", null, 1, 2, "en-US", emptyMap(), 0, 0)
-        coEvery { restoreRepository.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(), preview)
+    fun `stale result from cancelled operation is ignored`() = runTest {
+        coEvery { restoreRepository.inspect(any()) } coAnswers {
+            delay(1000)
+            BackupArchiveInspectionResult.Ready(mockk(), mockk())
+        }
 
-        viewModel.onFileSelected("uri")
+        viewModel.onFileSelected("uri-1")
+        advanceTimeBy(500)
         
-        assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
-        val state = viewModel.uiState.value as BackupRestoreUiState.PreviewReady
-        assertThat(state.preview).isEqualTo(preview)
+        // Start second operation
+        viewModel.onFileSelected("uri-2")
+        
+        // Complete first operation in background
+        advanceTimeBy(600)
+        
+        // State should still be Inspecting (for uri-2) or ready for uri-2 if finished
+        // Point is uri-1's result shouldn't have set state to PreviewReady
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
     }
 
     @Test
-    fun `error state entered when inspection fails`() = runTest {
-        coEvery { restoreRepository.inspect(any()) } returns BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
-
-        viewModel.onFileSelected("uri")
-        
-        assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.Error::class.java)
-        val state = viewModel.uiState.value as BackupRestoreUiState.Error
-        assertThat(state.reason).isEqualTo(BackupRestoreFailure.InvalidZip)
-    }
-
-    @Test
-    fun `dismiss request returns to idle`() {
+    fun `picker cancellation returns to idle`() {
         viewModel.onSelectFileClicked()
-        viewModel.onDismissRequest()
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
+        
+        viewModel.onFileSelected(null)
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
     }
 }

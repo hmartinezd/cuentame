@@ -34,6 +34,25 @@ class BackupRestoreRepositoryTest {
         
         assertThat(result).isEqualTo(ready)
         assertThat(documentStore.openForReadCalls).containsExactly(docUri)
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
+    }
+
+    @Test
+    fun `inspect closes stream after reader failure`() = runTest {
+        documentStore.storage[docUri] = "data".toByteArray()
+        coEvery { archiveReader.inspect(any(), any()) } returns BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
+        
+        repository.inspect(docUri)
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
+    }
+
+    @Test
+    fun `inspect closes stream after reader exception`() = runTest {
+        documentStore.storage[docUri] = "data".toByteArray()
+        coEvery { archiveReader.inspect(any(), any()) } throws RuntimeException("Reader crash")
+        
+        try { repository.inspect(docUri) } catch (e: Exception) {}
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
     @Test

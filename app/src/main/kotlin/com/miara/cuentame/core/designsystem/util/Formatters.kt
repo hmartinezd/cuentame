@@ -66,6 +66,6 @@ object Formatters {
         if (bytes < 1024) return "$bytes B"
         val exp = (Math.log(bytes.toDouble()) / Math.log(1024.0)).toInt()
         val unit = "KMGTPE"[exp - 1] + "iB"
-        return String.format("%.1f %s", bytes / Math.pow(1024.0, exp.toDouble()), unit)
+        return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, exp.toDouble()), unit)
     }
 }

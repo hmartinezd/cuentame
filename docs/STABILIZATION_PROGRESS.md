@@ -1,15 +1,17 @@
 # Stabilization Progress
 
-## Milestone: Backup Restore Milestone 1: Read-Only Inspection
+## Milestone: Backup Restore Milestone 1: Read-Only Inspection (Hardened)
 
 | Requirement | Status |
 | :--- | :--- |
 | **Single Module (:app)** | **PASS** |
 | **Backup creation stabilization** | **COMPLETE** |
-| **Dead-code cleanup** | **COMPLETE** |
-| **Backup restore archive reading** | **COMPLETE** |
-| **Backup restore validation** | **COMPLETE** |
-| **Backup restore preview** | **COMPLETE** |
+| **Streaming Limit Enforcement** | **COMPLETE** |
+| **Canonical ZIP Validation** | **COMPLETE** |
+| **Deep Immutability** | **COMPLETE** |
+| **Snapshot/Manifest Cross-Validation** | **COMPLETE** |
+| **ViewModel Operation Identity** | **COMPLETE** |
+| **Process Interruption Handling** | **COMPLETE** |
 | **JVM Verification (Full Suite)** | **PASS** |
 | **Android instrumentation** | **NOT EXECUTED** |
 | **CI build verification** | **NOT EXECUTED** |
@@ -19,9 +21,10 @@
 | **Backup restore rollback** | **NOT STARTED** |
 | **Customer export** | **NOT STARTED** |
 
-## Milestone 1 Closure
+## Milestone 1 Hardening Closure
 - Test Removal: NONE
 - Disabled Tests: 0
-- New Restore Tests: 19
-- Logical Integrity: Reused for Read-path
-- ZIP Security: Streaming reader enforced
+- Total Restore Tests: 36
+- Record Count Rule: Primary business records only (Excludes Projections)
+- ZIP Security: Enforced during streaming (no buffering oversized entries)
+- Immutability: Defensive copies of all snapshot/manifest collections

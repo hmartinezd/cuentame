@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
+import com.miara.cuentame.feature.settings.presentation.toUserMessage
 import com.miara.cuentame.feature.settings.presentation.toUserMessageRes
 import androidx.compose.material.icons.filled.Restore
 import com.miara.cuentame.core.model.locale.SupportedAppLocale
@@ -110,11 +111,7 @@ fun SettingsRoute(
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
-            if (uri != null) {
-                restoreViewModel.onFileSelected(uri.toString())
-            } else {
-                restoreViewModel.onDismissRequest()
-            }
+            restoreViewModel.onFileSelected(uri?.toString())
         }
     )
 
@@ -432,7 +429,7 @@ fun RestorePreviewDialog(
                     Text(text = stringResource(R.string.restore_preview_created_at, date))
                 }
                 Text(text = stringResource(R.string.restore_preview_locale, preview.localeTag))
-                Text(text = stringResource(R.string.restore_preview_records, preview.tableCounts.size))
+                Text(text = stringResource(R.string.restore_preview_records, preview.totalRecordCount))
                 
                 val sizeStr = Formatters.formatFileSize(preview.totalAttachmentBytes)
                 Text(text = stringResource(R.string.restore_preview_attachments, preview.attachmentCount, sizeStr))
@@ -464,24 +461,12 @@ fun RestoreErrorDialog(
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val message = when (failure) {
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.InvalidZip -> stringResource(R.string.restore_error_invalid_zip)
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.MissingCoreEntry -> stringResource(R.string.restore_error_missing_core)
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.ChecksumMismatch -> stringResource(R.string.restore_error_checksum)
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.UnsupportedFormatVersion,
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.IncompatibleSchemaVersion -> stringResource(R.string.restore_error_incompatible)
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.EntryLimitExceeded,
-        com.miara.cuentame.core.model.backup.BackupRestoreFailure.TotalLimitExceeded -> stringResource(R.string.restore_error_limit)
-        is com.miara.cuentame.core.model.backup.BackupRestoreFailure.SnapshotIntegrityFailure -> stringResource(R.string.restore_error_integrity, failure.code.name)
-        else -> stringResource(R.string.error_generic)
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.restore_error_title)) },
         text = {
             Text(
-                text = stringResource(R.string.restore_error_message, message),
+                text = stringResource(R.string.restore_error_message, failure.toUserMessage()),
                 modifier = Modifier.testTag("restore_backup_error")
             )
         },

@@ -32,6 +32,7 @@ class DefaultBackupArchiveReader @Inject constructor(
         input: InputStream,
         source: BackupDocumentUri
     ): BackupArchiveInspectionResult = withContext(Dispatchers.IO) {
+        // ZipInputStream(NonClosingInputStream(input)) ensures we don't close the caller's stream
         val zis = ZipInputStream(NonClosingInputStream(input))
         
         var totalUncompressedBytes = 0L
@@ -69,6 +70,23 @@ class DefaultBackupArchiveReader @Inject constructor(
                     return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.DuplicateEntry)
                 }
 
+                if (entry.isDirectory) {
+                    return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.UnexpectedEntry)
+                }
+
+                val entryLimit = when (entryName) {
+                    BackupFormatV1Contract.DATABASE_ENTRY -> readLimits.maxDatabaseJsonBytes
+                    BackupFormatV1Contract.PREFERENCES_ENTRY -> readLimits.maxSettingsJsonBytes
+                    BackupFormatV1Contract.MANIFEST_ENTRY -> readLimits.maxManifestJsonBytes
+                    BackupFormatV1Contract.CHECKSUMS_ENTRY -> readLimits.maxChecksumsJsonBytes
+                    else -> {
+                        if (!entryName.startsWith("attachments/")) {
+                            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.UnexpectedEntry)
+                        }
+                        readLimits.maxAttachmentBytes
+                    }
+                }
+
                 val digest = MessageDigest.getInstance("SHA-256")
                 val buffer = ByteArray(8192)
                 var entrySize = 0L
@@ -76,29 +94,32 @@ class DefaultBackupArchiveReader @Inject constructor(
                     java.io.ByteArrayOutputStream()
                 } else null
 
-                while (true) {
-                    val n = try {
-                        zis.read(buffer)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
+                try {
+                    while (true) {
+                        val n = try {
+                            zis.read(buffer)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
+                        }
+                        if (n == -1) break
+                        
+                        entrySize = BackupByteMath.addExact(entrySize, n.toLong())
+                        totalUncompressedBytes = BackupByteMath.addExact(totalUncompressedBytes, n.toLong())
+                        
+                        if (entrySize > entryLimit) {
+                            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
+                        }
+                        if (totalUncompressedBytes > readLimits.maxTotalUncompressedBytes) {
+                            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.TotalLimitExceeded)
+                        }
+                        
+                        digest.update(buffer, 0, n)
+                        entryContent?.write(buffer, 0, n)
                     }
-                    if (n == -1) break
-                    
-                    digest.update(buffer, 0, n)
-                    entryContent?.write(buffer, 0, n)
-                    
-                    entrySize = BackupByteMath.addExact(entrySize, n.toLong())
-                    totalUncompressedBytes = BackupByteMath.addExact(totalUncompressedBytes, n.toLong())
-                    
-                    if (totalUncompressedBytes > readLimits.maxTotalUncompressedBytes) {
-                        return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.TotalLimitExceeded)
-                    }
-                    
-                    if (entryContent == null && entrySize > readLimits.maxAttachmentBytes) {
-                        return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
-                    }
+                } catch (e: BackupSizeOverflowException) {
+                    return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.TotalLimitExceeded)
                 }
                 
                 val checksum = digest.digest().joinToString("") { "%02x".format(it) }
@@ -106,41 +127,30 @@ class DefaultBackupArchiveReader @Inject constructor(
                 calculatedSizes[entryName] = entrySize
                 
                 when (entryName) {
-                    BackupFormatV1Contract.DATABASE_ENTRY -> {
-                        if (entrySize > readLimits.maxDatabaseJsonBytes) return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
-                        databaseJsonBytes = entryContent!!.toByteArray()
-                    }
-                    BackupFormatV1Contract.PREFERENCES_ENTRY -> {
-                        if (entrySize > readLimits.maxSettingsJsonBytes) return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
-                        preferencesJsonBytes = entryContent!!.toByteArray()
-                    }
-                    BackupFormatV1Contract.MANIFEST_ENTRY -> {
-                        if (entrySize > readLimits.maxManifestJsonBytes) return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
-                        manifestJsonBytes = entryContent!!.toByteArray()
-                    }
-                    BackupFormatV1Contract.CHECKSUMS_ENTRY -> {
-                        if (entrySize > readLimits.maxChecksumsJsonBytes) return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.EntryLimitExceeded)
-                        checksumsJsonBytes = entryContent!!.toByteArray()
-                    }
-                    else -> {
-                        if (!entryName.startsWith("attachments/")) {
-                            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.UnexpectedEntry)
-                        }
-                    }
+                    BackupFormatV1Contract.DATABASE_ENTRY -> databaseJsonBytes = entryContent!!.toByteArray()
+                    BackupFormatV1Contract.PREFERENCES_ENTRY -> preferencesJsonBytes = entryContent!!.toByteArray()
+                    BackupFormatV1Contract.MANIFEST_ENTRY -> manifestJsonBytes = entryContent!!.toByteArray()
+                    BackupFormatV1Contract.CHECKSUMS_ENTRY -> checksumsJsonBytes = entryContent!!.toByteArray()
                 }
                 
                 try {
                     zis.closeEntry()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    // Ignore close failure
+                    return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
                 }
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: BackupSizeOverflowException) {
-            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.TotalLimitExceeded)
         } catch (e: Exception) {
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.GenericIo)
+        } finally {
+            try {
+                zis.close()
+            } catch (e: Exception) {
+                // Ignore failure during close of ZipInputStream (wrapper)
+            }
         }
 
         // 1. Core entries existence
@@ -158,74 +168,41 @@ class DefaultBackupArchiveReader @Inject constructor(
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedChecksums)
         }
         
+        // checksums.json must contain all payload entries (excluding itself)
         val payloadEntries = calculatedChecksums.keys - BackupFormatV1Contract.CHECKSUMS_ENTRY
         if (declaredChecksums.keys != payloadEntries) {
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.ChecksumMismatch)
         }
         
         for (entryName in payloadEntries) {
-            if (declaredChecksums[entryName] != calculatedChecksums[entryName]) {
+            if (!declaredChecksums[entryName].equals(calculatedChecksums[entryName], ignoreCase = true)) {
                 return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.ChecksumMismatch)
+            }
+            if (!BackupFormatV1Contract.isValidChecksum(declaredChecksums[entryName]!!)) {
+                return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedChecksums)
             }
         }
 
-        // 3. Manifest parsing and validation
+        // 3. Manifest parsing and structural validation
         val manifest = try {
             codecs.reader.decodeFromString<BackupManifest>(manifestJsonBytes.decodeToString())
         } catch (e: Exception) {
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedManifest)
         }
 
-        if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.UnsupportedFormatVersion)
-        }
-        if (manifest.databaseSchemaVersion != BackupFormatV1Contract.DATABASE_SCHEMA_VERSION) {
-            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.IncompatibleSchemaVersion)
-        }
-        if (!manifest.includedSections.containsAll(BackupFormatV1Contract.REQUIRED_SECTIONS)) {
-             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedManifest)
+        BackupManifestContractValidator.validateManifestStructure(manifest, calculatedChecksums, calculatedSizes)?.let { failure ->
+            return@withContext BackupArchiveInspectionResult.Failure(failure)
         }
 
-        // 4. ZIP vs Manifest cross-check
-        val zipAttachments = calculatedChecksums.keys.filter { it.startsWith("attachments/") }.toSet()
-        val manifestAttachments = manifest.attachments.map { it.archivePath }.toSet()
-        
-        if (zipAttachments != manifestAttachments) {
-            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.ManifestMismatch)
-        }
-        
-        val attachmentSummaries = mutableListOf<InspectedBackupAttachment>()
-        for (mAtt in manifest.attachments) {
-            if (!BackupFormatV1Contract.isValidAttachmentId(mAtt.attachmentId)) {
-                return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedManifest)
-            }
-            if (mAtt.archivePath != BackupFormatV1Contract.attachmentArchivePath(mAtt.attachmentId, mAtt.displayName)) {
-                return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedManifest)
-            }
-            
-            val zipSize = calculatedSizes[mAtt.archivePath] ?: return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.ManifestMismatch)
-            val zipChecksum = calculatedChecksums[mAtt.archivePath] ?: return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.ManifestMismatch)
-            
-            if (zipSize != mAtt.sizeBytes || zipChecksum != mAtt.checksumSha256) {
-                return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.AttachmentMismatch)
-            }
-            
-            attachmentSummaries.add(
-                InspectedBackupAttachment(
-                    attachmentId = mAtt.attachmentId,
-                    archivePath = mAtt.archivePath,
-                    displayName = mAtt.displayName,
-                    sizeBytes = mAtt.sizeBytes,
-                    checksumSha256 = mAtt.checksumSha256
-                )
-            )
-        }
-
-        // 5. Snapshot parsing and integrity validation
+        // 4. Snapshot parsing and logical integrity
         val snapshot = try {
             codecs.reader.decodeFromString<BackupSnapshotDto>(databaseJsonBytes.decodeToString())
         } catch (e: Exception) {
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedSnapshot)
+        }
+
+        BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)?.let { failure ->
+            return@withContext BackupArchiveInspectionResult.Failure(failure)
         }
 
         BackupSnapshotIntegrityValidator.validate(snapshot, manifest).getOrElse { e ->
@@ -233,31 +210,47 @@ class DefaultBackupArchiveReader @Inject constructor(
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.SnapshotIntegrityFailure(code))
         }
 
-        // 6. Preferences parsing
+        // 5. Preferences parsing
         val preferences = try {
             codecs.reader.decodeFromString<BackupPreferencesDto>(preferencesJsonBytes.decodeToString())
         } catch (e: Exception) {
             return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.MalformedPreferences)
         }
 
-        // 7. Success - Produce preview
+        // 6. Success - Produce preview
+        val totalRecordCount = try {
+            manifest.tableMetadata
+                .filter { it.key !in BackupFormatV1Contract.DERIVED_TABLES }
+                .values.fold(0L) { acc, meta -> BackupByteMath.addExact(acc, meta.entryCount.toLong()) }
+        } catch (e: BackupSizeOverflowException) {
+            return@withContext BackupArchiveInspectionResult.Failure(BackupRestoreFailure.TotalLimitExceeded)
+        }
+
         val preview = BackupRestorePreview(
-            restaurantName = manifest.restaurantName ?: "Unknown Restaurant",
+            restaurantName = manifest.restaurantName!!,
             createdAt = try { java.time.Instant.parse(manifest.createdAtUtc).toEpochMilli() } catch (e: Exception) { null },
             backupFormatVersion = manifest.backupFormatVersion,
             databaseSchemaVersion = manifest.databaseSchemaVersion,
-            localeTag = manifest.localeTag ?: "en-US",
-            tableCounts = manifest.tableMetadata.mapValues { it.value.entryCount },
-            attachmentCount = attachmentSummaries.size,
-            totalAttachmentBytes = attachmentSummaries.sumOf { it.sizeBytes }
+            localeTag = manifest.localeTag!!,
+            totalRecordCount = totalRecordCount,
+            attachmentCount = manifest.attachments.size,
+            totalAttachmentBytes = manifest.attachments.sumOf { it.sizeBytes }
         )
 
         BackupArchiveInspectionResult.Ready(
-            archive = InspectedBackupArchive(
+            archive = InspectedBackupArchive.create(
                 snapshot = snapshot,
                 preferences = preferences,
                 manifest = manifest,
-                attachmentSummaries = attachmentSummaries,
+                attachmentSummaries = manifest.attachments.map {
+                    InspectedBackupAttachment(
+                        attachmentId = it.attachmentId,
+                        archivePath = it.archivePath,
+                        displayName = it.displayName,
+                        sizeBytes = it.sizeBytes,
+                        checksumSha256 = it.checksumSha256
+                    )
+                },
                 source = source
             ),
             preview = preview
