@@ -82,6 +82,7 @@ class FakeBackupAttachmentSource : BackupAttachmentSource {
     var openException: Exception? = null
     
     var openCountMap = mutableMapOf<AttachmentSourceUri, Int>()
+    var closeCountMap = mutableMapOf<AttachmentSourceUri, Int>()
 
     override suspend fun inspect(uri: AttachmentSourceUri): AttachmentSourceMetadata {
         inspectedUris.add(uri)
@@ -94,6 +95,12 @@ class FakeBackupAttachmentSource : BackupAttachmentSource {
         openException?.let { throw it }
         openCountMap[uri] = (openCountMap[uri] ?: 0) + 1
         val data = dataMap[uri] ?: throw Exception("Not found")
-        return ByteArrayInputStream(data)
+        
+        return object : ByteArrayInputStream(data) {
+            override fun close() {
+                closeCountMap[uri] = (closeCountMap[uri] ?: 0) + 1
+                super.close()
+            }
+        }
     }
 }

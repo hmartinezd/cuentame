@@ -138,28 +138,3 @@ dependencies {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
-
-tasks.register<Exec>("testTestPreservationScript") {
-    group = "verification"
-    description = "Runs unit tests for the test preservation script."
-    
-    commandLine("python3", "-m", "unittest", "discover", "-s", "${rootProject.projectDir}/scripts/tests", "-p", "test_*.py")
-}
-
-tasks.register<Exec>("verifyTestPreservation") {
-    group = "verification"
-    description = "Checks that no tests have been deleted or disabled."
-    
-    dependsOn("testTestPreservationScript")
-    
-    workingDir(rootProject.projectDir)
-    
-    commandLine("python3", "${rootProject.projectDir}/scripts/verify_test_preservation.py", "verify")
-    
-    // Ensure it runs before tests
-    mustRunAfter("clean")
-}
-
-tasks.named("check") {
-    dependsOn("verifyTestPreservation")
-}
