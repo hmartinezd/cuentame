@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -132,7 +133,14 @@ fun WasteDetailScreen(
 
     Scaffold(
         modifier = Modifier.testTag("waste_detail_screen"),
-        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.testTag("waste_error_snackbar")) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState, modifier = Modifier.testTag("waste_error_snackbar")) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    modifier = Modifier.testTag("waste_error_snackbar_content")
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.waste_event)) },

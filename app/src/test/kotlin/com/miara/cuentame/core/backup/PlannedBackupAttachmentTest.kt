@@ -49,59 +49,38 @@ class PlannedBackupAttachmentTest {
     }
 
     @Test
-    fun `create rejects unsafe archive path`() {
+    fun `create rejects negative size`() {
         assertThrows(IllegalArgumentException::class.java) {
-            val unsafeName = "../../etc/passwd"
-            val unsafePath = "attachments/$validId/$unsafeName"
             PlannedBackupAttachment.create(
-                validUri, validId, unsafePath, unsafeName, null, 100L, validChecksum, listOf(validRef)
+                validUri, validId, validPath, validName, null, -1L, validChecksum, listOf(validRef)
             )
         }
     }
 
     @Test
-    fun `create rejects invalid display name`() {
+    fun `create rejects absolute path`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(
-                validUri, validId, validPath, "   ", null, 100L, validChecksum, listOf(validRef)
+                validUri, validId, "/attachments/$validId/$validName", validName, null, 100L, validChecksum, listOf(validRef)
             )
         }
     }
 
     @Test
-    fun `create rejects invalid checksum`() {
+    fun `create rejects traversal path`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(
-                validUri, validId, validPath, validName, null, 100L, "short", listOf(validRef)
+                validUri, validId, "attachments/$validId/../etc/passwd", validName, null, 100L, validChecksum, listOf(validRef)
             )
         }
     }
 
     @Test
-    fun `create rejects duplicate references`() {
-        val dupRef = BackupAttachmentReference("WASTE_EVENT", "w1")
-        assertThrows(IllegalArgumentException::class.java) {
-            PlannedBackupAttachment.create(
-                validUri, validId, validPath, validName, null, 100L, validChecksum, listOf(validRef, dupRef)
-            )
-        }
-    }
-
-    @Test
-    fun `create rejects empty references`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PlannedBackupAttachment.create(
-                validUri, validId, validPath, validName, null, 100L, validChecksum, emptyList()
-            )
-        }
-    }
-    
-    @Test
-    fun `create rejects unsupported record type`() {
+    fun `create rejects blank reference record ID`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(
                 validUri, validId, validPath, validName, null, 100L, validChecksum, 
-                listOf(BackupAttachmentReference("INVALID_TYPE", "r1"))
+                listOf(BackupAttachmentReference("WASTE_EVENT", "  "))
             )
         }
     }

@@ -1,6 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
-import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
+import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
@@ -111,5 +111,7 @@ class PurchasePostingCoordinator @Inject constructor(
             postedAt = now,
             updatedAt = now
         ))
+        
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_POST_AFTER_MARK_POSTED)
     }
 }

@@ -5,7 +5,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
+import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity

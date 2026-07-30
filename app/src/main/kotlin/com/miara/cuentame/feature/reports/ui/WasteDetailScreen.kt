@@ -3,6 +3,8 @@ package com.miara.cuentame.feature.reports.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +37,7 @@ import com.miara.cuentame.core.presentation.ui.toLabelRes
 
 @Composable
 fun WasteDetailRoute(
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: WasteDetailViewModel = hiltViewModel()
 ) {
@@ -42,30 +45,47 @@ fun WasteDetailRoute(
 
     WasteDetailScreen(
         uiState = uiState,
+        onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
         modifier = modifier
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WasteDetailScreen(
     uiState: DetailReportScreenState<WasteDetailReport>,
+    onBack: () -> Unit,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize().testTag("waste_report_screen")) {
-        when (uiState) {
-            is DetailReportScreenState.Loading -> DetailReportLoading("waste_report_loading")
-            is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("waste_report_setup_required")
-            is DetailReportScreenState.Error -> DetailReportError("waste_report_error", onRetry)
-            is DetailReportScreenState.Ready -> {
-                WasteDetailContent(
-                    state = uiState,
-                    onRangeSelected = onRangeSelected,
-                    onRetry = onRetry
-                )
+    Scaffold(
+        modifier = modifier.fillMaxSize().testTag("waste_report_screen"),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.waste_detail_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("reports_back_button")) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (uiState) {
+                is DetailReportScreenState.Loading -> DetailReportLoading("waste_report_loading")
+                is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("waste_report_setup_required")
+                is DetailReportScreenState.Error -> DetailReportError("waste_report_error", onRetry)
+                is DetailReportScreenState.Ready -> {
+                    WasteDetailContent(
+                        state = uiState,
+                        onRangeSelected = onRangeSelected,
+                        onRetry = onRetry
+                    )
+                }
             }
         }
     }

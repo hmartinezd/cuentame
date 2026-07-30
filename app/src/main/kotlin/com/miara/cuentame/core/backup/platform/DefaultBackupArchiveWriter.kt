@@ -18,15 +18,11 @@ import javax.inject.Singleton
 
 @Singleton
 class DefaultBackupArchiveWriter @Inject constructor(
-    private val attachmentSource: BackupAttachmentSource
+    private val attachmentSource: BackupAttachmentSource,
+    private val writeLimits: BackupWriteLimits = BackupWriteLimits()
 ) : BackupArchiveWriter {
 
     private val DETERMINISTIC_ZIP_TIMESTAMP = 0L
-
-    // For testing only
-    internal var overrideMaxTotalBytes: Long? = null
-
-    private fun getMaxTotalBytes(): Long = overrideMaxTotalBytes ?: BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES.toLong()
 
     override suspend fun write(
         outputStream: OutputStream,
@@ -48,12 +44,12 @@ class DefaultBackupArchiveWriter @Inject constructor(
             // 1. data/database.json
             writeZipEntry(zos, BackupFormatV1Contract.DATABASE_ENTRY, plan.snapshotJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.snapshotJson.size.toLong())
-            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > writeLimits.maxTotalUncompressedBytes) throw LimitExceededException()
 
             // 2. preferences/settings.json
             writeZipEntry(zos, BackupFormatV1Contract.PREFERENCES_ENTRY, plan.preferencesJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.preferencesJson.size.toLong())
-            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > writeLimits.maxTotalUncompressedBytes) throw LimitExceededException()
 
             // 3. attachments
             for (att in plan.attachments) {
@@ -85,7 +81,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
                             actualSize = BackupByteMath.addExact(actualSize, n.toLong())
                             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, n.toLong())
                             
-                            if (currentTotalUncompressedBytes > getMaxTotalBytes()) {
+                            if (currentTotalUncompressedBytes > writeLimits.maxTotalUncompressedBytes) {
                                 throw LimitExceededException()
                             }
                             if (actualSize > att.sizeBytes) {
@@ -104,7 +100,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
             // 4. manifest.json
             writeZipEntry(zos, BackupFormatV1Contract.MANIFEST_ENTRY, plan.manifestJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.manifestJson.size.toLong())
-            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > writeLimits.maxTotalUncompressedBytes) throw LimitExceededException()
 
             // 5. checksums.json
             writeZipEntryInternal(zos, BackupFormatV1Contract.CHECKSUMS_ENTRY) {
@@ -236,7 +232,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
         }
 
         if (calculatedTotal != plan.totalUncompressedBytes) return BackupArchiveWriteResult.Failure.InvalidPlan
-        if (calculatedTotal > getMaxTotalBytes()) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (calculatedTotal > writeLimits.maxTotalUncompressedBytes) return BackupArchiveWriteResult.Failure.LimitExceeded
 
         return null
     }

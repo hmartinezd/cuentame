@@ -1,7 +1,7 @@
 package com.miara.cuentame.core.database.repository
 
 import androidx.room.withTransaction
-import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
+import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId

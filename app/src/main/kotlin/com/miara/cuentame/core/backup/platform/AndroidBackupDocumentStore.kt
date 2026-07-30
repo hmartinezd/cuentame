@@ -13,7 +13,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AndroidBackupDocumentStore @Inject constructor(
+open class AndroidBackupDocumentStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) : BackupDocumentStore {
 
@@ -37,7 +37,7 @@ class AndroidBackupDocumentStore @Inject constructor(
     ): T {
         val uri = Uri.parse(uriWrapper.value)
         val pfd = try {
-            context.contentResolver.openFileDescriptor(uri, mode)
+            openDescriptor(uri, mode)
                 ?: throw BackupDocumentOpenException(operation)
         } catch (e: CancellationException) {
             throw e
@@ -61,10 +61,22 @@ class AndroidBackupDocumentStore @Inject constructor(
         }
     }
 
-    private fun closeSuppressing(descriptor: ParcelFileDescriptor, primary: Throwable) {
+    internal open fun openDescriptor(uri: Uri, mode: String): ParcelFileDescriptor? {
+        return context.contentResolver.openFileDescriptor(uri, mode)
+    }
+
+    internal fun closeSuppressing(descriptor: ParcelFileDescriptor, primary: Throwable) {
         try {
             descriptor.close()
         } catch (closeError: Throwable) {
+            if (
+                closeError is VirtualMachineError ||
+                closeError is ThreadDeath ||
+                closeError is LinkageError
+            ) {
+                throw closeError
+            }
+
             primary.addSuppressed(closeError)
         }
     }

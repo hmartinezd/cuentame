@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup.platform
 import com.miara.cuentame.core.backup.api.*
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -38,4 +39,10 @@ interface BackupModule {
     @Binds
     @Singleton
     fun bindArchiveValidator(impl: DefaultBackupArchiveValidator): BackupArchiveValidator
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideWriteLimits(): BackupWriteLimits = BackupWriteLimits()
+    }
 }

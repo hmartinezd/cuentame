@@ -3,6 +3,8 @@ package com.miara.cuentame.feature.reports.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +36,7 @@ import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 
 @Composable
 fun PurchaseDetailRoute(
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PurchaseDetailViewModel = hiltViewModel()
 ) {
@@ -41,30 +44,47 @@ fun PurchaseDetailRoute(
 
     PurchaseDetailScreen(
         uiState = uiState,
+        onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
         modifier = modifier
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
     uiState: DetailReportScreenState<PurchaseDetailReport>,
+    onBack: () -> Unit,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize().testTag("purchase_report_screen")) {
-        when (uiState) {
-            is DetailReportScreenState.Loading -> DetailReportLoading("purchase_report_loading")
-            is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("purchase_report_setup_required")
-            is DetailReportScreenState.Error -> DetailReportError("purchase_report_error", onRetry)
-            is DetailReportScreenState.Ready -> {
-                PurchaseDetailContent(
-                    state = uiState,
-                    onRangeSelected = onRangeSelected,
-                    onRetry = onRetry
-                )
+    Scaffold(
+        modifier = modifier.fillMaxSize().testTag("purchase_report_screen"),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.purchase_detail_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("reports_back_button")) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (uiState) {
+                is DetailReportScreenState.Loading -> DetailReportLoading("purchase_report_loading")
+                is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("purchase_report_setup_required")
+                is DetailReportScreenState.Error -> DetailReportError("purchase_report_error", onRetry)
+                is DetailReportScreenState.Ready -> {
+                    PurchaseDetailContent(
+                        state = uiState,
+                        onRangeSelected = onRangeSelected,
+                        onRetry = onRetry
+                    )
+                }
             }
         }
     }

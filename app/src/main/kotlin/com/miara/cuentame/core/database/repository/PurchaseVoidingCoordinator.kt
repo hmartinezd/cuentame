@@ -1,6 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
-import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
+import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
@@ -71,17 +71,21 @@ class PurchaseVoidingCoordinator @Inject constructor(
 
         movementDao.insertAll(reversals)
         
-        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_VOID_AFTER_MARK_VOIDED)
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_VOID_AFTER_REVERSALS)
 
         val affectedIngredients = lines.map { it.ingredientId }.distinct()
         affectedIngredients.forEach { ingredientId ->
             projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
         }
+        
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_VOID_AFTER_PROJECTIONS)
 
         purchaseDao.updateReceipt(receipt.copy(
             status = DocumentStatus.VOIDED.name,
             voidedAt = now,
             updatedAt = now
         ))
+        
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_VOID_AFTER_MARK_VOIDED)
     }
 }

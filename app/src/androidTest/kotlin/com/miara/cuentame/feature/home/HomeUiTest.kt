@@ -67,6 +67,22 @@ class HomeUiTest {
     }
 
     @Test
+    fun dashboard_emptyState_whenNoActivity() {
+        seedReadyState("Empty Rest")
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("dashboard_restaurant_name", useUnmergedTree = true).assertTextEquals("Empty Rest")
+            composeTestRule.onNodeWithTag("dashboard_inventory_value", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
+            composeTestRule.onNodeWithTag("dashboard_purchase_spend", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
+            composeTestRule.onNodeWithTag("dashboard_waste_value", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
+            
+            composeTestRule.onNodeWithTag("reports_view_inventory_details").assertExists()
+        }
+    }
+
+    @Test
     fun dashboard_fullVerification_populatedData() {
         runBlocking {
             seedReadyState("The Integrity Kitchen")
@@ -101,9 +117,13 @@ class HomeUiTest {
         seedReadyState()
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("home_reports_button")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("home_reports_button").performClick()
+            
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("view_reports_button")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("view_reports_button", useUnmergedTree = true).performClick()
             
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -111,6 +131,10 @@ class HomeUiTest {
             composeTestRule.onNodeWithTag("reports_screen").assertIsDisplayed()
             
             composeTestRule.onNodeWithTag("reports_back_button").performClick()
+            
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }

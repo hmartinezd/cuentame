@@ -19,12 +19,12 @@ fun NavGraphBuilder.reportsGraph(navController: NavHostController) {
         )
     }
     composable(route = Destination.REPORT_INVENTORY_DETAIL.route) {
-        InventoryDetailRoute()
+        InventoryDetailRoute(onBack = { navController.popBackStack() })
     }
     composable(route = Destination.REPORT_PURCHASE_DETAIL.route) {
-        ReportsPurchaseDetailRoute()
+        ReportsPurchaseDetailRoute(onBack = { navController.popBackStack() })
     }
     composable(route = Destination.REPORT_WASTE_DETAIL.route) {
-        ReportsWasteDetailRoute()
+        ReportsWasteDetailRoute(onBack = { navController.popBackStack() })
     }
 }

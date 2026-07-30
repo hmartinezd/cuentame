@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -32,6 +33,7 @@ import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 
 @Composable
 fun InventoryDetailRoute(
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: InventoryDetailViewModel = hiltViewModel()
 ) {
@@ -39,27 +41,44 @@ fun InventoryDetailRoute(
 
     InventoryDetailScreen(
         uiState = uiState,
+        onBack = onBack,
         onRetry = viewModel::onRetry,
         modifier = modifier
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryDetailScreen(
     uiState: DetailReportScreenState<InventoryDetailReport>,
+    onBack: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize().testTag("inventory_report_screen")) {
-        when (uiState) {
-            is DetailReportScreenState.Loading -> DetailReportLoading("inventory_report_loading")
-            is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("inventory_report_setup_required")
-            is DetailReportScreenState.Error -> DetailReportError("inventory_report_error", onRetry)
-            is DetailReportScreenState.Ready -> {
-                InventoryDetailContent(
-                    state = uiState,
-                    onRetry = onRetry
-                )
+    Scaffold(
+        modifier = modifier.fillMaxSize().testTag("inventory_report_screen"),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.inventory_detail_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("reports_back_button")) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (uiState) {
+                is DetailReportScreenState.Loading -> DetailReportLoading("inventory_report_loading")
+                is DetailReportScreenState.SetupRequired -> DetailReportSetupRequired("inventory_report_setup_required")
+                is DetailReportScreenState.Error -> DetailReportError("inventory_report_error", onRetry)
+                is DetailReportScreenState.Ready -> {
+                    InventoryDetailContent(
+                        state = uiState,
+                        onRetry = onRetry
+                    )
+                }
             }
         }
     }
@@ -230,4 +249,3 @@ private fun InventoryDetailRow(
         }
     }
 }
-

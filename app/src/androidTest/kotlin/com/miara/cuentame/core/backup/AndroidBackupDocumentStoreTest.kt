@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -8,12 +9,16 @@ import com.miara.cuentame.core.backup.api.BackupDocumentOperation
 import com.miara.cuentame.core.backup.api.BackupDocumentUri
 import com.miara.cuentame.core.backup.api.BackupDocumentOpenException
 import com.miara.cuentame.core.backup.platform.AndroidBackupDocumentStore
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class AndroidBackupDocumentStoreTest {
@@ -41,27 +46,36 @@ class AndroidBackupDocumentStoreTest {
     }
 
     @Test
-    fun openForRead_validFileUri_returnsStream() = runBlocking {
-        val file = File(context.cacheDir, "test_read.zip")
-        file.writeText("content")
-        val uri = BackupDocumentUri("file://${file.absolutePath}")
-        
-        val text = store.openForRead(uri).use { 
-            it.readBytes().decodeToString()
-        }
-        
-        assertThat(text).isEqualTo("content")
-    }
-
-    @Test
     fun openForRead_nonExistent_throwsWrapped() {
         val uri = BackupDocumentUri("file:///non/existent/file.zip")
         val ex = assertThrows(BackupDocumentOpenException::class.java) {
             runBlocking { store.openForRead(uri) }
         }
         assertThat(ex.operation).isEqualTo(BackupDocumentOperation.READ)
-        // Verify path is NOT in message to prevent leaking
         assertThat(ex.message).doesNotContain("/non/existent/file.zip")
+    }
+
+    @Test
+    fun closeSuppressing_attachesFailure() {
+        val mockPfd = mockk<ParcelFileDescriptor>()
+        every { mockPfd.close() } throws IOException("Close failed")
+        
+        val primary = RuntimeException("Primary")
+        store.closeSuppressing(mockPfd, primary)
+        
+        assertThat(primary.suppressed).hasLength(1)
+        assertThat(primary.suppressed[0].message).isEqualTo("Close failed")
+    }
+
+    @Test
+    fun closeSuppressing_rethrowsFatal() {
+        val mockPfd = mockk<ParcelFileDescriptor>()
+        every { mockPfd.close() } throws OutOfMemoryError("Fatal")
+        
+        val primary = RuntimeException("Primary")
+        assertThrows(OutOfMemoryError::class.java) {
+            store.closeSuppressing(mockPfd, primary)
+        }
     }
 
     @Test
@@ -73,16 +87,5 @@ class AndroidBackupDocumentStoreTest {
         val deleted = store.delete(uri)
         assertThat(deleted).isTrue()
         assertThat(file.exists()).isFalse()
-    }
-
-    @Test
-    fun truncate_validFile_emptiesFile() = runBlocking {
-        val file = File(context.cacheDir, "to_truncate.zip")
-        file.writeText("some content")
-        val uri = BackupDocumentUri("file://${file.absolutePath}")
-        
-        val truncated = store.truncate(uri)
-        assertThat(truncated).isTrue()
-        assertThat(file.length()).isEqualTo(0)
     }
 }

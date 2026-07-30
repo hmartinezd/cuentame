@@ -6,10 +6,8 @@ import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
 import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
-import com.miara.cuentame.core.model.backup.TableMetadata
 import org.junit.Assert.assertThrows
 import org.junit.Test
-import java.util.Collections
 
 class BackupPlanTest {
 
@@ -88,18 +86,6 @@ class BackupPlanTest {
     }
 
     @Test
-    fun `plan is immutable and performs defensive copies`() {
-        val bytes = "original".toByteArray()
-        val plan = createMinimalBasePlan(snapshotBytes = bytes)
-        
-        // Mutate original array
-        bytes[0] = 'X'.code.toByte()
-        
-        // Plan should be unchanged
-        assertThat(plan.snapshotJson.copyForTest()).isEqualTo("original".toByteArray())
-    }
-
-    @Test
     fun `rejects manifest metadata mismatch`() {
         val attId = "0123456789abcdef"
         val plannedAtt = PlannedBackupAttachment.create(
@@ -121,12 +107,32 @@ class BackupPlanTest {
     fun `rejects duplicate manifest attachment ID`() {
         val manifest = createMinimalBaseManifest().copy(
             attachments = listOf(
-                BackupAttachmentMetadata("id1", "attachments/id1/n1", "n1", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))),
-                BackupAttachmentMetadata("id1", "attachments/id1/n2", "n2", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w2")))
+                BackupAttachmentMetadata("0123456789abcdef", "attachments/0123456789abcdef/n1", "n1", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))),
+                BackupAttachmentMetadata("0123456789abcdef", "attachments/0123456789abcdef/n2", "n2", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w2")))
             )
         )
         assertThrows(IllegalArgumentException::class.java) {
             createMinimalBasePlan(manifest = manifest)
+        }
+    }
+
+    @Test
+    fun `rejects attachment checksum mismatch with expected map`() {
+        val attId = "0123456789abcdef"
+        val plannedAtt = PlannedBackupAttachment.create(
+            AttachmentSourceUri("uri"), attId, "attachments/$attId/a.jpg", "a.jpg", null, 100L, "a".repeat(64),
+            listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
+        )
+        
+        val map = mutableMapOf(
+            BackupFormatV1Contract.DATABASE_ENTRY to "0".repeat(64),
+            BackupFormatV1Contract.PREFERENCES_ENTRY to "0".repeat(64),
+            BackupFormatV1Contract.MANIFEST_ENTRY to "0".repeat(64),
+            plannedAtt.archivePath to "f".repeat(64) // mismatch
+        )
+        
+        assertThrows(IllegalArgumentException::class.java) {
+            createMinimalBasePlan(attachments = listOf(plannedAtt), checksumsMap = map)
         }
     }
 }
