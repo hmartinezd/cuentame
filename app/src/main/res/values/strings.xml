@@ -491,7 +491,7 @@
     <string name="restore_error_checksum">Data integrity check failed.</string>
     <string name="restore_error_incompatible">Incompatible backup format or schema.</string>
     <string name="restore_error_limit">Backup exceeds safety limits.</string>
-    <string name="restore_error_integrity">Logical consistency check failed (%1$s).</string>
+    <string name="restore_error_integrity_generic">Logical consistency check failed.</string>
     <string name="restore_action_choose_another">Choose another file</string>
 
     <!-- Waste Reasons -->

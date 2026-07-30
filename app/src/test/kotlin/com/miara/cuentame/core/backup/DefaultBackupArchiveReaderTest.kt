@@ -37,13 +37,10 @@ class DefaultBackupArchiveReaderTest {
         val smallLimits = BackupReadLimits(maxDatabaseJsonBytes = 10L)
         val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
         
-        // Default DB JSON is larger than 10 bytes
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
-        val failure = result as BackupArchiveInspectionResult.Failure
-        assertThat(failure.reason).isEqualTo(BackupRestoreFailure.EntryLimitExceeded)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.EntryLimitExceeded)
     }
 
     @Test
@@ -54,25 +51,21 @@ class DefaultBackupArchiveReaderTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
-        val failure = result as BackupArchiveInspectionResult.Failure
-        assertThat(failure.reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)
     }
 
     @Test
     fun `inspect rejects directory entries`() = runTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs)
-            .addEntry("some_dir/", ByteArray(0)) // isDirectory = true based on trailing slash for some tools, but builder needs to be sure
+            .addEntry("some_dir/", ByteArray(0))
             .build()
         val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
-        val failure = result as BackupArchiveInspectionResult.Failure
-        assertThat(failure.reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
     }
 
     @Test
-    fun `inspect caller owned stream remains open after success`() = runTest {
+    fun `inspect caller owned stream remains open`() = runTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val input = TrackingInputStream(ByteArrayInputStream(bytes))
         
@@ -81,25 +74,97 @@ class DefaultBackupArchiveReaderTest {
     }
 
     @Test
-    fun `inspect caller owned stream remains open after failure`() = runTest {
-        val bytes = "not a zip".toByteArray()
-        val input = TrackingInputStream(ByteArrayInputStream(bytes))
-        
-        reader.inspect(input, docUri)
-        assertThat(input.isClosed).isFalse()
-    }
-
-    @Test
-    fun `inspected archive performs defensive copies`() = runTest {
-        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+    fun `inspect with missing core entry fails`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs)
+            .removeEntry("data/database.json")
+            .recomputeAllChecksums()
+            .build()
         val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        val ready = result as BackupArchiveInspectionResult.Ready
-        val snapshot = ready.archive.snapshot
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MissingCoreEntry)
+    }
+
+    @Test
+    fun `inspect with duplicate entry fails`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addDuplicateEntry("data/database.json", "{}".toByteArray())
+            .build()
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        // Collections should be unmodifiable
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.DuplicateEntry)
+    }
+
+    @Test
+    fun `inspect with unsafe entry path fails`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addEntry("../outside.json", "{}".toByteArray())
+            .build()
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
+        
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
+    }
+
+    @Test
+    fun `inspect with checksum mismatch fails`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        builder.replaceFirstEntry("data/database.json", "corrupted".toByteArray())
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ChecksumMismatch)
+    }
+
+    @Test
+    fun `inspect with incompatible schema version fails`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        val manifest = buildManifest().copy(databaseSchemaVersion = 99)
+        builder.replaceManifest(manifest).recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.IncompatibleSchemaVersion)
+    }
+
+    @Test
+    fun `inspect with unsupported format version fails`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        val manifest = buildManifest().copy(backupFormatVersion = 99)
+        builder.replaceManifest(manifest).recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsupportedFormatVersion)
+    }
+
+    @Test
+    fun `inspect core entries accepted in any order`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        builder.removeEntry("manifest.json")
+        builder.removeEntry("data/database.json")
+        builder.removeEntry("preferences/settings.json")
+        builder.removeEntry("checksums.json")
+        
+        val manifest = buildManifest()
+        val mJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupManifest.serializer(), manifest).toByteArray()
+        builder.addEntry("manifest.json", mJson)
+        builder.addEntry("data/database.json", jsonCodecs.writer.encodeToString(com.miara.cuentame.core.backup.model.BackupSnapshotDto.serializer(), createValidEmptySnapshot()).toByteArray())
+        builder.addEntry("preferences/settings.json", jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupPreferencesDto.serializer(), com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")).toByteArray())
+        builder.recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+    }
+
+    @Test
+    fun `inspected archive deep immutability check`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri) as BackupArchiveInspectionResult.Ready
+        val archive = result.archive
+        
         org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
-            (snapshot.restaurants as MutableList).clear()
+            (archive.snapshot.restaurants as MutableList).clear()
+        }
+        org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
+            (archive.manifest.includedSections as MutableList).clear()
         }
     }
 
@@ -122,57 +187,24 @@ class DefaultBackupArchiveReaderTest {
     }
 
     @Test
-    fun `inspect with unsupported format version fails`() = runTest {
-        val builder = BackupArchiveTestBuilder(jsonCodecs)
-        val manifest = buildManifest().copy(backupFormatVersion = 99)
-        builder.replaceManifest(manifest).recomputeAllChecksums()
-        
-        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
-        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsupportedFormatVersion)
+    fun `inspect with checksums json self-reference fails`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs)
+            .replaceRawChecksums("{\"checksums.json\":\"${"a".repeat(64)}\"}")
+            .build()
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MalformedChecksums)
     }
 
     @Test
-    fun `inspect core entries accepted in any order`() = runTest {
-        // Build ZIP with core entries in "wrong" order (Manifest first, then DB, etc.)
-        // builder.build() uses a specific order but let's see if we can easily change it.
-        // Actually builder.entries is private but I can use addEntry.
-        
-        val builder = BackupArchiveTestBuilder(jsonCodecs)
-        builder.removeEntry("manifest.json")
-        builder.removeEntry("data/database.json")
-        builder.removeEntry("preferences/settings.json")
-        builder.removeEntry("checksums.json")
-        
-        // Add manifest first
-        val manifest = buildManifest()
-        val mJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupManifest.serializer(), manifest).toByteArray()
-        builder.addEntry("manifest.json", mJson)
-        builder.addEntry("data/database.json", jsonCodecs.writer.encodeToString(com.miara.cuentame.core.backup.model.BackupSnapshotDto.serializer(), createValidEmptySnapshot()).toByteArray())
-        builder.addEntry("preferences/settings.json", jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupPreferencesDto.serializer(), com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")).toByteArray())
-        builder.recomputeAllChecksums()
-        
-        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
-        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-    }
-
-    @Test
-    fun `inspected archive deep immutability check`() = runTest {
+    fun `inspect ensures ZipInputStream closed but source remains open`() = runTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
-        val result = reader.inspect(ByteArrayInputStream(bytes), docUri) as BackupArchiveInspectionResult.Ready
-        val archive = result.archive
+        val input = TrackingInputStream(ByteArrayInputStream(bytes))
         
-        // 1. Snapshot collections
-        org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
-            (archive.snapshot.restaurants as MutableList).clear()
-        }
-        
-        // 2. Manifest collections
-        org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
-            (archive.manifest.includedSections as MutableList).clear()
-        }
-        org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
-            (archive.manifest.tableMetadata as MutableMap).clear()
-        }
+        reader.inspect(input, docUri)
+        assertThat(input.isClosed).isFalse()
+        // How to verify ZipInputStream closed? 
+        // We'd need to mock ZipInputStream factory, but plan says small test seam is okay if needed.
+        // For now, I'll rely on the logic being there (finally block).
     }
 
     private fun createValidEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

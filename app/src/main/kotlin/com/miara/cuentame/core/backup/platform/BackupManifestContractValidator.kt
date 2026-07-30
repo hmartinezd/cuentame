@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
+import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
@@ -25,10 +26,16 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.IncompatibleSchemaVersion
         }
         if (manifest.checksumAlgorithm != BackupFormatV1Contract.CHECKSUM_ALGORITHM) {
-            return BackupRestoreFailure.MalformedManifest // Or UnsupportedChecksum
+            return BackupRestoreFailure.MalformedManifest
         }
 
-        // 2. Section check
+        // 2. Identity validation
+        if (manifest.restaurantId.isNullOrBlank()) return BackupRestoreFailure.MalformedManifest
+        if (manifest.restaurantName.isNullOrBlank()) return BackupRestoreFailure.MalformedManifest
+        if (manifest.localeTag.isNullOrBlank()) return BackupRestoreFailure.MalformedManifest
+        if (manifest.currencyCode.isNullOrBlank()) return BackupRestoreFailure.MalformedManifest
+
+        // 3. Section check
         if (!manifest.includedSections.containsAll(BackupFormatV1Contract.REQUIRED_SECTIONS)) {
             return BackupRestoreFailure.MalformedManifest
         }
@@ -36,7 +43,7 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.MalformedManifest
         }
 
-        // 3. Table metadata existence and validity
+        // 4. Table metadata existence and validity
         if (!manifest.tableMetadata.keys.containsAll(BackupFormatV1Contract.EXPECTED_TABLES)) {
             return BackupRestoreFailure.MalformedManifest
         }
@@ -48,7 +55,7 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.MalformedManifest
         }
 
-        // 4. Attachment cross-validation
+        // 5. Attachment cross-validation (Manifest side)
         val seenAttachmentIds = mutableSetOf<String>()
         val seenArchivePaths = mutableSetOf<String>()
 
@@ -105,6 +112,15 @@ object BackupManifestContractValidator {
             }
         }
 
+        // 6. Bijection: ZIP attachments vs Manifest attachments
+        val zipPayloadPaths = calculatedChecksums.keys - BackupFormatV1Contract.CORE_ENTRIES
+        if (zipPayloadPaths.any { !it.startsWith("attachments/") }) {
+            return BackupRestoreFailure.UnexpectedEntry
+        }
+        if (zipPayloadPaths != seenArchivePaths) {
+            return BackupRestoreFailure.ManifestMismatch
+        }
+
         return null
     }
 
@@ -142,7 +158,46 @@ object BackupManifestContractValidator {
             }
         }
 
-        // 2. Attachment reference existence check
+        // 2. Bi-directional attachment relationship validation
+        
+        // a. References from Snapshot -> Manifest
+        val snapshotRefs = mutableSetOf<String>() // format: "attId:type:recordId"
+        
+        for (receipt in snapshot.purchaseReceipts) {
+            receipt.attachmentId?.let { attId ->
+                snapshotRefs.add("$attId:PURCHASE_RECEIPT:${receipt.id}")
+            }
+        }
+        for (waste in snapshot.wasteEvents) {
+            waste.attachmentId?.let { attId ->
+                snapshotRefs.add("$attId:WASTE_EVENT:${waste.id}")
+            }
+        }
+
+        // b. References from Manifest -> Snapshot
+        val manifestRefs = mutableSetOf<String>()
+        val manifestAttachmentIds = manifest.attachments.map { it.attachmentId }.toSet()
+
+        for (att in manifest.attachments) {
+            for (ref in att.referencedBy) {
+                manifestRefs.add("${att.attachmentId}:${ref.recordType}:${ref.recordId}")
+            }
+        }
+
+        if (snapshotRefs != manifestRefs) {
+            return BackupRestoreFailure.ManifestMismatch
+        }
+
+        // Verify all manifest attachment IDs exist in ZIP (implicitly handled by bijection in structure check, 
+        // but here we check against snapshot IDs)
+        for (ref in snapshotRefs) {
+            val attId = ref.split(":")[0]
+            if (attId !in manifestAttachmentIds) {
+                return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
+            }
+        }
+
+        // c. Referenced record existence (redundant but safe to keep explicit)
         val purchaseIds = snapshot.purchaseReceipts.map { it.id }.toSet()
         val wasteIds = snapshot.wasteEvents.map { it.id }.toSet()
 
@@ -150,10 +205,10 @@ object BackupManifestContractValidator {
             for (ref in att.referencedBy) {
                 when (ref.recordType) {
                     "PURCHASE_RECEIPT" -> if (ref.recordId !in purchaseIds) {
-                        return BackupRestoreFailure.SnapshotIntegrityFailure(com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
+                        return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
                     }
                     "WASTE_EVENT" -> if (ref.recordId !in wasteIds) {
-                        return BackupRestoreFailure.SnapshotIntegrityFailure(com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
+                        return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
                     }
                 }
             }

@@ -491,7 +491,7 @@
     <string name="restore_error_checksum">Error en la comprobación de integridad de datos.</string>
     <string name="restore_error_incompatible">Formato o esquema de copia de seguridad incompatible.</string>
     <string name="restore_error_limit">La copia de seguridad excede los límites de seguridad.</string>
-    <string name="restore_error_integrity">Error en la comprobación de consistencia lógica (%1$s).</string>
+    <string name="restore_error_integrity_generic">Error en la comprobación de consistencia lógica.</string>
     <string name="restore_action_choose_another">Elegir otro archivo</string>
 
     <!-- Waste Reasons -->

@@ -110,10 +110,8 @@ class BackupRoundTripTest {
 
         val snapshotDto = BackupTestFixtures.createEmptySnapshotDto().copy(
             restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("rest-1", "Test Restaurant", "USD", "en-US", 0L, 0L, null)),
-            // Shared between purchase and waste
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, attId, 1000, 1000, 1000, null)),
             wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto("w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 1000, null, attId, "POSTED", 1000, 1000, 1000, null)),
-            // Prereqs
             ingredients = listOf(com.miara.cuentame.core.backup.model.IngredientBackupDto("i1", "rest-1", "I", "i", null, "u1", "a1", null, null, null, true, 0, 0, null)),
             inventoryAreas = listOf(com.miara.cuentame.core.backup.model.InventoryAreaBackupDto("a1", "rest-1", "A", "a", 0, true, 0, 0, null)),
             units = listOf(com.miara.cuentame.core.backup.model.UnitBackupDto("u1", "U", "u", "MASS", "1.0", true, 0)),
@@ -140,6 +138,10 @@ class BackupRoundTripTest {
         val writeResult = writer.write(output, plan)
         assertThat(writeResult).isEqualTo(BackupArchiveWriteResult.Success)
         
+        val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
+        if (validation is BackupValidationResult.Invalid) throw Exception("Validation failed: ${validation.code} ${validation.diagnostic}")
+        assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
+
         val inspection = reader.inspect(ByteArrayInputStream(output.toByteArray()), BackupDocumentUri("uri"))
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         val ready = inspection as BackupArchiveInspectionResult.Ready
@@ -155,7 +157,9 @@ class BackupRoundTripTest {
         
         assertThat(ready.preview.attachmentCount).isEqualTo(1)
         assertThat(ready.preview.totalAttachmentBytes).isEqualTo(attData.size.toLong())
-        assertThat(ready.preview.totalRecordCount).isAtLeast(1)
+        // Records: rest(1) + area(1) + ing(1) + unit(1) + opt(1) + pRec(1) + pLine(1) + waste(1) + move(2) = 10
+        // projections (2) are excluded.
+        assertThat(ready.preview.totalRecordCount).isEqualTo(10L)
     }
 
     @Test
