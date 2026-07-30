@@ -472,6 +472,28 @@
     <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
     <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
 
+    <string name="restore_backup_title">Restaurar copia de seguridad</string>
+    <string name="restore_backup_desc">Inspeccionar y restaurar datos desde un archivo de copia de seguridad de Cuéntame.</string>
+    <string name="restore_inspecting">Inspeccionando copia de seguridad…</string>
+    <string name="restore_preview_title">Vista Previa de la Copia</string>
+    <string name="restore_preview_restaurant">Restaurante: %1$s</string>
+    <string name="restore_preview_created_at">Creada el: %1$s</string>
+    <string name="restore_preview_format">Versión de formato: %1$d</string>
+    <string name="restore_preview_schema">Versión de esquema: %1$d</string>
+    <string name="restore_preview_locale">Idioma: %1$s</string>
+    <string name="restore_preview_records">Registros: %1$d tablas encontradas</string>
+    <string name="restore_preview_attachments">Adjuntos: %1$d archivos (%2$s)</string>
+    <string name="restore_preview_read_only_note">Esta es solo una vista previa. La aplicación de datos aún no está implementada.</string>
+    <string name="restore_error_title">Error de Restauración</string>
+    <string name="restore_error_message">No se pudo inspeccionar la copia de seguridad: %1$s</string>
+    <string name="restore_error_invalid_zip">Archivo ZIP no válido.</string>
+    <string name="restore_error_missing_core">Faltan datos requeridos de la copia de seguridad.</string>
+    <string name="restore_error_checksum">Error en la comprobación de integridad de datos.</string>
+    <string name="restore_error_incompatible">Formato o esquema de copia de seguridad incompatible.</string>
+    <string name="restore_error_limit">La copia de seguridad excede los límites de seguridad.</string>
+    <string name="restore_error_integrity">Error en la comprobación de consistencia lógica (%1$s).</string>
+    <string name="restore_action_choose_another">Elegir otro archivo</string>
+
     <!-- Waste Reasons -->
     <string name="reason_expired">Expirado</string>
     <string name="reason_spoiled">Dañado / Descompuesto</string>

@@ -472,6 +472,28 @@
     <string name="backup_error_unsupported">Unsupported persistent data.</string>
     <string name="backup_error_unknown">An unknown error occurred: %1$s</string>
 
+    <string name="restore_backup_title">Restore backup</string>
+    <string name="restore_backup_desc">Inspect and restore data from a Cuentame backup file.</string>
+    <string name="restore_inspecting">Inspecting backup…</string>
+    <string name="restore_preview_title">Backup Preview</string>
+    <string name="restore_preview_restaurant">Restaurant: %1$s</string>
+    <string name="restore_preview_created_at">Created at: %1$s</string>
+    <string name="restore_preview_format">Format version: %1$d</string>
+    <string name="restore_preview_schema">Schema version: %1$d</string>
+    <string name="restore_preview_locale">Language: %1$s</string>
+    <string name="restore_preview_records">Records: %1$d tables found</string>
+    <string name="restore_preview_attachments">Attachments: %1$d files (%2$s)</string>
+    <string name="restore_preview_read_only_note">This is a preview only. Data application is not yet implemented.</string>
+    <string name="restore_error_title">Restore Error</string>
+    <string name="restore_error_message">Could not inspect backup: %1$s</string>
+    <string name="restore_error_invalid_zip">Invalid ZIP archive.</string>
+    <string name="restore_error_missing_core">Missing required backup data.</string>
+    <string name="restore_error_checksum">Data integrity check failed.</string>
+    <string name="restore_error_incompatible">Incompatible backup format or schema.</string>
+    <string name="restore_error_limit">Backup exceeds safety limits.</string>
+    <string name="restore_error_integrity">Logical consistency check failed (%1$s).</string>
+    <string name="restore_action_choose_another">Choose another file</string>
+
     <!-- Waste Reasons -->
     <string name="reason_expired">Expired</string>
     <string name="reason_spoiled">Spoiled</string>

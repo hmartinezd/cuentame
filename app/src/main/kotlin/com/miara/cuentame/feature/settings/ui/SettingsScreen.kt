@@ -55,7 +55,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.feature.settings.presentation.toUserMessageRes
+import androidx.compose.material.icons.filled.Restore
 import com.miara.cuentame.core.model.locale.SupportedAppLocale
+import com.miara.cuentame.feature.settings.viewmodel.BackupRestoreUiState
+import com.miara.cuentame.feature.settings.viewmodel.BackupRestoreViewModel
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
@@ -70,13 +76,15 @@ fun SettingsRoute(
     onNavigateToRestaurant: () -> Unit,
     onNavigateToSuppliers: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
-    backupViewModel: BackupViewModel = hiltViewModel()
+    backupViewModel: BackupViewModel = hiltViewModel(),
+    restoreViewModel: BackupRestoreViewModel = hiltViewModel()
 ) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     
     val backupUiState by backupViewModel.uiState.collectAsStateWithLifecycle()
+    val restoreUiState by restoreViewModel.uiState.collectAsStateWithLifecycle()
     
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -98,6 +106,23 @@ fun SettingsRoute(
             }
         }
     )
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            if (uri != null) {
+                restoreViewModel.onFileSelected(uri.toString())
+            } else {
+                restoreViewModel.onDismissRequest()
+            }
+        }
+    )
+
+    LaunchedEffect(restoreUiState) {
+        if (restoreUiState == BackupRestoreUiState.SelectingFile) {
+            restoreLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
+        }
+    }
 
     LaunchedEffect(backupViewModel.events) {
         backupViewModel.events.collect { event ->
@@ -144,11 +169,14 @@ fun SettingsRoute(
         appLocaleTag = preferences.appLocaleTag,
         isSaving = isSaving,
         backupUiState = backupUiState,
+        restoreUiState = restoreUiState,
         snackbarHostState = snackbarHostState,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
         onLocaleChanged = { viewModel.setAppLocaleTag(it.languageTag) },
         onCreateBackup = backupViewModel::onCreateBackupRequested,
+        onRestoreBackup = restoreViewModel::onSelectFileClicked,
+        onDismissRestore = restoreViewModel::onDismissRequest,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
@@ -163,11 +191,14 @@ fun SettingsScreen(
     appLocaleTag: String,
     isSaving: Boolean,
     backupUiState: BackupUiState,
+    restoreUiState: BackupRestoreUiState,
     snackbarHostState: SnackbarHostState,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
     onLocaleChanged: (SupportedAppLocale) -> Unit,
     onCreateBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
+    onDismissRestore: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -258,6 +289,30 @@ fun SettingsScreen(
                     .clickable(enabled = !isBackupActive) { onCreateBackup() }
             )
 
+            val isRestoreActive = restoreUiState is BackupRestoreUiState.Inspecting
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.restore_backup_title)) },
+                supportingContent = {
+                    Text(
+                        text = if (isRestoreActive) stringResource(R.string.restore_inspecting) else stringResource(R.string.restore_backup_desc),
+                        modifier = Modifier
+                            .testTag(if (isRestoreActive) "restore_backup_inspecting" else "restore_backup_idle")
+                            .semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                },
+                leadingContent = { Icon(Icons.Default.Restore, contentDescription = null) },
+                trailingContent = {
+                    if (isRestoreActive) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).testTag("restore_backup_progress")
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .testTag("settings_restore_backup_button")
+                    .clickable(enabled = !isRestoreActive && !isBackupActive) { onRestoreBackup() }
+            )
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SettingsHeader(stringResource(R.string.settings_appearance))
             
@@ -337,6 +392,110 @@ fun SettingsScreen(
     LaunchedEffect(appLocaleTag) {
         showLanguageDialog = false
     }
+
+    if (restoreUiState is BackupRestoreUiState.PreviewReady) {
+        RestorePreviewDialog(
+            preview = restoreUiState.preview,
+            onDismiss = onDismissRestore,
+            onChooseAnother = onRestoreBackup
+        )
+    }
+
+    if (restoreUiState is BackupRestoreUiState.Error) {
+        RestoreErrorDialog(
+            failure = restoreUiState.reason,
+            onDismiss = onDismissRestore,
+            onRetry = onRestoreBackup
+        )
+    }
+}
+
+@Composable
+fun RestorePreviewDialog(
+    preview: com.miara.cuentame.core.model.backup.BackupRestorePreview,
+    onDismiss: () -> Unit,
+    onChooseAnother: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_preview_title)) },
+        text = {
+            Column(modifier = Modifier.testTag("restore_backup_preview")) {
+                Text(
+                    text = stringResource(R.string.restore_preview_restaurant, preview.restaurantName),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                preview.createdAt?.let {
+                    val date = java.time.Instant.ofEpochMilli(it)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM))
+                    Text(text = stringResource(R.string.restore_preview_created_at, date))
+                }
+                Text(text = stringResource(R.string.restore_preview_locale, preview.localeTag))
+                Text(text = stringResource(R.string.restore_preview_records, preview.tableCounts.size))
+                
+                val sizeStr = Formatters.formatFileSize(preview.totalAttachmentBytes)
+                Text(text = stringResource(R.string.restore_preview_attachments, preview.attachmentCount, sizeStr))
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Text(
+                    text = stringResource(R.string.restore_preview_read_only_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("restore_backup_close")) {
+                Text(stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onChooseAnother, modifier = Modifier.testTag("restore_backup_choose_another")) {
+                Text(stringResource(R.string.restore_action_choose_another))
+            }
+        }
+    )
+}
+
+@Composable
+fun RestoreErrorDialog(
+    failure: com.miara.cuentame.core.model.backup.BackupRestoreFailure,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val message = when (failure) {
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.InvalidZip -> stringResource(R.string.restore_error_invalid_zip)
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.MissingCoreEntry -> stringResource(R.string.restore_error_missing_core)
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.ChecksumMismatch -> stringResource(R.string.restore_error_checksum)
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.UnsupportedFormatVersion,
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.IncompatibleSchemaVersion -> stringResource(R.string.restore_error_incompatible)
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.EntryLimitExceeded,
+        com.miara.cuentame.core.model.backup.BackupRestoreFailure.TotalLimitExceeded -> stringResource(R.string.restore_error_limit)
+        is com.miara.cuentame.core.model.backup.BackupRestoreFailure.SnapshotIntegrityFailure -> stringResource(R.string.restore_error_integrity, failure.code.name)
+        else -> stringResource(R.string.error_generic)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_error_title)) },
+        text = {
+            Text(
+                text = stringResource(R.string.restore_error_message, message),
+                modifier = Modifier.testTag("restore_backup_error")
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onRetry) {
+                Text(stringResource(R.string.action_retry_desc))
+            }
+        }
+    )
 }
 
 @Composable

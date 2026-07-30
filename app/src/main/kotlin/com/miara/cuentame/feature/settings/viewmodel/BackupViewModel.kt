@@ -324,8 +324,6 @@ class BackupViewModel @Inject constructor(
         _uiState.value = BackupUiState.Idle
     }
 
-    fun resetState() = resetStatus()
-
     private fun isTerminalState(state: BackupUiState): Boolean =
         state == BackupUiState.Idle ||
         state is BackupUiState.Success ||

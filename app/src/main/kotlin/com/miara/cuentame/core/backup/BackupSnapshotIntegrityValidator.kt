@@ -2,9 +2,6 @@ package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.*
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
-import com.miara.cuentame.core.backup.model.IngredientCostProjectionBackupDto
-import com.miara.cuentame.core.backup.model.InventoryBalanceProjectionBackupDto
-import com.miara.cuentame.core.backup.model.InventoryMovementBackupDto
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
@@ -39,7 +36,7 @@ object BackupSnapshotIntegrityValidator {
         validateNumericFields(dto)?.let { return Result.failure(it) }
         validateDocumentTimestamps(dto)?.let { return Result.failure(it) }
         validateMovementGraph(dto, ctx)?.let { return Result.failure(it) }
-        validateDocumentLifecycle(dto, ctx)?.let { return Result.failure(it) }
+        validateDocumentLifecycle(dto)?.let { return Result.failure(it) }
         validateBalanceProjections(dto)?.let { return Result.failure(it) }
         validateCostProjections(dto, ctx)?.let { return Result.failure(it) }
 
@@ -684,7 +681,7 @@ object BackupSnapshotIntegrityValidator {
         return null
     }
 
-    private fun validateDocumentLifecycle(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+    private fun validateDocumentLifecycle(dto: BackupSnapshotDto): BackupSnapshotIntegrityException? {
         // Purchases
         for (receipt in dto.purchaseReceipts) {
             val status = DocumentStatus.valueOf(receipt.status) // already enum-checked

@@ -1,20 +1,27 @@
 # Stabilization Progress
 
-## Milestone: Backup Creation Hardening
+## Milestone: Backup Restore Milestone 1: Read-Only Inspection
 
 | Requirement | Status |
 | :--- | :--- |
 | **Single Module (:app)** | **PASS** |
-| **Backup production hardening** | **COMPLETE** |
+| **Backup creation stabilization** | **COMPLETE** |
+| **Dead-code cleanup** | **COMPLETE** |
+| **Backup restore archive reading** | **COMPLETE** |
+| **Backup restore validation** | **COMPLETE** |
+| **Backup restore preview** | **COMPLETE** |
 | **JVM Verification (Full Suite)** | **PASS** |
 | **Android instrumentation** | **NOT EXECUTED** |
 | **CI build verification** | **NOT EXECUTED** |
 | **CI instrumentation verification** | **NOT EXECUTED** |
-| **Backup restore** | **NOT STARTED** |
+| **Backup restore database application** | **NOT STARTED** |
+| **Backup restore attachment application** | **NOT STARTED** |
+| **Backup restore rollback** | **NOT STARTED** |
 | **Customer export** | **NOT STARTED** |
 
-## Stabilization Closure
-- Test Removal: NONE (Application tests preserved)
+## Milestone 1 Closure
+- Test Removal: NONE
 - Disabled Tests: 0
-- Backup Creation Pipeline: Hardened and Verified
-- Resource Management: Validated (Pfd and Stream cleanup)
+- New Restore Tests: 19
+- Logical Integrity: Reused for Read-path
+- ZIP Security: Streaming reader enforced

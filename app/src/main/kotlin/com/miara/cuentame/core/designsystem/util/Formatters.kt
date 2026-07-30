@@ -61,4 +61,11 @@ object Formatters {
         // NumberFormat.getPercentInstance expects 0.5 for 50%.
         return formatter.format(value.divide(BigDecimal("100"), 4, RoundingMode.HALF_UP))
     }
+
+    fun formatFileSize(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val exp = (Math.log(bytes.toDouble()) / Math.log(1024.0)).toInt()
+        val unit = "KMGTPE"[exp - 1] + "iB"
+        return String.format("%.1f %s", bytes / Math.pow(1024.0, exp.toDouble()), unit)
+    }
 }

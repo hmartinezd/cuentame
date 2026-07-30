@@ -40,9 +40,21 @@ interface BackupModule {
     @Singleton
     fun bindArchiveValidator(impl: DefaultBackupArchiveValidator): BackupArchiveValidator
 
+    @Binds
+    @Singleton
+    fun bindArchiveReader(impl: DefaultBackupArchiveReader): BackupArchiveReader
+
+    @Binds
+    @Singleton
+    fun bindRestoreRepository(impl: AndroidBackupRestoreRepository): BackupRestoreRepository
+
     companion object {
         @Provides
         @Singleton
         fun provideWriteLimits(): BackupWriteLimits = BackupWriteLimits()
+
+        @Provides
+        @Singleton
+        fun provideReadLimits(): BackupReadLimits = BackupReadLimits()
     }
 }

@@ -34,6 +34,7 @@ class BackupRoundTripTest {
     private lateinit var planner: BackupCreationPlanner
     private lateinit var writer: DefaultBackupArchiveWriter
     private lateinit var validator: DefaultBackupArchiveValidator
+    private lateinit var reader: BackupArchiveReader
 
     @Before
     fun setup() {
@@ -47,6 +48,7 @@ class BackupRoundTripTest {
         )
         writer = DefaultBackupArchiveWriter(attachmentSource)
         validator = DefaultBackupArchiveValidator(jsonCodecs)
+        reader = com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader(jsonCodecs)
 
         every { timeProvider.now() } returns Instant.parse("2026-01-01T12:00:00Z")
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
@@ -86,6 +88,13 @@ class BackupRoundTripTest {
 
         val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
         assertThat(validation).isInstanceOf(BackupValidationResult.Valid::class.java)
+
+        val inspection = reader.inspect(ByteArrayInputStream(output.toByteArray()), BackupDocumentUri("uri"))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        
+        assertThat(ready.archive.snapshot).isEqualTo(snapshotDto)
+        assertThat(ready.preview.restaurantName).isEqualTo("Test Restaurant")
     }
 
     @Test
