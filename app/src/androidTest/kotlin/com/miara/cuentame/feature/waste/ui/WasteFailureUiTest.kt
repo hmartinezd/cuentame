@@ -102,6 +102,14 @@ class WasteFailureUiTest {
         }
     }
 
+    private fun openWasteDetailScreen(eventId: String) {
+        openWasteListScreen()
+        composeTestRule.onNodeWithTag("waste_item_$eventId").performClick()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     @Test
     fun wastePost_failureRollback_andRetrySuccess() {
         val now = Instant.parse("2026-01-01T12:05:00Z").toEpochMilli()
@@ -134,11 +142,7 @@ class WasteFailureUiTest {
         configBoundary.triggerOn(IntegrationFailurePoints.WASTE_POST_AFTER_MOVEMENT)
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            openWasteListScreen()
-            composeTestRule.onNodeWithTag("waste_item_$draftId").performClick()
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
-            }
+            openWasteDetailScreen(draftId)
 
             // Click post
             composeTestRule.onNodeWithTag("waste_post_button").performClick()
@@ -149,7 +153,7 @@ class WasteFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
-            // Verify error snackbar
+            // Verify error snackbar content
             composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
             
             // Verify database state: should still be DRAFT due to transaction rollback
@@ -163,13 +167,23 @@ class WasteFailureUiTest {
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
             
-            // Clear failure and retry
+            // Clear failure and retry (Assuming dialog dismissed on failure as per production UX often)
+            // If it remains, we retry click. Let's re-verify it exists.
             configBoundary.reset()
-            composeTestRule.onNodeWithTag("waste_post_button").performClick()
-            composeTestRule.onNode(
-                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
-                useUnmergedTree = true
-            ).performClick()
+            
+            // In Cuentame, snackbar error might dismiss dialog. If it didn't:
+            if (composeTestRule.onAllNodes(hasTestTag("waste_post_confirm_dialog")).fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNode(
+                    hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
+                    useUnmergedTree = true
+                ).performClick()
+            } else {
+                composeTestRule.onNodeWithTag("waste_post_button").performClick()
+                composeTestRule.onNode(
+                    hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
+                    useUnmergedTree = true
+                ).performClick()
+            }
 
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
@@ -178,6 +192,7 @@ class WasteFailureUiTest {
             runBlocking {
                 val event = database.wasteDao().getById(draftId)
                 assertThat(event?.status).isEqualTo(DocumentStatus.POSTED.name)
+                assertThat(database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, draftId)).hasSize(1)
             }
         }
     }
@@ -234,11 +249,7 @@ class WasteFailureUiTest {
         configBoundary.triggerOn(IntegrationFailurePoints.WASTE_VOID_AFTER_REVERSAL)
 
         ActivityScenario.launch(MainActivity::class.java).use {
-            openWasteListScreen()
-            composeTestRule.onNodeWithTag("waste_item_$eventId").performClick()
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
-            }
+            openWasteDetailScreen(eventId)
 
             composeTestRule.onNodeWithTag("waste_void_button").performClick()
             
@@ -263,7 +274,11 @@ class WasteFailureUiTest {
 
             // Clear and retry
             configBoundary.reset()
-            composeTestRule.onNodeWithTag("waste_void_button").performClick()
+            
+            if (composeTestRule.onAllNodes(hasTestTag("waste_void_confirm_dialog")).fetchSemanticsNodes().isEmpty()) {
+                composeTestRule.onNodeWithTag("waste_void_button").performClick()
+            }
+            
             composeTestRule.onNode(
                 hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_void_confirm_dialog")),
                 useUnmergedTree = true
@@ -275,6 +290,75 @@ class WasteFailureUiTest {
             
             runBlocking {
                 assertThat(database.wasteDao().getById(eventId)?.status).isEqualTo(DocumentStatus.VOIDED.name)
+                assertThat(database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, eventId)).hasSize(2)
+            }
+        }
+    }
+
+    @Test
+    fun wasteDelete_failureRollback_andRetrySuccess() {
+        val now = Instant.parse("2026-01-01T12:05:00Z").toEpochMilli()
+        val draftId = "waste_del_fail"
+
+        runBlocking {
+            database.wasteDao().insert(
+                WasteEventEntity(
+                    id = draftId,
+                    restaurantId = restaurantId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    ingredientUnitOptionId = optId,
+                    quantityEntered = "1.0",
+                    quantityBase = "1.0",
+                    reason = WasteReason.DROPPED_OR_DAMAGED.name,
+                    effectiveAt = now,
+                    notes = "Delete fail test",
+                    attachmentPath = null,
+                    status = DocumentStatus.DRAFT.name,
+                    createdAt = now,
+                    updatedAt = now,
+                    postedAt = null,
+                    voidedAt = null
+                )
+            )
+        }
+
+        val configBoundary = failureBoundary as ConfigurableFailureBoundary
+        configBoundary.triggerOn(IntegrationFailurePoints.WASTE_DELETE_AFTER_VALIDATION)
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openWasteDetailScreen(draftId)
+            
+            composeTestRule.onNodeWithTag("waste_delete_button").performClick()
+            composeTestRule.onNode(
+                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_delete_confirm_dialog")),
+                useUnmergedTree = true
+            ).performClick()
+
+            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
+            
+            runBlocking {
+                assertThat(database.wasteDao().getById(draftId)).isNotNull()
+            }
+            assertThat(configBoundary.triggerCount).isEqualTo(1)
+
+            configBoundary.reset()
+            
+            if (composeTestRule.onAllNodes(hasTestTag("waste_delete_confirm_dialog")).fetchSemanticsNodes().isEmpty()) {
+                composeTestRule.onNodeWithTag("waste_delete_button").performClick()
+            }
+
+            composeTestRule.onNode(
+                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_delete_confirm_dialog")),
+                useUnmergedTree = true
+            ).performClick()
+
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("waste_list_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            runBlocking {
+                assertThat(database.wasteDao().getById(draftId)).isNull()
             }
         }
     }

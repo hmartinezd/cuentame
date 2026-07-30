@@ -56,12 +56,12 @@ class InventoryDetailScreenTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("reports_inventory_card").performClick()
+            composeTestRule.onNodeWithTag("reports_view_inventory_details").performClick()
             
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_detail_report_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_report_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("inventory_detail_report_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_report_screen").assertIsDisplayed()
         }
     }
 }

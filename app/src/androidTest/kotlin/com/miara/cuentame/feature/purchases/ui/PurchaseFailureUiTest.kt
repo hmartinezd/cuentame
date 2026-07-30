@@ -3,7 +3,19 @@ package com.miara.cuentame.feature.purchases.ui
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
+import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.entity.IngredientEntity
+import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
+import com.miara.cuentame.core.database.entity.InventoryAreaEntity
+import com.miara.cuentame.core.database.entity.RestaurantEntity
+import com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary
+import com.miara.cuentame.core.database.seed.UnitSeeds
+import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -12,8 +24,11 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.math.BigDecimal
+import java.time.Instant
 import javax.inject.Inject
 
+@OptIn(ExperimentalTestApi::class)
 @HiltAndroidTest
 class PurchaseFailureUiTest {
 
@@ -24,13 +39,38 @@ class PurchaseFailureUiTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject
+    lateinit var database: RestaurantInventoryDatabase
+
+    @Inject
+    lateinit var preferencesRepository: AppPreferencesRepository
+
+    @Inject
+    lateinit var failureBoundary: com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
+
+    @Inject
     lateinit var testStateManager: TestStateManager
+
+    private val restaurantId = "rest_purchase_fail"
+    private val ingId = "ing_test"
+    private val areaId = "area_test"
+    private val optId = "opt_test"
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
             testStateManager.resetAll()
+            (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+            
+            val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
+            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en", now, now, null))
+            database.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
+            database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId, restaurantId, "Area", "area", 0, true, now, now, null))
+            database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", areaId, null, null, null, true, now, now, null))
+            database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "Pound", "lb", null, BigDecimal.ONE, true, true, true, true, now, now, null))
+
+            preferencesRepository.setOnboardingCompleted(true)
+            preferencesRepository.setAppLocaleTag("en-US")
         }
     }
 
@@ -42,18 +82,92 @@ class PurchaseFailureUiTest {
     }
 
     @Test
-    fun post_failure_preserves_dialog_and_shows_snackbar() {
+    fun purchasePost_rollback_onFailure() {
+        val receiptId = "pur_fail_1"
         runBlocking {
-            testStateManager.seedBaseline()
+            val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
+            database.purchaseDao().insertReceipt(
+                com.miara.cuentame.core.database.entity.PurchaseReceiptEntity(
+                    id = receiptId,
+                    restaurantId = restaurantId,
+                    supplierId = null,
+                    invoiceNumber = "INV-FAIL",
+                    purchaseDate = now,
+                    status = DocumentStatus.DRAFT.name,
+                    notes = null,
+                    attachmentPath = null,
+                    createdAt = now,
+                    updatedAt = now,
+                    postedAt = null,
+                    voidedAt = null
+                )
+            )
+            database.purchaseDao().insertLine(
+                com.miara.cuentame.core.database.entity.PurchaseLineEntity(
+                    id = "line_1",
+                    purchaseReceiptId = receiptId,
+                    ingredientId = ingId,
+                    areaId = areaId,
+                    ingredientUnitOptionId = optId,
+                    quantityEntered = "10.0",
+                    quantityBase = "10.0",
+                    lineTotal = "100.0",
+                    unitCostBase = "10.0",
+                    notes = null,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
         }
-        
+
+        val configBoundary = failureBoundary as ConfigurableFailureBoundary
+        configBoundary.triggerOn(IntegrationFailurePoints.PURCHASE_POST_AFTER_MOVEMENTS)
+
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            // Navigate to purchases
+            
+            // 1. Navigate to Purchases
             composeTestRule.onNodeWithTag("nav_purchases", useUnmergedTree = true).performClick()
-            composeTestRule.onNodeWithTag("purchase_list_screen").assertIsDisplayed()
+            
+            // 2. Open the draft
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("purchase_item_$receiptId")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
+            
+            // 3. Trigger Post
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("purchase_post_button")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("purchase_post_button").performClick()
+            
+            // 4. Confirm dialog
+            composeTestRule.waitUntil(5000) {
+                composeTestRule.onAllNodes(hasTestTag("purchase_post_confirm_dialog")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNode(
+                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("purchase_post_confirm_dialog")),
+                useUnmergedTree = true
+            ).performClick()
+
+            // 5. Verify error snackbar
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("purchase_error_snackbar")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("purchase_error_snackbar").assertIsDisplayed()
+            
+            // 6. Verify database state: should still be DRAFT due to transaction rollback
+            runBlocking {
+                val receipt = database.purchaseDao().getReceiptById(receiptId)
+                assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
+                
+                val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
+                assertThat(movements).isEmpty()
+            }
+            
+            assertThat(configBoundary.triggerCount).isEqualTo(1)
         }
     }
 }

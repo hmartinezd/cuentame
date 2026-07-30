@@ -56,12 +56,12 @@ class WasteDetailScreenTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("reports_waste_card").performClick()
+            composeTestRule.onNodeWithTag("reports_view_waste_details").performClick()
             
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_detail_report_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("waste_report_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("waste_detail_report_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("waste_report_screen").assertIsDisplayed()
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
@@ -28,7 +29,8 @@ class PurchasePostingCoordinator @Inject constructor(
     private val lineCalculator: PurchaseLineCalculator,
     private val historyValidator: PurchaseMovementHistoryValidator,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val failureBoundary: IntegrationFailureBoundary
 ) {
     suspend fun post(
         receiptId: PurchaseReceiptId,
@@ -93,11 +95,15 @@ class PurchasePostingCoordinator @Inject constructor(
         }
 
         movementDao.insertAll(movements)
+        
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_POST_AFTER_MOVEMENTS)
 
         val affectedIngredients = lines.map { it.ingredientId }.distinct()
         affectedIngredients.forEach { ingredientId ->
             projectionRebuilder.rebuildForIngredient(IngredientId(ingredientId))
         }
+        
+        failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_POST_AFTER_PROJECTIONS)
 
         val now = timeProvider.now().toEpochMilli()
         purchaseDao.updateReceipt(receipt.copy(

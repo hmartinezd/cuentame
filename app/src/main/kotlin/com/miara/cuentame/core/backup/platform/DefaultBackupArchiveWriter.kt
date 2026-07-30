@@ -4,16 +4,7 @@ import com.miara.cuentame.core.backup.ArchiveEntryValidator
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.BackupLimits
 import com.miara.cuentame.core.backup.ChecksumParser
-import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
-import com.miara.cuentame.core.backup.api.BackupArchiveWriteResult
-import com.miara.cuentame.core.backup.api.BackupArchiveWriter
-import com.miara.cuentame.core.backup.api.BackupAttachmentSource
-import com.miara.cuentame.core.backup.api.BackupByteMath
-import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
-import com.miara.cuentame.core.backup.api.BackupPlan
-import com.miara.cuentame.core.backup.api.BackupSizeOverflowException
-import com.miara.cuentame.core.backup.api.ImmutableBackupBytes
-import com.miara.cuentame.core.backup.api.NonClosingOutputStream
+import com.miara.cuentame.core.backup.api.*
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.io.OutputStream
@@ -31,6 +22,11 @@ class DefaultBackupArchiveWriter @Inject constructor(
 ) : BackupArchiveWriter {
 
     private val DETERMINISTIC_ZIP_TIMESTAMP = 0L
+
+    // For testing only
+    internal var overrideMaxTotalBytes: Long? = null
+
+    private fun getMaxTotalBytes(): Long = overrideMaxTotalBytes ?: BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES.toLong()
 
     override suspend fun write(
         outputStream: OutputStream,
@@ -52,12 +48,12 @@ class DefaultBackupArchiveWriter @Inject constructor(
             // 1. data/database.json
             writeZipEntry(zos, BackupFormatV1Contract.DATABASE_ENTRY, plan.snapshotJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.snapshotJson.size.toLong())
-            if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
 
             // 2. preferences/settings.json
             writeZipEntry(zos, BackupFormatV1Contract.PREFERENCES_ENTRY, plan.preferencesJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.preferencesJson.size.toLong())
-            if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
 
             // 3. attachments
             for (att in plan.attachments) {
@@ -89,7 +85,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
                             actualSize = BackupByteMath.addExact(actualSize, n.toLong())
                             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, n.toLong())
                             
-                            if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+                            if (currentTotalUncompressedBytes > getMaxTotalBytes()) {
                                 throw LimitExceededException()
                             }
                             if (actualSize > att.sizeBytes) {
@@ -108,7 +104,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
             // 4. manifest.json
             writeZipEntry(zos, BackupFormatV1Contract.MANIFEST_ENTRY, plan.manifestJson, plan)
             currentTotalUncompressedBytes = BackupByteMath.addExact(currentTotalUncompressedBytes, plan.manifestJson.size.toLong())
-            if (currentTotalUncompressedBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) throw LimitExceededException()
+            if (currentTotalUncompressedBytes > getMaxTotalBytes()) throw LimitExceededException()
 
             // 5. checksums.json
             writeZipEntryInternal(zos, BackupFormatV1Contract.CHECKSUMS_ENTRY) {
@@ -240,7 +236,7 @@ class DefaultBackupArchiveWriter @Inject constructor(
         }
 
         if (calculatedTotal != plan.totalUncompressedBytes) return BackupArchiveWriteResult.Failure.InvalidPlan
-        if (calculatedTotal > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) return BackupArchiveWriteResult.Failure.LimitExceeded
+        if (calculatedTotal > getMaxTotalBytes()) return BackupArchiveWriteResult.Failure.LimitExceeded
 
         return null
     }

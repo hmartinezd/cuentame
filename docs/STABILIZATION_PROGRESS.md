@@ -1,40 +1,18 @@
-# Stabilization Progress Log
+# Stabilization Progress Checklist
 
-All progress tracking across the stabilization pass agrees on the following baseline status:
+- `COMPLETE` 1. Single-Module Consolidation & Gradle Cleanup
+- `COMPLETE` 2. Package-level architecture
+- `COMPLETE` 3. Backup production hardening
+- `COMPLETE` 4. Backup verification
+- `COMPLETE` 5. Regression recovery
+- `COMPILED_NOT_EXECUTED` 6. Android instrumentation verification (Local execution blocked by environment)
+- `NOT STARTED` 7. Backup restore
+- `NOT STARTED` 8. Customer export
+- `POSTPONED` 9. Multi-module migration
+- `READY` 10. CI verification (Workflow dispatch enabled)
 
-- Single-module consolidation: COMPLETE
-- Package-level architecture: COMPLETE
-- Backup production hardening: COMPLETE
-- Backup creation verification: COMPLETE
-- Critical regression recovery: COMPLETE
-- Android instrumentation verification: COMPLETE
-- CI verification: COMPLETE
-- Backup restore: NOT STARTED
-- Customer export: NOT STARTED
-- Multi-module migration: POSTPONED
-
----
-
-## Detailed Gate Checklist
-
-- [x] **1. Single-module consolidation**: COMPLETE
-- [x] **2. Package-level architecture**: COMPLETE
-- [x] **3. Backup production hardening**: COMPLETE
-- [x] **4. Backup verification**: COMPLETE
-- [x] **5. Regression recovery**: COMPLETE
-- [x] **6. Android instrumentation verification**: COMPLETE
-- [x] **7. CI verification**: COMPLETE
-- [ ] **8. Backup restore**: NOT STARTED
-- [ ] **9. Customer export**: NOT STARTED
-- [ ] **10. Multi-module migration**: POSTPONED
-
-## Active Execution Log
-
-- Initialized test baseline in `docs/TEST_BASELINE_BEFORE_FINAL_GATE.md`.
-- Synchronized all documentation statuses across README and docs directory.
-- Hardened `BackupPlan` immutability and `BackupArchiveWriter` prevalidation.
-- Fixed `NavigationTest` and UI test launch order using `createEmptyComposeRule`.
-- Centralized `IntegrationFailurePoints` for deterministic transaction rollback tests.
-- Verified Bit-identical archive determinism.
-- Verified 283 JVM unit tests PASS.
-- Verified 107 instrumentation tests COMPILED (Device execution log captured).
+## Verification Evidence
+- JVM Unit Tests: 283 PASS
+- Android Instrumentation Compilation: PASS (Connected execution BLOCKED locally)
+- Single Module Status: Project ':app' verified
+- Archive Determinism: VERIFIED

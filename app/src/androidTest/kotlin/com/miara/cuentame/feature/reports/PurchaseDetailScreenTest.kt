@@ -56,12 +56,12 @@ class PurchaseDetailScreenTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("reports_purchases_card").performClick()
+            composeTestRule.onNodeWithTag("reports_view_purchase_details").performClick()
             
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("purchase_detail_report_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("purchase_report_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("purchase_detail_report_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("purchase_report_screen").assertIsDisplayed()
         }
     }
 }

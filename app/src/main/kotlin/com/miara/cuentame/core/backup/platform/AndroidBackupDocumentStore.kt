@@ -50,18 +50,22 @@ class AndroidBackupDocumentStore @Inject constructor(
         try {
             return createStream(pfd)
         } catch (e: CancellationException) {
-            pfd.close()
+            closeSuppressing(pfd, e)
             throw e
         } catch (security: SecurityException) {
-            pfd.close()
+            closeSuppressing(pfd, security)
             throw security
         } catch (error: Exception) {
-            try {
-                pfd.close()
-            } catch (closeError: Exception) {
-                error.addSuppressed(closeError)
-            }
+            closeSuppressing(pfd, error)
             throw BackupDocumentOpenException(operation, error)
+        }
+    }
+
+    private fun closeSuppressing(descriptor: ParcelFileDescriptor, primary: Throwable) {
+        try {
+            descriptor.close()
+        } catch (closeError: Throwable) {
+            primary.addSuppressed(closeError)
         }
     }
 

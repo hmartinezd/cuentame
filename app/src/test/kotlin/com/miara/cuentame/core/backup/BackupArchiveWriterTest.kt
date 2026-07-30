@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayOutputStream
-import java.io.IOException
 
 class BackupArchiveWriterTest {
 
@@ -191,20 +190,19 @@ class BackupArchiveWriterTest {
     }
 
     @Test
-    fun `writer detects total limit exceeded during write`() = runTest {
-        val snapshotBytes = ByteArray(BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES.toInt() + 1)
+    fun `writer detects total limit exceeded during write using memory-safe override`() = runTest {
         val validPlan = createValidMinimalPlan()
+        writer.overrideMaxTotalBytes = 10L // Very small limit
         
         val plan = mockk<BackupPlan> {
-            every { snapshotJson } returns ImmutableBackupBytes.from(snapshotBytes)
+            every { snapshotJson } returns validPlan.snapshotJson // Size is 2
             every { preferencesJson } returns validPlan.preferencesJson
             every { manifestJson } returns validPlan.manifestJson
             every { checksumsJson } returns validPlan.checksumsJson
             every { attachments } returns emptyList()
-            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums.toMutableMap().apply {
-                put(BackupFormatV1Contract.DATABASE_ENTRY, ImmutableBackupBytes.from(snapshotBytes).sha256())
-            }
-            every { totalUncompressedBytes } returns 1000L 
+            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums
+            // Prevalidation must pass
+            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes
         }
 
         val output = ByteArrayOutputStream()

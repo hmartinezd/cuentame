@@ -1,1006 +1,393 @@
-# Baseline Test Inventory (TEST_BASELINE_BEFORE_FINAL_GATE.md)
-
-This document provides a complete, non-truncated inventory of every test file, class, `@Test` method, execution type, and subsystem.
-
-- **Total Test Classes**: 68
-- **Total Test Methods**: 257
-- **Ignored / Disabled Methods**: 0
-
---- 
-
-| Subsystem | Type | Class Name | Test Method | Ignored |
-| --- | --- | --- | --- | --- |
-| Core | JVM | `ArchitectureTest` | `enforcePackageBoundaries` | NO |
-| Core | JVM | `ArchitectureTest` | `ruleModelToDatabaseViolationDetected` | NO |
-| Core | JVM | `ArchitectureTest` | `rulePureBackupToDatabaseViolationDetected` | NO |
-| Core | JVM | `ArchitectureTest` | `ruleDomainToComposeViolationDetected` | NO |
-| Core | JVM | `ArchitectureTest` | `ruleCoreToFeatureViolationDetected` | NO |
-| Core | JVM | `ArchitectureTest` | `aliasedForbiddenImportDetected` | NO |
-| Core | JVM | `ExampleUnitTest` | `addition_isCorrect` | NO |
-| Core: Backup | JVM | `AndroidBackupRepositoryTest` | ``full successful orchestration sequence`` | NO |
-| Core: Backup | JVM | `AndroidBackupRepositoryTest` | ``cleans destination on planning failure`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe rejects absolute paths`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe rejects relative traversal`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe accepts simple alphanumeric paths`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe accepts valid attachment paths`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe rejects backslashes`` | NO |
-| Core: Backup | JVM | `ArchiveEntryValidatorTest` | ``isSafe rejects blank names`` | NO |
-| Core: Backup | JVM | `AttachmentFilenameSanitizerTest` | ``sanitize removes dangerous characters`` | NO |
-| Core: Backup | JVM | `AttachmentFilenameSanitizerTest` | ``sanitize preserves extensions`` | NO |
-| Core: Backup | JVM | `AttachmentFilenameSanitizerTest` | ``isValid validates correctly`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``positive control - valid archive passes`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``rejects archive with missing manifest`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``rejects archive with duplicate entry`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``rejects archive with checksum key mismatch`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``rejects archive with malformed UTF-8 manifest`` | NO |
-| Core: Backup | JVM | `BackupArchiveValidatorAdversarialTest` | ``rejects archive with schema version mismatch`` | NO |
-| Core: Backup | JVM | `BackupArchiveWriterTest` | ``writer releases resources and does not close underlying stream`` | NO |
-| Core: Backup | JVM | `BackupArchiveWriterTest` | ``writer rejects plan with checksum map mismatch`` | NO |
-| Core: Backup | JVM | `BackupArchiveWriterTest` | ``writer detects attachment growth during write`` | NO |
-| Core: Backup | JVM | `BackupByteMathTest` | `addExact_success` | NO |
-| Core: Backup | JVM | `BackupByteMathTest` | `addExact_overflow_throws` | NO |
-| Core: Backup | JVM | `BackupByteMathTest` | `addExact_rejectsNegative` | NO |
-| Core: Backup | JVM | `BackupCleanupCoordinatorTest` | ``returns Deleted when delete succeeds`` | NO |
-| Core: Backup | JVM | `BackupCleanupCoordinatorTest` | ``returns Truncated when delete fails but truncate succeeds`` | NO |
-| Core: Backup | JVM | `BackupCleanupCoordinatorTest` | ``returns Failed when both fail`` | NO |
-| Core: Backup | JVM | `BackupCleanupCoordinatorTest` | ``returns Failed when delete throws`` | NO |
-| Core: Backup | JVM | `BackupCleanupLifecycleTest` | ``preflight failure does not open destination for write`` | NO |
-| Core: Backup | JVM | `BackupCleanupLifecycleTest` | ``creation failure triggers cleanup`` | NO |
-| Core: Backup | JVM | `BackupCleanupLifecycleTest` | ``failed deletion falls back to truncate`` | NO |
-| Core: Backup | JVM | `BackupCreationPlannerTest` | ``successful deterministic plan`` | NO |
-| Core: Backup | JVM | `BackupCreationPlannerTest` | ``plan ensures defensive copies of byte arrays`` | NO |
-| Core: Backup | JVM | `BackupCreationPlannerTest` | ``plan reflects attachment list from binding`` | NO |
-| Core: Backup | JVM | `BackupCreationPlannerTest` | ``rejects plan if schema version mismatch`` | NO |
-| Core: Backup | JVM | `BackupFilenameGeneratorTest` | ``generates valid name with restaurant`` | NO |
-| Core: Backup | JVM | `BackupFilenameGeneratorTest` | ``generates valid name without restaurant`` | NO |
-| Core: Backup | JVM | `BackupFilenameGeneratorTest` | ``sanitizes restaurant name`` | NO |
-| Core: Backup | JVM | `BackupManifestValidatorTest` | ``valid manifest passes`` | NO |
-| Core: Backup | JVM | `BackupManifestValidatorTest` | ``rejects unsupported format version`` | NO |
-| Core: Backup | JVM | `BackupManifestValidatorTest` | ``rejects overlong attachment list`` | NO |
-| Core: Backup | JVM | `BackupManifestValidatorTest` | ``rejects invalid locale`` | NO |
-| Core: Backup | JVM | `BackupManifestValidatorTest` | ``rejects missing table metadata`` | NO |
-| Core: Backup | JVM | `BackupRoundTripTest` | ``complete round trip with no attachments`` | NO |
-| Core: Backup | JVM | `BackupRoundTripTest` | ``complete round trip with shared attachments`` | NO |
-| Core: Backup | JVM | `BackupRoundTripTest` | ``archive determinism - identical inputs produce identical bytes`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityNumericTest` | ``rejects negative purchase quantity`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityNumericTest` | ``rejects malformed decimal`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityProjectionTest` | ``rejects balance projection mismatch`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityReversalTest` | ``rejects reversal targeting another reversal`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityValidatorTest` | ``validate accepts valid simple snapshot`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityValidatorTest` | ``validate rejects zero purchase quantity`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityValidatorTest` | ``validate rejects balance projection mismatch`` | NO |
-| Core: Backup | JVM | `BackupSnapshotIntegrityValidatorTest` | ``validate rejects posted purchase receipt without movement`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse empty input fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse empty object fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse valid sorted object succeeds`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse duplicate key fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse non-hex hash fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse self reference fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse malformed escape fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse trailing comma fails`` | NO |
-| Core: Backup | JVM | `ChecksumParserTest` | ``parse trailing content fails`` | NO |
-| Core: Backup | JVM | `ChecksumTest` | ``ImmutableBackupBytes sha256 matches manual digest`` | NO |
-| Core: Backup | JVM | `ChecksumTest` | ``sha256 is deterministic`` | NO |
-| Core: Backup | JVM | `InsufficientStorageDetectionTest` | ``detects ENOSPC from message`` | NO |
-| Core: Backup | JVM | `InsufficientStorageDetectionTest` | ``detects SecurityException as PermissionDenied`` | NO |
-| Core: Backup | JVM | `InsufficientStorageDetectionTest` | ``detects open failure as DestinationUnavailable`` | NO |
-| Core: Backup | JVM | `InsufficientStorageDetectionTest` | ``falls back to GenericIo for generic IOException`` | NO |
-| Core: Backup | JVM | `SupportedAppLocaleTest` | ``languageTags contains all supported tags`` | NO |
-| Core: Backup | JVM | `SupportedAppLocaleTest` | ``fromLanguageTag returns correct enum for valid tags`` | NO |
-| Core: Backup | JVM | `SupportedAppLocaleTest` | ``fromLanguageTag returns null for invalid tags`` | NO |
-| Core | JVM | `DecimalPersistenceTest` | ``toStorageString preserves plain format`` | NO |
-| Core | JVM | `DecimalPersistenceTest` | ``toBigDecimalValue parses canonical string`` | NO |
-| Core | JVM | `DecimalPersistenceTest` | ``toBigDecimalValue fails on invalid string`` | NO |
-| Core | JVM | `IdGeneratorTest` | ``newId returns non-empty string`` | NO |
-| Core | JVM | `IdGeneratorTest` | ``newId returns unique strings`` | NO |
-| Core | JVM | `NameNormalizationTest` | ``normalizeName trims and collapses spaces`` | NO |
-| Core | JVM | `NameNormalizationTest` | ``normalizeName lowercases root locale`` | NO |
-| Core | JVM | `NameNormalizationTest` | ``normalizeName handles empty string`` | NO |
-| Core | JVM | `TimeProviderTest` | ``now returns current time`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``empty data returns zeroed snapshot`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``calculate inventory valuation with multiple areas and negative quantities`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``invalid inventory decimal throws error`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``negative cost throws error`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``calculate purchase spend comparison correctly`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``waste value uses historical snapshots`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``null waste valuation throws error`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``completed count summary is independent of lines`` | NO |
-| Core: Database | JVM | `RoomDashboardRepositoryTest` | ``recent activity uses structured data without fallback prose`` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `validPostedHistory_passes` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `positiveWasteQuantity_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `wrongRestaurant_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `costWithoutTotal_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `incorrectTotalEquation_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `validVoidedHistory_passes` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `reversalOfReversal_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `zeroWasteQuantity_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `wrongIngredient_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `wrongArea_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `missingReversal_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `wrongReversalTarget_throws` | NO |
-| Core: Database | JVM | `WasteMovementHistoryValidatorTest` | `wrongReversalOperationId_throws` | NO |
-| Core | JVM | `FormattersTest` | `formatCurrency_US_Locale` | NO |
-| Core | JVM | `FormattersTest` | `formatCurrency_ES_Locale` | NO |
-| Core | JVM | `FormattersTest` | `formatCurrency_invalidCode_fallbackToLiteral` | NO |
-| Core | JVM | `FormattersTest` | `formatPercent_US_Locale` | NO |
-| Core | JVM | `FormattersTest` | `formatPercent_ES_Locale` | NO |
-| Core | JVM | `FormattersTest` | `formatQuantity_stripsZeros` | NO |
-| Core | JVM | `FormattersTest` | `formatQuantity_roundsToThreePlaces` | NO |
-| Core: Domain | JVM | `ChickenFixtureTest` | ``Chicken Breast fixture domain validation`` | NO |
-| Core: Domain | JVM | `CountAdjustmentCalculatorTest` | ``positive adjustment`` | NO |
-| Core: Domain | JVM | `CountAdjustmentCalculatorTest` | ``negative adjustment`` | NO |
-| Core: Domain | JVM | `CountComparisonCalculatorTest` | ``calculateUnclassifiedUsage with simple values`` | NO |
-| Core: Domain | JVM | `IngredientUnitConverterTest` | ``toBase converts case to lb`` | NO |
-| Core: Domain | JVM | `IngredientUnitConverterTest` | ``fromBase converts lb to case`` | NO |
-| Core: Domain | JVM | `InventoryBalanceCalculatorTest` | ``calculateBalance sums quantities`` | NO |
-| Core: Domain | JVM | `InventoryBalanceCalculatorTest` | ``calculateBalance handles empty list`` | NO |
-| Core: Domain | JVM | `InventoryMovementServiceTest` | ``createReversal returns negative quantity and references original`` | NO |
-| Core: Domain | JVM | `InventoryMovementServiceTest` | ``cannot reverse a reversal`` | NO |
-| Core: Domain | JVM | `ReportingPeriodCalculatorTest` | `calculatePeriods_7Days` | NO |
-| Core: Domain | JVM | `ReportingPeriodCalculatorTest` | `calculatePeriods_30Days` | NO |
-| Core: Domain | JVM | `ReportingPeriodCalculatorTest` | `calculatePeriods_90Days` | NO |
-| Core: Domain | JVM | `StandardUnitConverterTest` | ``convert same units returns same value`` | NO |
-| Core: Domain | JVM | `StandardUnitConverterTest` | ``convert kg to grams`` | NO |
-| Core: Domain | JVM | `StandardUnitConverterTest` | ``convert lb to grams`` | NO |
-| Core: Domain | JVM | `StandardUnitConverterTest` | ``convert incompatible dimensions throws`` | NO |
-| Core: Domain | JVM | `WeightedAverageCostCalculatorTest` | ``calculate first purchase`` | NO |
-| Core: Domain | JVM | `WeightedAverageCostCalculatorTest` | ``calculate with existing inventory`` | NO |
-| Core: Domain | JVM | `WeightedAverageCostCalculatorTest` | ``calculate with zero cost purchase`` | NO |
-| Core: Domain | JVM | `CompleteOnboardingUseCaseTest` | ``Success updates DataStore and clears draft`` | NO |
-| Core: Domain | JVM | `CompleteOnboardingUseCaseTest` | ``AlreadyCompleted uses Room locale as authoritative`` | NO |
-| Core: Domain | JVM | `PreviewWasteUseCaseTest` | ``calculates preview correctly`` | NO |
-| Core: Domain | JVM | `ResolveAppStartStateUseCaseTest` | ``both incomplete returns RequiresOnboarding`` | NO |
-| Core: Domain | JVM | `ResolveAppStartStateUseCaseTest` | ``both complete returns Ready`` | NO |
-| Core: Domain | JVM | `ResolveAppStartStateUseCaseTest` | ``db complete but locale mismatch repairs DataStore and returns Ready`` | NO |
-| Core: Domain | JVM | `ResolveAppStartStateUseCaseTest` | ``db incomplete but DataStore says complete repairs DataStore and returns RequiresOnboarding`` | NO |
-| Core: Domain | JVM | `AppLocaleUseCaseTest` | ``reconciler rethrows cancellation exception`` | NO |
-| Core: Domain | JVM | `AppLocaleUseCaseTest` | ``reconciler handles room failure as ordinary failure`` | NO |
-| Feature: Stock Counts | JVM | `StartStockCountViewModelTest` | ``initial state loads areas`` | NO |
-| Feature: Stock Counts | JVM | `StartStockCountViewModelTest` | ``area selection works`` | NO |
-| Feature: Stock Counts | JVM | `StartStockCountViewModelTest` | ``start count fails with future date`` | NO |
-| Feature: Stock Counts | JVM | `StartStockCountViewModelTest` | ``start count succeeds with valid input`` | NO |
-| Feature: Stock Counts | JVM | `StartStockCountViewModelTest` | ``overlapping area is disabled`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelRaceTest` | ``Delete during CREATE captures generated ID and removes line`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelRaceTest` | ``Queued save and delete complete in order without deadlock`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelRaceTest` | ``Flush during CREATE does not create duplicate line`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``initial state loads correctly`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``Archived unit becomes disabled after changing away`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``untouched suggestions are not pending`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``user edit makes line pending`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``rapid unit selection preserves final selection`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``invalid input blocks completion`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``back navigation flushes pending saves`` | NO |
-| Feature: Stock Counts | JVM | `StockCountAreaViewModelTest` | ``stale save result does not overwrite newer state`` | NO |
-| Feature: Stock Counts | JVM | `StockCountDetailViewModelTest` | ``initial state loads correctly`` | NO |
-| Feature: Stock Counts | JVM | `StockCountDetailViewModelTest` | ``ownership mismatch state works`` | NO |
-| Feature: Stock Counts | JVM | `StockCountDetailViewModelTest` | ``not found state works`` | NO |
-| Feature: Stock Counts | JVM | `StockCountDetailViewModelTest` | ``complete count resets state after success`` | NO |
-| Feature: Home | JVM | `HomeScreenStateTest` | ``Ready state can be copied and updated`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``initial state sequence`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``initial repository failure triggers Error state`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``retry after initial failure resubscribes`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``coverage mapping handles edge cases`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``mapComparison handles states correctly`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``scale-independent zero handling`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``account switch resets to full Loading and hides old data`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``range refresh sequence`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``rapid range selection handles cancellation`` | NO |
-| Feature: Home | JVM | `HomeViewModelTest` | ``selecting same range is no-op`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``initial state loads ingredient`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``options are reactive`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``add standard option emits success event`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``add package option emits success event`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``update package option emits success event`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``archive option emits success event`` | NO |
-| Feature: Ingredients | JVM | `IngredientDetailViewModelTest` | ``default change emits success event`` | NO |
-| Feature: Ingredients | JVM | `IngredientFormViewModelTest` | ``initial state is not loading`` | NO |
-| Feature: Ingredients | JVM | `IngredientFormViewModelTest` | ``onSave fails with blank name`` | NO |
-| Feature: Ingredients | JVM | `IngredientFormViewModelTest` | ``onSave fails without dimension and base unit in create mode`` | NO |
-| Feature: Ingredients | JVM | `IngredientFormViewModelTest` | ``dimension selection resets base unit`` | NO |
-| Feature: Ingredients | JVM | `IngredientFormViewModelTest` | ``edit mode hides unit mutation controls`` | NO |
-| Feature: Ingredients | JVM | `IngredientListViewModelTest` | ``search filters ingredients with normalization`` | NO |
-| Feature: Ingredients | JVM | `IngredientListViewModelTest` | ``search filters ingredients case-insensitive`` | NO |
-| Feature: Ingredients | JVM | `IngredientListViewModelTest` | ``category filter filters ingredients`` | NO |
-| Feature: Ingredients | JVM | `IngredientListViewModelTest` | ``archived toggle updates includeArchived flag`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``initial state loads defaults when no draft exists`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``autosave persists changes with debounce for name`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``autosave persists selections immediately`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``next step persists the NEW step immediately`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``reordering updates sort order and persists immediately`` | NO |
-| Feature: Onboarding | JVM | `OnboardingViewModelTest` | ``draft save failure is visible in UI state`` | NO |
-| Feature: Purchases | JVM | `PurchaseDetailViewModelTest` | ``void purchase success updates state to VOIDED`` | NO |
-| Feature: Purchases | JVM | `PurchaseDraftViewModelTest` | ``post purchase success emits event`` | NO |
-| Feature: Purchases | JVM | `PurchaseDraftViewModelTest` | ``delete line success emits event`` | NO |
-| Feature: Purchases | JVM | `PurchaseLineViewModelTest` | ``initial state is loading then ready for new line`` | NO |
-| Feature: Purchases | JVM | `PurchaseLineViewModelTest` | ``ingredient selection updates options and previews`` | NO |
-| Feature: Purchases | JVM | `PurchaseLineViewModelTest` | ``rapid ingredient selection cancels previous work`` | NO |
-| Feature: Purchases | JVM | `PurchaseListViewModelTest` | ``list updates when repository emits new purchases`` | NO |
-| Feature: Purchases | JVM | `PurchaseListViewModelTest` | ``search updates filter`` | NO |
-| Feature: Reports | JVM | `ReportsScreenStateTest` | `readyStateCanBeCopied` | NO |
-| Feature: Reports | JVM | `InventoryDetailViewModelTest` | ``initial state is Loading then SetupRequired when no restaurant`` | NO |
-| Feature: Reports | JVM | `InventoryDetailViewModelTest` | ``Ready state refresh sequence`` | NO |
-| Feature: Reports | JVM | `InventoryDetailViewModelTest` | ``account switch resets to full Loading and hides old data`` | NO |
-| Feature: Reports | JVM | `InventoryDetailViewModelTest` | ``refresh failure preserves old data`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``navigation-provided 7-day range`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``navigation-provided 90-day range`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``missing range defaults to 30 days`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``malformed range defaults to 30 days`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``initial state is Loading then SetupRequired when no restaurant`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``Ready state success sequence`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``initial repository failure triggers Error state`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``initial retry resubscribes`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``range change triggers refreshing sequence with distinct periods`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``selecting same range does not trigger new request`` | NO |
-| Feature: Reports | JVM | `PurchaseDetailViewModelTest` | ``account switch resets to Loading`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``initial state is Loading then SetupRequired when no restaurant`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``initial repository failure triggers Error state`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``retry after initial failure resubscribes`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``Ready state refresh sequence`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``account switch resets to full Loading and hides old data`` | NO |
-| Feature: Reports | JVM | `ReportsViewModelTest` | ``mapping coverage and fields`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``navigation-provided 7-day range`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``navigation-provided 90-day range`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``missing range defaults to 30 days`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``malformed range defaults to 30 days`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``initial state sequence`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``initial error and retry`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``selecting same range is no-op`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``range change triggers refreshing sequence with distinct periods`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``refresh failure preserves old data`` | NO |
-| Feature: Reports | JVM | `WasteDetailViewModelTest` | ``account switch resets identity`` | NO |
-| Feature: Settings | JVM | `BackupViewModelTest` | ``initial state is Idle`` | NO |
-| Feature: Settings | JVM | `BackupViewModelTest` | ``two simultaneous create requests only start one operation`` | NO |
-| Feature: Settings | JVM | `BackupViewModelTest` | ``reset cancels active preparation job`` | NO |
-| Feature: Settings | JVM | `BackupViewModelTest` | ``restored CREATING state shows OperationInterrupted error`` | NO |
-| Feature: Settings | JVM | `BackupViewModelTest` | ``stale repository emissions are ignored after reset`` | NO |
-| Core | JVM | `SupplierFormViewModelTest` | ``save supplier success emits event`` | NO |
-| Core | JVM | `SupplierListViewModelTest` | ``list updates when repository emits new suppliers`` | NO |
-| Feature: Waste | JVM | `WasteDetailViewModelTest` | ``loading to ready state`` | NO |
-| Feature: Waste | JVM | `WasteDetailViewModelTest` | ``not found state`` | NO |
-| Feature: Waste | JVM | `WasteDetailViewModelTest` | ``invalid route state`` | NO |
-| Feature: Waste | JVM | `WasteDetailViewModelTest` | ``ownership mismatch state`` | NO |
-| Feature: Waste | JVM | `WasteFormViewModelTest` | ``initial state is Loading then Ready`` | NO |
-| Feature: Waste | JVM | `WasteFormViewModelTest` | ``selecting ingredient updates unit options and handles loading state`` | NO |
-| Feature: Waste | JVM | `WasteFormViewModelTest` | ``unit option repository failure produces error and disables save`` | NO |
-| Feature: Waste | JVM | `WasteFormViewModelTest` | ``attachment permission failure handles error and preserves existing`` | NO |
-| Feature: Waste | JVM | `WasteFormViewModelTest` | ``preview failure handles error and clears preview`` | NO |
-| Feature: Waste | JVM | `WasteListViewModelTest` | ``initial state shows events from repository`` | NO |
-| Feature: Waste | JVM | `WasteRaceTest` | `ingredientRace_lastSelectionWins` | NO |
-| Feature: Waste | JVM | `WasteRaceTest` | `previewCancellation_latestRequestWins` | NO |
-
-
-## Complete Class Inventory
-
-### `ArchitectureTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 6
-#### Methods:
-- `enforcePackageBoundaries`
-- `ruleModelToDatabaseViolationDetected`
-- `rulePureBackupToDatabaseViolationDetected`
-- `ruleDomainToComposeViolationDetected`
-- `ruleCoreToFeatureViolationDetected`
-- `aliasedForbiddenImportDetected`
-
-### `ExampleUnitTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/ExampleUnitTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- `addition_isCorrect`
-
-### `AndroidBackupRepositoryTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``full successful orchestration sequence``
-- ``cleans destination on planning failure``
-
-### `ArchiveEntryValidatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 6
-#### Methods:
-- ``isSafe rejects absolute paths``
-- ``isSafe rejects relative traversal``
-- ``isSafe accepts simple alphanumeric paths``
-- ``isSafe accepts valid attachment paths``
-- ``isSafe rejects backslashes``
-- ``isSafe rejects blank names``
-
-### `AttachmentFilenameSanitizerTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``sanitize removes dangerous characters``
-- ``sanitize preserves extensions``
-- ``isValid validates correctly``
-
-### `BackupArchiveValidatorAdversarialTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 6
-#### Methods:
-- ``positive control - valid archive passes``
-- ``rejects archive with missing manifest``
-- ``rejects archive with duplicate entry``
-- ``rejects archive with checksum key mismatch``
-- ``rejects archive with malformed UTF-8 manifest``
-- ``rejects archive with schema version mismatch``
-
-### `BackupArchiveWriterTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``writer releases resources and does not close underlying stream``
-- ``writer rejects plan with checksum map mismatch``
-- ``writer detects attachment growth during write``
-
-### `BackupByteMathTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- `addExact_success`
-- `addExact_overflow_throws`
-- `addExact_rejectsNegative`
-
-### `BackupCleanupCoordinatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``returns Deleted when delete succeeds``
-- ``returns Truncated when delete fails but truncate succeeds``
-- ``returns Failed when both fail``
-- ``returns Failed when delete throws``
-
-### `BackupCleanupLifecycleTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``preflight failure does not open destination for write``
-- ``creation failure triggers cleanup``
-- ``failed deletion falls back to truncate``
-
-### `BackupCreationPlannerTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``successful deterministic plan``
-- ``plan ensures defensive copies of byte arrays``
-- ``plan reflects attachment list from binding``
-- ``rejects plan if schema version mismatch``
-
-### `BackupFilenameGeneratorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``generates valid name with restaurant``
-- ``generates valid name without restaurant``
-- ``sanitizes restaurant name``
-
-### `BackupManifestValidatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 5
-#### Methods:
-- ``valid manifest passes``
-- ``rejects unsupported format version``
-- ``rejects overlong attachment list``
-- ``rejects invalid locale``
-- ``rejects missing table metadata``
-
-### `BackupRoundTripTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``complete round trip with no attachments``
-- ``complete round trip with shared attachments``
-- ``archive determinism - identical inputs produce identical bytes``
-
-### `BackupSnapshotIntegrityNumericTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``rejects negative purchase quantity``
-- ``rejects malformed decimal``
-
-### `BackupSnapshotIntegrityProjectionTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityProjectionTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``rejects balance projection mismatch``
-
-### `BackupSnapshotIntegrityReversalTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityReversalTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``rejects reversal targeting another reversal``
-
-### `BackupSnapshotIntegrityValidatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``validate accepts valid simple snapshot``
-- ``validate rejects zero purchase quantity``
-- ``validate rejects balance projection mismatch``
-- ``validate rejects posted purchase receipt without movement``
-
-### `ChecksumParserTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 9
-#### Methods:
-- ``parse empty input fails``
-- ``parse empty object fails``
-- ``parse valid sorted object succeeds``
-- ``parse duplicate key fails``
-- ``parse non-hex hash fails``
-- ``parse self reference fails``
-- ``parse malformed escape fails``
-- ``parse trailing comma fails``
-- ``parse trailing content fails``
-
-### `ChecksumTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``ImmutableBackupBytes sha256 matches manual digest``
-- ``sha256 is deterministic``
-
-### `InsufficientStorageDetectionTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``detects ENOSPC from message``
-- ``detects SecurityException as PermissionDenied``
-- ``detects open failure as DestinationUnavailable``
-- ``falls back to GenericIo for generic IOException``
-
-### `SupportedAppLocaleTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt`
-- **Subsystem**: Core: Backup
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``languageTags contains all supported tags``
-- ``fromLanguageTag returns correct enum for valid tags``
-- ``fromLanguageTag returns null for invalid tags``
-
-### `DecimalPersistenceTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``toStorageString preserves plain format``
-- ``toBigDecimalValue parses canonical string``
-- ``toBigDecimalValue fails on invalid string``
-
-### `IdGeneratorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/common/ids/IdGeneratorTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``newId returns non-empty string``
-- ``newId returns unique strings``
-
-### `NameNormalizationTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``normalizeName trims and collapses spaces``
-- ``normalizeName lowercases root locale``
-- ``normalizeName handles empty string``
-
-### `TimeProviderTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/common/time/TimeProviderTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``now returns current time``
-
-### `RoomDashboardRepositoryTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt`
-- **Subsystem**: Core: Database
-- **Type**: JVM
-- **Method Count**: 9
-#### Methods:
-- ``empty data returns zeroed snapshot``
-- ``calculate inventory valuation with multiple areas and negative quantities``
-- ``invalid inventory decimal throws error``
-- ``negative cost throws error``
-- ``calculate purchase spend comparison correctly``
-- ``waste value uses historical snapshots``
-- ``null waste valuation throws error``
-- ``completed count summary is independent of lines``
-- ``recent activity uses structured data without fallback prose``
-
-### `WasteMovementHistoryValidatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt`
-- **Subsystem**: Core: Database
-- **Type**: JVM
-- **Method Count**: 13
-#### Methods:
-- `validPostedHistory_passes`
-- `positiveWasteQuantity_throws`
-- `wrongRestaurant_throws`
-- `costWithoutTotal_throws`
-- `incorrectTotalEquation_throws`
-- `validVoidedHistory_passes`
-- `reversalOfReversal_throws`
-- `zeroWasteQuantity_throws`
-- `wrongIngredient_throws`
-- `wrongArea_throws`
-- `missingReversal_throws`
-- `wrongReversalTarget_throws`
-- `wrongReversalOperationId_throws`
-
-### `FormattersTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 7
-#### Methods:
-- `formatCurrency_US_Locale`
-- `formatCurrency_ES_Locale`
-- `formatCurrency_invalidCode_fallbackToLiteral`
-- `formatPercent_US_Locale`
-- `formatPercent_ES_Locale`
-- `formatQuantity_stripsZeros`
-- `formatQuantity_roundsToThreePlaces`
-
-### `ChickenFixtureTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ChickenFixtureTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``Chicken Breast fixture domain validation``
-
-### `CountAdjustmentCalculatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``positive adjustment``
-- ``negative adjustment``
-
-### `CountComparisonCalculatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountComparisonCalculatorTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``calculateUnclassifiedUsage with simple values``
-
-### `IngredientUnitConverterTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/IngredientUnitConverterTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``toBase converts case to lb``
-- ``fromBase converts lb to case``
-
-### `InventoryBalanceCalculatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``calculateBalance sums quantities``
-- ``calculateBalance handles empty list``
-
-### `InventoryMovementServiceTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryMovementServiceTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``createReversal returns negative quantity and references original``
-- ``cannot reverse a reversal``
-
-### `ReportingPeriodCalculatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- `calculatePeriods_7Days`
-- `calculatePeriods_30Days`
-- `calculatePeriods_90Days`
-
-### `StandardUnitConverterTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``convert same units returns same value``
-- ``convert kg to grams``
-- ``convert lb to grams``
-- ``convert incompatible dimensions throws``
-
-### `WeightedAverageCostCalculatorTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``calculate first purchase``
-- ``calculate with existing inventory``
-- ``calculate with zero cost purchase``
-
-### `CompleteOnboardingUseCaseTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``Success updates DataStore and clears draft``
-- ``AlreadyCompleted uses Room locale as authoritative``
-
-### `PreviewWasteUseCaseTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/PreviewWasteUseCaseTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``calculates preview correctly``
-
-### `ResolveAppStartStateUseCaseTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``both incomplete returns RequiresOnboarding``
-- ``both complete returns Ready``
-- ``db complete but locale mismatch repairs DataStore and returns Ready``
-- ``db incomplete but DataStore says complete repairs DataStore and returns RequiresOnboarding``
-
-### `AppLocaleUseCaseTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt`
-- **Subsystem**: Core: Domain
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``reconciler rethrows cancellation exception``
-- ``reconciler handles room failure as ordinary failure``
-
-### `StartStockCountViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt`
-- **Subsystem**: Feature: Stock Counts
-- **Type**: JVM
-- **Method Count**: 5
-#### Methods:
-- ``initial state loads areas``
-- ``area selection works``
-- ``start count fails with future date``
-- ``start count succeeds with valid input``
-- ``overlapping area is disabled``
-
-### `StockCountAreaViewModelRaceTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt`
-- **Subsystem**: Feature: Stock Counts
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``Delete during CREATE captures generated ID and removes line``
-- ``Queued save and delete complete in order without deadlock``
-- ``Flush during CREATE does not create duplicate line``
-
-### `StockCountAreaViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt`
-- **Subsystem**: Feature: Stock Counts
-- **Type**: JVM
-- **Method Count**: 8
-#### Methods:
-- ``initial state loads correctly``
-- ``Archived unit becomes disabled after changing away``
-- ``untouched suggestions are not pending``
-- ``user edit makes line pending``
-- ``rapid unit selection preserves final selection``
-- ``invalid input blocks completion``
-- ``back navigation flushes pending saves``
-- ``stale save result does not overwrite newer state``
-
-### `StockCountDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt`
-- **Subsystem**: Feature: Stock Counts
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``initial state loads correctly``
-- ``ownership mismatch state works``
-- ``not found state works``
-- ``complete count resets state after success``
-
-### `HomeScreenStateTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt`
-- **Subsystem**: Feature: Home
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``Ready state can be copied and updated``
-
-### `HomeViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt`
-- **Subsystem**: Feature: Home
-- **Type**: JVM
-- **Method Count**: 10
-#### Methods:
-- ``initial state sequence``
-- ``initial repository failure triggers Error state``
-- ``retry after initial failure resubscribes``
-- ``coverage mapping handles edge cases``
-- ``mapComparison handles states correctly``
-- ``scale-independent zero handling``
-- ``account switch resets to full Loading and hides old data``
-- ``range refresh sequence``
-- ``rapid range selection handles cancellation``
-- ``selecting same range is no-op``
-
-### `IngredientDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt`
-- **Subsystem**: Feature: Ingredients
-- **Type**: JVM
-- **Method Count**: 7
-#### Methods:
-- ``initial state loads ingredient``
-- ``options are reactive``
-- ``add standard option emits success event``
-- ``add package option emits success event``
-- ``update package option emits success event``
-- ``archive option emits success event``
-- ``default change emits success event``
-
-### `IngredientFormViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt`
-- **Subsystem**: Feature: Ingredients
-- **Type**: JVM
-- **Method Count**: 5
-#### Methods:
-- ``initial state is not loading``
-- ``onSave fails with blank name``
-- ``onSave fails without dimension and base unit in create mode``
-- ``dimension selection resets base unit``
-- ``edit mode hides unit mutation controls``
-
-### `IngredientListViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt`
-- **Subsystem**: Feature: Ingredients
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``search filters ingredients with normalization``
-- ``search filters ingredients case-insensitive``
-- ``category filter filters ingredients``
-- ``archived toggle updates includeArchived flag``
-
-### `OnboardingViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt`
-- **Subsystem**: Feature: Onboarding
-- **Type**: JVM
-- **Method Count**: 6
-#### Methods:
-- ``initial state loads defaults when no draft exists``
-- ``autosave persists changes with debounce for name``
-- ``autosave persists selections immediately``
-- ``next step persists the NEW step immediately``
-- ``reordering updates sort order and persists immediately``
-- ``draft save failure is visible in UI state``
-
-### `PurchaseDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDetailViewModelTest.kt`
-- **Subsystem**: Feature: Purchases
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``void purchase success updates state to VOIDED``
-
-### `PurchaseDraftViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt`
-- **Subsystem**: Feature: Purchases
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``post purchase success emits event``
-- ``delete line success emits event``
-
-### `PurchaseLineViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt`
-- **Subsystem**: Feature: Purchases
-- **Type**: JVM
-- **Method Count**: 3
-#### Methods:
-- ``initial state is loading then ready for new line``
-- ``ingredient selection updates options and previews``
-- ``rapid ingredient selection cancels previous work``
-
-### `PurchaseListViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt`
-- **Subsystem**: Feature: Purchases
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- ``list updates when repository emits new purchases``
-- ``search updates filter``
-
-### `ReportsScreenStateTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/reports/ReportsScreenStateTest.kt`
-- **Subsystem**: Feature: Reports
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- `readyStateCanBeCopied`
-
-### `InventoryDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt`
-- **Subsystem**: Feature: Reports
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``initial state is Loading then SetupRequired when no restaurant``
-- ``Ready state refresh sequence``
-- ``account switch resets to full Loading and hides old data``
-- ``refresh failure preserves old data``
-
-### `PurchaseDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt`
-- **Subsystem**: Feature: Reports
-- **Type**: JVM
-- **Method Count**: 11
-#### Methods:
-- ``navigation-provided 7-day range``
-- ``navigation-provided 90-day range``
-- ``missing range defaults to 30 days``
-- ``malformed range defaults to 30 days``
-- ``initial state is Loading then SetupRequired when no restaurant``
-- ``Ready state success sequence``
-- ``initial repository failure triggers Error state``
-- ``initial retry resubscribes``
-- ``range change triggers refreshing sequence with distinct periods``
-- ``selecting same range does not trigger new request``
-- ``account switch resets to Loading``
-
-### `ReportsViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt`
-- **Subsystem**: Feature: Reports
-- **Type**: JVM
-- **Method Count**: 6
-#### Methods:
-- ``initial state is Loading then SetupRequired when no restaurant``
-- ``initial repository failure triggers Error state``
-- ``retry after initial failure resubscribes``
-- ``Ready state refresh sequence``
-- ``account switch resets to full Loading and hides old data``
-- ``mapping coverage and fields``
-
-### `WasteDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt`
-- **Subsystem**: Feature: Reports
-- **Type**: JVM
-- **Method Count**: 10
-#### Methods:
-- ``navigation-provided 7-day range``
-- ``navigation-provided 90-day range``
-- ``missing range defaults to 30 days``
-- ``malformed range defaults to 30 days``
-- ``initial state sequence``
-- ``initial error and retry``
-- ``selecting same range is no-op``
-- ``range change triggers refreshing sequence with distinct periods``
-- ``refresh failure preserves old data``
-- ``account switch resets identity``
-
-### `BackupViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt`
-- **Subsystem**: Feature: Settings
-- **Type**: JVM
-- **Method Count**: 5
-#### Methods:
-- ``initial state is Idle``
-- ``two simultaneous create requests only start one operation``
-- ``reset cancels active preparation job``
-- ``restored CREATING state shows OperationInterrupted error``
-- ``stale repository emissions are ignored after reset``
-
-### `SupplierFormViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierFormViewModelTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``save supplier success emits event``
-
-### `SupplierListViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierListViewModelTest.kt`
-- **Subsystem**: Core
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``list updates when repository emits new suppliers``
-
-### `WasteDetailViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt`
-- **Subsystem**: Feature: Waste
-- **Type**: JVM
-- **Method Count**: 4
-#### Methods:
-- ``loading to ready state``
-- ``not found state``
-- ``invalid route state``
-- ``ownership mismatch state``
-
-### `WasteFormViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt`
-- **Subsystem**: Feature: Waste
-- **Type**: JVM
-- **Method Count**: 5
-#### Methods:
-- ``initial state is Loading then Ready``
-- ``selecting ingredient updates unit options and handles loading state``
-- ``unit option repository failure produces error and disables save``
-- ``attachment permission failure handles error and preserves existing``
-- ``preview failure handles error and clears preview``
-
-### `WasteListViewModelTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteListViewModelTest.kt`
-- **Subsystem**: Feature: Waste
-- **Type**: JVM
-- **Method Count**: 1
-#### Methods:
-- ``initial state shows events from repository``
-
-### `WasteRaceTest`
-- **Source Path**: `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteRaceTest.kt`
-- **Subsystem**: Feature: Waste
-- **Type**: JVM
-- **Method Count**: 2
-#### Methods:
-- `ingredientRace_lastSelectionWins`
-- `previewCancellation_latestRequestWins`
-
+# Current Test Inventory
+
+| Source path | Class | Method | JVM/Inst | Result |
+| :--- | :--- | :--- | :--- | :--- |
+| `app/src/androidTest/kotlin/com/miara/cuentame/ExampleInstrumentedTest.kt` | ExampleInstrumentedTest | useAppContext | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt` | NavigationTest | app_startsOnHome_whenRestaurantExists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt` | NavigationTest | app_startsOnOnboarding_whenNoRestaurant | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt` | NavigationTest | navigateToSettingsAndBack | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt` | AndroidBackupDocumentStoreTest | delete_validFile_returnsTrue | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt` | AndroidBackupDocumentStoreTest | openForRead_nonExistent_throwsWrapped | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt` | AndroidBackupDocumentStoreTest | openForRead_validFileUri_returnsStream | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt` | AndroidBackupDocumentStoreTest | openForWrite_validFileUri_returnsStream | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt` | AndroidBackupDocumentStoreTest | truncate_validFile_emptiesFile | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt` | AndroidBackupRepositoryTest | createBackup_successful_sequence | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/backup/BackupProductionIntegrationTest.kt` | BackupProductionIntegrationTest | fullBackupPipeline_producesValidArchive | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseSeedingTest.kt` | DatabaseSeedingTest | unitsAreSeededSynchronouslyOnCreate | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt` | DatabaseTest | movementIdempotency | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt` | DatabaseTest | seedUnitsExist | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt` | DatabaseTest | writeAndReadRestaurant | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/MigrationTest.kt` | MigrationTest | migrate1To2 | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/ParentUpdateTest.kt` | ParentUpdateTest | updateReceiptPreservesLines | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/ReversalTest.kt` | ReversalTest | onlyOneReversalAllowedPerMovement | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/BackupDaoTest.kt` | BackupDaoTest | createSnapshot_includesAllTables | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | adjustedLineCount_providesPersistedValues | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | recentActivity_deterministicOrdering | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | spendRows_filtersByStatusAndDate | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | stockCountSummaries_independentOfLines | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | valuationRows_isolatesByRestaurant | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt` | DashboardDaoTest | wasteValueRows_filtersByStatusAndDate | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt` | DetailedReportsDaoTest | inventoryValuationRows_includesNegativeBalances | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt` | DetailedReportsDaoTest | inventoryValuationRows_joinsMetadata | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt` | DetailedReportsDaoTest | purchaseSpendRows_filtersByDateRange | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt` | DetailedReportsDaoTest | purchaseSpendRows_filtersByStatus | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt` | DetailedReportsDaoTest | wasteValueRows_filtersByStatus | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/migration/RoomMigrationTest.kt` | RoomMigrationTest | createDatabaseDirectlyAtVersion2 | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/migration/RoomMigrationTest.kt` | RoomMigrationTest | migrate1To2_preservesData_supportsNullCost_andOpensInRoom | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupIsolationTest.kt` | BackupIsolationTest | createSnapshot_isolatesAllTablesByRestaurant | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt` | ReportingIsolationTest | inventoryDetails_hardenedIsolation_excludesCrossRestaurantMetadata | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt` | ReportingIsolationTest | purchaseDetails_hardenedIsolation_excludesCrossRestaurantSuppliers | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt` | ReportingIsolationTest | recentWasteActivity_hardenedIsolation_excludesCrossRestaurantMetadata | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt` | ReportingIsolationTest | wasteDetails_hardenedIsolation_excludesCrossRestaurantMetadata | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryIntegrationTest.kt` | FixedTimeProvider | observeDashboard_emptyDatabase_returnsZeros | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_aggregatesAreasAndCalculatesValue | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_alertOnlyRow_aggregateZeroButNegativeArea | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_excludedRow_allZeroNoNegative | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_missingCost_onlyForStocked | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_strictDecimalValidation | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeInventoryDetails_zeroCost_isValid | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observePurchaseDetails_strictDecimalValidation | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt` | RoomDetailedReportsRepositoryTest | observeWasteDetails_strictSnapshotValidation | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomIngredientRepositoryTest.kt` | RoomIngredientRepositoryTest | createIngredientWithBaseOption_succeeds | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt` | RoomInventoryAreaRepositoryTest | archiveFinalArea_scopedByRestaurant | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt` | RoomInventoryAreaRepositoryTest | archiveFinalArea_throwsError | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt` | RoomInventoryAreaRepositoryTest | reorder_otherRestaurant_throwsError | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt` | RoomInventoryAreaRepositoryTest | reorder_subset_throwsError | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt` | RoomInventoryAreaRepositoryTest | reorder_updatesSortOrderContiguously | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt` | RoomInventorySnapshotServiceFailureTest | calculateAt_reversalOfReversal_throws | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt` | RoomInventorySnapshotServiceFailureTest | calculateAt_reversalWithoutTarget_throws | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt` | RoomInventorySnapshotServiceTest | calculateAt_futureReversal_doesNotCancel | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt` | RoomInventorySnapshotServiceTest | calculateAt_historyWithoutCost_returnsNullCost | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt` | RoomInventorySnapshotServiceTest | calculateAt_noHistory_returnsEmpty | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt` | RoomInventorySnapshotServiceTest | calculateAt_reversal_cancelsOriginal | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt` | RoomInventorySnapshotServiceTest | calculateAt_withHistory_returnsSnapshot | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomPurchaseRepositoryTest.kt` | RoomPurchaseRepositoryTest | fullLifecycle_draft_to_posted_to_void | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt` | RoomRestaurantRepositoryTest | save_existingRestaurant_updates | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt` | RoomRestaurantRepositoryTest | save_newRestaurant_inserts | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomStockCountRepositoryTest.kt` | RoomStockCountRepositoryTest | fullLifecycle_start_save_complete_void | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomWasteRepositoryTest.kt` | RoomWasteRepositoryTest | fullLifecycle_create_post_void | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt` | SupplierRepositoryTest | archiveSupplier_removesFromActiveList | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt` | SupplierRepositoryTest | createSupplier_failsOnDuplicateName | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt` | SupplierRepositoryTest | createSupplier_failsOnOwnershipMismatch | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt` | SupplierRepositoryTest | createSupplier_succeeds | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt` | SupplierRepositoryTest | updateSupplier_updatesAllowedFieldsOnly | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/domain/service/ChickenIntegrationTest.kt` | ChickenIntegrationTest | createChickenIngredientWithMultipleUnits | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/domain/service/PurchaseIntegrationTest.kt` | PurchaseIntegrationTest | insertAndReadPurchase | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt` | DataStoreAppPreferencesRepositoryTest | corruptDraft_isRemovedSynchronously | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt` | DataStoreAppPreferencesRepositoryTest | saveAndLoadDraft | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt` | DataStoreAppPreferencesRepositoryTest | saveAndObservePreferences | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt` | DataStoreAppPreferencesRepositoryTest | unsupportedVersion_isRemovedSynchronously | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/counts/ui/StockCountLifecycleTest.kt` | StockCountLifecycleTest | full_lifecycle_test | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/counts/ui/StockCountUiTest.kt` | StockCountUiTest | start_count_flow | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt` | HomeUiTest | app_routesToOnboarding_whenSetupIsIncomplete | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt` | HomeUiTest | dashboard_emptyState_whenNoActivity | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt` | HomeUiTest | dashboard_fullVerification_populatedData | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/ingredients/ui/IngredientDetailUiTest.kt` | IngredientDetailUiTest | archive_ingredient_flow | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/ingredients/ui/IngredientUiTest.kt` | IngredientUiTest | complete_ingredient_e2e_flow | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/onboarding/ui/OnboardingUiTest.kt` | OnboardingUiTest | onboarding_fullFlow_persistsRestaurantAndNavigatesToHome | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/onboarding/ui/OnboardingUiTest.kt` | OnboardingUiTest | onboarding_start_navigation | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt` | PurchaseFailureUiTest | post_failure_preserves_dialog_and_shows_snackbar | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseUiTest.kt` | PurchaseUiTest | complete_purchase_lifecycle | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/DetailedReportsUiTest.kt` | DetailedReportsUiTest | reports_display_seeded_values | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/InventoryDetailScreenTest.kt` | InventoryDetailScreenTest | inventoryDetail_exists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/PurchaseDetailScreenTest.kt` | PurchaseDetailScreenTest | purchaseDetail_exists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportingRefreshComposeTest.kt` | ReportingRefreshComposeTest | reportsRefresh_exists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt` | ReportsUiTest | reportsOverview_rangeRefresh_noFlicker | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt` | ReportsUiTest | reports_navigation_homeToReports_andBack | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt` | ReportsUiTest | reports_populatedData_verification | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt` | ReportsUiTest | reports_rangeSwitching_7_days | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt` | ReportsUiTest | reports_rangeSwitching_90_days | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/WasteDetailScreenTest.kt` | WasteDetailScreenTest | wasteDetail_exists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/settings/ui/SettingsBackupUiTest.kt` | SettingsBackupUiTest | createBackup_buttonExists | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_changingAwayFromArchivedReferences_persistsActiveValues | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_crossIngredientUnitOption_showsSafeErrorAndPreventsSave | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_existingArchivedReferences_displayedAndPreservedOnSave | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_missingAreaReference_showsSafeError | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_missingIngredientReference_showsSafeErrorAndDisablesSave | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt` | WasteArchiveUiTest | wasteForm_missingUnitOptionReference_showsSafeError | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt` | WasteFailureUiTest | wastePost_failureRollback_andRetrySuccess | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt` | WasteFailureUiTest | wasteVoid_failureRollback_andRetrySuccess | Inst | NOT_EXECUTED |
+| `app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteLifecycleTest.kt` | WasteLifecycleTest | navigateToWasteAndBack | Inst | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | aliasedForbiddenImportDetected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | enforcePackageBoundaries | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | ruleCoreToFeatureViolationDetected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | ruleDomainToComposeViolationDetected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | ruleModelToDatabaseViolationDetected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt` | ArchitectureTest | rulePureBackupToDatabaseViolationDetected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/ExampleUnitTest.kt` | ExampleUnitTest | addition_isCorrect | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt` | AndroidBackupRepositoryTest | cleans destination on planning failure | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt` | AndroidBackupRepositoryTest | full successful orchestration sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe accepts simple alphanumeric paths | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe accepts valid attachment paths | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe rejects absolute paths | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe rejects backslashes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe rejects blank names | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt` | ArchiveEntryValidatorTest | isSafe rejects relative traversal | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt` | AttachmentFilenameSanitizerTest | isValid validates correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt` | AttachmentFilenameSanitizerTest | sanitize preserves extensions | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt` | AttachmentFilenameSanitizerTest | sanitize removes dangerous characters | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | positive control - valid archive passes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with checksum key mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with checksum value mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with duplicate entry | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with malformed UTF-8 manifest | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with missing manifest | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with schema version mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with traversal path | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt` | BackupArchiveValidatorAdversarialTest | rejects archive with unexpected entry | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt` | BackupArchiveWriterTest | writer detects attachment growth during write | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt` | BackupArchiveWriterTest | writer detects database payload checksum mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt` | BackupArchiveWriterTest | writer detects total limit exceeded during write | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt` | BackupArchiveWriterTest | writer rejects plan with checksum map mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt` | BackupArchiveWriterTest | writer releases resources and does not close underlying stream | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt` | BackupByteMathTest | addExact_overflow_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt` | BackupByteMathTest | addExact_rejectsNegative | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt` | BackupByteMathTest | addExact_success | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt` | BackupCleanupCoordinatorTest | returns Deleted when delete succeeds | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt` | BackupCleanupCoordinatorTest | returns Failed when both fail | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt` | BackupCleanupCoordinatorTest | returns Failed when delete throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt` | BackupCleanupCoordinatorTest | returns Truncated when delete fails but truncate succeeds | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt` | BackupCleanupLifecycleTest | creation failure triggers cleanup | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt` | BackupCleanupLifecycleTest | failed deletion falls back to truncate | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt` | BackupCleanupLifecycleTest | preflight failure does not open destination for write | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | fails with MissingAttachmentSource when binding is missing | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | maps missing restaurant to RestaurantDisappeared | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | maps reconciliation failure to LocaleReconciliationFailed | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | plan ensures defensive copies of byte arrays | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | plan reflects attachment list from binding | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | rejects plan if attachment ID is invalid | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | rejects plan if schema version mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt` | BackupCreationPlannerTest | successful deterministic plan | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt` | BackupFilenameGeneratorTest | generates valid name with restaurant | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt` | BackupFilenameGeneratorTest | generates valid name without restaurant | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt` | BackupFilenameGeneratorTest | sanitizes restaurant name | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt` | BackupManifestValidatorTest | rejects invalid locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt` | BackupManifestValidatorTest | rejects missing table metadata | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt` | BackupManifestValidatorTest | rejects overlong attachment list | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt` | BackupManifestValidatorTest | rejects unsupported format version | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt` | BackupManifestValidatorTest | valid manifest passes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt` | BackupPlanTest | create rejects total size mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt` | BackupPlanTest | create with valid data succeeds | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt` | BackupPlanTest | plan is immutable and performs defensive copies | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt` | BackupPlanTest | rejects duplicate manifest attachment ID | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt` | BackupPlanTest | rejects manifest metadata mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt` | BackupRoundTripTest | archive determinism - identical inputs produce identical bytes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt` | BackupRoundTripTest | complete round trip with no attachments | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt` | BackupRoundTripTest | complete round trip with shared attachments | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt` | BackupSnapshotIntegrityNumericTest | rejects malformed decimal | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt` | BackupSnapshotIntegrityNumericTest | rejects negative purchase quantity | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityProjectionTest.kt` | BackupSnapshotIntegrityProjectionTest | rejects balance projection mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityReversalTest.kt` | BackupSnapshotIntegrityReversalTest | rejects reversal targeting another reversal | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt` | BackupSnapshotIntegrityValidatorTest | validate accepts valid simple snapshot | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt` | BackupSnapshotIntegrityValidatorTest | validate rejects balance projection mismatch | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt` | BackupSnapshotIntegrityValidatorTest | validate rejects posted purchase receipt without movement | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt` | BackupSnapshotIntegrityValidatorTest | validate rejects zero purchase quantity | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse duplicate key fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse empty input fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse empty object fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse malformed escape fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse non-hex hash fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse self reference fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse trailing comma fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse trailing content fails | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt` | ChecksumParserTest | parse valid sorted object succeeds | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumTest.kt` | ChecksumTest | ImmutableBackupBytes sha256 matches manual digest | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumTest.kt` | ChecksumTest | sha256 is deterministic | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt` | InsufficientStorageDetectionTest | detects ENOSPC from message | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt` | InsufficientStorageDetectionTest | detects SecurityException as PermissionDenied | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt` | InsufficientStorageDetectionTest | detects open failure as DestinationUnavailable | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt` | InsufficientStorageDetectionTest | falls back to GenericIo for generic IOException | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects duplicate references | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects empty references | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects invalid attachment ID | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects invalid checksum | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects invalid display name | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects non-canonical archive path | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects unsafe archive path | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create rejects unsupported record type | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt` | PlannedBackupAttachmentTest | create with valid data succeeds | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt` | SupportedAppLocaleTest | fromLanguageTag returns correct enum for valid tags | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt` | SupportedAppLocaleTest | fromLanguageTag returns null for invalid tags | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt` | SupportedAppLocaleTest | languageTags contains all supported tags | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt` | DecimalPersistenceTest | toBigDecimalValue fails on invalid string | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt` | DecimalPersistenceTest | toBigDecimalValue parses canonical string | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt` | DecimalPersistenceTest | toStorageString preserves plain format | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/ids/IdGeneratorTest.kt` | IdGeneratorTest | newId returns non-empty string | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/ids/IdGeneratorTest.kt` | IdGeneratorTest | newId returns unique strings | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt` | NameNormalizationTest | normalizeName handles empty string | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt` | NameNormalizationTest | normalizeName lowercases root locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt` | NameNormalizationTest | normalizeName trims and collapses spaces | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/common/time/TimeProviderTest.kt` | TimeProviderTest | now returns current time | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | calculate inventory valuation with multiple areas and negative quantities | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | calculate purchase spend comparison correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | completed count summary is independent of lines | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | empty data returns zeroed snapshot | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | invalid inventory decimal throws error | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | negative cost throws error | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | null waste valuation throws error | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | recent activity uses structured data without fallback prose | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt` | RoomDashboardRepositoryTest | waste value uses historical snapshots | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | costWithoutTotal_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | incorrectTotalEquation_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | missingReversal_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | positiveWasteQuantity_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | reversalOfReversal_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | validPostedHistory_passes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | validVoidedHistory_passes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | wrongArea_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | wrongIngredient_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | wrongRestaurant_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | wrongReversalOperationId_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | wrongReversalTarget_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt` | WasteMovementHistoryValidatorTest | zeroWasteQuantity_throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatCurrency_ES_Locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatCurrency_US_Locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatCurrency_invalidCode_fallbackToLiteral | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatPercent_ES_Locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatPercent_US_Locale | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatQuantity_roundsToThreePlaces | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt` | FormattersTest | formatQuantity_stripsZeros | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ChickenFixtureTest.kt` | ChickenFixtureTest | Chicken Breast fixture domain validation | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt` | CountAdjustmentCalculatorTest | negative adjustment | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt` | CountAdjustmentCalculatorTest | positive adjustment | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountComparisonCalculatorTest.kt` | CountComparisonCalculatorTest | calculateUnclassifiedUsage with simple values | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/IngredientUnitConverterTest.kt` | IngredientUnitConverterTest | fromBase converts lb to case | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/IngredientUnitConverterTest.kt` | IngredientUnitConverterTest | toBase converts case to lb | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt` | InventoryBalanceCalculatorTest | calculateBalance handles empty list | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt` | InventoryBalanceCalculatorTest | calculateBalance sums quantities | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryMovementServiceTest.kt` | InventoryMovementServiceTest | cannot reverse a reversal | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryMovementServiceTest.kt` | InventoryMovementServiceTest | createReversal returns negative quantity and references original | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt` | ReportingPeriodCalculatorTest | calculatePeriods_30Days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt` | ReportingPeriodCalculatorTest | calculatePeriods_7Days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt` | ReportingPeriodCalculatorTest | calculatePeriods_90Days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt` | StandardUnitConverterTest | convert incompatible dimensions throws | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt` | StandardUnitConverterTest | convert kg to grams | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt` | StandardUnitConverterTest | convert lb to grams | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt` | StandardUnitConverterTest | convert same units returns same value | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt` | WeightedAverageCostCalculatorTest | calculate first purchase | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt` | WeightedAverageCostCalculatorTest | calculate with existing inventory | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt` | WeightedAverageCostCalculatorTest | calculate with zero cost purchase | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt` | CompleteOnboardingUseCaseTest | AlreadyCompleted uses Room locale as authoritative | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt` | CompleteOnboardingUseCaseTest | Success updates DataStore and clears draft | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/PreviewWasteUseCaseTest.kt` | PreviewWasteUseCaseTest | calculates preview correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt` | ResolveAppStartStateUseCaseTest | both complete returns Ready | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt` | ResolveAppStartStateUseCaseTest | both incomplete returns RequiresOnboarding | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt` | ResolveAppStartStateUseCaseTest | db complete but locale mismatch repairs DataStore and returns Ready | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt` | ResolveAppStartStateUseCaseTest | db incomplete but DataStore says complete repairs DataStore and returns RequiresOnboarding | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt` | AppLocaleUseCaseTest | reconciler handles room failure as ordinary failure | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt` | AppLocaleUseCaseTest | reconciler rethrows cancellation exception | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt` | StartStockCountViewModelTest | area selection works | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt` | StartStockCountViewModelTest | initial state loads areas | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt` | StartStockCountViewModelTest | overlapping area is disabled | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt` | StartStockCountViewModelTest | start count fails with future date | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt` | StartStockCountViewModelTest | start count succeeds with valid input | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt` | StockCountAreaViewModelRaceTest | Delete during CREATE captures generated ID and removes line | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt` | StockCountAreaViewModelRaceTest | Flush during CREATE does not create duplicate line | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt` | StockCountAreaViewModelRaceTest | Queued save and delete complete in order without deadlock | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | Archived unit becomes disabled after changing away | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | back navigation flushes pending saves | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | initial state loads correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | invalid input blocks completion | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | rapid unit selection preserves final selection | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | stale save result does not overwrite newer state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | untouched suggestions are not pending | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt` | StockCountAreaViewModelTest | user edit makes line pending | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt` | StockCountDetailViewModelTest | complete count resets state after success | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt` | StockCountDetailViewModelTest | initial state loads correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt` | StockCountDetailViewModelTest | not found state works | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt` | StockCountDetailViewModelTest | ownership mismatch state works | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt` | HomeScreenStateTest | Ready state can be copied and updated | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | account switch resets to full Loading and hides old data | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | coverage mapping handles edge cases | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | initial repository failure triggers Error state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | initial state sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | mapComparison handles states correctly | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | range refresh sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | rapid range selection handles cancellation | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | retry after initial failure resubscribes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | scale-independent zero handling | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt` | HomeViewModelTest | selecting same range is no-op | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | add package option emits success event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | add standard option emits success event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | archive option emits success event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | default change emits success event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | initial state loads ingredient | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | options are reactive | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt` | IngredientDetailViewModelTest | update package option emits success event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt` | IngredientFormViewModelTest | dimension selection resets base unit | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt` | IngredientFormViewModelTest | edit mode hides unit mutation controls | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt` | IngredientFormViewModelTest | initial state is not loading | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt` | IngredientFormViewModelTest | onSave fails with blank name | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt` | IngredientFormViewModelTest | onSave fails without dimension and base unit in create mode | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt` | IngredientListViewModelTest | archived toggle updates includeArchived flag | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt` | IngredientListViewModelTest | category filter filters ingredients | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt` | IngredientListViewModelTest | search filters ingredients case-insensitive | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt` | IngredientListViewModelTest | search filters ingredients with normalization | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | autosave persists changes with debounce for name | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | autosave persists selections immediately | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | draft save failure is visible in UI state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | initial state loads defaults when no draft exists | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | next step persists the NEW step immediately | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt` | OnboardingViewModelTest | reordering updates sort order and persists immediately | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | void purchase success updates state to VOIDED | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt` | PurchaseDraftViewModelTest | delete line success emits event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt` | PurchaseDraftViewModelTest | post purchase success emits event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt` | PurchaseLineViewModelTest | ingredient selection updates options and previews | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt` | PurchaseLineViewModelTest | initial state is loading then ready for new line | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt` | PurchaseLineViewModelTest | rapid ingredient selection cancels previous work | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt` | PurchaseListViewModelTest | list updates when repository emits new purchases | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt` | PurchaseListViewModelTest | search updates filter | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/ReportsScreenStateTest.kt` | ReportsScreenStateTest | readyStateCanBeCopied | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt` | InventoryDetailViewModelTest | Ready state refresh sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt` | InventoryDetailViewModelTest | account switch resets to full Loading and hides old data | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt` | InventoryDetailViewModelTest | initial state is Loading then SetupRequired when no restaurant | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt` | InventoryDetailViewModelTest | refresh failure preserves old data | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | Ready state success sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | account switch resets to Loading | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | initial repository failure triggers Error state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | initial retry resubscribes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | initial state is Loading then SetupRequired when no restaurant | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | malformed range defaults to 30 days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | missing range defaults to 30 days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | navigation-provided 7-day range | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | navigation-provided 90-day range | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | range change triggers refreshing sequence with distinct periods | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt` | PurchaseDetailViewModelTest | selecting same range does not trigger new request | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | Ready state refresh sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | account switch resets to full Loading and hides old data | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | initial repository failure triggers Error state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | initial state is Loading then SetupRequired when no restaurant | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | mapping coverage and fields | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt` | ReportsViewModelTest | retry after initial failure resubscribes | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | account switch resets identity | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | initial error and retry | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | initial state sequence | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | malformed range defaults to 30 days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | missing range defaults to 30 days | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | navigation-provided 7-day range | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | navigation-provided 90-day range | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | range change triggers refreshing sequence with distinct periods | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | refresh failure preserves old data | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | selecting same range is no-op | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | initial state is Idle | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | interrupted survives second recreation | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | malformed WAITING state with active ID -1 becomes Idle | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | reset cancels active preparation job | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | restored CREATING state shows OperationInterrupted error | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | stale file selection is rejected | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | stale repository emissions are ignored after reset | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt` | BackupViewModelTest | two simultaneous create requests only start one operation | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierFormViewModelTest.kt` | SupplierFormViewModelTest | save supplier success emits event | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierListViewModelTest.kt` | SupplierListViewModelTest | list updates when repository emits new suppliers | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | invalid route state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | loading to ready state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | not found state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt` | WasteDetailViewModelTest | ownership mismatch state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt` | WasteFormViewModelTest | attachment permission failure handles error and preserves existing | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt` | WasteFormViewModelTest | initial state is Loading then Ready | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt` | WasteFormViewModelTest | preview failure handles error and clears preview | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt` | WasteFormViewModelTest | selecting ingredient updates unit options and handles loading state | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt` | WasteFormViewModelTest | unit option repository failure produces error and disables save | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteListViewModelTest.kt` | WasteListViewModelTest | initial state shows events from repository | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteRaceTest.kt` | WasteRaceTest | ingredientRace_lastSelectionWins | JVM | NOT_EXECUTED |
+| `app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteRaceTest.kt` | WasteRaceTest | previewCancellation_latestRequestWins | JVM | NOT_EXECUTED |

@@ -1,5 +1,4 @@
-Command: ./gradlew :app:testDebugUnitTest
-Result: SUCCESS (283 passed)
-Failure class: None
-Root cause: None
-Rerun result: PASS
+# Final Test Execution Log
+
+| Command | Result | Failure class | Root cause | Rerun result |
+| :--- | :--- | :--- | :--- | :--- |

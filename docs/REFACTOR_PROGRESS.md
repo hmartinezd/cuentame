@@ -7,8 +7,8 @@
 - Backup production hardening: COMPLETE
 - Backup verification: COMPLETE
 - Regression recovery: COMPLETE
-- Android instrumentation verification: COMPLETE
-- CI verification: COMPLETE
+- Android instrumentation verification: COMPILED_NOT_EXECUTED
+- CI verification: READY
 - Backup restore: NOT STARTED
 - Customer export: NOT STARTED
 - Multi-module migration: POSTPONED
