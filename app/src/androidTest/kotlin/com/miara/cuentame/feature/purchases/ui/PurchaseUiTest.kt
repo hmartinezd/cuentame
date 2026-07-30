@@ -14,10 +14,12 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.feature.waste.ui.waitForTag
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -41,12 +43,14 @@ class PurchaseUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            db.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
             db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             
             val now = Instant.now()
@@ -54,14 +58,17 @@ class PurchaseUiTest {
             db.restaurantDao().insert(Restaurant(restId, "Test Restaurant", "USD", "en-US", now, now, null).toEntity())
             db.inventoryAreaDao().upsert(InventoryArea(InventoryAreaId("area_1"), restId, "Main Kitchen", "main kitchen", 0, true, now, now, null).toEntity())
             
-            preferencesRepository.setAppLocaleTag("en")
+            preferencesRepository.setAppLocaleTag("en-US")
             preferencesRepository.setOnboardingCompleted(true)
         }
     }
 
 
-    @org.junit.After
-    fun teardown() {
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
+        }
     }
 
     private fun waitForPurchaseStatus(expected: String) {
@@ -93,7 +100,7 @@ class PurchaseUiTest {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
 
-            // 1. Navigate to Activity (Purchases)
+            // 1. Navigate to Purchases
             composeTestRule.onNodeWithTag("nav_purchases", useUnmergedTree = true).performClick()
             composeTestRule.waitForIdle()
             

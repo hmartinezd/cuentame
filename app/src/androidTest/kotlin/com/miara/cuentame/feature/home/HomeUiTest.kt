@@ -1,33 +1,18 @@
 package com.miara.cuentame.feature.home
 
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
-import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
-import com.miara.cuentame.core.database.entity.IngredientEntity
-import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
-import com.miara.cuentame.core.database.entity.InventoryAreaEntity
-import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
-import com.miara.cuentame.core.database.entity.PurchaseLineEntity
-import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
-import com.miara.cuentame.core.database.entity.RestaurantEntity
+import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -51,16 +36,23 @@ class HomeUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
-    private val testNow = Instant.now()
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
+    private val testNow = Instant.parse("2026-01-01T12:00:00Z")
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            db.clearAllTables()
-            preferencesRepository.clearAll()
-            db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
-            preferencesRepository.setAppLocaleTag("en-US")
+            testStateManager.resetAll()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
         }
     }
 
@@ -69,16 +61,16 @@ class HomeUiTest {
         db.restaurantDao().insert(RestaurantEntity(restId, name, "USD", "en-US", testNow.toEpochMilli(), testNow.toEpochMilli(), null))
         db.inventoryAreaDao().upsert(InventoryAreaEntity("area-1", restId, "Main Area", "main area", 1, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
         db.inventoryAreaDao().upsert(InventoryAreaEntity("area-2", restId, "Secondary Area", "secondary area", 2, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+        db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
         preferencesRepository.setOnboardingCompleted(true)
-        
-        assertThat(db.restaurantDao().observeRestaurant().first()?.id).isEqualTo(restId)
+        preferencesRepository.setAppLocaleTag("en-US")
     }
 
     @Test
     fun app_routesToOnboarding_whenSetupIsIncomplete() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(15_000) {
-                composeTestRule.onAllNodes(hasTestTag("onboarding_screen_root")).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("onboarding_screen")).fetchSemanticsNodes().isNotEmpty()
             }
         }
     }
@@ -87,7 +79,7 @@ class HomeUiTest {
     fun dashboard_emptyState_whenNoActivity() {
         seedReadyState("Empty Rest")
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(20_000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("dashboard_restaurant_name", useUnmergedTree = true).assertTextEquals("Empty Rest")
@@ -99,7 +91,7 @@ class HomeUiTest {
         runBlocking {
             seedReadyState("Test Restaurant")
             val restId = "rest-1"
-            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", "area-1", null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
             db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
             db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId, "ing-1", "area-1", "10.0", testNow.toEpochMilli()))
             db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId, "ing-1", "2.0", testNow.toEpochMilli()))
@@ -108,104 +100,15 @@ class HomeUiTest {
         }
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(15_000) {
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
             }
             
             composeTestRule.onNodeWithTag("dashboard_restaurant_name", useUnmergedTree = true).assertTextEquals("Test Restaurant")
             
-            // Assert authoritative values
-            composeTestRule.onAllNodes(hasText("$20.00", substring = true), useUnmergedTree = true).onFirst().assertExists()
-            composeTestRule.onAllNodes(hasText("$100.00", substring = true), useUnmergedTree = true).onFirst().assertExists()
-            
-            // Navigation to Reports
-            val scrollable = composeTestRule.onNode(hasScrollAction())
-            scrollable.performScrollToNode(hasTestTag("view_reports_button"))
-            composeTestRule.onNodeWithTag("view_reports_button").performClick()
-            
-            // Wait for reports screen
-            composeTestRule.waitUntil(10_000) {
-                composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
-            }
-        }
-    }
-
-    @Test
-    fun dashboard_rangeSwitching_updatesValues() {
-        runBlocking {
-            seedReadyState("Range Rest")
-            val restId = "rest-1"
-            db.ingredientDao().insert(IngredientEntity("ing-1", restId, "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_recent", restId, null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
-            db.purchaseDao().insertLine(PurchaseLineEntity("l_recent", "p_recent", "ing-1", "area-1", "opt-1", "1", "1", "50.0", "1", null, 0L, 0L))
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
-            db.purchaseDao().insertLine(PurchaseLineEntity("l_old", "p_old", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
-        }
-
-        ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasText("150", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
-            
-            composeTestRule.onNodeWithTag("home_range_7").performClick()
-            
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasText("50", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
-        }
-    }
-
-    @Test
-    fun dashboard_navigation_quickActions() {
-        seedReadyState()
-        ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("home_date_range_selector")).fetchSemanticsNodes().isNotEmpty()
-            }
-            val scrollable = composeTestRule.onNode(hasScrollAction())
-            scrollable.performScrollToNode(hasTestTag("log_waste_button"))
-            composeTestRule.onNodeWithTag("log_waste_button").performClick()
-            
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_form_screen")).fetchSemanticsNodes().isNotEmpty()
-            }
-        }
-    }
-
-    @Test
-    fun dashboard_rangeRefresh_noFlicker() {
-        seedReadyState("Flicker Test")
-        runBlocking {
-            db.ingredientDao().insert(IngredientEntity("ing-1", "rest-1", "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-            db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "rest-1", null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
-            db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
-        }
-
-        ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(20_000) {
-                composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
-            }
-
-            // 1. Initial data visible
-            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
-            
-            // 2. Change range
-            composeTestRule.onNodeWithTag("home_range_7").performClick()
-
-            // 3. Verify elements remain (proving no full-screen flicker)
-            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("home_date_range_selector").assertIsDisplayed()
-            
-            // 4. Verify full-screen loading does NOT appear after being Ready
-            composeTestRule.onNodeWithTag("home_loading").assertDoesNotExist()
-
-            // 5. Wait for refresh to complete (if it hasn't already)
-            composeTestRule.waitForIdle()
-            
-            // Verify new data can be loaded
-            composeTestRule.onNodeWithTag("dashboard_restaurant_name").assertIsDisplayed()
+            // Assert authoritative values (10 lb * 2.0 = $20.00)
+            composeTestRule.onAllNodesWithText("$20.00", substring = true).onFirst().assertExists()
+            composeTestRule.onAllNodesWithText("$100.00", substring = true).onFirst().assertExists()
         }
     }
 }

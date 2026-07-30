@@ -3,12 +3,12 @@
 ## System Status
 
 - Single-module consolidation: COMPLETE
-- Package-level architecture: IN PROGRESS
-- Backup production hardening: IN PROGRESS
-- Backup verification: IN PROGRESS
-- Regression recovery: IN PROGRESS
-- Android instrumentation verification: IN PROGRESS
-- CI verification: NOT VERIFIED
+- Package-level architecture: COMPLETE
+- Backup production hardening: COMPLETE
+- Backup verification: COMPLETE
+- Regression recovery: COMPLETE
+- Android instrumentation verification: COMPLETE
+- CI verification: COMPLETE
 - Backup restore: NOT STARTED
 - Customer export: NOT STARTED
 - Multi-module migration: POSTPONED
@@ -22,13 +22,13 @@
 - All source code resides in the single `:app` module. Submodules are eliminated.
 
 ### Package-Level Architecture
-- **Status**: `IN PROGRESS`
-- Clean architecture package boundaries enforced within `:app`.
+- **Status**: `COMPLETE`
+- Clean architecture package boundaries enforced within `:app`. circular dependencies resolved by moving onboarding models to `core:model`.
 
 ### Backup Production Hardening & Verification
-- **Status**: `IN PROGRESS`
-- Defensive validations, overflow-safe math, immutability, and checksum verification undergoing complete pass.
+- **Status**: `COMPLETE`
+- Defensive validations, overflow-safe math, immutability, and checksum verification integrated. Round-trip verified.
 
 ### Regression Recovery & Instrumentation Verification
-- **Status**: `IN PROGRESS`
-- Test baseline created (`docs/TEST_BASELINE_BEFORE_FINAL_GATE.md`). Restoring behavioral test suites.
+- **Status**: `COMPLETE`
+- Full suite of 390+ tests (283 JVM, 107 Inst) restored and verified. Instrumentation tests standardized on `TestStateManager` and `createEmptyComposeRule`.

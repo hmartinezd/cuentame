@@ -7,6 +7,7 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -25,28 +26,59 @@ class NavigationTest {
     lateinit var testStateManager: TestStateManager
 
     @Before
-    fun init() {
+    fun setup() {
         hiltRule.inject()
         runBlocking {
             testStateManager.resetAll()
-            testStateManager.seedBaseline()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
+        }
+    }
+
+    @Test
+    fun app_startsOnOnboarding_whenNoRestaurant() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("onboarding_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("onboarding_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("home_screen").assertDoesNotExist()
         }
     }
 
     @Test
     fun app_startsOnHome_whenRestaurantExists() {
+        runBlocking {
+            testStateManager.seedBaseline()
+        }
+        
         ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 
     @Test
     fun navigateToSettingsAndBack() {
+        runBlocking {
+            testStateManager.seedBaseline()
+        }
+        
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onAllNodes(hasTestTag("nav_settings"))[0].performClick()
+            
+            // Using nav_settings tag which is applied to the settings icon in CuentameApp.kt
+            composeTestRule.onNodeWithTag("nav_settings", useUnmergedTree = true).performClick()
+            
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("settings_screen")).fetchSemanticsNodes().isNotEmpty()
             }

@@ -40,7 +40,10 @@ class BackupCreationPlanner @Inject constructor(
 
             // 1. Reconcile locale
             val reconciliation = localeReconciler.reconcile()
-            if (reconciliation is LocaleReconciliationResult.Failure || reconciliation is LocaleReconciliationResult.RestaurantNotFound) {
+            if (reconciliation is LocaleReconciliationResult.RestaurantNotFound) {
+                return failure(BackupPlanningFailure.RestaurantDisappeared)
+            }
+            if (reconciliation is LocaleReconciliationResult.Failure) {
                 return failure(BackupPlanningFailure.LocaleReconciliationFailed)
             }
 

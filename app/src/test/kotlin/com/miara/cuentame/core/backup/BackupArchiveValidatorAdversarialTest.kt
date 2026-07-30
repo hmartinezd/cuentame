@@ -81,6 +81,38 @@ class BackupArchiveValidatorAdversarialTest {
         assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
         assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.DATABASE_SCHEMA_MISMATCH)
     }
+
+    @Test
+    fun `rejects archive with checksum value mismatch`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .replaceRawChecksums("{\"data/database.json\":\"${"a".repeat(64)}\",\"manifest.json\":\"${"a".repeat(64)}\",\"preferences/settings.json\":\"${"a".repeat(64)}\"}")
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.CHECKSUM_MISMATCH)
+    }
+
+    @Test
+    fun `rejects archive with traversal path`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addRawEntry("../traversal.json", "{}".toByteArray())
+            .recomputeAllChecksums()
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.UNSAFE_ENTRY_PATH)
+    }
+
+    @Test
+    fun `rejects archive with unexpected entry`() {
+        val zipBytes = BackupArchiveTestBuilder(jsonCodecs)
+            .addRawEntry("unexpected.json", "{}".toByteArray())
+            .recomputeAllChecksums()
+            .build()
+            
+        val result = validator.validate(ByteArrayInputStream(zipBytes)) as BackupValidationResult.Invalid
+        assertThat(result.code).isEqualTo(BackupValidationCode.UNEXPECTED_ENTRY)
+    }
 }
 
 private fun BackupArchiveTestBuilder.createValidBaseManifest() = BackupManifest(
@@ -113,5 +145,6 @@ private fun BackupArchiveTestBuilder.createValidBaseManifest() = BackupManifest(
         "ingredient_cost_projections" to TableMetadata(0, true)
     ).toSortedMap(),
     attachments = emptyList(),
-    includedSections = listOf("data", "preferences", "attachments").sorted()
+    includedSections = BackupFormatV1Contract.REQUIRED_SECTIONS.toList().sorted(),
+    checksumAlgorithm = BackupFormatV1Contract.CHECKSUM_ALGORITHM
 )

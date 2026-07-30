@@ -122,4 +122,48 @@ class BackupViewModelTest {
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
     }
+    
+    @Test
+    fun `interrupted survives second recreation`() = runTest {
+        val handle1 = SavedStateHandle(mapOf(
+            "active_op_id" to 1L,
+            "phase" to "CREATING"
+        ))
+        val viewModel1 = createViewModel(handle1)
+        assertThat(viewModel1.uiState.value).isInstanceOf(BackupUiState.Error::class.java)
+        
+        // Simulate what restoreState does: it persists INTERRUPTED phase
+        val handle2 = SavedStateHandle(mapOf(
+            "last_op_id" to 1L,
+            "phase" to "INTERRUPTED"
+        ))
+        val viewModel2 = createViewModel(handle2)
+        assertThat(viewModel2.uiState.value).isInstanceOf(BackupUiState.Error::class.java)
+        assertThat((viewModel2.uiState.value as BackupUiState.Error).operationId).isEqualTo(BackupOperationId(1L))
+    }
+
+    @Test
+    fun `malformed WAITING state with active ID -1 becomes Idle`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "active_op_id" to -1L,
+            "phase" to "WAITING"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.uiState.value).isEqualTo(BackupUiState.Idle)
+    }
+
+    @Test
+    fun `stale file selection is rejected`() = runTest {
+        val viewModel = createViewModel()
+        every { timeProvider.now() } returns Instant.EPOCH
+        coEvery { restaurantRepository.getRestaurant() } returns mockk(relaxed = true)
+
+        viewModel.onCreateBackupRequested()
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        val staleOpId = BackupOperationId(999L)
+        viewModel.onFileSelected(staleOpId, "uri")
+        
+        assertThat(viewModel.uiState.value).isInstanceOf(BackupUiState.WaitingForDestination::class.java)
+    }
 }

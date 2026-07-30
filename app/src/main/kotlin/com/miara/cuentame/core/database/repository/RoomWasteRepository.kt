@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.database.repository
 
 import androidx.room.withTransaction
+import com.miara.cuentame.core.backup.internal.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
@@ -288,7 +289,7 @@ class RoomWasteRepository @Inject constructor(
             val movements = movementDao.getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, id.value)
             historyValidator.validateDraftHistory(movements)
 
-            failureBoundary.trigger("delete-after-validation")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_DELETE_AFTER_VALIDATION)
 
             val affected = wasteDao.deleteDraft(id.value)
             if (affected != 1) throw ValidationError.WasteEventNotFound
@@ -359,15 +360,15 @@ class RoomWasteRepository @Inject constructor(
             )
             if (affected != 1) throw ValidationError.WasteEventNotFound
             
-            failureBoundary.trigger("post-after-mark-posted")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_POST_AFTER_MARK_POSTED)
 
             movementDao.insert(movement)
             
-            failureBoundary.trigger("post-after-movement")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_POST_AFTER_MOVEMENT)
 
             projectionRebuilder.rebuildForIngredient(IngredientId(existing.ingredientId))
             
-            failureBoundary.trigger("post-after-projection")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_POST_AFTER_PROJECTION)
         }
     }
 
@@ -432,15 +433,15 @@ class RoomWasteRepository @Inject constructor(
             )
             if (affected != 1) throw ValidationError.WasteEventNotFound
             
-            failureBoundary.trigger("void-after-mark-voided")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_VOID_AFTER_MARK_VOIDED)
 
             movementDao.insert(reversal)
             
-            failureBoundary.trigger("void-after-reversal")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_VOID_AFTER_REVERSAL)
 
             projectionRebuilder.rebuildForIngredient(IngredientId(existing.ingredientId))
             
-            failureBoundary.trigger("void-after-projection")
+            failureBoundary.trigger(IntegrationFailurePoints.WASTE_VOID_AFTER_PROJECTION)
         }
     }
 

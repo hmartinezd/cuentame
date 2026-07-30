@@ -1,12 +1,14 @@
 package com.miara.cuentame.feature.reports
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -19,7 +21,7 @@ class ReportingRefreshComposeTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    var composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var testStateManager: TestStateManager
@@ -28,16 +30,33 @@ class ReportingRefreshComposeTest {
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            testStateManager.seedBaseline()
+            testStateManager.resetAll()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
         }
     }
 
     @Test
     fun reportsRefresh_exists() {
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+        runBlocking {
+            testStateManager.seedBaseline()
         }
-        composeTestRule.onNodeWithTag("nav_reports", useUnmergedTree = true).performClick()
-        composeTestRule.onNodeWithTag("reports_screen").assertExists()
+        
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("nav_reports", useUnmergedTree = true).performClick()
+            
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("reports_screen").assertIsDisplayed()
+        }
     }
 }

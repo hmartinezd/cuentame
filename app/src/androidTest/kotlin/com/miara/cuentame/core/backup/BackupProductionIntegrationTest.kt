@@ -11,8 +11,8 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -33,14 +33,18 @@ class BackupProductionIntegrationTest {
     lateinit var testStateManager: TestStateManager
 
     @Before
-    fun init() {
+    fun setup() {
         hiltRule.inject()
-        runBlocking { testStateManager.resetAll() }
+        runBlocking {
+            testStateManager.resetAll()
+        }
     }
 
     @After
     fun tearDown() {
-        runBlocking { testStateManager.resetAll() }
+        runBlocking {
+            testStateManager.resetAll()
+        }
     }
 
     @Test

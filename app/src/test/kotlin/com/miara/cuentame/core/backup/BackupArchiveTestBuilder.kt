@@ -51,6 +51,10 @@ class BackupArchiveTestBuilder(
         entries.add(TestZipEntry(name, content))
     }
 
+    fun addRawEntry(name: String, content: ByteArray) = apply {
+        entries.add(TestZipEntry(name, content))
+    }
+
     fun addDuplicateEntry(name: String, content: ByteArray) = apply {
         entries.add(TestZipEntry(name, content))
     }

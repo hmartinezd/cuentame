@@ -6,11 +6,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.core.common.ids.UnitId
+import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.mapper.toEntity
@@ -23,9 +19,11 @@ import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.ConfigurableAttachmentPermissionManager
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -55,6 +53,9 @@ class StockCountLifecycleTest {
     @Inject
     lateinit var attachmentPermissionManager: com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
     @Before
     fun setup() {
         hiltRule.inject()
@@ -62,8 +63,7 @@ class StockCountLifecycleTest {
         (attachmentPermissionManager as? ConfigurableAttachmentPermissionManager)?.shouldFail = false
         
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
 
             val now = Instant.now()
             database.restaurantDao().insert(Restaurant(RestaurantId("rest_lifecycle"), "Test Lifecycle Rest", "USD", "en-US", now, now, null).toEntity())
@@ -108,14 +108,14 @@ class StockCountLifecycleTest {
             )
 
             preferencesRepository.setOnboardingCompleted(true)
+            preferencesRepository.setAppLocaleTag("en-US")
         }
     }
 
-    @org.junit.After
+    @After
     fun teardown() {
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
         }
     }
 

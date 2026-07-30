@@ -4,12 +4,11 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
-import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
-import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -25,28 +24,32 @@ class WasteLifecycleTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject
-    lateinit var database: RestaurantInventoryDatabase
-
-    @Inject
-    lateinit var preferencesRepository: AppPreferencesRepository
+    lateinit var testStateManager: TestStateManager
 
     @Before
-    fun init() {
+    fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
-            TestSeeder.seedBaseline(database)
-            preferencesRepository.setOnboardingCompleted(true)
-            preferencesRepository.setAppLocaleTag("en-US")
+            testStateManager.resetAll()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
         }
     }
 
     @Test
     fun navigateToWasteAndBack() {
+        runBlocking {
+            testStateManager.seedBaseline()
+        }
+        
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
             composeTestRule.onNodeWithTag("waste_list_screen").assertExists()

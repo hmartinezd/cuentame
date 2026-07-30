@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.fakes.FakeBackupAttachmentSource
 import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveWriter
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
 import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
@@ -13,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 class BackupArchiveWriterTest {
 
@@ -62,7 +64,7 @@ class BackupArchiveWriterTest {
             manifestJson = manifestBytes,
             expectedEntryChecksums = checksumsMap,
             checksumsJson = checksumsBytes,
-            totalUncompressedBytes = (snapshotBytes.size + prefsBytes.size + manifestBytes.size + checksumsBytes.size).toLong()
+            totalUncompressedBytes = (snapshotBytes.size.toLong() + prefsBytes.size + manifestBytes.size + checksumsBytes.size)
         )
     }
 
@@ -133,15 +135,9 @@ class BackupArchiveWriterTest {
             every { localeTag } returns "en-US"
             every { databaseSchemaVersion } returns 2
             every { backupFormatVersion } returns 1
-            every { attachments } returns listOf(mockk(relaxed = true) {
-                every { attachmentId } returns attId
-                every { archivePath } returns plannedAtt.archivePath
-                every { displayName } returns plannedAtt.displayName
-                every { mimeType } returns plannedAtt.mimeType
-                every { sizeBytes } returns plannedAtt.sizeBytes
-                every { checksumSha256 } returns plannedAtt.checksumSha256
-                every { referencedBy } returns listOf(ref)
-            })
+            every { attachments } returns listOf(BackupAttachmentMetadata(
+                attId, plannedAtt.archivePath, plannedAtt.displayName, plannedAtt.mimeType, plannedAtt.sizeBytes, plannedAtt.checksumSha256, listOf(ref)
+            ))
         }
 
         val snapshotBytes = "{}".toByteArray()
@@ -166,11 +162,53 @@ class BackupArchiveWriterTest {
             manifestJson = manifestBytes,
             expectedEntryChecksums = checksumsMap,
             checksumsJson = checksumsJson,
-            totalUncompressedBytes = (snapshotBytes.size + prefsBytes.size + manifestBytes.size + checksumsJson.size + plannedAtt.sizeBytes).toLong()
+            totalUncompressedBytes = (snapshotBytes.size.toLong() + prefsBytes.size + manifestBytes.size + checksumsJson.size + plannedAtt.sizeBytes)
         )
 
         val output = ByteArrayOutputStream()
         val result = writer.write(output, plan)
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.AttachmentChanged)
+    }
+
+    @Test
+    fun `writer detects database payload checksum mismatch`() = runTest {
+        val validPlan = createValidMinimalPlan()
+        val corruptedSnapshot = ImmutableBackupBytes.from("corrupted".toByteArray())
+        
+        val plan = mockk<BackupPlan> {
+            every { snapshotJson } returns corruptedSnapshot
+            every { preferencesJson } returns validPlan.preferencesJson
+            every { manifestJson } returns validPlan.manifestJson
+            every { checksumsJson } returns validPlan.checksumsJson
+            every { attachments } returns emptyList()
+            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums
+            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes
+        }
+
+        val output = ByteArrayOutputStream()
+        val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.ChecksumInconsistency)
+    }
+
+    @Test
+    fun `writer detects total limit exceeded during write`() = runTest {
+        val snapshotBytes = ByteArray(BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES.toInt() + 1)
+        val validPlan = createValidMinimalPlan()
+        
+        val plan = mockk<BackupPlan> {
+            every { snapshotJson } returns ImmutableBackupBytes.from(snapshotBytes)
+            every { preferencesJson } returns validPlan.preferencesJson
+            every { manifestJson } returns validPlan.manifestJson
+            every { checksumsJson } returns validPlan.checksumsJson
+            every { attachments } returns emptyList()
+            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums.toMutableMap().apply {
+                put(BackupFormatV1Contract.DATABASE_ENTRY, ImmutableBackupBytes.from(snapshotBytes).sha256())
+            }
+            every { totalUncompressedBytes } returns 1000L 
+        }
+
+        val output = ByteArrayOutputStream()
+        val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)
     }
 }

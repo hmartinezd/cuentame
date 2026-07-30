@@ -128,10 +128,65 @@ class BackupCreationPlannerTest {
     }
 
     @Test
+    fun `maps missing restaurant to RestaurantDisappeared`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.RestaurantNotFound
+        
+        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.RestaurantDisappeared)
+    }
+
+    @Test
+    fun `maps reconciliation failure to LocaleReconciliationFailed`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.Failure(Exception("error"))
+        
+        val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.LocaleReconciliationFailed)
+    }
+
+    @Test
     fun `rejects plan if schema version mismatch`() = runTest {
         every { appVersionProvider.databaseSchemaVersion } returns 1 // Baseline is 2
         
         val result = planner.createPlan(makeRestaurant(), BackupSnapshotResult(createValidSnapshotDto(), emptyList()))
         assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.UnsupportedDatabaseSchema)
+    }
+
+    @Test
+    fun `rejects plan if attachment ID is invalid`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val invalidId = "not-hex"
+        val attUri = AttachmentSourceUri("uri1")
+        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "a.jpg", "image/jpeg")
+        attachmentSource.dataMap[attUri] = "data".toByteArray()
+
+        val snapshotDto = createValidSnapshotDto().copy(
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
+                "p1", "rest-1", null, null, 0, "DRAFT", null, invalidId, 0, 0, null, null
+            ))
+        )
+        val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(invalidId, attUri)))
+
+        val result = planner.createPlan(makeRestaurant(), snapshotResult)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.InvalidAttachmentId)
+    }
+    
+    @Test
+    fun `fails with MissingAttachmentSource when binding is missing`() = runTest {
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val attId = "0123456789abcdef"
+        val snapshotDto = createValidSnapshotDto().copy(
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
+                "p1", "rest-1", null, null, 0, "DRAFT", null, attId, 0, 0, null, null
+            ))
+        )
+        // No bindings provided
+        val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
+
+        val result = planner.createPlan(makeRestaurant(), snapshotResult)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.MissingAttachmentSource)
     }
 }

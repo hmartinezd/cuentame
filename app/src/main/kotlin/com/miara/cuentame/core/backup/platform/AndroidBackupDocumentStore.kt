@@ -35,19 +35,33 @@ class AndroidBackupDocumentStore @Inject constructor(
         operation: BackupDocumentOperation,
         createStream: (ParcelFileDescriptor) -> T
     ): T {
-        try {
-            val uri = Uri.parse(uriWrapper.value)
-            val pfd = context.contentResolver.openFileDescriptor(uri, mode)
+        val uri = Uri.parse(uriWrapper.value)
+        val pfd = try {
+            context.contentResolver.openFileDescriptor(uri, mode)
                 ?: throw BackupDocumentOpenException(operation)
-            return createStream(pfd)
         } catch (e: CancellationException) {
             throw e
         } catch (e: SecurityException) {
             throw e
-        } catch (e: BackupDocumentOpenException) {
-            throw e
         } catch (e: Exception) {
             throw BackupDocumentOpenException(operation, e)
+        }
+
+        try {
+            return createStream(pfd)
+        } catch (e: CancellationException) {
+            pfd.close()
+            throw e
+        } catch (security: SecurityException) {
+            pfd.close()
+            throw security
+        } catch (error: Exception) {
+            try {
+                pfd.close()
+            } catch (closeError: Exception) {
+                error.addSuppressed(closeError)
+            }
+            throw BackupDocumentOpenException(operation, error)
         }
     }
 

@@ -60,6 +60,8 @@ class AndroidBackupDocumentStoreTest {
             runBlocking { store.openForRead(uri) }
         }
         assertThat(ex.operation).isEqualTo(BackupDocumentOperation.READ)
+        // Verify path is NOT in message to prevent leaking
+        assertThat(ex.message).doesNotContain("/non/existent/file.zip")
     }
 
     @Test

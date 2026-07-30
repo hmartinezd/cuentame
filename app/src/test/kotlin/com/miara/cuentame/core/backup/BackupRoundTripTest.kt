@@ -110,10 +110,10 @@ class BackupRoundTripTest {
             units = listOf(com.miara.cuentame.core.backup.model.UnitBackupDto("u1", "U", "u", "MASS", "1.0", true, 0)),
             ingredientUnitOptions = listOf(com.miara.cuentame.core.backup.model.IngredientUnitOptionBackupDto("o1", "i1", "O", "o", null, "1.0", true, true, true, true, 0, 0, null)),
             inventoryMovements = listOf(
-                com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m1", "rest-1", "i1", "a1", "PURCHASE", "1.0", "1.0", "1.0", 1000L, "PURCHASE_RECEIPT", "p1", "op1", "l1", null, 1000L),
+                com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m1", "rest-1", "i1", "a1", "PURCHASE", "1.0", "1.0", "1.0", 1000L, "PURCHASE_RECEIPT", "p1", "op1", "p1-l1", null, 1000L),
                 com.miara.cuentame.core.backup.model.InventoryMovementBackupDto("m2", "rest-1", "i1", "a1", "WASTE", "-1.0", "1.0", "-1.0", 1000L, "WASTE_EVENT", "w1", "op2", "w1", null, 1000L)
             ),
-            purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto("l1", "p1", "i1", "a1", "o1", "1.0", "1.0", "1.0", "1.0", null, 0, 0)),
+            purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto("p1-l1", "p1", "i1", "a1", "o1", "1.0", "1.0", "1.0", "1.0", null, 0, 0)),
             inventoryBalanceProjections = listOf(com.miara.cuentame.core.backup.model.InventoryBalanceProjectionBackupDto("rest-1", "i1", "a1", "0.0", 0L)),
             ingredientCostProjections = listOf(com.miara.cuentame.core.backup.model.IngredientCostProjectionBackupDto("rest-1", "i1", "1.0", 0L))
         )
@@ -128,7 +128,8 @@ class BackupRoundTripTest {
         assertThat(plan.attachments.first().references).hasSize(2)
 
         val output = ByteArrayOutputStream()
-        writer.write(output, plan)
+        val writeResult = writer.write(output, plan)
+        assertThat(writeResult).isEqualTo(BackupArchiveWriteResult.Success)
         
         val validation = validator.validate(ByteArrayInputStream(output.toByteArray()))
         if (validation is BackupValidationResult.Invalid) throw Exception("Validation failed: ${validation.code} ${validation.diagnostic}")
@@ -153,9 +154,11 @@ class BackupRoundTripTest {
         val out1 = ByteArrayOutputStream()
         val out2 = ByteArrayOutputStream()
         
-        writer.write(out1, plan1)
-        writer.write(out2, plan2)
+        val res1 = writer.write(out1, plan1)
+        val res2 = writer.write(out2, plan2)
 
+        assertThat(res1).isEqualTo(BackupArchiveWriteResult.Success)
+        assertThat(res2).isEqualTo(BackupArchiveWriteResult.Success)
         assertThat(out1.toByteArray()).isEqualTo(out2.toByteArray())
     }
 }

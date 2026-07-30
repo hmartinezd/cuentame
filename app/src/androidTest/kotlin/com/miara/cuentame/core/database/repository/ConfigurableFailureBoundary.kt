@@ -12,6 +12,10 @@ class ConfigurableFailureBoundary : IntegrationFailureBoundary {
         }
     }
 
+    fun triggerOn(point: String) {
+        this.failurePoint = point
+    }
+
     fun reset() {
         failurePoint = null
         triggerCount = 0

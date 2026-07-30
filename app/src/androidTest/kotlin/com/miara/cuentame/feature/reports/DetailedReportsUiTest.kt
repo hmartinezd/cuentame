@@ -5,11 +5,12 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -25,38 +26,48 @@ class DetailedReportsUiTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject
-    lateinit var database: RestaurantInventoryDatabase
+    lateinit var testStateManager: TestStateManager
 
     @Inject
-    lateinit var preferencesRepository: AppPreferencesRepository
+    lateinit var database: RestaurantInventoryDatabase
 
     @Before
-    fun init() {
+    fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
-            TestSeeder.seedBaseline(database)
-            preferencesRepository.setOnboardingCompleted(true)
-            preferencesRepository.setAppLocaleTag("en-US")
+            testStateManager.resetAll()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            testStateManager.resetAll()
         }
     }
 
     @Test
     fun reports_display_seeded_values() {
         runBlocking {
+            testStateManager.seedBaseline()
             TestSeeder.seedPostedPurchase(database, "p1", "123.45")
         }
         
-        ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.onNodeWithTag("nav_reports").performClick()
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("nav_reports", useUnmergedTree = true).performClick()
             
-            // Wait for loading to finish and dashboard data to appear
-            composeTestRule.waitUntil(10000) {
+            // Wait for loading to finish and data to appear
+            composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodesWithText("$123.45", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
             
             composeTestRule.onAllNodesWithText("$123.45", substring = true)[0].assertIsDisplayed()
+        } finally {
+            scenario.close()
         }
     }
 }
