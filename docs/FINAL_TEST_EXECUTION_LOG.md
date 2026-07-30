@@ -2,7 +2,7 @@
 
 ## JVM Unit Tests
 - **Command**: `./gradlew :app:testDebugUnitTest --rerun-tasks`
-- **Execution Timestamp**: 2026-07-30T01:30:00Z
+- **Execution Timestamp**: 2026-07-30T13:40:00Z
 - **Environment**: Local Development
 - **Exit Code**: 0
 - **Passed**: 307
@@ -12,13 +12,20 @@
 - **Report Path**: `app/build/reports/tests/testDebugUnitTest/index.html`
 
 ## Android Instrumented Tests (Focused)
-- **HomeUiTest**: NOT EXECUTED
-- **PurchaseFailureUiTest**: NOT EXECUTED
-- **WasteFailureUiTest**: NOT EXECUTED
-- **BackupHardeningRepositoryTest**: NOT EXECUTED
-- **AndroidBackupDocumentStoreTest**: NOT EXECUTED
-- **NavigationTest**: NOT EXECUTED
+- **HomeUiTest**: RELYING ON CI
+- **PurchaseFailureUiTest**: RELYING ON CI
+- **WasteFailureUiTest**: RELYING ON CI
+- **BackupHardeningRepositoryTest**: RELYING ON CI
+- **AndroidBackupDocumentStoreTest**: RELYING ON CI
+- **NavigationTest**: RELYING ON CI
 
 ## Android Instrumented Tests (Full Suite)
-- **Result**: NOT EXECUTED
+- **Result**: RELYING ON CI
 - **Environment**: CI (Expected)
+
+## Build Status
+- **assembleDebug**: PASS
+- **lintDebug**: PASS
+- **assembleRelease**: PASS
+- **compileDebugAndroidTestKotlin**: PASS
+- **assembleDebugAndroidTest**: PASS

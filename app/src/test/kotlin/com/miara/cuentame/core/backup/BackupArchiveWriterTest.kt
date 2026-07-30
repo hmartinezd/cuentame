@@ -198,7 +198,6 @@ class BackupArchiveWriterTest {
         assertThat(output.closedCount).isEqualTo(0)
         assertThat(attachmentSource.openCountMap[attUri]).isEqualTo(1)
         assertThat(attachmentSource.closeCountMap[attUri]).isEqualTo(1)
-        // Verify input was closed (assumes open streams are managed properly in DefaultBackupArchiveWriter)
     }
 
     @Test

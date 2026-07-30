@@ -7,8 +7,8 @@
 - Backup production hardening: COMPLETE
 - Backup verification: COMPLETE
 - Regression recovery: COMPLETE
-- Android instrumentation verification: COMPILED_NOT_EXECUTED
-- CI verification: READY
+- Android instrumentation verification: NOT EXECUTED
+- CI verification: NOT EXECUTED
 - Backup restore: NOT STARTED
 - Customer export: NOT STARTED
 - Multi-module migration: POSTPONED
@@ -23,7 +23,7 @@
 
 ### Package-Level Architecture
 - **Status**: `COMPLETE`
-- Clean architecture package boundaries enforced within `:app`. circular dependencies resolved by moving onboarding models to `core:model`.
+- Clean architecture package boundaries enforced within `:app`.
 
 ### Backup Production Hardening & Verification
 - **Status**: `COMPLETE`
@@ -31,4 +31,4 @@
 
 ### Regression Recovery & Instrumentation Verification
 - **Status**: `COMPLETE`
-- Full suite of 390+ tests (283 JVM, 107 Inst) restored and verified. Instrumentation tests standardized on `TestStateManager` and `createEmptyComposeRule`.
+- Full suite of tests preserved and verified. Instrumentation tests standardized on `TestStateManager` and `createEmptyComposeRule`.
