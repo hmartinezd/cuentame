@@ -60,25 +60,32 @@ class HomeUiTest {
     private fun seedReadyState(name: String = "Test Restaurant") = runBlocking {
         val restId = "rest-1"
         db.restaurantDao().insert(RestaurantEntity(restId, name, "USD", "en-US", testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-        db.inventoryAreaDao().upsert(InventoryAreaEntity("area-1", restId, "Main Area", "main area", 1, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("area-1", restId, "Main Area", "main area", 0, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
         db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
         preferencesRepository.setOnboardingCompleted(true)
         preferencesRepository.setAppLocaleTag("en-US")
     }
 
     @Test
-    fun dashboard_emptyState_whenNoActivity() {
+    fun dashboard_emptyState_whenRestaurantConfiguredAndNoActivity() {
         seedReadyState("Empty Rest")
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(20000) {
-                composeTestRule.onAllNodes(hasTestTag("dashboard_inventory_value")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("dashboard_restaurant_name", useUnmergedTree = true).assertTextEquals("Empty Rest")
             composeTestRule.onNodeWithTag("dashboard_inventory_value", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
             composeTestRule.onNodeWithTag("dashboard_purchase_spend", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
             composeTestRule.onNodeWithTag("dashboard_waste_value", useUnmergedTree = true).assertTextContains("$0.00", substring = true)
             
-            composeTestRule.onNodeWithTag("reports_view_inventory_details").assertExists()
+            // Assert negative balance count is zero
+            composeTestRule.onNodeWithTag("dashboard_negative_balance_count", useUnmergedTree = true).assertTextContains("0", substring = true)
+            
+            // Assert empty states
+            composeTestRule.onNodeWithTag("dashboard_top_waste_empty").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("dashboard_recent_activity_empty").assertIsDisplayed()
+            
+            composeTestRule.onNodeWithTag("view_reports_button").assertIsDisplayed()
         }
     }
 

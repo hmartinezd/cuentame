@@ -11,7 +11,7 @@ import com.miara.cuentame.core.backup.api.BackupDocumentOpenException
 import com.miara.cuentame.core.backup.platform.AndroidBackupDocumentStore
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
+import io.mockk.spyk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -46,6 +46,19 @@ class AndroidBackupDocumentStoreTest {
     }
 
     @Test
+    fun openForRead_validFileUri_returnsStream() = runBlocking {
+        val file = File(context.cacheDir, "test_read.zip")
+        file.writeText("content")
+        val uri = BackupDocumentUri("file://${file.absolutePath}")
+        
+        val text = store.openForRead(uri).use { 
+            it.readBytes().decodeToString()
+        }
+        
+        assertThat(text).isEqualTo("content")
+    }
+
+    @Test
     fun openForRead_nonExistent_throwsWrapped() {
         val uri = BackupDocumentUri("file:///non/existent/file.zip")
         val ex = assertThrows(BackupDocumentOpenException::class.java) {
@@ -53,6 +66,17 @@ class AndroidBackupDocumentStoreTest {
         }
         assertThat(ex.operation).isEqualTo(BackupDocumentOperation.READ)
         assertThat(ex.message).doesNotContain("/non/existent/file.zip")
+    }
+
+    @Test
+    fun truncate_validFile_emptiesFile() = runBlocking {
+        val file = File(context.cacheDir, "to_truncate.zip")
+        file.writeText("some content")
+        val uri = BackupDocumentUri("file://${file.absolutePath}")
+        
+        val truncated = store.truncate(uri)
+        assertThat(truncated).isTrue()
+        assertThat(file.length()).isEqualTo(0)
     }
 
     @Test
@@ -87,5 +111,28 @@ class AndroidBackupDocumentStoreTest {
         val deleted = store.delete(uri)
         assertThat(deleted).isTrue()
         assertThat(file.exists()).isFalse()
+    }
+
+    @Test
+    fun openStream_securityException_isPropagated() {
+        val spyStore = spyk(store)
+        every { spyStore.openDescriptor(any(), any()) } throws SecurityException("No permission")
+        
+        val uri = BackupDocumentUri("content://denied")
+        assertThrows(SecurityException::class.java) {
+            runBlocking { spyStore.openForRead(uri) }
+        }
+    }
+
+    @Test
+    fun openStream_nullDescriptor_throwsOpenException() {
+        val spyStore = spyk(store)
+        every { spyStore.openDescriptor(any(), any()) } returns null
+        
+        val uri = BackupDocumentUri("content://null")
+        val ex = assertThrows(BackupDocumentOpenException::class.java) {
+            runBlocking { spyStore.openForRead(uri) }
+        }
+        assertThat(ex.operation).isEqualTo(BackupDocumentOperation.READ)
     }
 }

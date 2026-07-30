@@ -138,3 +138,17 @@ dependencies {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+tasks.register<Exec>("verifyTestPreservation") {
+    group = "verification"
+    description = "Checks that no tests have been deleted or disabled."
+    
+    commandLine("python3", "${rootProject.projectDir}/scripts/verify_test_preservation.py", "verify")
+    
+    // Ensure it runs before tests
+    mustRunAfter("clean")
+}
+
+tasks.named("check") {
+    dependsOn("verifyTestPreservation")
+}

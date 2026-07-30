@@ -49,6 +49,53 @@ class PlannedBackupAttachmentTest {
     }
 
     @Test
+    fun `create rejects invalid display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, "   ", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects invalid checksum`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, "short", listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects empty references`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, emptyList()
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects duplicate references`() {
+        val dupRef = BackupAttachmentReference("WASTE_EVENT", "w1")
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, listOf(validRef, dupRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects unsupported record type`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, 
+                listOf(BackupAttachmentReference("INVALID_TYPE", "r1"))
+            )
+        }
+    }
+
+    @Test
     fun `create rejects negative size`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(

@@ -73,7 +73,7 @@ class WasteFailureUiTest {
             testStateManager.resetAll()
 
             val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
-            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en", now, now, null))
+            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now, now, null))
             database.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
             database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId, restaurantId, "Main Area", "main area", 0, true, now, now, null))
             database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", areaId, null, null, null, true, now, now, null))
@@ -154,7 +154,10 @@ class WasteFailureUiTest {
             ).performClick()
 
             // Verify error snackbar content
-            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_error_snackbar_content", useUnmergedTree = true).assertIsDisplayed()
             
             // Verify database state: should still be DRAFT due to transaction rollback
             runBlocking {
@@ -167,26 +170,17 @@ class WasteFailureUiTest {
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
             
-            // Clear failure and retry (Assuming dialog dismissed on failure as per production UX often)
-            // If it remains, we retry click. Let's re-verify it exists.
             configBoundary.reset()
             
-            // In Cuentame, snackbar error might dismiss dialog. If it didn't:
-            if (composeTestRule.onAllNodes(hasTestTag("waste_post_confirm_dialog")).fetchSemanticsNodes().isNotEmpty()) {
-                composeTestRule.onNode(
-                    hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
-                    useUnmergedTree = true
-                ).performClick()
-            } else {
-                composeTestRule.onNodeWithTag("waste_post_button").performClick()
-                composeTestRule.onNode(
-                    hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
-                    useUnmergedTree = true
-                ).performClick()
-            }
+            // Confirm again in the same dialog
+            composeTestRule.onNode(
+                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
+                useUnmergedTree = true
+            ).performClick()
 
             composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodesWithTag("waste_status_chip", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+                val e = runBlocking { database.wasteDao().getById(draftId) }
+                e?.status == DocumentStatus.POSTED.name
             }
             
             runBlocking {
@@ -194,6 +188,8 @@ class WasteFailureUiTest {
                 assertThat(event?.status).isEqualTo(DocumentStatus.POSTED.name)
                 assertThat(database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.WASTE_EVENT.name, draftId)).hasSize(1)
             }
+            
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertDoesNotExist()
         }
     }
 
@@ -258,8 +254,11 @@ class WasteFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
-            // Verify error snackbar
-            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
+            // Verify error snackbar content
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_error_snackbar_content", useUnmergedTree = true).assertIsDisplayed()
             
             // Verify database state: should still be POSTED
             runBlocking {
@@ -272,13 +271,9 @@ class WasteFailureUiTest {
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
 
-            // Clear and retry
             configBoundary.reset()
             
-            if (composeTestRule.onAllNodes(hasTestTag("waste_void_confirm_dialog")).fetchSemanticsNodes().isEmpty()) {
-                composeTestRule.onNodeWithTag("waste_void_button").performClick()
-            }
-            
+            // Retry
             composeTestRule.onNode(
                 hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_void_confirm_dialog")),
                 useUnmergedTree = true
@@ -335,7 +330,10 @@ class WasteFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
-            composeTestRule.onNodeWithTag("waste_error_snackbar").assertIsDisplayed()
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("waste_error_snackbar_content", useUnmergedTree = true).assertIsDisplayed()
             
             runBlocking {
                 assertThat(database.wasteDao().getById(draftId)).isNotNull()
@@ -344,10 +342,7 @@ class WasteFailureUiTest {
 
             configBoundary.reset()
             
-            if (composeTestRule.onAllNodes(hasTestTag("waste_delete_confirm_dialog")).fetchSemanticsNodes().isEmpty()) {
-                composeTestRule.onNodeWithTag("waste_delete_button").performClick()
-            }
-
+            // Retry
             composeTestRule.onNode(
                 hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_delete_confirm_dialog")),
                 useUnmergedTree = true

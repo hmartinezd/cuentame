@@ -72,6 +72,18 @@ class BackupPlanTest {
     }
 
     @Test
+    fun `plan is immutable and performs defensive copies`() {
+        val bytes = "original".toByteArray()
+        val plan = createMinimalBasePlan(snapshotBytes = bytes)
+        
+        // Mutate original array
+        bytes[0] = 'X'.code.toByte()
+        
+        // Plan should be unchanged
+        assertThat(plan.snapshotJson.copyForTest()).isEqualTo("original".toByteArray())
+    }
+
+    @Test
     fun `create rejects total size mismatch`() {
         val snapshot = BackupTestFixtures.createEmptySnapshotDto()
         val prefs = BackupPreferencesDto("SYSTEM", true, "en-US")

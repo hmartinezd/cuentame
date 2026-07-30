@@ -63,7 +63,7 @@ class PurchaseFailureUiTest {
             (failureBoundary as? ConfigurableFailureBoundary)?.reset()
             
             val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
-            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en", now, now, null))
+            database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now, now, null))
             database.unitDao().insertSeedUnits(UnitSeeds.ALL_UNITS)
             database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId, restaurantId, "Area", "area", 0, true, now, now, null))
             database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", areaId, null, null, null, true, now, now, null))
@@ -82,7 +82,7 @@ class PurchaseFailureUiTest {
     }
 
     @Test
-    fun purchasePost_rollback_onFailure() {
+    fun purchasePost_rollback_andRetry_onFailure() {
         val receiptId = "pur_fail_1"
         runBlocking {
             val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
@@ -152,22 +152,49 @@ class PurchaseFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
-            // 5. Verify error snackbar
+            // 5. Verify error snackbar content and localized message
             composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodes(hasTestTag("purchase_error_snackbar")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("purchase_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("purchase_error_snackbar").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("purchase_error_snackbar_content", useUnmergedTree = true).assertIsDisplayed()
             
             // 6. Verify database state: should still be DRAFT due to transaction rollback
             runBlocking {
                 val receipt = database.purchaseDao().getReceiptById(receiptId)
                 assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
+                assertThat(receipt?.postedAt).isNull()
                 
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
                 assertThat(movements).isEmpty()
             }
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
+            
+            // 7. Reset and Retry within the same dialog
+            configBoundary.reset()
+            
+            composeTestRule.onNode(
+                hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("purchase_post_confirm_dialog")),
+                useUnmergedTree = true
+            ).performClick()
+            
+            // 8. Verify successful transition
+            composeTestRule.waitUntil(10000) {
+                val r = runBlocking { database.purchaseDao().getReceiptById(receiptId) }
+                r?.status == DocumentStatus.POSTED.name
+            }
+            
+            runBlocking {
+                val receipt = database.purchaseDao().getReceiptById(receiptId)
+                assertThat(receipt?.postedAt).isNotNull()
+                
+                val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
+                assertThat(movements).hasSize(1)
+                assertThat(movements[0].movementType).isEqualTo("PURCHASE")
+            }
+            
+            // Dialog should be closed
+            composeTestRule.onNodeWithTag("purchase_post_confirm_dialog").assertDoesNotExist()
         }
     }
 }

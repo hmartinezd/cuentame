@@ -14,7 +14,9 @@ class TestTagConsistencyTest {
         "dashboard_restaurant_name",
         "dashboard_inventory_value",
         "dashboard_purchase_spend",
-        "dashboard_waste_value"
+        "dashboard_waste_value",
+        "purchase_error_snackbar_content",
+        "waste_error_snackbar_content"
     )
 
     private val obsoleteTags = setOf(
@@ -43,6 +45,24 @@ class TestTagConsistencyTest {
         for (tag in criticalTags) {
             assertWithMessage("Critical tag '$tag' not found in production source")
                 .that(content).contains("\"$tag\"")
+        }
+    }
+
+    @Test
+    fun `HomeUiTest must not reference reports_view_inventory_details without navigation`() {
+        val file = File("src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt")
+        if (!file.exists()) return
+        
+        val content = file.readText()
+        val tag = "reports_view_inventory_details"
+        
+        // Find all test methods
+        val testMethods = content.split("@Test").drop(1)
+        for (method in testMethods) {
+            if (method.contains("\"$tag\"")) {
+                assertWithMessage("HomeUiTest method contains '$tag' but does not appear to navigate to reports screen")
+                    .that(method).contains("\"reports_screen\"")
+            }
         }
     }
 }
