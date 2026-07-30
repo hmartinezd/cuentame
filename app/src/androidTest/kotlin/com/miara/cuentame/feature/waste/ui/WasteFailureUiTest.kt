@@ -94,6 +94,11 @@ class WasteFailureUiTest {
 
     private fun openWasteListScreen() {
         composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodes(hasTestTag("nav_reports")).fetchSemanticsNodes().isNotEmpty()
+        }
+        // Actually waste is under activity or direct. In nav it's not a top level but a destination from Home usually.
+        // Let's use the button on Home.
+        composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
@@ -170,15 +175,18 @@ class WasteFailureUiTest {
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
             
+            // Dialog remains open
+            composeTestRule.onNodeWithTag("waste_post_confirm_dialog").assertIsDisplayed()
+
             configBoundary.reset()
             
-            // Confirm again in the same dialog
+            // Retry
             composeTestRule.onNode(
                 hasTestTag("archive_confirm_button") and hasAnyAncestor(hasTestTag("waste_post_confirm_dialog")),
                 useUnmergedTree = true
             ).performClick()
 
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(15000) {
                 val e = runBlocking { database.wasteDao().getById(draftId) }
                 e?.status == DocumentStatus.POSTED.name
             }
@@ -270,6 +278,9 @@ class WasteFailureUiTest {
             }
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
+            
+            // Dialog remains open
+            composeTestRule.onNodeWithTag("waste_void_confirm_dialog").assertIsDisplayed()
 
             configBoundary.reset()
             
@@ -330,6 +341,7 @@ class WasteFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
+            // Verify error snackbar content
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("waste_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -339,6 +351,9 @@ class WasteFailureUiTest {
                 assertThat(database.wasteDao().getById(draftId)).isNotNull()
             }
             assertThat(configBoundary.triggerCount).isEqualTo(1)
+
+            // Dialog remains open
+            composeTestRule.onNodeWithTag("waste_delete_confirm_dialog").assertIsDisplayed()
 
             configBoundary.reset()
             

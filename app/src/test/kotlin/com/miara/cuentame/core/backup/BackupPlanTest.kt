@@ -6,6 +6,7 @@ import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
 import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
+import io.mockk.mockk
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -84,6 +85,46 @@ class BackupPlanTest {
     }
 
     @Test
+    fun `exposed collections cannot mutate plan`() {
+        val plan = createMinimalBasePlan()
+        
+        assertThrows(UnsupportedOperationException::class.java) {
+            (plan.attachments as MutableList).clear()
+        }
+        
+        assertThrows(UnsupportedOperationException::class.java) {
+            (plan.expectedEntryChecksums as MutableMap).clear()
+        }
+    }
+
+    @Test
+    fun `original attachment list mutation cannot change plan`() {
+        val mutableAttachments = mutableListOf<PlannedBackupAttachment>()
+        val plan = createMinimalBasePlan(attachments = mutableAttachments)
+        
+        // Can't use mockk for internal class easily here, just create a real one
+        val att = PlannedBackupAttachment.create(
+            AttachmentSourceUri("u"), "0123456789abcdef", "attachments/0123456789abcdef/n", "n", null, 0, "a".repeat(64),
+            listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
+        )
+        mutableAttachments.add(att)
+        assertThat(plan.attachments).isEmpty()
+    }
+
+    @Test
+    fun `original manifest lists mutation cannot change plan`() {
+        val refs = mutableListOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
+        val attId = "0123456789abcdef"
+        val mAtt = BackupAttachmentMetadata(attId, "attachments/$attId/n", "n", null, 0, "a".repeat(64), refs)
+        val manifest = createMinimalBaseManifest().copy(attachments = listOf(mAtt))
+        
+        val plan = createMinimalBasePlan(manifest = manifest)
+        
+        refs.clear()
+        assertThat(plan.manifest.attachments[0].referencedBy).hasSize(1)
+    }
+
+    @Test
     fun `create rejects total size mismatch`() {
         val snapshot = BackupTestFixtures.createEmptySnapshotDto()
         val prefs = BackupPreferencesDto("SYSTEM", true, "en-US")
@@ -121,6 +162,20 @@ class BackupPlanTest {
             attachments = listOf(
                 BackupAttachmentMetadata("0123456789abcdef", "attachments/0123456789abcdef/n1", "n1", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))),
                 BackupAttachmentMetadata("0123456789abcdef", "attachments/0123456789abcdef/n2", "n2", null, 0, "a".repeat(64), listOf(BackupAttachmentReference("WASTE_EVENT", "w2")))
+            )
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            createMinimalBasePlan(manifest = manifest)
+        }
+    }
+
+    @Test
+    fun `rejects duplicate manifest reference`() {
+        val attId = "0123456789abcdef"
+        val ref = BackupAttachmentReference("WASTE_EVENT", "w1")
+        val manifest = createMinimalBaseManifest().copy(
+            attachments = listOf(
+                BackupAttachmentMetadata(attId, "attachments/$attId/n", "n", null, 0, "a".repeat(64), listOf(ref, ref.copy()))
             )
         )
         assertThrows(IllegalArgumentException::class.java) {

@@ -67,7 +67,7 @@ class HomeUiTest {
     }
 
     @Test
-    fun dashboard_emptyState_whenRestaurantConfiguredAndNoActivity() {
+    fun dashboard_emptyState_whenNoActivity() {
         seedReadyState("Empty Rest")
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(20000) {

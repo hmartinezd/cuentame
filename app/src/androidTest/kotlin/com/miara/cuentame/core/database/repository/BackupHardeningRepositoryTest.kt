@@ -12,6 +12,7 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
@@ -62,6 +63,14 @@ class BackupHardeningRepositoryTest {
             database.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             database.ingredientDao().insert(IngredientEntity(ingId, restaurantId, "Chicken", "chicken", null, "mass_lb", areaId, null, null, null, true, now, now, null))
             database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(optId, ingId, "Pound", "lb", null, BigDecimal.ONE, true, true, true, true, now, now, null))
+        }
+    }
+
+    @After
+    fun tearDown() {
+        runBlocking {
+            (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+            testStateManager.resetAll()
         }
     }
 
@@ -116,7 +125,9 @@ class BackupHardeningRepositoryTest {
         
         val receipt = database.purchaseDao().getReceiptById(receiptId)
         assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
+        assertThat(receipt?.postedAt).isNull()
         assertRollback()
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 
     @Test
@@ -137,6 +148,7 @@ class BackupHardeningRepositoryTest {
         val receipt = database.purchaseDao().getReceiptById(receiptId)
         assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
         assertRollback()
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 
     @Test
@@ -157,11 +169,13 @@ class BackupHardeningRepositoryTest {
         val receipt = database.purchaseDao().getReceiptById(receiptId)
         assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
         assertRollback()
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 
     @Test
     fun purchaseVoid_failure_afterReversals_rollsBack() = runBlocking {
         seedPostedReceipt()
+        val originalReceipt = database.purchaseDao().getReceiptById(receiptId)!!
         val config = failureBoundary as ConfigurableFailureBoundary
         config.triggerOn(IntegrationFailurePoints.PURCHASE_VOID_AFTER_REVERSALS)
         
@@ -176,8 +190,16 @@ class BackupHardeningRepositoryTest {
         
         val receipt = database.purchaseDao().getReceiptById(receiptId)
         assertThat(receipt?.status).isEqualTo(DocumentStatus.POSTED.name)
+        assertThat(receipt?.voidedAt).isNull()
+        assertThat(receipt?.updatedAt).isEqualTo(originalReceipt.updatedAt)
+        
         val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
         assertThat(movements).hasSize(1) // Only original PURCHASE
+        
+        val balance = database.inventoryProjectionDao().getBalance(ingId, areaId)
+        assertThat(balance?.quantityBase).isEqualTo("10.0")
+        
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 
     @Test
@@ -199,6 +221,7 @@ class BackupHardeningRepositoryTest {
         assertThat(receipt?.status).isEqualTo(DocumentStatus.POSTED.name)
         val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
         assertThat(movements).hasSize(1)
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 
     @Test
@@ -220,5 +243,6 @@ class BackupHardeningRepositoryTest {
         assertThat(receipt?.status).isEqualTo(DocumentStatus.POSTED.name)
         val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
         assertThat(movements).hasSize(1)
+        assertThat(config.triggerCount).isEqualTo(1)
     }
 }

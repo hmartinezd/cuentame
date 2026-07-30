@@ -15,6 +15,9 @@ class TestTagConsistencyTest {
         "dashboard_inventory_value",
         "dashboard_purchase_spend",
         "dashboard_waste_value",
+        "dashboard_negative_balance_count",
+        "dashboard_top_waste_empty",
+        "dashboard_recent_activity_empty",
         "purchase_error_snackbar_content",
         "waste_error_snackbar_content"
     )
@@ -26,6 +29,9 @@ class TestTagConsistencyTest {
     @Test
     fun `ensure no obsolete tags are used in android tests`() {
         val testDir = File("src/androidTest/kotlin")
+        // Use a failable check if directory missing
+        assertWithMessage("Test directory not found").that(testDir.exists()).isTrue()
+        
         val files = testDir.walkTopDown().filter { it.extension == "kt" }.toList()
         
         for (file in files) {
@@ -40,6 +46,8 @@ class TestTagConsistencyTest {
     @Test
     fun `ensure critical tags exist in production source`() {
         val srcDir = File("src/main/kotlin")
+        assertWithMessage("Source directory not found").that(srcDir.exists()).isTrue()
+        
         val content = srcDir.walkTopDown().filter { it.extension == "kt" }.map { it.readText() }.joinToString("\n")
         
         for (tag in criticalTags) {
@@ -51,7 +59,7 @@ class TestTagConsistencyTest {
     @Test
     fun `HomeUiTest must not reference reports_view_inventory_details without navigation`() {
         val file = File("src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt")
-        if (!file.exists()) return
+        assertWithMessage("HomeUiTest source file not found").that(file.exists()).isTrue()
         
         val content = file.readText()
         val tag = "reports_view_inventory_details"

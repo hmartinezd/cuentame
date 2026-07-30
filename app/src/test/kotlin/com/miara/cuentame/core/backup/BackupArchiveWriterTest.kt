@@ -151,7 +151,7 @@ class BackupArchiveWriterTest {
     }
 
     @Test
-    fun `runtime cumulative limit exceeded when attachment streams more than planned and crosses limit`() = runTest {
+    fun `runtime cumulative limit exceeded`() = runTest {
         val attId = "0123456789abcdef"
         val attUri = AttachmentSourceUri("uri1")
         val plannedSize = 10L
@@ -175,7 +175,7 @@ class BackupArchiveWriterTest {
             every { attachments } returns listOf(plannedAtt)
             every { expectedEntryChecksums } returns map
             every { checksumsJson } returns ImmutableBackupBytes.from(checksumsJsonBytes)
-            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes + plannedSize + (checksumsJsonBytes.size - validPlan.checksumsJson.size)
+            every { totalUncompressedBytes } returns (validPlan.totalUncompressedBytes + plannedSize + (checksumsJsonBytes.size - validPlan.checksumsJson.size))
         }
 
         // Configure limit to fit exactly planned size
@@ -183,12 +183,10 @@ class BackupArchiveWriterTest {
         val customWriter = DefaultBackupArchiveWriter(attachmentSource, limits)
         
         // Fake streams WAY more than planned to ensure it crosses the cumulative limit
-        // despite the "slack" of entries not yet written (manifest, checksums)
         attachmentSource.dataMap[attUri] = ByteArray(2000) 
         
         val output = ByteArrayOutputStream()
         val result = customWriter.write(output, plan)
-        // Checks currentTotalUncompressedBytes > writeLimits.maxTotalUncompressedBytes FIRST
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)
     }
 
@@ -250,7 +248,7 @@ class BackupArchiveWriterTest {
             val corruptedJsonB = "{\"attachments/$attId/a.jpg\":\"${"0".repeat(64)}\",\"data/database.json\":\"${map[BackupFormatV1Contract.DATABASE_ENTRY]}\",\"manifest.json\":\"${map[BackupFormatV1Contract.MANIFEST_ENTRY]}\",\"preferences/settings.json\":\"${map[BackupFormatV1Contract.PREFERENCES_ENTRY]}\"}".toByteArray()
             every { checksumsJson } returns ImmutableBackupBytes.from(corruptedJsonB)
             
-            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes + data.size + (corruptedJsonB.size - validPlan.checksumsJson.size)
+            every { totalUncompressedBytes } returns (validPlan.totalUncompressedBytes + data.size + (corruptedJsonB.size - validPlan.checksumsJson.size))
         }
 
         val output = ByteArrayOutputStream()
@@ -282,7 +280,7 @@ class BackupArchiveWriterTest {
             every { attachments } returns listOf(plannedAtt)
             every { expectedEntryChecksums } returns checksumsMap
             every { checksumsJson } returns ImmutableBackupBytes.from(checksumsJsonBytes)
-            every { totalUncompressedBytes } returns plan.totalUncompressedBytes + 100 + (checksumsJsonBytes.size - plan.checksumsJson.size)
+            every { totalUncompressedBytes } returns (plan.totalUncompressedBytes + 100 + (checksumsJsonBytes.size - plan.checksumsJson.size))
         }
 
         val output = ByteArrayOutputStream()
@@ -319,7 +317,7 @@ class BackupArchiveWriterTest {
             every { expectedEntryChecksums } returns map
             every { checksumsJson } returns ImmutableBackupBytes.from(checksumsJsonBytes)
             // Use LARGE limit so it doesn't trigger LimitExceeded but DOES trigger AttachmentChanged
-            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes + plannedData.size + (checksumsJsonBytes.size - validPlan.checksumsJson.size)
+            every { totalUncompressedBytes } returns (validPlan.totalUncompressedBytes + plannedData.size + (checksumsJsonBytes.size - validPlan.checksumsJson.size))
         }
         
         val highLimits = BackupWriteLimits(maxTotalUncompressedBytes = 1000L)
@@ -328,5 +326,40 @@ class BackupArchiveWriterTest {
         val output = ByteArrayOutputStream()
         val result = customWriter.write(output, plan)
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.AttachmentChanged)
+    }
+
+    @Test
+    fun `two writer instances with different limits remain isolated`() = runTest {
+        val lowLimits = BackupWriteLimits(maxTotalUncompressedBytes = 10L)
+        val highLimits = BackupWriteLimits(maxTotalUncompressedBytes = 1000L)
+        
+        val writer1 = DefaultBackupArchiveWriter(attachmentSource, lowLimits)
+        val writer2 = DefaultBackupArchiveWriter(attachmentSource, highLimits)
+        
+        val plan = createValidMinimalPlan() // Size > 10
+        
+        assertThat(writer1.write(ByteArrayOutputStream(), plan)).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)
+        assertThat(writer2.write(ByteArrayOutputStream(), plan)).isEqualTo(BackupArchiveWriteResult.Success)
+    }
+
+    @Test
+    fun `checksum map mismatch rejected`() = runTest {
+        val validPlan = createValidMinimalPlan()
+        
+        val plan = mockk<BackupPlan> {
+            every { snapshotJson } returns validPlan.snapshotJson
+            every { preferencesJson } returns validPlan.preferencesJson
+            every { manifestJson } returns validPlan.manifestJson
+            every { attachments } returns emptyList()
+            every { totalUncompressedBytes } returns validPlan.totalUncompressedBytes
+            
+            val corruptedJson = "{\"data/database.json\":\"${"0".repeat(64)}\",\"manifest.json\":\"${validPlan.expectedEntryChecksums[BackupFormatV1Contract.MANIFEST_ENTRY]}\",\"preferences/settings.json\":\"${validPlan.expectedEntryChecksums[BackupFormatV1Contract.PREFERENCES_ENTRY]}\"}".toByteArray()
+            every { checksumsJson } returns ImmutableBackupBytes.from(corruptedJson)
+            every { expectedEntryChecksums } returns validPlan.expectedEntryChecksums
+        }
+
+        val output = ByteArrayOutputStream()
+        val result = writer.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.ChecksumInconsistency)
     }
 }

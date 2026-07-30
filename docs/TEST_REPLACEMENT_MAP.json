@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "previous_file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+    "previous_class": "BackupArchiveWriterTest",
+    "previous_method": "runtime cumulative limit exceeded",
+    "replacement_file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+    "replacement_class": "BackupArchiveWriterTest",
+    "replacement_method": "writer rejects calculated total above configured limit during prevalidation",
+    "reason": "Clarified that this test verifies pre-validation behavior. A new genuine runtime test was added.",
+    "equivalent_assertions": [
+        "assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)"
+    ]
+  },
+  {
+    "previous_file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt",
+    "previous_class": "PurchaseFailureUiTest",
+    "previous_method": "purchasePost_rollback_onFailure",
+    "replacement_file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt",
+    "replacement_class": "PurchaseFailureUiTest",
+    "replacement_method": "purchasePost_rollback_andRetry_onFailure",
+    "reason": "Expanded test to include retry behavior.",
+    "equivalent_assertions": [
+        "assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)",
+        "assertThat(movements).isEmpty()"
+    ]
+  }
+]

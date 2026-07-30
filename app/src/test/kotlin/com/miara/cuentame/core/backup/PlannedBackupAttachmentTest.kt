@@ -49,10 +49,55 @@ class PlannedBackupAttachmentTest {
     }
 
     @Test
-    fun `create rejects invalid display name`() {
+    fun `create rejects unsafe path`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(
-                validUri, validId, validPath, "   ", null, 100L, validChecksum, listOf(validRef)
+                validUri, validId, "attachments/$validId/../../etc/passwd", "../../etc/passwd", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects absolute path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "/attachments/$validId/$validName", validName, null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects traversal path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/../etc/passwd", "../etc/passwd", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects forward slash in display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/a/b.jpg", "a/b.jpg", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects backslash in display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/a\\b.jpg", "a\\b.jpg", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects negative size`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, -1L, validChecksum, listOf(validRef)
             )
         }
     }
@@ -96,39 +141,29 @@ class PlannedBackupAttachmentTest {
     }
 
     @Test
-    fun `create rejects negative size`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PlannedBackupAttachment.create(
-                validUri, validId, validPath, validName, null, -1L, validChecksum, listOf(validRef)
-            )
-        }
-    }
-
-    @Test
-    fun `create rejects absolute path`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PlannedBackupAttachment.create(
-                validUri, validId, "/attachments/$validId/$validName", validName, null, 100L, validChecksum, listOf(validRef)
-            )
-        }
-    }
-
-    @Test
-    fun `create rejects traversal path`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PlannedBackupAttachment.create(
-                validUri, validId, "attachments/$validId/../etc/passwd", validName, null, 100L, validChecksum, listOf(validRef)
-            )
-        }
-    }
-
-    @Test
     fun `create rejects blank reference record ID`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(
                 validUri, validId, validPath, validName, null, 100L, validChecksum, 
                 listOf(BackupAttachmentReference("WASTE_EVENT", "  "))
             )
+        }
+    }
+
+    @Test
+    fun `original reference list mutation cannot change attachment`() {
+        val mutableRefs = mutableListOf(validRef)
+        val att = PlannedBackupAttachment.create(validUri, validId, validPath, validName, null, 100L, validChecksum, mutableRefs)
+        
+        mutableRefs.clear()
+        assertThat(att.references).hasSize(1)
+    }
+
+    @Test
+    fun `returned references cannot mutate attachment`() {
+        val att = PlannedBackupAttachment.create(validUri, validId, validPath, validName, null, 100L, validChecksum, listOf(validRef))
+        assertThrows(UnsupportedOperationException::class.java) {
+            (att.references as MutableList).clear()
         }
     }
 }

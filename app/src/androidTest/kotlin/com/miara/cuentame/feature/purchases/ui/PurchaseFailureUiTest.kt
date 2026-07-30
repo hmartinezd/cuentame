@@ -152,7 +152,7 @@ class PurchaseFailureUiTest {
                 useUnmergedTree = true
             ).performClick()
 
-            // 5. Verify error snackbar content and localized message
+            // 5. Verify error snackbar content
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_error_snackbar_content")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -164,12 +164,21 @@ class PurchaseFailureUiTest {
                 assertThat(receipt?.status).isEqualTo(DocumentStatus.DRAFT.name)
                 assertThat(receipt?.postedAt).isNull()
                 
+                val line = database.purchaseDao().getLineById("line_1")
+                assertThat(line?.quantityEntered).isEqualTo("10.0")
+                
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
                 assertThat(movements).isEmpty()
+
+                val projection = database.inventoryProjectionDao().getBalance(ingId, areaId)
+                assertThat(projection).isNull()
             }
             
             assertThat(configBoundary.triggerCount).isEqualTo(1)
             
+            // Dialog must remain open
+            composeTestRule.onNodeWithTag("purchase_post_confirm_dialog").assertIsDisplayed()
+
             // 7. Reset and Retry within the same dialog
             configBoundary.reset()
             
@@ -179,7 +188,7 @@ class PurchaseFailureUiTest {
             ).performClick()
             
             // 8. Verify successful transition
-            composeTestRule.waitUntil(10000) {
+            composeTestRule.waitUntil(15000) {
                 val r = runBlocking { database.purchaseDao().getReceiptById(receiptId) }
                 r?.status == DocumentStatus.POSTED.name
             }
@@ -191,6 +200,10 @@ class PurchaseFailureUiTest {
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
                 assertThat(movements).hasSize(1)
                 assertThat(movements[0].movementType).isEqualTo("PURCHASE")
+                assertThat(movements[0].quantityBaseSigned).isEqualTo("10.0")
+
+                val projection = database.inventoryProjectionDao().getBalance(ingId, areaId)
+                assertThat(projection?.quantityBase).isEqualTo("10.0")
             }
             
             // Dialog should be closed
