@@ -1,5 +1,5 @@
 {
-  "base_revision": "269f18ae77514d4b89ebc8582e0a97bbbeba601f",
+  "base_revision": "1d2c5b544c11015d1121627dab139c9287999ae7",
   "generated_from_git": true,
   "tests": [
     {
@@ -179,13 +179,25 @@
     {
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
+      "method": "database payload checksum mismatch rejected",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "class": "BackupArchiveWriterTest",
       "method": "preferences payload checksum mismatch rejected",
       "disabled": false
     },
     {
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
-      "method": "runtime cumulative limit exceeded",
+      "method": "writer rejects calculated total above configured limit during prevalidation",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "class": "BackupArchiveWriterTest",
+      "method": "runtime cumulative limit exceeded when attachment streams more than planned and crosses limit",
       "disabled": false
     },
     {
@@ -204,6 +216,12 @@
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "attachment disappears after planning results in failure",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "class": "BackupArchiveWriterTest",
+      "method": "writer detects attachment growth during write",
       "disabled": false
     },
     {
@@ -366,6 +384,12 @@
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "create with valid data succeeds",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "class": "BackupPlanTest",
+      "method": "plan is immutable and performs defensive copies",
       "disabled": false
     },
     {
@@ -569,6 +593,36 @@
     {
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects invalid display name",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects invalid checksum",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects empty references",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects duplicate references",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects unsupported record type",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
       "method": "create rejects negative size",
       "disabled": false
     },
@@ -618,6 +672,12 @@
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/TestTagConsistencyTest.kt",
       "class": "TestTagConsistencyTest",
       "method": "ensure critical tags exist in production source",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/TestTagConsistencyTest.kt",
+      "class": "TestTagConsistencyTest",
+      "method": "HomeUiTest must not reference reports_view_inventory_details without navigation",
       "disabled": false
     },
     {
@@ -1745,7 +1805,19 @@
     {
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
+      "method": "openForRead_validFileUri_returnsStream",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "class": "AndroidBackupDocumentStoreTest",
       "method": "openForRead_nonExistent_throwsWrapped",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "class": "AndroidBackupDocumentStoreTest",
+      "method": "truncate_validFile_emptiesFile",
       "disabled": false
     },
     {
@@ -1764,6 +1836,18 @@
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "delete_validFile_returnsTrue",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "class": "AndroidBackupDocumentStoreTest",
+      "method": "openStream_securityException_isPropagated",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "class": "AndroidBackupDocumentStoreTest",
+      "method": "openStream_nullDescriptor_throwsOpenException",
       "disabled": false
     },
     {
@@ -1902,6 +1986,42 @@
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/migration/RoomMigrationTest.kt",
       "class": "RoomMigrationTest",
       "method": "createDatabaseDirectlyAtVersion2",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchasePost_failure_afterMovements_rollsBack",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchasePost_failure_afterProjections_rollsBack",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchasePost_failure_afterMarkPosted_rollsBack",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchaseVoid_failure_afterReversals_rollsBack",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchaseVoid_failure_afterProjections_rollsBack",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "class": "BackupHardeningRepositoryTest",
+      "method": "purchaseVoid_failure_afterMarkVoided_rollsBack",
       "disabled": false
     },
     {
@@ -2177,7 +2297,7 @@
     {
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt",
       "class": "HomeUiTest",
-      "method": "dashboard_emptyState_whenNoActivity",
+      "method": "dashboard_emptyState_whenRestaurantConfiguredAndNoActivity",
       "disabled": false
     },
     {
@@ -2219,7 +2339,7 @@
     {
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt",
       "class": "PurchaseFailureUiTest",
-      "method": "purchasePost_rollback_onFailure",
+      "method": "purchasePost_rollback_andRetry_onFailure",
       "disabled": false
     },
     {

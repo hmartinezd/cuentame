@@ -32,6 +32,9 @@ SKIP_ANNOTATIONS = re.compile(r"@TestInstallIn|@TestOnly|@TestFactory|@TestConfi
 FUN_PATTERN = re.compile(r"fun\s+([a-zA-Z0-9_` \-\.]+)\s*\(")
 CLASS_PATTERN = re.compile(r"^\s*(?:private\s+|internal\s+)?(?:class|object)\s+([a-zA-Z0-9_]+)", re.MULTILINE)
 
+class PreservationError(Exception):
+    pass
+
 def get_git_revision(ref):
     try:
         return subprocess.check_output(["git", "rev-parse", ref], cwd=REPO_ROOT).decode().strip()
@@ -78,12 +81,9 @@ def scan_content(lines, file_path):
                     break
 
             if method_name == "Unknown":
-                print(f"Error: Failed to identify test method at {file_path}:{i+1}", file=sys.stderr)
-                sys.exit(1)
+                raise PreservationError(f"Unable to determine test method in {file_path} at line {i+1}")
             if current_class == "Unknown":
-                # Some files might not have a class (top-level fun, though rare for @Test)
-                # But for consistency, let's keep it or fail.
-                pass
+                raise PreservationError(f"Unable to determine test class in {file_path} at line {i+1}")
 
             inventory.append({
                 "file": str(file_path),
@@ -114,64 +114,13 @@ def scan_git_tree(ref):
         inventory.extend(scan_content(lines, f))
     return inventory
 
-def main():
-    if len(sys.argv) > 1:
-        mode = sys.argv[1]
-    else:
-        mode = "verify"
-
-    parent_ref = "HEAD^"
-    parent_sha = get_git_revision(parent_ref)
-
-    if mode == "generate-baseline":
-        if not parent_sha:
-            print("Error: Could not find parent revision.", file=sys.stderr)
-            sys.exit(1)
-        inventory = scan_git_tree(parent_ref)
-        data = {
-            "base_revision": parent_sha,
-            "generated_from_git": True,
-            "tests": inventory
-        }
-        os.makedirs(BASELINE_FILE.parent, exist_ok=True)
-        with open(BASELINE_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-        print(f"Generated baseline from {parent_sha} with {len(inventory)} tests.")
-        return
-
-    current_inventory = scan_working_tree()
-
-    if mode == "generate-final":
-        data = {
-            "current_revision": get_git_revision("HEAD") or "working_tree",
-            "tests": current_inventory
-        }
-        with open(FINAL_INVENTORY_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-        print(f"Generated final inventory with {len(current_inventory)} tests.")
-        return
-
-    # Verify mode
-    if not BASELINE_FILE.exists():
-        print(f"Error: Baseline {BASELINE_FILE} missing. Run 'generate-baseline' first.", file=sys.stderr)
-        sys.exit(1)
-
-    with open(BASELINE_FILE, 'r') as f:
-        baseline_data = json.load(f)
-    baseline = baseline_data["tests"]
-
-    replacements = []
-    if REPLACEMENT_MAP_FILE.exists():
-        with open(REPLACEMENT_MAP_FILE, 'r') as f:
-            replacements = json.load(f)
-
+def perform_verification(baseline, current_inventory, replacements):
     current_map = {(t['file'], t['class'], t['method']): t for t in current_inventory}
     errors = []
     added = []
     removed = []
     disabled = []
 
-    # Check baseline against current
     for b_test in baseline:
         key = (b_test['file'], b_test['class'], b_test['method'])
         if key not in current_map:
@@ -194,12 +143,10 @@ def main():
                 errors.append(f"DISABLED: {b_test['class']}.{b_test['method']} in {b_test['file']}")
                 disabled.append(b_test)
 
-    # Detect added
     baseline_keys = {(t['file'], t['class'], t['method']) for t in baseline}
     for c_test in current_inventory:
         key = (c_test['file'], c_test['class'], c_test['method'])
         if key not in baseline_keys:
-            # check if it is a replacement target
             is_replacement = False
             for r in replacements:
                 if (r['replacement_file'] == c_test['file'] and
@@ -210,10 +157,71 @@ def main():
             if not is_replacement:
                 added.append(c_test)
 
+    return errors, added, removed, disabled
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "verify"
+
+    actual_parent_sha = get_git_revision("HEAD^")
+
+    if mode == "generate-baseline":
+        if not actual_parent_sha:
+            print("Error: Could not find parent revision.", file=sys.stderr)
+            sys.exit(1)
+        inventory = scan_git_tree("HEAD^")
+        data = {
+            "base_revision": actual_parent_sha,
+            "generated_from_git": True,
+            "tests": inventory
+        }
+        os.makedirs(BASELINE_FILE.parent, exist_ok=True)
+        with open(BASELINE_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"Generated baseline from {actual_parent_sha} with {len(inventory)} tests.")
+        return
+
+    try:
+        current_inventory = scan_working_tree()
+    except PreservationError as e:
+        print(f"Parser Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if mode == "generate-final":
+        data = {
+            "current_revision": get_git_revision("HEAD") or "working_tree",
+            "tests": current_inventory
+        }
+        with open(FINAL_INVENTORY_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"Generated final inventory with {len(current_inventory)} tests.")
+        return
+
+    # Verify mode
+    if not BASELINE_FILE.exists():
+        print(f"Error: Baseline {BASELINE_FILE} missing. Run 'generate-baseline' first.", file=sys.stderr)
+        sys.exit(1)
+
+    with open(BASELINE_FILE, 'r') as f:
+        baseline_data = json.load(f)
+
+    stored_parent_sha = baseline_data.get("base_revision")
+    if stored_parent_sha != actual_parent_sha:
+        print(f"Error: Stored baseline revision ({stored_parent_sha}) does not match immediate parent ({actual_parent_sha})", file=sys.stderr)
+        sys.exit(1)
+
+    baseline = baseline_data["tests"]
+
+    replacements = []
+    if REPLACEMENT_MAP_FILE.exists():
+        with open(REPLACEMENT_MAP_FILE, 'r') as f:
+            replacements = json.load(f)
+
+    errors, added, removed, disabled = perform_verification(baseline, current_inventory, replacements)
+
     # Write report
     with open(REPORT_FILE, 'w') as f:
         f.write("# Test Preservation Report\n\n")
-        f.write(f"- **Base Revision**: {baseline_data.get('base_revision', 'Unknown')}\n")
+        f.write(f"- **Base Revision**: {stored_parent_sha}\n")
         f.write(f"- **Current Revision**: {get_git_revision('HEAD') or 'Working Tree'}\n")
         f.write(f"- **Baseline Count**: {len(baseline)}\n")
         f.write(f"- **Current Count**: {len(current_inventory)}\n")

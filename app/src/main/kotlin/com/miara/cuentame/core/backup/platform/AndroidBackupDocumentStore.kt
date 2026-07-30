@@ -12,20 +12,35 @@ import java.io.OutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal interface ParcelFileDescriptorStreamFactory {
+    fun createInputStream(descriptor: ParcelFileDescriptor): InputStream
+    fun createOutputStream(descriptor: ParcelFileDescriptor): OutputStream
+}
+
+private class DefaultParcelFileDescriptorStreamFactory : ParcelFileDescriptorStreamFactory {
+    override fun createInputStream(descriptor: ParcelFileDescriptor): InputStream = 
+        ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+    override fun createOutputStream(descriptor: ParcelFileDescriptor): OutputStream = 
+        ParcelFileDescriptor.AutoCloseOutputStream(descriptor)
+}
+
 @Singleton
 open class AndroidBackupDocumentStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) : BackupDocumentStore {
 
+    // Internal for testing
+    internal var streamFactory: ParcelFileDescriptorStreamFactory = DefaultParcelFileDescriptorStreamFactory()
+
     override suspend fun openForWrite(destination: BackupDocumentUri): OutputStream {
         return openStream(destination, "w", BackupDocumentOperation.WRITE) { pfd ->
-            ParcelFileDescriptor.AutoCloseOutputStream(pfd)
+            streamFactory.createOutputStream(pfd)
         }
     }
 
     override suspend fun openForRead(source: BackupDocumentUri): InputStream {
         return openStream(source, "r", BackupDocumentOperation.READ) { pfd ->
-            ParcelFileDescriptor.AutoCloseInputStream(pfd)
+            streamFactory.createInputStream(pfd)
         }
     }
 

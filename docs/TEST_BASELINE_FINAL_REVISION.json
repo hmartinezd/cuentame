@@ -1,5 +1,5 @@
 {
-  "current_revision": "1d2c5b544c11015d1121627dab139c9287999ae7",
+  "current_revision": "26164e68a3ddf95ac32478d0f259049b33fff560",
   "tests": [
     {
       "file": "app/src/test/kotlin/com/miara/cuentame/ExampleUnitTest.kt",
@@ -470,6 +470,12 @@
       "disabled": false
     },
     {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "class": "BackupArchiveWriterTest",
+      "method": "one byte above configured total fails during prevalidation",
+      "disabled": false
+    },
+    {
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityProjectionTest.kt",
       "class": "BackupSnapshotIntegrityProjectionTest",
       "method": "rejects balance projection mismatch",
@@ -809,6 +815,12 @@
       "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects backslash in display name",
+      "disabled": false
+    },
+    {
+      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "class": "PlannedBackupAttachmentTest",
+      "method": "create rejects invalid display name",
       "disabled": false
     },
     {
@@ -2321,6 +2333,12 @@
       "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openStream_ioExceptionDuringConstruction_closesDescriptor",
+      "disabled": false
+    },
+    {
+      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "class": "AndroidBackupDocumentStoreTest",
+      "method": "openStream_constructionFailure_andCloseFailure_keepsConstructionPrimary",
       "disabled": false
     },
     {

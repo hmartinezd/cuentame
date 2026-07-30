@@ -113,14 +113,35 @@ class BackupPlanTest {
 
     @Test
     fun `original manifest lists mutation cannot change plan`() {
-        val refs = mutableListOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
-        val attId = "0123456789abcdef"
-        val mAtt = BackupAttachmentMetadata(attId, "attachments/$attId/n", "n", null, 0, "a".repeat(64), refs)
-        val manifest = createMinimalBaseManifest().copy(attachments = listOf(mAtt))
-        
-        val plan = createMinimalBasePlan(manifest = manifest)
-        
-        refs.clear()
+        val reference = BackupAttachmentReference(recordType = "WASTE_EVENT", recordId = "w1")
+        val references = mutableListOf(reference)
+        val attachmentId = "0123456789abcdef"
+
+        val plannedAttachment = PlannedBackupAttachment.create(
+            sourceUri = AttachmentSourceUri("content://attachment"),
+            attachmentId = attachmentId,
+            archivePath = "attachments/$attachmentId/n",
+            displayName = "n",
+            mimeType = null,
+            sizeBytes = 0L,
+            checksumSha256 = "a".repeat(64),
+            references = references
+        )
+
+        val manifestAttachment = BackupAttachmentMetadata(
+            attachmentId = attachmentId,
+            archivePath = plannedAttachment.archivePath,
+            displayName = plannedAttachment.displayName,
+            mimeType = plannedAttachment.mimeType,
+            sizeBytes = plannedAttachment.sizeBytes,
+            checksumSha256 = plannedAttachment.checksumSha256,
+            referencedBy = references
+        )
+
+        val manifest = createMinimalBaseManifest().copy(attachments = listOf(manifestAttachment))
+        val plan = createMinimalBasePlan(attachments = listOf(plannedAttachment), manifest = manifest)
+
+        references.clear()
         assertThat(plan.manifest.attachments[0].referencedBy).hasSize(1)
     }
 

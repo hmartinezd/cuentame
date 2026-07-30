@@ -2,7 +2,7 @@
 
 ## JVM Unit Tests
 - **Command**: `./gradlew :app:testDebugUnitTest --rerun-tasks`
-- **Passed**: 298
+- **Passed**: 307
 - **Failed**: 0
 - **Skipped**: 0
 - **Result**: PASS
@@ -10,16 +10,15 @@
 ## Test Preservation Verification
 - **Command**: `./gradlew :app:verifyTestPreservation`
 - **Result**: PASS
-- **Inventory**: 423 tests active.
+- **Inventory**: 426 tests active.
 
 ## Android Instrumented Tests (Focused)
-- **HomeUiTest**: PASS
-- **PurchaseFailureUiTest**: PASS
-- **WasteFailureUiTest**: PASS
-- **BackupHardeningRepositoryTest**: PASS
-- **AndroidBackupDocumentStoreTest**: PASS
-- **NavigationTest**: PASS
+- **HomeUiTest**: RELYING ON CI
+- **PurchaseFailureUiTest**: RELYING ON CI
+- **WasteFailureUiTest**: RELYING ON CI
+- **BackupHardeningRepositoryTest**: RELYING ON CI
+- **AndroidBackupDocumentStoreTest**: RELYING ON CI
+- **NavigationTest**: RELYING ON CI
 
 ## Android Instrumented Tests (Full Suite)
-- **Result**: RELYING ON CI (No local device connected)
-- **CI Job**: `instrumentation-tests`
+- **Result**: RELYING ON CI

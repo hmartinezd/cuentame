@@ -76,12 +76,21 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
       - name: set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Show connected devices
+        run: adb devices -l
 
       - name: Run Instrumentation Tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -90,7 +99,9 @@ jobs:
           target: default
           arch: x86_64
           disable-animations: true
-          script: ./gradlew :app:connectedDebugAndroidTest
+          script: |
+            adb devices -l
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload Instrumentation Results
         if: always()
@@ -99,4 +110,5 @@ jobs:
           name: instrumentation-results
           path: |
             app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
             app/build/outputs/connected_android_test_additional_output/

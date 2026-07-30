@@ -94,6 +94,15 @@ class PlannedBackupAttachmentTest {
     }
 
     @Test
+    fun `create rejects invalid display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, "   ", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
     fun `create rejects negative size`() {
         assertThrows(IllegalArgumentException::class.java) {
             PlannedBackupAttachment.create(

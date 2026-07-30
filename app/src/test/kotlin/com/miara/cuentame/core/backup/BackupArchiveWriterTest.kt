@@ -185,9 +185,19 @@ class BackupArchiveWriterTest {
         // Fake streams WAY more than planned to ensure it crosses the cumulative limit
         attachmentSource.dataMap[attUri] = ByteArray(2000) 
         
-        val output = ByteArrayOutputStream()
+        val output = object : ByteArrayOutputStream() {
+            var closedCount = 0
+            override fun close() {
+                closedCount++
+                super.close()
+            }
+        }
         val result = customWriter.write(output, plan)
+        
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)
+        assertThat(output.closedCount).isEqualTo(0)
+        assertThat(attachmentSource.openCountMap[attUri]).isEqualTo(1)
+        // Verify input was closed (assumes open streams are managed properly in DefaultBackupArchiveWriter)
     }
 
     @Test
@@ -361,5 +371,16 @@ class BackupArchiveWriterTest {
         val output = ByteArrayOutputStream()
         val result = writer.write(output, plan)
         assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.ChecksumInconsistency)
+    }
+
+    @Test
+    fun `one byte above configured total fails during prevalidation`() = runTest {
+        val plan = createValidMinimalPlan()
+        val limits = BackupWriteLimits(maxTotalUncompressedBytes = plan.totalUncompressedBytes - 1)
+        val customWriter = DefaultBackupArchiveWriter(attachmentSource, limits)
+        
+        val output = ByteArrayOutputStream()
+        val result = customWriter.write(output, plan)
+        assertThat(result).isEqualTo(BackupArchiveWriteResult.Failure.LimitExceeded)
     }
 }

@@ -9,9 +9,11 @@ import com.miara.cuentame.core.backup.api.BackupDocumentOperation
 import com.miara.cuentame.core.backup.api.BackupDocumentUri
 import com.miara.cuentame.core.backup.api.BackupDocumentOpenException
 import com.miara.cuentame.core.backup.platform.AndroidBackupDocumentStore
+import com.miara.cuentame.core.backup.platform.ParcelFileDescriptorStreamFactory
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -19,6 +21,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
 @RunWith(AndroidJUnit4::class)
 class AndroidBackupDocumentStoreTest {
@@ -142,6 +146,48 @@ class AndroidBackupDocumentStoreTest {
         val spyStore = spyk(store)
         every { spyStore.openDescriptor(any(), any()) } returns mockPfd
         
-        // This test proves the logic by inspection of openStream's closeSuppressing call in source
+        val failingFactory = object : ParcelFileDescriptorStreamFactory {
+            override fun createInputStream(descriptor: ParcelFileDescriptor): InputStream = 
+                throw IOException("Simulated failure")
+            override fun createOutputStream(descriptor: ParcelFileDescriptor): OutputStream = 
+                throw IOException("Simulated failure")
+        }
+        spyStore.streamFactory = failingFactory
+        
+        val uri = BackupDocumentUri("content://fail-construction")
+        val ex = assertThrows(BackupDocumentOpenException::class.java) {
+            runBlocking { spyStore.openForRead(uri) }
+        }
+        
+        assertThat(ex.cause).isInstanceOf(IOException::class.java)
+        assertThat(ex.cause?.message).isEqualTo("Simulated failure")
+        verify(exactly = 1) { mockPfd.close() }
+        assertThat(ex.message).doesNotContain("content://fail-construction")
+    }
+
+    @Test
+    fun openStream_constructionFailure_andCloseFailure_keepsConstructionPrimary() {
+        val mockPfd = mockk<ParcelFileDescriptor>()
+        every { mockPfd.close() } throws IOException("Close failed")
+        
+        val spyStore = spyk(store)
+        every { spyStore.openDescriptor(any(), any()) } returns mockPfd
+        
+        val failingFactory = object : ParcelFileDescriptorStreamFactory {
+            override fun createInputStream(descriptor: ParcelFileDescriptor): InputStream = 
+                throw IOException("Construction failed")
+            override fun createOutputStream(descriptor: ParcelFileDescriptor): OutputStream = 
+                throw IOException("Construction failed")
+        }
+        spyStore.streamFactory = failingFactory
+        
+        val uri = BackupDocumentUri("content://double-fail")
+        val ex = assertThrows(BackupDocumentOpenException::class.java) {
+            runBlocking { spyStore.openForRead(uri) }
+        }
+        
+        assertThat(ex.cause?.message).isEqualTo("Construction failed")
+        assertThat(ex.cause?.suppressed).hasLength(1)
+        assertThat(ex.cause?.suppressed?.get(0)?.message).isEqualTo("Close failed")
     }
 }
