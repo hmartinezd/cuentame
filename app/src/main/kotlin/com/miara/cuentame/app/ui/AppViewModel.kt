@@ -2,15 +2,15 @@ package com.miara.cuentame.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.domain.usecase.AppStartState
 import com.miara.cuentame.core.domain.usecase.ResolveAppStartStateUseCase
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface AppPreferencesState {
@@ -21,7 +21,9 @@ sealed interface AppPreferencesState {
 @HiltViewModel
 class AppViewModel @Inject constructor(
     resolveAppStartStateUseCase: ResolveAppStartStateUseCase,
-    preferencesRepository: AppPreferencesRepository
+    preferencesRepository: AppPreferencesRepository,
+    operationGate: RestoreOperationGate,
+    private val restoreCoordinator: com.miara.cuentame.core.backup.api.BackupRestoreCoordinator
 ) : ViewModel() {
 
     val startState: StateFlow<AppStartState> = resolveAppStartStateUseCase()
@@ -38,4 +40,12 @@ class AppViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = AppPreferencesState.Loading
         )
+
+    val recoveryState: StateFlow<RestoreStartupState> = operationGate.recoveryState
+
+    fun retryRecovery() {
+        viewModelScope.launch {
+            restoreCoordinator.retryRecovery()
+        }
+    }
 }

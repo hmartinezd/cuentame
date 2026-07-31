@@ -1,8 +1,11 @@
 package com.miara.cuentame.app.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination
@@ -39,6 +43,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navOptions
 import com.miara.cuentame.app.navigation.CuentameNavHost
+import com.miara.cuentame.core.backup.api.RestoreStartupState
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.domain.usecase.AppStartState
@@ -50,24 +55,61 @@ fun CuentameApp(
     viewModel: AppViewModel = hiltViewModel()
 ) {
     val startState by viewModel.startState.collectAsStateWithLifecycle()
+    val recoveryState by viewModel.recoveryState.collectAsStateWithLifecycle()
 
-    when (startState) {
-        AppStartState.Loading -> {
-            LoadingContent()
+    when {
+        recoveryState is RestoreStartupState.NotStarted || recoveryState is RestoreStartupState.Recovering -> {
+            LoadingContent(stringResource(com.miara.cuentame.R.string.state_loading_desc))
         }
-        AppStartState.RequiresOnboarding -> {
-            OnboardingFlow()
+        recoveryState is RestoreStartupState.RecoveryRequired -> {
+            RecoveryRequiredContent(onRetry = { viewModel.retryRecovery() })
         }
-        AppStartState.Ready -> {
-            MainAppContent(windowSizeClass = windowSizeClass)
+        else -> {
+            when (startState) {
+                AppStartState.Loading -> {
+                    LoadingContent(stringResource(com.miara.cuentame.R.string.state_loading_desc))
+                }
+                AppStartState.RequiresOnboarding -> {
+                    OnboardingFlow()
+                }
+                AppStartState.Ready -> {
+                    MainAppContent(windowSizeClass = windowSizeClass)
+                }
+            }
         }
     }
 }
 
 @Composable
-fun LoadingContent() {
+fun LoadingContent(message: String) {
     Box(modifier = Modifier.fillMaxSize().testTag("app_loading"), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(text = message, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+fun RecoveryRequiredContent(onRetry: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = stringResource(com.miara.cuentame.R.string.restore_recovery_required_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(com.miara.cuentame.R.string.restore_recovery_required_message),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            androidx.compose.material3.Button(onClick = onRetry) {
+                Text(text = stringResource(com.miara.cuentame.R.string.action_retry_desc))
+            }
+        }
     }
 }
 

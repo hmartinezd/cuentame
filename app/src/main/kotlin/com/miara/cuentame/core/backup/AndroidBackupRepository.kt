@@ -34,19 +34,11 @@ class AndroidBackupRepository @Inject constructor(
 ) : BackupRepository {
 
     override fun createBackup(destinationUri: String): Flow<BackupOperationStatus> = flow {
-        operationGate.mutex.withLock {
-            // Await terminal startup state
-            operationGate.recoveryState.first {
-                it is RestoreStartupState.Ready ||
-                it is RestoreStartupState.Recovered ||
-                it is RestoreStartupState.RecoveryRequired
-            }
-            
-            if (operationGate.recoveryState.value is RestoreStartupState.RecoveryRequired) {
+        operationGate.withOperationalLock(
+            onRecoveryRequired = {
                 emit(BackupOperationStatus.Error(BackupResult.Error.OperationInterrupted))
-                return@withLock
             }
-
+        ) {
             emit(BackupOperationStatus.Creating)
             val docUri = BackupDocumentUri(destinationUri)
             try {

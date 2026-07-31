@@ -11,7 +11,7 @@ import com.miara.cuentame.core.backup.platform.*
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.RestaurantEntity
+import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
 import com.miara.cuentame.core.domain.usecase.locale.LocaleReconciliationResult
 import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import java.io.File
+import java.math.BigDecimal
 import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
@@ -63,7 +64,9 @@ class BackupProductionIntegrationTest {
         
         val planner = BackupCreationPlanner(
             localeReconciler,
-            mockk(relaxed = true), // preferencesSource
+            mockk(relaxed = true) {
+                 coEvery { loadPreferences() } returns com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+            },
             mockk(relaxed = true), // attachmentSource
             timeProvider,
             appVersionProvider,
@@ -88,7 +91,10 @@ class BackupProductionIntegrationTest {
         val restoreRepository = AndroidBackupRestoreRepository(documentStore, reader)
         
         val databaseApplier = RoomRestoreDatabaseApplier(db, backupDao, restoreDao)
-        val preferencesApplier = mockk<RestorePreferencesApplier>(relaxed = true)
+        val preferencesApplier = mockk<RestorePreferencesApplier>(relaxed = true) {
+            coEvery { validate(any()) } returns true
+            coEvery { verifyMatches(any()) } returns true
+        }
         val storage = InternalBackupRestoreStorage(context)
         val journal = RestoreJournal(storage, codecs)
         val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, codecs)
@@ -106,30 +112,18 @@ class BackupProductionIntegrationTest {
 
     @Test
     fun production_path_no_attachment_restore() = runBlocking {
-        // 1. Seed data across multiple tables
-        val restaurant = RestaurantEntity("r1", "Original", "USD", "en-US", 0, 0, null)
-        db.restaurantDao().insert(restaurant)
-        
-        val area = com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "r1", "Area 1", "area1", 0, true, 0, 0, null)
-        db.inventoryAreaDao().upsert(area)
-        
-        val category = com.miara.cuentame.core.database.entity.IngredientCategoryEntity("c1", "r1", "Cat 1", "cat1", 0, true, 0, 0, null)
-        db.ingredientCategoryDao().upsert(category)
-        
-        val unit = com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "COUNT", java.math.BigDecimal.ONE, true, 0)
-        db.unitDao().insertSeedUnits(listOf(unit))
-        
-        val ingredient = com.miara.cuentame.core.database.entity.IngredientEntity("i1", "r1", "Ing 1", "ing1", "c1", "u1", "a1", null, null, null, true, 0, 0, null)
-        db.ingredientDao().insert(ingredient)
+        // 1. Seed data across all 16 tables
+        seedAllTables()
 
         // 2. Create backup
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        val backupUri = "content://backup/1.zip"
+        val backupUri = "content://backup/full.zip"
         val statuses = backupRepository.createBackup(backupUri).toList()
         assertThat(statuses.last()).isInstanceOf(com.miara.cuentame.core.domain.repository.BackupOperationStatus.Success::class.java)
         
         // 3. Mutate data (Delete everything)
         db.restoreDao().clearAllInOrder()
+        assertThat(db.restaurantDao().getById("r1")).isNull()
         
         // 4. Inspect
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
@@ -142,10 +136,48 @@ class BackupProductionIntegrationTest {
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
         
         // 6. Verify original data restored
+        verifyAllTables()
+    }
+
+    private suspend fun seedAllTables() {
+        db.restaurantDao().insert(RestaurantEntity("r1", "Original", "USD", "en-US", 100, 100, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "r1", "Area 1", "area1", 1, true, 100, 100, null))
+        db.ingredientCategoryDao().upsert(IngredientCategoryEntity("c1", "r1", "Cat 1", "cat1", 1, true, 100, 100, null))
+        db.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "Unit", "u", "COUNT", BigDecimal.ONE, true, 1)))
+        db.ingredientDao().insert(IngredientEntity("i1", "r1", "Ing 1", "ing1", "c1", "u1", "a1", "SKU1", "Notes", BigDecimal.TEN, true, 100, 100, null))
+        db.ingredientUnitOptionDao().upsert(IngredientUnitOptionEntity("o1", "i1", "Opt 1", "o1", "u1", BigDecimal.ONE, true, true, true, true, 100, 100, null))
+        db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup1", "123", "sup@test.com", "Notes", true, 100, 100, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, 100, 100, 1000, null))
+        db.purchaseDao().insertLine(PurchaseLineEntity("pl1", "p1", "i1", "a1", "o1", "10", "10", "100", "1", "Notes", 100, 100))
+        db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, 1100, "COMPLETED", "Notes", 100, 100, null))
+        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "COMPLETED", 1000, 1100, 1)))
+        db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", "5", "0", "Notes", 100, 100))
+        db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
+        db.inventoryMovementDao().insertAll(listOf(
+            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "10", "1", "10", 1000, "PURCHASE_RECEIPT", "p1", "op1", "pl1", null, 100),
+            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "1", "-2", 1200, "WASTE_EVENT", "w1", "op2", "w1", null, 100)
+        ))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "8", 1200))
+        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "1", 1200))
+    }
+
+    private suspend fun verifyAllTables() {
         assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Original")
         assertThat(db.inventoryAreaDao().getById("a1")?.name).isEqualTo("Area 1")
         assertThat(db.ingredientCategoryDao().getById("c1")?.name).isEqualTo("Cat 1")
+        assertThat(db.unitDao().getById("u1")?.name).isEqualTo("Unit")
         assertThat(db.ingredientDao().getById("i1")?.name).isEqualTo("Ing 1")
+        assertThat(db.ingredientUnitOptionDao().getById("o1")?.displayName).isEqualTo("Opt 1")
+        assertThat(db.supplierDao().getById("s1")?.name).isEqualTo("Sup 1")
+        assertThat(db.purchaseDao().getReceiptById("p1")?.invoiceNumber).isEqualTo("INV1")
+        assertThat(db.purchaseDao().getLineById("pl1")?.quantityEntered).isEqualTo("10")
+        assertThat(db.stockCountDao().getCountById("sc1")?.name).isEqualTo("Count 1")
+        assertThat(db.stockCountDao().getAreaById("sca1")?.stockCountId).isEqualTo("sc1")
+        assertThat(db.stockCountDao().getLineById("scl1")?.quantityEntered).isEqualTo("5")
+        assertThat(db.wasteDao().getById("w1")?.reason).isEqualTo("SPOILED")
+        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(2)
+        assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("8")
+        assertThat(db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase).isEqualTo("1")
     }
 
     private class FakeInternalDocumentStore(private val root: File) : BackupDocumentStore {

@@ -60,4 +60,11 @@ class RestoreJournal @Inject constructor(
     fun delete() {
         storage.getJournalFile().delete()
     }
+
+    fun deleteOrThrow() {
+        val file = storage.getJournalFile()
+        if (file.exists() && !file.delete()) {
+            throw java.io.IOException("Failed to delete journal file")
+        }
+    }
 }

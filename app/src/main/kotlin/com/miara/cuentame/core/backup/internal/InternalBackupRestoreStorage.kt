@@ -56,4 +56,16 @@ class InternalBackupRestoreStorage @Inject constructor(
         File(baseDir, "staging/$sessionId").deleteRecursively()
         File(baseDir, "rollback/$sessionId").deleteRecursively()
     }
+
+    fun cleanupSessionOrThrow(sessionId: String) {
+        val staging = File(baseDir, "staging/$sessionId")
+        val rollback = File(baseDir, "rollback/$sessionId")
+        
+        if (staging.exists() && !staging.deleteRecursively()) {
+            throw java.io.IOException("Failed to cleanup staging session: $sessionId")
+        }
+        if (rollback.exists() && !rollback.deleteRecursively()) {
+            throw java.io.IOException("Failed to cleanup rollback session: $sessionId")
+        }
+    }
 }

@@ -31,6 +31,9 @@ sealed interface RestoreStartupState {
     data object Ready : RestoreStartupState
     data class Recovered(val sessionId: String) : RestoreStartupState
     data object RecoveryRequired : RestoreStartupState
+
+    val isTerminal: Boolean
+        get() = this is Ready || this is Recovered || this is RecoveryRequired
 }
 
 interface BackupRestoreCoordinator {

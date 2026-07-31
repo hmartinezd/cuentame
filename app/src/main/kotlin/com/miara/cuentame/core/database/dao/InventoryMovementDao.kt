@@ -98,11 +98,11 @@ interface InventoryMovementDao {
     @Query("DELETE FROM inventory_movements WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("SELECT * FROM inventory_movements")
+    suspend fun getAll(): List<InventoryMovementEntity>
+
     @Query("SELECT * FROM inventory_movements WHERE ingredientId = :ingredientId ORDER BY effectiveAt ASC, createdAt ASC, id ASC")
     fun observeByIngredient(ingredientId: String): Flow<List<InventoryMovementEntity>>
-
-    @Query("SELECT * FROM inventory_movements WHERE ingredientId = :ingredientId AND areaId = :areaId ORDER BY effectiveAt ASC, createdAt ASC, id ASC")
-    fun observeByIngredientAndArea(ingredientId: String, areaId: String): Flow<List<InventoryMovementEntity>>
 
     @Query("SELECT * FROM inventory_movements WHERE ingredientId = :ingredientId ORDER BY effectiveAt ASC, createdAt ASC, id ASC")
     suspend fun getByIngredient(ingredientId: String): List<InventoryMovementEntity>

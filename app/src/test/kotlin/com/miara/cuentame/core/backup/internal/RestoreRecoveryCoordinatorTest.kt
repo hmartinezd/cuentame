@@ -69,6 +69,7 @@ class RestoreRecoveryCoordinatorTest {
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         coEvery { preferencesApplier.apply(any()) } just Runs
         coEvery { preferencesApplier.captureRollback() } returns prefs
+        coEvery { preferencesApplier.verifyMatches(any()) } returns true
         every { storage.cleanupSession("session") } just Runs
         every { journal.write(any()) } just Runs
         every { journal.delete() } just Runs
@@ -77,6 +78,28 @@ class RestoreRecoveryCoordinatorTest {
         
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
         coVerify { databaseApplier.restoreRollback(match { it.snapshot == rollbackSnapshot.snapshot }) }
+        coVerify { preferencesApplier.apply(prefs) }
+    }
+
+    @Test
+    fun `recovery requires recovery when preference verification fails`() = runTest {
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        
+        setupRollbackFile("session")
+        
+        coEvery { databaseApplier.restoreRollback(any()) } just Runs
+        coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
+        coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { preferencesApplier.captureRollback() } returns prefs.copy(themeMode = "LIGHT")
+        
+        every { journal.write(any()) } just Runs
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) }
     }
 
     @Test
@@ -121,6 +144,22 @@ class RestoreRecoveryCoordinatorTest {
         
         every { journal.write(any()) } just Runs
         
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) }
+    }
+
+    @Test
+    fun `recovery fails if database rollback fails`() = runTest {
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        setupRollbackFile("session")
+        
+        coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("DB Restore Fail")
+        every { journal.write(any()) } just Runs
+
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)

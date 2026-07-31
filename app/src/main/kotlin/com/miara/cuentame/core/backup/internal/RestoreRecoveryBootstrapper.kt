@@ -16,11 +16,16 @@ class RestoreRecoveryBootstrapper @Inject constructor(
     private val operationGate: RestoreOperationGate
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
 
     fun bootstrap() {
+        if (!started.compareAndSet(false, true)) return
+        
+        // Synchronously publish Recovering before returning
+        operationGate.updateRecoveryState(RestoreStartupState.Recovering)
+
         scope.launch {
             operationGate.mutex.withLock {
-                operationGate.updateRecoveryState(RestoreStartupState.Recovering)
                 try {
                     val result = recoveryCoordinator.recoverIfNeeded()
                     val terminalState = when (result) {
