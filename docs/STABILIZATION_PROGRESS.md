@@ -24,4 +24,4 @@ Backup and Restore v1 is now production-ready for Room database records and type
 - Backup requires the current database to have no attachment references.
 
 ## Verification
-Final JVM suite and instrumentation tests pass. Documentation updated to reflect the final no-attachment scope.
+The final JVM suite and Android test compilation passed. Connected instrumentation was not executed because no device or emulator was available.

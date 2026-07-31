@@ -103,7 +103,7 @@ class BackupRestoreCoordinatorTest {
     }
 
     @Test
-    fun `cleanup failure after successful mutation publishes global RecoveryRequired`() = runTest {
+    fun `cleanup failure after successful mutation returns RecoveryRequired`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
@@ -157,7 +157,7 @@ class BackupRestoreCoordinatorTest {
     }
 
     @Test
-    fun `successful rollback returns DatabaseRestoreFailed`() = runTest {
+    fun `apply rolls back on mutation failure`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
@@ -186,6 +186,56 @@ class BackupRestoreCoordinatorTest {
         
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.DatabaseRestoreFailed))
         assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
+    }
+
+    @Test
+    fun `apply rejects changed archive fingerprint`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        val differentFingerprint = BackupArchiveFingerprint("different")
+        
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns differentFingerprint
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired))
+        
+        coVerify(exactly = 0) {
+            databaseApplier.captureRollbackSnapshot()
+            journal.write(any())
+            databaseApplier.replaceWithBackup(any())
+            preferencesApplier.apply(any())
+        }
+    }
+
+    @Test
+    fun `apply rejects invalid theme before mutation`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true)
+            every { this@mockk.manifest } returns mockk(relaxed = true) {
+                every { attachments } returns emptyList()
+            }
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        coEvery { preferencesApplier.validate(any()) } returns false
+        
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.MalformedPreferences))
+        
+        coVerify(exactly = 0) {
+            databaseApplier.captureRollbackSnapshot()
+            journal.write(any())
+            databaseApplier.replaceWithBackup(any())
+            preferencesApplier.apply(any())
+        }
     }
 
     private fun createEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

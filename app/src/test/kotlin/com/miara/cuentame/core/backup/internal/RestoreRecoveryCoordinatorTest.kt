@@ -82,7 +82,7 @@ class RestoreRecoveryCoordinatorTest {
     }
 
     @Test
-    fun `retry from COMPLETED performs cleanup only`() = runTest {
+    fun `durable COMPLETED cleanup failure retries cleanup without rollback`() = runTest {
         val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } just Runs
@@ -114,7 +114,6 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
-        // verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) } // NO LONGER WRITTEN
     }
 
     @Test
@@ -180,11 +179,82 @@ class RestoreRecoveryCoordinatorTest {
     fun `cleanup failure from COMPLETED returns RecoveryRequired`() = runTest {
         val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
-        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup fail")
+        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
         
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+    }
+
+    @Test
+    fun `ROLLBACK_CAPTURED cleanup failure preserves journal`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        verify(exactly = 0) { journal.deleteOrThrow() }
+    }
+
+    @Test
+    fun `ROLLBACK_COMPLETED cleanup failure preserves journal`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_COMPLETED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        verify(exactly = 0) { journal.deleteOrThrow() }
+    }
+
+    @Test
+    fun `COMPLETED journal deletion failure remains retryable`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.deleteOrThrow() } throws java.io.IOException("Delete failed")
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        // Journal was NOT deleted, so it's still Present for next retry
+    }
+
+    @Test
+    fun `retry succeeds after cleanup failure becomes available`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        
+        // First try fails
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Still locked")
+        coordinator.retryRecovery()
+        
+        // Second try succeeds
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.deleteOrThrow() } just Runs
+        
+        val result = coordinator.retryRecovery()
+        
+        assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
+        verify(exactly = 1) { journal.deleteOrThrow() }
+    }
+
+    @Test
+    fun `generic RECOVERY_REQUIRED preserves evidence`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.RECOVERY_REQUIRED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        verify(exactly = 0) {
+            storage.cleanupSessionOrThrow(any())
+            journal.deleteOrThrow()
+            journal.write(any())
+        }
     }
 
     private fun setupRollbackFile(sessionId: String): RestoreDatabaseRollbackSnapshot {

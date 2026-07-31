@@ -2,16 +2,20 @@
 
 ## JVM Unit Tests
 - **Command**: `./gradlew :app:testDebugUnitTest --rerun-tasks`
-- **Execution Timestamp**: 2026-07-31T13:55:00Z
+- **Execution Timestamp**: 2026-07-31T16:24:00Z
 - **Environment**: Local Development (Android Studio)
 - **Exit Code**: 0
 - **Result**: PASS
+- **Passed**: 483
+- **Failed**: 0
+- **Skipped**: 0
 - **Focused Tests**:
     - RestoreOperationGateTest: PASS
     - RestoreRecoveryCoordinatorTest: PASS
     - BackupRestoreCoordinatorTest: PASS
     - RestorePreferencesApplierTest: PASS
     - BackupRestoreViewModelTest: PASS
+    - RestoreDurablePhaseTest: PASS
 
 ## Android Instrumented Tests
 - **Android test compilation**: PASS
