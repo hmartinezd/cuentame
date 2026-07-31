@@ -26,6 +26,7 @@ data class StartStockCountUiState(
     val isLoading: Boolean = true,
     val isStarting: Boolean = false,
     val name: String = "",
+    val isNameManuallyEdited: Boolean = false,
     val effectiveAt: Instant = Instant.now(),
     val availableAreas: List<InventoryArea> = emptyList(),
     val selectedAreaIds: List<InventoryAreaId> = emptyList(),
@@ -58,7 +59,7 @@ class StartStockCountViewModel @Inject constructor(
         viewModelScope.launch {
             val restaurant = restaurantRepository.getRestaurant()
             if (restaurant == null) {
-                _uiState.update { it.copy(isLoading = false, error = ValidationError.RecordNotFound) }
+                _uiState.update { it.copy(isLoading = false, error = ValidationError.RestaurantNotFound) }
                 return@launch
             }
 
@@ -76,7 +77,13 @@ class StartStockCountViewModel @Inject constructor(
         }
     }
 
-    fun onNameChanged(name: String) = _uiState.update { it.copy(name = name) }
+    fun onNameChanged(name: String) = _uiState.update { it.copy(name = name, isNameManuallyEdited = true) }
+
+    fun onDefaultNameChanged(defaultName: String) {
+        if (!_uiState.value.isNameManuallyEdited) {
+            _uiState.update { it.copy(name = defaultName) }
+        }
+    }
     
     fun onDateChanged(date: Instant) {
         if (date > timeProvider.now()) {
@@ -117,7 +124,7 @@ class StartStockCountViewModel @Inject constructor(
         _uiState.update { it.copy(isStarting = true, error = null) }
         viewModelScope.launch {
             try {
-                val restaurant = restaurantRepository.getRestaurant() ?: throw ValidationError.RecordNotFound
+                val restaurant = restaurantRepository.getRestaurant() ?: throw ValidationError.RestaurantNotFound
                 val countId = repository.start(
                     StartStockCountCommand(
                         restaurantId = restaurant.id,

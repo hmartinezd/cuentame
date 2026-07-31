@@ -22,6 +22,7 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.IngredientBaseUnitImmutable -> R.string.error_base_unit_immutable
     ValidationError.ArchivedReference -> R.string.error_generic
     ValidationError.RecordNotFound -> R.string.error_generic
+    ValidationError.RestaurantNotFound -> R.string.error_no_restaurant
     ValidationError.IngredientNotFound -> R.string.error_ingredient_not_found
     ValidationError.UnitOptionNotFound -> R.string.error_unit_option_not_found
     ValidationError.UnitOptionNameAlreadyExists -> R.string.error_duplicate_unit_option

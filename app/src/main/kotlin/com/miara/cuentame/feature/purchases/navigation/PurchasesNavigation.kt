@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.purchases.ui.PurchaseDetailRoute
@@ -20,9 +21,9 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
             onPurchaseClick = { id, status ->
                 when (status) {
                     DocumentStatus.DRAFT ->
-                        navController.navigate("purchase/${id.value}")
+                        navController.navigate(AppRoutes.purchaseDraft(id))
                     DocumentStatus.POSTED, DocumentStatus.VOIDED ->
-                        navController.navigate("purchase/${id.value}/detail")
+                        navController.navigate(AppRoutes.purchaseDetail(id))
                 }
             }
         )
@@ -32,7 +33,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
             purchaseId = null,
             onBack = { navController.popBackStack() },
             onNavigateToDraft = { id ->
-                navController.navigate("purchase/${id.value}") {
+                navController.navigate(AppRoutes.purchaseDraft(id)) {
                     popUpTo(Destination.PURCHASE_CREATE.route) { inclusive = true }
                 }
             },
@@ -42,18 +43,18 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
         )
     }
     composable(route = Destination.PURCHASE_DRAFT.route) { backStackEntry ->
-        val idStr = backStackEntry.arguments?.getString("purchaseId")
+        val idStr = backStackEntry.arguments?.getString("receiptId")
         if (idStr != null) {
             val purchaseId = PurchaseReceiptId(idStr)
             PurchaseDraftRoute(
                 purchaseId = purchaseId,
                 onBack = { navController.popBackStack() },
                 onNavigateToDraft = {},
-                onAddLine = { rid -> navController.navigate("purchase/${rid.value}/line/create") },
-                onEditLine = { rid, lid -> navController.navigate("purchase/${rid.value}/line/${lid.value}/edit") },
+                onAddLine = { rid -> navController.navigate(AppRoutes.purchaseLineCreate(rid)) },
+                onEditLine = { rid, lid -> navController.navigate(AppRoutes.purchaseLineEdit(rid, lid)) },
                 onPostSuccess = { rid ->
-                    navController.navigate("purchase/${rid.value}/detail") {
-                        popUpTo("purchase/${rid.value}") { inclusive = true }
+                    navController.navigate(AppRoutes.purchaseDetail(rid)) {
+                        popUpTo(AppRoutes.purchaseDraft(rid)) { inclusive = true }
                     }
                 }
             )
@@ -70,7 +71,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
         )
     }
     composable(route = Destination.PURCHASE_DETAIL.route) { backStackEntry ->
-        val idStr = backStackEntry.arguments?.getString("purchaseId")
+        val idStr = backStackEntry.arguments?.getString("receiptId")
         if (idStr != null) {
             PurchaseDetailRoute(
                 onBack = { navController.popBackStack() }

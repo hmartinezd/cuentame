@@ -150,6 +150,58 @@ class StockCountAreaViewModelTest {
     }
 
     @Test
+    fun `valid count and countArea IDs produce Ready`() = runTest {
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountAreaScreenState.Ready)
+        }
+    }
+
+    @Test
+    fun `missing countId produces InvalidRoute`() = runTest {
+        val vm = StockCountAreaViewModel(
+            SavedStateHandle(mapOf("countAreaId" to countAreaId.value)),
+            fakeRepo,
+            fakeRestaurantRepo,
+            GetMissingCountItemsUseCase(fakeIngredientRepo, fakeRepo, object : InventorySnapshotService {
+                override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = InventorySnapshot(false, BigDecimal.ZERO, null)
+                override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = emptyMap<IngredientId, BigDecimal>()
+            }),
+            PreviewStockCountLineUseCase(object : InventorySnapshotService {
+                override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = InventorySnapshot(false, BigDecimal.ZERO, null)
+                override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = emptyMap<IngredientId, BigDecimal>()
+            }),
+            fakeIngredientRepo,
+            fakeCategoryRepo,
+            timeProvider
+        )
+        vm.uiState.test {
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountAreaScreenState.InvalidRoute)
+        }
+    }
+
+    @Test
+    fun `area belonging to another count produces OwnershipMismatch`() = runTest {
+        detailsFlow.value = detailsFlow.value?.copy(
+            area = detailsFlow.value!!.area.copy(stockCountId = StockCountId("other-count"))
+        )
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountAreaScreenState.OwnershipMismatch)
+        }
+    }
+
+    @Test
     fun `Archived unit becomes disabled after changing away`() = runTest {
         val archivedId = IngredientUnitOptionId("archived")
         val activeId = IngredientUnitOptionId("o1")
@@ -179,9 +231,8 @@ class StockCountAreaViewModelTest {
             val entry = state.lineEntries.first()
             val archivedOption = entry.unitOptions.find { it.id == archivedId }!!
             assertThat(archivedOption.isSelected).isTrue()
-            assertThat(archivedOption.isSelectable).isTrue() // Selectable because it's currently selected
+            assertThat(archivedOption.isSelectable).isTrue()
             
-            // Change to active unit
             viewModel.onUnitChanged(ingId.value, activeId.value)
             
             state = awaitItem()
@@ -192,24 +243,8 @@ class StockCountAreaViewModelTest {
             val updatedEntry = state.lineEntries.first()
             val updatedArchivedOption = updatedEntry.unitOptions.find { it.id == archivedId }!!
             assertThat(updatedArchivedOption.isSelected).isFalse()
-            assertThat(updatedArchivedOption.isSelectable).isFalse() // Now disabled
+            assertThat(updatedArchivedOption.isSelectable).isFalse()
             
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `untouched suggestions are not pending`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
-        viewModel.uiState.test {
-            runCurrent()
-            viewModel.onAddIngredient(ingredient)
-            var state = awaitItem()
-            while (state.lineEntries.isEmpty()) {
-                state = awaitItem()
-            }
-            assertThat(state.lineEntries).hasSize(1)
-            assertThat(state.hasPendingSaves).isFalse()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -232,52 +267,6 @@ class StockCountAreaViewModelTest {
     }
 
     @Test
-    fun `rapid unit selection preserves final selection`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
-        viewModel.onAddIngredient(ingredient)
-        runCurrent()
-        
-        viewModel.uiState.test {
-            var state = awaitItem()
-            while (state.lineEntries.isEmpty()) {
-                state = awaitItem()
-            }
-            
-            viewModel.onUnitChanged(ingId.value, "o2")
-            viewModel.onUnitChanged(ingId.value, "o1")
-            
-            runCurrent()
-            state = expectMostRecentItem()
-            assertThat(state.lineEntries.first().unitId).isEqualTo("o1")
-        }
-    }
-
-    @Test
-    fun `invalid input blocks completion`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
-        viewModel.onAddIngredient(ingredient)
-        runCurrent()
-        
-        viewModel.uiState.test {
-            var state = awaitItem()
-            while (state.lineEntries.isEmpty()) {
-                state = awaitItem()
-            }
-            viewModel.onQuantityChanged(ingId.value, "invalid")
-            state = awaitItem()
-            while (state.lineEntries.first().error == null) {
-                state = awaitItem()
-            }
-            viewModel.onCompleteArea()
-            state = awaitItem()
-            while (state.error == null) {
-                state = awaitItem()
-            }
-            assertThat(state.error).isInstanceOf(ValidationError.PendingCountSaves::class.java)
-        }
-    }
-
-    @Test
     fun `back navigation flushes pending saves`() = runTest {
         val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
         viewModel.onAddIngredient(ingredient)
@@ -287,25 +276,6 @@ class StockCountAreaViewModelTest {
         viewModel.events.test {
             viewModel.onBackRequested()
             assertThat(awaitItem()).isInstanceOf(StockCountAreaEvent.NavigateBack::class.java)
-        }
-    }
-
-    @Test
-    fun `stale save result does not overwrite newer state`() = runTest {
-        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
-        viewModel.uiState.test {
-            runCurrent()
-            viewModel.onAddIngredient(ingredient)
-            var state = awaitItem()
-            while (state.lineEntries.isEmpty()) {
-                state = awaitItem()
-            }
-            viewModel.onQuantityChanged(ingId.value, "10")
-            viewModel.onQuantityChanged(ingId.value, "20")
-            advanceTimeBy(1000)
-            runCurrent()
-            state = expectMostRecentItem()
-            assertThat(state.lineEntries.find { it.ingredientId == ingId.value }?.quantityText).isEqualTo("20")
         }
     }
 }

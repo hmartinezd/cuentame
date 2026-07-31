@@ -8,6 +8,7 @@
     <string name="nav_activity">Activity</string>
     <string name="nav_reports">Reports</string>
     <string name="nav_settings">Settings</string>
+    <string name="home_settings_desc">Manage restaurant, areas, categories, suppliers, preferences and backups</string>
 
     <!-- Placeholders -->
     <string name="home_title">Dashboard</string>
@@ -377,7 +378,9 @@
 
     <!-- Stock Counts -->
     <string name="action_start_count">Start New Count</string>
-    <string name="count_default_name">Count %1$s</string>
+    <string name="count_name_label">Count name</string>
+    <string name="count_name_placeholder">Example: Monthly Inventory</string>
+    <string name="count_default_name">Inventory Count — %1$s</string>
     <string name="count_review_title">Adjustment Review</string>
     <string name="status_completed">Completed</string>
     <string name="count_by_area">Count by Area</string>
@@ -405,7 +408,7 @@
     <string name="items_counted">%1$d items counted</string>
     <string name="unknown_area">Unknown area</string>
     <string name="unknown_unit">Unknown unit</string>
-    <string name="error_invalid_count_route">Invalid count route</string>
+    <string name="error_invalid_count_route">We couldn\'t open this inventory count. The count or area may no longer be available.</string>
     <string name="error_count_not_found">Stock count not found</string>
     <string name="error_count_area_not_found">Inventory area not found for this count</string>
     <string name="error_area_ownership_mismatch">Area does not belong to this count</string>

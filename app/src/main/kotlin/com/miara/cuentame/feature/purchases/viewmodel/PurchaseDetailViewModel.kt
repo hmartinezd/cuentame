@@ -48,8 +48,8 @@ class PurchaseDetailViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
-    private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
-    private val purchaseId = purchaseIdStr?.let { PurchaseReceiptId(it) }
+    private val receiptIdStr: String? = savedStateHandle["receiptId"]
+    private val receiptId = receiptIdStr?.let { PurchaseReceiptId(it) }
 
     private val _isVoiding = MutableStateFlow(false)
     private val _error = MutableStateFlow<Throwable?>(null)
@@ -57,10 +57,10 @@ class PurchaseDetailViewModel @Inject constructor(
     private val _events = Channel<PurchaseDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    private val detailsFlow = if (purchaseId == null) {
+    private val detailsFlow = if (receiptId == null) {
         kotlinx.coroutines.flow.flowOf(null)
     } else {
-        observePurchaseDetailsUseCase(purchaseId)
+        observePurchaseDetailsUseCase(receiptId)
     }
     
     private val restaurantFlow = restaurantRepository.observeRestaurant().filterNotNull()
@@ -72,7 +72,7 @@ class PurchaseDetailViewModel @Inject constructor(
         _error
     ) { details, restaurant, voiding, error ->
         val state = when {
-            purchaseId == null -> PurchaseDetailState.Error(Exception("Invalid purchase ID"))
+            receiptId == null -> PurchaseDetailState.Error(Exception("Invalid purchase ID"))
             details != null -> PurchaseDetailState.Ready(details)
             else -> PurchaseDetailState.NotFound
         }
@@ -89,13 +89,13 @@ class PurchaseDetailViewModel @Inject constructor(
     )
 
     fun onVoid() {
-        if (purchaseId == null || _isVoiding.value) return
+        if (receiptId == null || _isVoiding.value) return
         _isVoiding.value = true
         _error.value = null
 
         viewModelScope.launch {
             try {
-                voidPurchaseUseCase(purchaseId)
+                voidPurchaseUseCase(receiptId)
                 _events.send(PurchaseDetailEvent.Voided)
             } catch (e: Exception) {
                 _error.value = e

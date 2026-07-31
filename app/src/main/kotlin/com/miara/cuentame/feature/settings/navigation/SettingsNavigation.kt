@@ -13,13 +13,13 @@ fun NavGraphBuilder.settingsGraph(
 ) {
     composable(route = Destination.SETTINGS.route) {
         SettingsRoute(
-            onNavigateToAreas = { navController.navigate("settings/areas") },
-            onNavigateToCategories = { navController.navigate("settings/categories") },
-            onNavigateToRestaurant = { navController.navigate("settings/restaurant") },
+            onNavigateToAreas = { navController.navigate(Destination.SETTINGS_AREAS.route) },
+            onNavigateToCategories = { navController.navigate(Destination.SETTINGS_CATEGORIES.route) },
+            onNavigateToRestaurant = { navController.navigate(Destination.SETTINGS_RESTAURANT.route) },
             onNavigateToSuppliers = { navController.navigate(Destination.SUPPLIER_LIST.route) }
         )
     }
-    composable("settings/restaurant") {
+    composable(Destination.SETTINGS_RESTAURANT.route) {
         RestaurantProfileRoute(onBack = onBackClick)
     }
 }

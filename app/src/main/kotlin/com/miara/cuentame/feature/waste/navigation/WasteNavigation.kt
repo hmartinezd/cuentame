@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.waste.ui.WasteDetailRoute
 import com.miara.cuentame.feature.waste.ui.WasteFormRoute
@@ -17,9 +18,9 @@ fun NavGraphBuilder.wasteGraph(navController: NavHostController) {
             onAddWaste = { navController.navigate(Destination.WASTE_CREATE.route) },
             onWasteClick = { id, status ->
                 if (status == DocumentStatus.DRAFT) {
-                    navController.navigate("waste/draft/${id.value}")
+                    navController.navigate(AppRoutes.wasteDraft(id))
                 } else {
-                    navController.navigate("waste/${id.value}")
+                    navController.navigate(AppRoutes.wasteDetail(id))
                 }
             }
         )
@@ -28,7 +29,7 @@ fun NavGraphBuilder.wasteGraph(navController: NavHostController) {
         WasteFormRoute(
             onBack = { navController.popBackStack() },
             onSuccess = { id ->
-                navController.navigate("waste/${id.value}") {
+                navController.navigate(AppRoutes.wasteDetail(id)) {
                     popUpTo(Destination.WASTE_CREATE.route) { inclusive = true }
                 }
             }
@@ -37,7 +38,7 @@ fun NavGraphBuilder.wasteGraph(navController: NavHostController) {
     composable(route = Destination.WASTE_DRAFT.route) {
         WasteDetailRoute(
             onBack = { navController.popBackStack() },
-            onEdit = { id -> navController.navigate("waste/${id.value}/edit") }
+            onEdit = { id -> navController.navigate(AppRoutes.wasteEdit(id)) }
         )
     }
     composable(route = Destination.WASTE_EDIT.route) {

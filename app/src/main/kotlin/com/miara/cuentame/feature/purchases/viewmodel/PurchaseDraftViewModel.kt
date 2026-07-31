@@ -67,8 +67,8 @@ class PurchaseDraftViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
-    private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
-    private val receiptId = purchaseIdStr?.let { PurchaseReceiptId(it) }
+    private val receiptIdStr: String? = savedStateHandle["receiptId"]
+    private val receiptId = receiptIdStr?.let { PurchaseReceiptId(it) }
 
     private val _isSaving = MutableStateFlow(false)
     private val _isPosting = MutableStateFlow(false)

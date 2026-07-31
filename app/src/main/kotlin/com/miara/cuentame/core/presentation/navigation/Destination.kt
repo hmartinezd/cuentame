@@ -6,10 +6,13 @@ package com.miara.cuentame.core.presentation.navigation
 enum class Destination(val route: String) {
     ONBOARDING("onboarding"),
     SETTINGS("settings"),
+    SETTINGS_RESTAURANT("settings/restaurant"),
+    SETTINGS_AREAS("settings/areas"),
+    SETTINGS_CATEGORIES("settings/categories"),
     
     STOCK_COUNT_START("count/start"),
     STOCK_COUNT_DRAFT("count/{countId}"),
-    STOCK_COUNT_AREA("count/{countId}/area/{areaId}"),
+    STOCK_COUNT_AREA("count/{countId}/area/{countAreaId}"),
     STOCK_COUNT_DETAIL("count/{countId}/detail"),
     
     WASTE_LIST("waste"),
@@ -34,5 +37,5 @@ enum class Destination(val route: String) {
     
     SUPPLIER_LIST("suppliers"),
     SUPPLIER_CREATE("suppliers/create"),
-    SUPPLIER_EDIT("supplier/{supplierId}/edit")
+    SUPPLIER_EDIT("suppliers/{supplierId}/edit")
 }

@@ -75,6 +75,10 @@ fun StartStockCountRoute(
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
     val defaultName = stringResource(R.string.count_default_name, dateFormatter.format(uiState.effectiveAt))
 
+    LaunchedEffect(defaultName) {
+        viewModel.onDefaultNameChanged(defaultName)
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -92,7 +96,6 @@ fun StartStockCountRoute(
 
     StartStockCountScreen(
         uiState = uiState,
-        defaultName = defaultName,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onNameChanged = viewModel::onNameChanged,
@@ -107,7 +110,6 @@ fun StartStockCountRoute(
 @Composable
 fun StartStockCountScreen(
     uiState: StartStockCountUiState,
-    defaultName: String,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onNameChanged: (String) -> Unit,
@@ -152,8 +154,8 @@ fun StartStockCountScreen(
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = onNameChanged,
-                    label = { Text(stringResource(R.string.onboarding_field_name)) },
-                    placeholder = { Text(defaultName) },
+                    label = { Text(stringResource(R.string.count_name_label)) },
+                    placeholder = { Text(stringResource(R.string.count_name_placeholder)) },
                     modifier = Modifier.fillMaxWidth().testTag("count_name_input"),
                     enabled = !uiState.isStarting
                 )
@@ -243,10 +245,7 @@ fun StartStockCountScreen(
                 )
 
                 Button(
-                    onClick = {
-                        if (uiState.name.isBlank()) onNameChanged(defaultName)
-                        onStartCount()
-                    },
+                    onClick = onStartCount,
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("start_count_button"),
                     enabled = !uiState.isStarting && uiState.selectedAreaIds.isNotEmpty()
                 ) {

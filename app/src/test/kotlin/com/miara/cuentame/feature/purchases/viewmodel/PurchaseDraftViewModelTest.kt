@@ -112,9 +112,9 @@ class PurchaseDraftViewModelTest {
         }
     }
 
-    private fun createViewModel(purchaseId: String?): PurchaseDraftViewModel {
+    private fun createViewModel(receiptId: String?): PurchaseDraftViewModel {
         return PurchaseDraftViewModel(
-            SavedStateHandle(if (purchaseId != null) mapOf("purchaseId" to purchaseId) else emptyMap()),
+            SavedStateHandle(if (receiptId != null) mapOf("receiptId" to receiptId) else emptyMap()),
             CreatePurchaseDraftUseCase(fakePurchaseRepository),
             UpdatePurchaseDraftUseCase(fakePurchaseRepository),
             DeletePurchaseDraftUseCase(fakePurchaseRepository),

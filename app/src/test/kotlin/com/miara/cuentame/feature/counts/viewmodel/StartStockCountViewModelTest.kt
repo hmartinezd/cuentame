@@ -34,9 +34,11 @@ class StartStockCountViewModelTest {
     private val restaurant = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
     private val area1 = InventoryArea(InventoryAreaId("a1"), RestaurantId("r1"), "Area 1", "area 1", 0, true, Instant.now(), Instant.now())
     
+    private var currentRestaurant: Restaurant? = restaurant
+    
     private val fakeRestaurantRepository = object : RestaurantRepository {
-        override fun observeRestaurant(): Flow<Restaurant?> = flowOf(restaurant)
-        override suspend fun getRestaurant(): Restaurant = restaurant
+        override fun observeRestaurant(): Flow<Restaurant?> = flowOf(currentRestaurant)
+        override suspend fun getRestaurant(): Restaurant? = currentRestaurant
         override suspend fun save(restaurant: Restaurant) {}
     }
 
@@ -146,6 +148,45 @@ class StartStockCountViewModelTest {
             var state = awaitItem()
             if (state.isLoading) state = awaitItem()
             assertThat(state.draftAreaUsage).contains(area1.id)
+        }
+    }
+
+    @Test
+    fun `default count name is stored in state via onDefaultNameChanged`() = runTest {
+        viewModel.onDefaultNameChanged("Default Name")
+        assertThat(viewModel.uiState.value.name).isEqualTo("Default Name")
+        assertThat(viewModel.uiState.value.isNameManuallyEdited).isFalse()
+    }
+
+    @Test
+    fun `user-edited count name is preserved when default changes`() = runTest {
+        viewModel.onNameChanged("User Name")
+        assertThat(viewModel.uiState.value.isNameManuallyEdited).isTrue()
+        
+        viewModel.onDefaultNameChanged("New Default")
+        assertThat(viewModel.uiState.value.name).isEqualTo("User Name")
+    }
+
+    @Test
+    fun `missing restaurant prevents count creation`() = runTest {
+        currentRestaurant = null
+        val vm = StartStockCountViewModel(
+            fakeStockCountRepository,
+            ObserveInventoryAreasUseCase(object : com.miara.cuentame.core.domain.repository.InventoryAreaRepository {
+                override fun observeActiveAreas() = flowOf(listOf(area1))
+                override fun observeAllAreas() = flowOf(listOf(area1))
+                override suspend fun getById(id: InventoryAreaId) = area1
+                override suspend fun save(area: InventoryArea) {}
+                override suspend fun archive(id: InventoryAreaId, at: Instant) {}
+                override suspend fun reorder(ids: List<InventoryAreaId>) {}
+            }),
+            fakeRestaurantRepository,
+            timeProvider
+        )
+        vm.uiState.test {
+            var state = awaitItem()
+            if (state.isLoading) state = awaitItem()
+            assertThat(state.error).isInstanceOf(ValidationError.RestaurantNotFound::class.java)
         }
     }
 }

@@ -8,6 +8,7 @@
     <string name="nav_activity">Actividad</string>
     <string name="nav_reports">Reportes</string>
     <string name="nav_settings">Ajustes</string>
+    <string name="home_settings_desc">Administra el restaurante, áreas, categorías, proveedores, preferencias y copias de seguridad</string>
 
     <!-- Placeholders -->
     <string name="home_title">Panel de Control</string>
@@ -377,7 +378,9 @@
 
     <!-- Stock Counts -->
     <string name="action_start_count">Iniciar nuevo conteo</string>
-    <string name="count_default_name">Conteo %1$s</string>
+    <string name="count_name_label">Nombre del conteo</string>
+    <string name="count_name_placeholder">Ejemplo: Inventario mensual</string>
+    <string name="count_default_name">Inventario — %1$s</string>
     <string name="count_review_title">Revisión de Ajustes</string>
     <string name="status_completed">Completado</string>
     <string name="count_by_area">Conteo por área</string>
@@ -405,7 +408,7 @@
     <string name="items_counted">%1$d artículos contados</string>
     <string name="unknown_area">Área desconocida</string>
     <string name="unknown_unit">Unidad desconocida</string>
-    <string name="error_invalid_count_route">Ruta de conteo no válida</string>
+    <string name="error_invalid_count_route">No pudimos abrir este conteo de inventario. Es posible que el conteo o el área ya no estén disponibles.</string>
     <string name="error_count_not_found">Conteo de inventario no encontrado</string>
     <string name="error_count_area_not_found">Área de inventario no encontrada para este conteo</string>
     <string name="error_area_ownership_mismatch">El área no pertenece a este conteo</string>

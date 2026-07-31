@@ -88,8 +88,8 @@ class PurchaseLineViewModel @Inject constructor(
     private val unitRepository: UnitRepository
 ) : ViewModel() {
 
-    private val purchaseIdStr: String? = savedStateHandle["purchaseId"]
-    private val receiptId = purchaseIdStr?.let { PurchaseReceiptId(it) }
+    private val receiptIdStr: String? = savedStateHandle["receiptId"]
+    private val receiptId = receiptIdStr?.let { PurchaseReceiptId(it) }
     private val lineId = savedStateHandle.get<String>("lineId")?.let { PurchaseLineId(it) }
 
     private val _uiState = MutableStateFlow(PurchaseLineUiState(lineId = lineId))

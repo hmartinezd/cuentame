@@ -161,7 +161,7 @@ class PurchaseLineViewModelTest {
 
     private fun createViewModel(receiptId: String?, lineId: String?): PurchaseLineViewModel {
         val savedStateHandle = SavedStateHandle().apply {
-            if (receiptId != null) set("purchaseId", receiptId)
+            if (receiptId != null) set("receiptId", receiptId)
             if (lineId != null) set("lineId", lineId)
         }
         return PurchaseLineViewModel(

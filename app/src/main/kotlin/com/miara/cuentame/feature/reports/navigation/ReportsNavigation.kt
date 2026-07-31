@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
+import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.feature.reports.ui.InventoryDetailRoute
 import com.miara.cuentame.feature.reports.ui.PurchaseDetailRoute as ReportsPurchaseDetailRoute
 import com.miara.cuentame.feature.reports.ui.ReportsRoute
@@ -14,8 +15,8 @@ fun NavGraphBuilder.reportsGraph(navController: NavHostController) {
     composable(route = TopLevelDestination.REPORTS.route) {
         ReportsRoute(
             onNavigateToInventory = { navController.navigate(Destination.REPORT_INVENTORY_DETAIL.route) },
-            onNavigateToPurchases = { range -> navController.navigate("reports/purchase?range=${range.name}") },
-            onNavigateToWaste = { range -> navController.navigate("reports/waste?range=${range.name}") }
+            onNavigateToPurchases = { range -> navController.navigate(AppRoutes.reportPurchaseDetail(range.name)) },
+            onNavigateToWaste = { range -> navController.navigate(AppRoutes.reportWasteDetail(range.name)) }
         )
     }
     composable(route = Destination.REPORT_INVENTORY_DETAIL.route) {
