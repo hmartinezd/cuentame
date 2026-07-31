@@ -14,7 +14,8 @@ Backup and Restore v1 is now production-ready for Room database records and type
 - [x] **Mutual Exclusion**: Shared mutex prevents concurrent backup, restore, or recovery.
 - [x] **Validated Fingerprints**: Restore reinspects archives and compares fingerprints before mutation.
 - [x] **Global Recovery Gate**: `RecoveryRequired` state immediately blocks the entire application.
-- [x] **Actionable Recovery**: Recovery correctly distinguishes between `COMPLETED` cleanup and partial mutation rollback.
+- [x] **Actionable Durable Phases**: Journal proposals are only accepted after durable persistence.
+- [x] **Startup Classification**: Mutation-start failures with successful cleanup are classified as preparation errors, preserving app availability.
 - [x] **Strict Preference Validation**: Rejects unsupported locales and invalid themes before any mutation.
 - [x] **Fail-Closed Cleanup**: Verified cleanup ensures no false positives on recovery success.
 

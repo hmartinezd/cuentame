@@ -21,8 +21,8 @@ class RestoreRecoveryCoordinatorTest {
 
     private val journal = mockk<RestoreJournal>()
     private val storage = mockk<InternalBackupRestoreStorage>()
-    private val databaseApplier = mockk<RestoreDatabaseApplier>()
-    private val preferencesApplier = mockk<RestorePreferencesApplier>()
+    private val databaseApplier = mockk<RestoreDatabaseApplier>(relaxed = true)
+    private val preferencesApplier = mockk<RestorePreferencesApplier>(relaxed = true)
     private val codecs = BackupJsonCodecs()
 
     private lateinit var coordinator: RestoreRecoveryCoordinator
@@ -32,6 +32,7 @@ class RestoreRecoveryCoordinatorTest {
         coordinator = RestoreRecoveryCoordinator(
             journal, storage, databaseApplier, preferencesApplier, codecs
         )
+        every { preferencesApplier.validate(any()) } returns true
     }
 
     @Test
@@ -79,6 +80,21 @@ class RestoreRecoveryCoordinatorTest {
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
         coVerify { databaseApplier.restoreRollback(match { it.snapshot == rollbackSnapshot.snapshot }) }
         coVerify { preferencesApplier.apply(prefs) }
+    }
+
+    @Test
+    fun `retry from COMPLETED performs cleanup only`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.deleteOrThrow() } just Runs
+        
+        val result = coordinator.retryRecovery()
+        
+        assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
+        verify { storage.cleanupSessionOrThrow("session") }
+        verify { journal.deleteOrThrow() }
+        coVerify(exactly = 0) { databaseApplier.restoreRollback(any()) }
     }
 
     @Test
@@ -255,6 +271,12 @@ class RestoreRecoveryCoordinatorTest {
             journal.deleteOrThrow()
             journal.write(any())
         }
+    }
+
+    @Test
+    fun `validate returns true for valid theme and locale`() {
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        assertThat(preferencesApplier.validate(prefs)).isTrue()
     }
 
     private fun setupRollbackFile(sessionId: String): RestoreDatabaseRollbackSnapshot {

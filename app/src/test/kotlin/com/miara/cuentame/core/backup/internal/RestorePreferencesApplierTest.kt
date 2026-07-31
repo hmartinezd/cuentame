@@ -91,9 +91,11 @@ class RestorePreferencesApplierTest {
         // validate should be false
         assertThat(applier.validate(dto)).isFalse()
         
-        try {
-            applier.apply(dto)
-        } catch (ignore: Exception) {}
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            kotlinx.coroutines.runBlocking {
+                applier.apply(dto)
+            }
+        }
 
         coVerify(exactly = 0) {
             repository.setThemeMode(any())

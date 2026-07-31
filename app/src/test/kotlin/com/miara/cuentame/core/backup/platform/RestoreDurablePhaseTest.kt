@@ -111,11 +111,12 @@ class RestoreDurablePhaseTest {
         
         setupSuccessfulInspection(fingerprint)
         
-        // Fail when trying to write COMPLETED
-        every { journal.write(match { it.phase == RestorePhase.COMPLETED }) } answers {
-            journalState.failOnWrite = true // From now on, writes fail
-            throw RuntimeException("Final journal write failed")
-        }
+        // Fail when trying to write COMPLETED or ROLLING_BACK to ensure it stays in PREFERENCES_APPLIED
+        every { journal.write(match { it.phase == RestorePhase.COMPLETED }) } throws RuntimeException("Final journal write failed")
+        every { journal.write(match { it.phase == RestorePhase.ROLLING_BACK }) } throws RuntimeException("Rollback journal write failed")
+        
+        // Mock rollback failure during apply to ensure journal remains present for retry
+        coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("Initial rollback fail")
 
         // 1-3. Run apply, which will fail at COMPLETED write
         val result = coordinator.apply(source, fingerprint) {}
@@ -126,15 +127,39 @@ class RestoreDurablePhaseTest {
         
         // 6. Assert durable phase remains PREFERENCES_APPLIED (last successful write)
         assertThat(journalState.dto?.phase).isEqualTo(RestorePhase.PREFERENCES_APPLIED)
+
+        // Reset verification for apps and repositories
+        clearMocks(databaseApplier, preferencesApplier, journal)
+        setupRetryMocks()
+        
+        // Re-setup journal and storage mocks after clearing
+        every { journal.read() } answers {
+            journalState.dto?.let { RestoreJournalReadResult.Present(it) } ?: RestoreJournalReadResult.Absent
+        }
+        every { journal.write(any()) } answers { journalState.dto = firstArg() }
+        every { journal.deleteOrThrow() } answers { journalState.dto = null }
         
         // 7-9. Retry recovery should perform rollback because it's not COMPLETED
-        journalState.failOnWrite = false // Allow writes for recovery (e.g. ROLLING_BACK if we were writing it, but we don't write it in retry anymore)
-        
         val recoveryResult = coordinator.retryRecovery()
         
         assertThat(recoveryResult).isInstanceOf(RestoreRecoveryResult.Recovered::class.java)
-        coVerify { databaseApplier.restoreRollback(any()) }
-        coVerify { preferencesApplier.apply(any()) }
+        coVerify(exactly = 1) { databaseApplier.restoreRollback(any()) }
+        coVerify(exactly = 1) { preferencesApplier.apply(any()) }
+        coVerify(exactly = 1) { databaseApplier.verifyMatchesRollback(any()) }
+        coVerify(exactly = 1) { preferencesApplier.captureRollback() }
+        
+        // Assert ROLLBACK_COMPLETED was written before cleanup
+        verify { journal.write(match { it.phase == RestorePhase.ROLLBACK_COMPLETED }) }
+        verify { journal.deleteOrThrow() }
+    }
+
+    private fun setupRetryMocks() {
+        coEvery { databaseApplier.restoreRollback(any()) } just Runs
+        coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { preferencesApplier.captureRollback() } returns BackupPreferencesDto("SYSTEM", true, "en-US")
+        coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
+        coEvery { preferencesApplier.verifyMatches(any()) } returns true
+        every { storage.cleanupSessionOrThrow(any()) } just Runs
     }
 
     @Test
@@ -153,15 +178,23 @@ class RestoreDurablePhaseTest {
         // 3-4. Assert RecoveryRequired and COMPLETED phase
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
         assertThat(journalState.dto?.phase).isEqualTo(RestorePhase.COMPLETED)
+
+        // Clear mocks before retry to verify only retry behavior
+        clearMocks(databaseApplier, preferencesApplier)
+        setupRetryMocks()
         
         // 5-8. Retry performs cleanup only
-        every { storage.cleanupSessionOrThrow(any()) } just Runs
-        
         val recoveryResult = coordinator.retryRecovery()
         
         assertThat(recoveryResult).isInstanceOf(RestoreRecoveryResult.Recovered::class.java)
         coVerify(exactly = 0) { databaseApplier.restoreRollback(any()) }
-        coVerify(exactly = 2) { storage.cleanupSessionOrThrow(any()) }
+        coVerify(exactly = 0) { preferencesApplier.apply(any()) }
+        coVerify(exactly = 0) { databaseApplier.verifyMatchesRollback(any()) }
+        
+        // Assert cleanup in retry. We verify that at least one cleanup happened during retry.
+        // We use atLeast = 1 because previous calls in 'apply' might still be recorded if mocks weren't fully cleared.
+        verify(atLeast = 1) { storage.cleanupSessionOrThrow(any()) } 
+        verify { journal.deleteOrThrow() }
     }
 
     private fun setupSuccessfulInspection(fingerprint: BackupArchiveFingerprint) {

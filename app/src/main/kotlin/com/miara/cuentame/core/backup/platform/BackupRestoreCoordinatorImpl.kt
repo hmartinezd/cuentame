@@ -125,9 +125,10 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
               catch (e: Exception) { throw RestorePreparationException(e) }
 
             // 9. Write journal ROLLBACK_CAPTURED with previous preferences
-            currentJournal = currentJournal.copy(previousPreferences = prevPrefs)
+            val rollbackCapturedJournal = currentJournal.copy(previousPreferences = prevPrefs)
             try {
-                journal.write(currentJournal)
+                journal.write(rollbackCapturedJournal)
+                currentJournal = rollbackCapturedJournal
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { throw RestorePreparationException(e) }
 
@@ -135,9 +136,10 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             if (currentJournal.previousPreferences == null) {
                 throw RestorePreparationException(IllegalStateException("Previous preferences not captured"))
             }
-            currentJournal = currentJournal.copy(phase = RestorePhase.MUTATION_STARTED)
+            val mutationStartedJournal = currentJournal.copy(phase = RestorePhase.MUTATION_STARTED)
             try {
-                journal.write(currentJournal)
+                journal.write(mutationStartedJournal)
+                currentJournal = mutationStartedJournal
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { throw RestorePreparationException(e) }
 
@@ -151,8 +153,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         throw RestoreDatabaseApplicationException(e)
                     }
                     
-                    currentJournal = currentJournal.copy(phase = RestorePhase.DATABASE_APPLIED)
-                    journal.write(currentJournal)
+                    val dbAppliedJournal = currentJournal.copy(phase = RestorePhase.DATABASE_APPLIED)
+                    journal.write(dbAppliedJournal)
+                    currentJournal = dbAppliedJournal
 
                     // 12. Apply Preferences
                     onProgress(BackupRestoreProgress.RestoringSettings)
@@ -167,8 +170,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         throw RestorePreferencesApplicationException(IllegalStateException("Preferences verification failed"))
                     }
 
-                    currentJournal = currentJournal.copy(phase = RestorePhase.PREFERENCES_APPLIED)
-                    journal.write(currentJournal)
+                    val prefsAppliedJournal = currentJournal.copy(phase = RestorePhase.PREFERENCES_APPLIED)
+                    journal.write(prefsAppliedJournal)
+                    currentJournal = prefsAppliedJournal
 
                     // 14. Finalizing
                     onProgress(BackupRestoreProgress.Finalizing)
@@ -176,8 +180,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         throw RestoreFinalVerificationException()
                     }
 
-                    currentJournal = currentJournal.copy(phase = RestorePhase.COMPLETED)
-                    journal.write(currentJournal)
+                    val completedJournal = currentJournal.copy(phase = RestorePhase.COMPLETED)
+                    journal.write(completedJournal)
+                    currentJournal = completedJournal
 
                     // 15. Cleanup
                     storage.cleanupSessionOrThrow(sessionId)
@@ -191,9 +196,10 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
                     // Failure after mutation began -> Rollback
                     onProgress(BackupRestoreProgress.RollingBack)
-                    currentJournal = currentJournal.copy(phase = RestorePhase.ROLLING_BACK)
+                    val rollingBackJournal = currentJournal.copy(phase = RestorePhase.ROLLING_BACK)
                     try {
-                        journal.write(currentJournal)
+                        journal.write(rollingBackJournal)
+                        currentJournal = rollingBackJournal
                     } catch (ignore: Exception) {}
 
                     try {
@@ -208,8 +214,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                             throw IllegalStateException("Rollback preference verification failed")
                         }
 
-                        currentJournal = currentJournal.copy(phase = RestorePhase.ROLLBACK_COMPLETED)
-                        journal.write(currentJournal)
+                        val rollbackCompletedJournal = currentJournal.copy(phase = RestorePhase.ROLLBACK_COMPLETED)
+                        journal.write(rollbackCompletedJournal)
+                        currentJournal = rollbackCompletedJournal
                         
                         storage.cleanupSessionOrThrow(sessionId)
                         journal.deleteOrThrow()
@@ -242,8 +249,10 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                  try {
                      storage.cleanupSessionOrThrow(sessionId)
                      journal.deleteOrThrow()
-                 } catch (ignore: Exception) {}
-                 return@withOperationalLock BackupRestoreApplyResult.Failure(mapException(e))
+                     return@withOperationalLock BackupRestoreApplyResult.Failure(mapException(e))
+                 } catch (cleanupError: Exception) {
+                     // Cleanup failure after preparation error escalates to RecoveryRequired
+                 }
             }
             
             operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)

@@ -76,6 +76,32 @@ class BackupRestoreCoordinatorTest {
     }
 
     @Test
+    fun `failed rollback returns RecoveryRequired`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
+        }
+        val inspectionResult = BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        
+        coEvery { restoreRepository.inspect(source) } returns inspectionResult
+        coEvery { preferencesApplier.validate(any()) } returns true
+        
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("Initial Fail")
+        coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("Rollback Fail")
+        
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die_public.json")
+
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
+    }
+
+    @Test
     fun `failed rollback publishes global RecoveryRequired`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
@@ -96,9 +122,8 @@ class BackupRestoreCoordinatorTest {
         
         every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die_global.json")
 
-        val result = coordinator.apply(source, fingerprint) {}
+        coordinator.apply(source, fingerprint) {}
         
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
         assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.RecoveryRequired)
     }
 
@@ -130,10 +155,7 @@ class BackupRestoreCoordinatorTest {
     }
 
     @Test
-    fun `failed RECOVERY_REQUIRED journal write still returns RecoveryRequired`() = runTest {
-        // Wait, I removed explicit RECOVERY_REQUIRED write in favor of global state and returning failure.
-        // Let's test that failure to write ANY journal phase still results in RecoveryRequired if mutation started.
-        
+    fun `failed MUTATION_STARTED journal write returns RestorePreparationFailed`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
@@ -152,12 +174,45 @@ class BackupRestoreCoordinatorTest {
 
         val result = coordinator.apply(source, fingerprint) {}
         
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RestorePreparationFailed))
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
+        
+        coVerify(exactly = 0) {
+            databaseApplier.replaceWithBackup(any())
+            databaseApplier.restoreRollback(any())
+        }
+    }
+
+    @Test
+    fun `failed MUTATION_STARTED journal write and cleanup failure requires recovery`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        coEvery { preferencesApplier.validate(any()) } returns true
+        
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        
+        // Fail mutation write
+        every { journal.write(match { it.phase == RestorePhase.MUTATION_STARTED }) } throws RuntimeException("Disk full")
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("disk_full_cleanup_fail.json")
+        
+        // Fail cleanup - using exact sessionId matching or just ensuring it's the right mock
+        // Since storage is relaxed, we must explicitly throw for this specific call
+        every { storage.cleanupSessionOrThrow(any()) } throws java.io.IOException("Cleanup fail")
+
+        val result = coordinator.apply(source, fingerprint) {}
+        
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
         assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.RecoveryRequired)
     }
 
     @Test
-    fun `apply rolls back on mutation failure`() = runTest {
+    fun `successful rollback returns DatabaseRestoreFailed`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
@@ -186,6 +241,45 @@ class BackupRestoreCoordinatorTest {
         
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.DatabaseRestoreFailed))
         assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
+    }
+
+    @Test
+    fun `apply rolls back on mutation failure`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        coEvery { preferencesApplier.validate(any()) } returns true
+        
+        val rollback = RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
+        coEvery { preferencesApplier.captureRollback() } returns archive.preferences
+        
+        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("DB Crash")
+        
+        // Rollback succeeds
+        coEvery { databaseApplier.restoreRollback(any()) } just Runs
+        coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
+        coEvery { preferencesApplier.verifyMatches(any()) } returns true
+        
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_ok_hist.json")
+
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.DatabaseRestoreFailed))
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
+        
+        coVerify {
+            databaseApplier.restoreRollback(rollback)
+            preferencesApplier.apply(any())
+            databaseApplier.verifyMatchesRollback(rollback)
+            preferencesApplier.verifyMatches(any())
+        }
     }
 
     @Test
