@@ -25,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class DefaultBackupArchiveReader @Inject constructor(
     private val codecs: BackupJsonCodecs,
-    private val readLimits: BackupReadLimits = BackupReadLimits()
+    private val readLimits: BackupReadLimits = BackupReadLimits(),
+    private val zipFactory: BackupZipInputFactory = BackupZipInputFactory { input -> ZipInputStream(input) }
 ) : BackupArchiveReader {
 
     override suspend fun inspect(
@@ -33,7 +34,7 @@ class DefaultBackupArchiveReader @Inject constructor(
         source: BackupDocumentUri
     ): BackupArchiveInspectionResult = withContext(Dispatchers.IO) {
         // ZipInputStream(NonClosingInputStream(input)) ensures we don't close the caller's stream
-        val zis = ZipInputStream(NonClosingInputStream(input))
+        val zis = zipFactory.create(NonClosingInputStream(input))
         
         var primaryFailure: BackupRestoreFailure? = null
         var totalUncompressedBytes = 0L
@@ -159,10 +160,14 @@ class DefaultBackupArchiveReader @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            primaryFailure = BackupRestoreFailure.GenericIo
+            if (primaryFailure == null) {
+                primaryFailure = BackupRestoreFailure.GenericIo
+            }
         } finally {
             try {
                 zis.close()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (primaryFailure == null) {
                     primaryFailure = BackupRestoreFailure.GenericIo

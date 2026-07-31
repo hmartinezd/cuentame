@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -37,10 +36,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    @Suppress("DEPRECATION")
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -56,7 +51,7 @@ android {
     testOptions {
         animationsDisabled = false
         unitTests.all { testTask ->
-            testTask.jvmArgs("-Xmx2048m", "-XX:MaxMetaspaceSize=1024m")
+            testTask.jvmArgs("-Xmx4096m", "-XX:MaxMetaspaceSize=1024m")
             testTask.maxParallelForks = 1
             testTask.systemProperty("cuentame.repoRoot", rootProject.projectDir.absolutePath)
         }

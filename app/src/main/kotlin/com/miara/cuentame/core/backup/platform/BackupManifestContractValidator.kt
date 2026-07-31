@@ -2,6 +2,7 @@ package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode
+import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
@@ -161,26 +162,26 @@ object BackupManifestContractValidator {
         // 2. Bi-directional attachment relationship validation
         
         // a. References from Snapshot -> Manifest
-        val snapshotRefs = mutableSetOf<String>() // format: "attId:type:recordId"
+        val snapshotRefs = mutableSetOf<AttachmentReferenceKey>()
         
         for (receipt in snapshot.purchaseReceipts) {
             receipt.attachmentId?.let { attId ->
-                snapshotRefs.add("$attId:PURCHASE_RECEIPT:${receipt.id}")
+                snapshotRefs.add(AttachmentReferenceKey(attId, "PURCHASE_RECEIPT", receipt.id))
             }
         }
         for (waste in snapshot.wasteEvents) {
             waste.attachmentId?.let { attId ->
-                snapshotRefs.add("$attId:WASTE_EVENT:${waste.id}")
+                snapshotRefs.add(AttachmentReferenceKey(attId, "WASTE_EVENT", waste.id))
             }
         }
 
         // b. References from Manifest -> Snapshot
-        val manifestRefs = mutableSetOf<String>()
+        val manifestRefs = mutableSetOf<AttachmentReferenceKey>()
         val manifestAttachmentIds = manifest.attachments.map { it.attachmentId }.toSet()
 
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
-                manifestRefs.add("${att.attachmentId}:${ref.recordType}:${ref.recordId}")
+                manifestRefs.add(AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId))
             }
         }
 
@@ -188,16 +189,14 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.ManifestMismatch
         }
 
-        // Verify all manifest attachment IDs exist in ZIP (implicitly handled by bijection in structure check, 
-        // but here we check against snapshot IDs)
+        // Verify all manifest attachment IDs exist in snapshot/manifest relationship
         for (ref in snapshotRefs) {
-            val attId = ref.split(":")[0]
-            if (attId !in manifestAttachmentIds) {
+            if (ref.attachmentId !in manifestAttachmentIds) {
                 return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
             }
         }
 
-        // c. Referenced record existence (redundant but safe to keep explicit)
+        // c. Referenced record existence
         val purchaseIds = snapshot.purchaseReceipts.map { it.id }.toSet()
         val wasteIds = snapshot.wasteEvents.map { it.id }.toSet()
 

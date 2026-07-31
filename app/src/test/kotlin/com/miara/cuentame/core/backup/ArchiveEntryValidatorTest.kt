@@ -8,8 +8,8 @@ class ArchiveEntryValidatorTest {
     @Test
     fun `isSafe rejects absolute paths`() {
         assertThat(ArchiveEntryValidator.isSafe("/etc/passwd")).isFalse()
-        assertThat(ArchiveEntryValidator.isSafe("C:/Windows")).isFalse()
         assertThat(ArchiveEntryValidator.isSafe("C:\\Windows")).isFalse()
+        assertThat(ArchiveEntryValidator.isSafe("C:/Windows")).isFalse()
     }
 
     @Test

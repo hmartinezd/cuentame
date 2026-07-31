@@ -79,12 +79,24 @@ class BackupRestoreRepositoryTest {
     }
 
     @Test
-    fun `public failure text does not expose URI`() = runTest {
-        documentStore.openForReadError = BackupDocumentOpenException(BackupDocumentOperation.READ, IOException("Disk error at /unsafe/path"))
+    fun `inspect returns permission denied on security exception`() = runTest {
+        coEvery { archiveReader.inspect(any(), any()) } throws SecurityException("Denied")
+        documentStore.storage[docUri] = "data".toByteArray()
+
+        val result = repository.inspect(docUri)
         
-        val result = repository.inspect(docUri) as BackupArchiveInspectionResult.Failure
-        // Message should be generic or redacted. 
-        // Our current logic returns SourceUnavailable which has no message.
-        // If we had a message, we'd check it.
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.PermissionDenied)
+    }
+
+    @Test
+    fun `inspect returns generic io on unknown error`() = runTest {
+        coEvery { archiveReader.inspect(any(), any()) } throws IOException("Disk error")
+        documentStore.storage[docUri] = "data".toByteArray()
+
+        val result = repository.inspect(docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
     }
 }

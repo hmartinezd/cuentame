@@ -3,8 +3,10 @@ package com.miara.cuentame.feature.settings.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.BackupArchiveInspectionResult
+import com.miara.cuentame.core.backup.api.BackupDocumentUri
 import com.miara.cuentame.core.backup.api.BackupRestoreRepository
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
+import com.miara.cuentame.core.model.backup.BackupRestorePreview
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.*
@@ -57,7 +59,7 @@ class BackupRestoreViewModelTest {
 
     @Test
     fun `preview ready entered when inspection succeeds`() = runTest {
-        val preview = mockk<com.miara.cuentame.core.model.backup.BackupRestorePreview>()
+        val preview = mockk<BackupRestorePreview>()
         coEvery { restoreRepository.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(), preview)
 
         viewModel.onFileSelected("uri")
@@ -100,35 +102,90 @@ class BackupRestoreViewModelTest {
     }
 
     @Test
-    fun `stale result from cancelled operation is ignored`() = runTest {
+    fun `stale success is ignored`() = runTest {
         val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
         val deferred2 = CompletableDeferred<BackupArchiveInspectionResult>()
         
-        coEvery { restoreRepository.inspect(com.miara.cuentame.core.backup.api.BackupDocumentUri("uri-1")) } coAnswers { deferred1.await() }
-        coEvery { restoreRepository.inspect(com.miara.cuentame.core.backup.api.BackupDocumentUri("uri-2")) } coAnswers { deferred2.await() }
+        // Use NonCancellable to simulate a non-cooperative repository return after cancellation
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-2")) } coAnswers {
+            deferred2.await()
+        }
 
         viewModel.onFileSelected("uri-1")
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
-        // Start second operation
-        viewModel.onFileSelected("uri-2")
+        viewModel.onFileSelected("uri-2") // This cancels operation 1
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
-        // Complete first operation LATE
+        // Complete 1 LATE
         deferred1.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
         advanceUntilIdle()
         
-        // State should still be Inspecting (awaiting uri-2)
+        // UI should NOT show result 1
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
-        // Complete second operation
-        val preview2 = mockk<com.miara.cuentame.core.model.backup.BackupRestorePreview>()
+        // Complete 2
+        val preview2 = mockk<BackupRestorePreview>()
         deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(), preview2))
         advanceUntilIdle()
         
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
-        val state = viewModel.uiState.value as BackupRestoreUiState.PreviewReady
-        assertThat(state.preview).isEqualTo(preview2)
+        assertThat((viewModel.uiState.value as BackupRestoreUiState.PreviewReady).preview).isEqualTo(preview2)
+    }
+
+    @Test
+    fun `stale typed failure is ignored`() = runTest {
+        val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onDismissRequest() // Cancel 1
+        
+        deferred1.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `stale exception is ignored`() = runTest {
+        val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onDismissRequest()
+        
+        deferred1.completeExceptionally(RuntimeException("Crash"))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `stale cancellation completion is ignored`() = runTest {
+        val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        
+        // Start 2
+        viewModel.onFileSelected("uri-2")
+        
+        // Make 1 throw CancellationException LATE (e.g. if it finally noticed or we force it)
+        deferred1.completeExceptionally(CancellationException())
+        advanceUntilIdle()
+        
+        // State should remain Inspecting (for uri-2), not reset to Idle by stale cancellation
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
     }
 
     @Test

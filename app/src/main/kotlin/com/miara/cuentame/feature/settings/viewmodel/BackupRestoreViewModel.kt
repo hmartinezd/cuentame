@@ -71,6 +71,7 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     fun onFileSelected(uri: String?) {
+        cancelActiveOperation()
         if (uri == null) {
             _uiState.value = BackupRestoreUiState.Idle
             return
@@ -80,7 +81,6 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     private fun inspectArchive(source: BackupDocumentUri) {
-        cancelActiveOperation()
         val token = operationTokenGenerator.incrementAndGet()
         activeOperationToken = token
         

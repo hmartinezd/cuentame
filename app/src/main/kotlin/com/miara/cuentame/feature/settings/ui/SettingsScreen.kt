@@ -54,7 +54,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
-import com.miara.cuentame.feature.settings.presentation.toUserMessage
 import com.miara.cuentame.feature.settings.presentation.toUserMessageRes
 import androidx.compose.material.icons.filled.Restore
 import com.miara.cuentame.core.model.locale.SupportedAppLocale
@@ -466,7 +465,7 @@ fun RestoreErrorDialog(
         title = { Text(stringResource(R.string.restore_error_title)) },
         text = {
             Text(
-                text = stringResource(R.string.restore_error_message, failure.toUserMessage()),
+                text = stringResource(R.string.restore_error_message, stringResource(failure.toUserMessageRes())),
                 modifier = Modifier.testTag("restore_backup_error")
             )
         },

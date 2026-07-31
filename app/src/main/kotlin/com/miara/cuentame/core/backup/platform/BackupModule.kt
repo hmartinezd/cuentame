@@ -56,5 +56,9 @@ interface BackupModule {
         @Provides
         @Singleton
         fun provideReadLimits(): BackupReadLimits = BackupReadLimits()
+
+        @Provides
+        @Singleton
+        fun provideZipInputFactory(): BackupZipInputFactory = BackupZipInputFactory { input -> java.util.zip.ZipInputStream(input) }
     }
 }
