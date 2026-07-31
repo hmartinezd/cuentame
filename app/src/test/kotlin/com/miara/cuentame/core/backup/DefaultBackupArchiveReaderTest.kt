@@ -6,6 +6,7 @@ import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -124,12 +125,49 @@ class DefaultBackupArchiveReaderTest {
     }
 
     @Test
-    fun `inspect caller owned stream remains open`() = runTest {
+    fun `inspect enforces total archive limit while streaming`() = runTest {
+        val smallLimits = BackupReadLimits(maxTotalUncompressedBytes = 10L)
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
+        
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        val failure = result as BackupArchiveInspectionResult.Failure
+        assertThat(failure.reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)
+    }
+
+    @Test
+    fun `inspect caller owned stream remains open after success`() = runTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val input = TrackingInputStream(ByteArrayInputStream(bytes))
         
-        reader.inspect(input, docUri)
+        val result = reader.inspect(input, docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         assertThat(input.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspect caller owned stream remains open after failure`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).removeEntry("manifest.json").build()
+        val input = TrackingInputStream(ByteArrayInputStream(bytes))
+        
+        val result = reader.inspect(input, docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat(input.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspected archive performs defensive copies`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri) as BackupArchiveInspectionResult.Ready
+        val archive = result.archive
+        
+        org.junit.Assert.assertThrows(UnsupportedOperationException::class.java) {
+            (archive.snapshot.restaurants as MutableList).clear()
+        }
     }
 
     @Test
@@ -212,6 +250,54 @@ class DefaultBackupArchiveReaderTest {
             .build()
         val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ChecksumMismatch)
+    }
+
+    @Test
+    fun `inspect with checksums json self-reference fails`() = runTest {
+        val manifest = buildManifest()
+        val mJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupManifest.serializer(), manifest).toByteArray()
+        val dbJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.backup.model.BackupSnapshotDto.serializer(), createValidEmptySnapshot()).toByteArray()
+        val pJson = jsonCodecs.writer.encodeToString(com.miara.cuentame.core.model.backup.BackupPreferencesDto.serializer(), com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")).toByteArray()
+        
+        val rawChecksums = mapOf(
+            "manifest.json" to "a".repeat(64),
+            "data/database.json" to "a".repeat(64),
+            "preferences/settings.json" to "a".repeat(64),
+            "checksums.json" to "a".repeat(64) // Self-reference
+        )
+        val cJson = jsonCodecs.writer.encodeToString(rawChecksums).toByteArray()
+        
+        val bytes = BackupArchiveTestBuilder(jsonCodecs)
+            .replaceFirstEntry("manifest.json", mJson)
+            .replaceFirstEntry("data/database.json", dbJson)
+            .replaceFirstEntry("preferences/settings.json", pJson)
+            .replaceFirstEntry("checksums.json", cJson)
+            .build()
+            
+        val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MalformedChecksums)
+    }
+
+    @Test
+    fun `inspect ensures ZipInputStream closed but source remains open`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        
+        customReader.inspect(source, docUri)
+        
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
@@ -314,9 +400,11 @@ class DefaultBackupArchiveReaderTest {
     fun `ZipInputStream close failure cannot produce Ready`() = runTest {
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
         val factory = BackupZipInputFactory { input ->
             object : ZipInputStream(input) {
                 override fun close() {
+                    zipCloseCount++
                     throw IOException("Close failed")
                 }
             }
@@ -326,6 +414,33 @@ class DefaultBackupArchiveReaderTest {
         val result = customReader.inspect(source, docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
+    }
+
+    @Test
+    fun `primary typed failure is preserved when ZipInputStream close also fails`() = runTest {
+        // Use duplicate entry to cause failure DURING the loop
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).addDuplicateEntry("data/database.json", "{}".toByteArray()).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    throw IOException("Close failed")
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        
+        val result = customReader.inspect(source, docUri)
+        
+        // Assert primary failure preserved
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.DuplicateEntry)
+        
+        assertThat(zipCloseCount).isEqualTo(1)
         assertThat(source.isClosed).isFalse()
     }
 
@@ -347,6 +462,7 @@ class DefaultBackupArchiveReaderTest {
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MissingCoreEntry)
         assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
@@ -367,6 +483,72 @@ class DefaultBackupArchiveReaderTest {
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.DuplicateEntry)
         assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspect with unsafe entry path closes exactly once`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).addEntry("../unsafe", byteArrayOf(0)).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        
+        val result = customReader.inspect(source, docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspect with entry limit exceeded closes exactly once`() = runTest {
+        val smallLimits = BackupReadLimits(maxDatabaseJsonBytes = 1L)
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits, factory)
+        
+        val result = customReader.inspect(source, docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.EntryLimitExceeded)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspect with total archive limit exceeded closes exactly once`() = runTest {
+        val smallLimits = BackupReadLimits(maxTotalUncompressedBytes = 1L)
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits, factory)
+        
+        val result = customReader.inspect(source, docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     private fun createValidEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

@@ -2,6 +2,16 @@
 
 This document specifies the authoritative format and strategy for Cuentame versioned backups (`.cuentame-backup`).
 
+## Restore Implementation Progress
+
+### Milestone 1 — Read-Only Inspection and Preview
+* **Backup restore archive reading**: COMPLETE
+* **Backup restore validation**: COMPLETE
+* **Backup restore preview**: COMPLETE
+* **Backup restore database application**: NOT STARTED
+* **Backup restore attachment application**: NOT STARTED
+* **Backup restore rollback**: NOT STARTED
+
 ## Archive Specification
 
 The backup is a deterministic ZIP archive. To ensure bit-for-byte identity, entries MUST be written in this exact order:

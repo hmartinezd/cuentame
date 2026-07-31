@@ -26,6 +26,19 @@ class BackupRestoreRepositoryTest {
     }
 
     @Test
+    fun `inspect successfully returns ready result and closes stream`() = runTest {
+        val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk())
+        documentStore.storage[docUri] = "data".toByteArray()
+        coEvery { archiveReader.inspect(any(), any()) } returns ready
+        
+        val result = repository.inspect(docUri)
+        
+        assertThat(result).isEqualTo(ready)
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
+    }
+
+    @Test
     fun `inspect successfully returns ready result and closes stream exactly once`() = runTest {
         val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk())
         documentStore.storage[docUri] = "data".toByteArray()
@@ -47,6 +60,7 @@ class BackupRestoreRepositoryTest {
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         val failure = result as BackupArchiveInspectionResult.Failure
         assertThat(failure.reason).isEqualTo(BackupRestoreFailure.SourceUnavailable)
+        assertThat(documentStore.closeCountMap[docUri] ?: 0).isEqualTo(0)
     }
 
     @Test
@@ -54,7 +68,9 @@ class BackupRestoreRepositoryTest {
         documentStore.storage[docUri] = "data".toByteArray()
         coEvery { archiveReader.inspect(any(), any()) } returns BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip)
         
-        repository.inspect(docUri)
+        val result = repository.inspect(docUri)
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.InvalidZip)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
@@ -63,7 +79,10 @@ class BackupRestoreRepositoryTest {
         documentStore.storage[docUri] = "data".toByteArray()
         coEvery { archiveReader.inspect(any(), any()) } throws RuntimeException("Reader crash")
         
-        try { repository.inspect(docUri) } catch (e: Exception) {}
+        val result = repository.inspect(docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
@@ -72,31 +91,35 @@ class BackupRestoreRepositoryTest {
         documentStore.storage[docUri] = "data".toByteArray()
         coEvery { archiveReader.inspect(any(), any()) } throws CancellationException("User cancelled")
         
-        org.junit.Assert.assertThrows(CancellationException::class.java) {
-            kotlinx.coroutines.runBlocking { repository.inspect(docUri) }
+        try {
+            repository.inspect(docUri)
+            org.junit.Assert.fail("Expected CancellationException")
+        } catch (e: CancellationException) {
+            assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
         }
-        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
     @Test
     fun `inspect returns permission denied on security exception`() = runTest {
-        coEvery { archiveReader.inspect(any(), any()) } throws SecurityException("Denied")
         documentStore.storage[docUri] = "data".toByteArray()
+        coEvery { archiveReader.inspect(any(), any()) } throws SecurityException("Denied")
 
         val result = repository.inspect(docUri)
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.PermissionDenied)
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
     @Test
     fun `inspect returns generic io on unknown error`() = runTest {
-        coEvery { archiveReader.inspect(any(), any()) } throws IOException("Disk error")
         documentStore.storage[docUri] = "data".toByteArray()
+        coEvery { archiveReader.inspect(any(), any()) } throws IOException("Disk error")
 
         val result = repository.inspect(docUri)
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
+        assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 }

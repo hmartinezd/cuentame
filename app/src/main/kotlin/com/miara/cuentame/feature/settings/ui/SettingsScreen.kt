@@ -172,6 +172,7 @@ fun SettingsRoute(
         onLocaleChanged = { viewModel.setAppLocaleTag(it.languageTag) },
         onCreateBackup = backupViewModel::onCreateBackupRequested,
         onRestoreBackup = restoreViewModel::onSelectFileClicked,
+        onChooseAnotherRestore = restoreViewModel::onChooseAnotherClicked,
         onDismissRestore = restoreViewModel::onDismissRequest,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
@@ -194,6 +195,7 @@ fun SettingsScreen(
     onLocaleChanged: (SupportedAppLocale) -> Unit,
     onCreateBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onChooseAnotherRestore: () -> Unit,
     onDismissRestore: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
@@ -393,7 +395,7 @@ fun SettingsScreen(
         RestorePreviewDialog(
             preview = restoreUiState.preview,
             onDismiss = onDismissRestore,
-            onChooseAnother = onRestoreBackup
+            onChooseAnother = onChooseAnotherRestore
         )
     }
 
@@ -401,7 +403,7 @@ fun SettingsScreen(
         RestoreErrorDialog(
             failure = restoreUiState.reason,
             onDismiss = onDismissRestore,
-            onRetry = onRestoreBackup
+            onRetry = onChooseAnotherRestore
         )
     }
 }

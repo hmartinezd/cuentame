@@ -20,6 +20,8 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.security.MessageDigest
 import java.time.Instant
 
 class BackupRoundTripTest {
@@ -105,6 +107,7 @@ class BackupRoundTripTest {
         val attId = "0123456789abcdef"
         val attUri = AttachmentSourceUri("content://shared")
         val attData = "shared data".toByteArray()
+        val expectedHash = hash(attData)
         attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "file.jpg", "image/jpeg")
         attachmentSource.dataMap[attUri] = attData
 
@@ -151,26 +154,37 @@ class BackupRoundTripTest {
         assertThat(att.attachmentId).isEqualTo(attId)
         assertThat(att.sizeBytes).isEqualTo(attData.size.toLong())
         assertThat(att.displayName).isEqualTo("file.jpg")
-        assertThat(att.archivePath).startsWith("attachments/$attId/")
+        assertThat(att.archivePath).isEqualTo(plan.attachments.single().archivePath)
+        assertThat(att.checksumSha256).isEqualTo(expectedHash)
         
         val manifestAtt = ready.archive.manifest.attachments.first()
         assertThat(manifestAtt.attachmentId).isEqualTo(attId)
         assertThat(manifestAtt.referencedBy).hasSize(2)
         assertThat(manifestAtt.referencedBy.map { it.recordId }).containsExactly("p1", "w1")
         assertThat(manifestAtt.referencedBy.map { it.recordType }).containsExactly("PURCHASE_RECEIPT", "WASTE_EVENT")
+        assertThat(manifestAtt.checksumSha256).isEqualTo(expectedHash)
+        assertThat(manifestAtt.archivePath).isEqualTo(plan.attachments.single().archivePath)
+        assertThat(manifestAtt.displayName).isEqualTo("file.jpg")
+        assertThat(manifestAtt.sizeBytes).isEqualTo(attData.size.toLong())
 
         assertThat(ready.archive.snapshot.purchaseReceipts.first().attachmentId).isEqualTo(attId)
         assertThat(ready.archive.snapshot.wasteEvents.first().attachmentId).isEqualTo(attId)
         
         assertThat(ready.preview.attachmentCount).isEqualTo(1)
         assertThat(ready.preview.totalAttachmentBytes).isEqualTo(attData.size.toLong())
-        // Records: rest(1) + area(1) + ing(1) + unit(1) + opt(1) + pRec(1) + pLine(1) + waste(1) + move(2) = 10
-        // projections (2) are excluded.
         assertThat(ready.preview.totalRecordCount).isEqualTo(10L)
 
         // Verify planned vs inspected snapshot equality
         assertThat(ready.archive.snapshot).isEqualTo(snapshotDto)
         assertThat(ready.archive.preferences).isEqualTo(preferencesSource.result)
+        assertThat(ready.archive.manifest).isEqualTo(plan.manifest)
+        
+        // Payload-retention boundary: InspectedBackupArchive should not have ByteArray or InputStream fields
+        val fields = ready.archive::class.java.declaredFields
+        for (field in fields) {
+            assertThat(field.type).isNotEqualTo(ByteArray::class.java)
+            assertThat(InputStream::class.java.isAssignableFrom(field.type)).isFalse()
+        }
     }
 
     @Test
@@ -198,4 +212,8 @@ class BackupRoundTripTest {
         assertThat(res2).isEqualTo(BackupArchiveWriteResult.Success)
         assertThat(out1.toByteArray()).isEqualTo(out2.toByteArray())
     }
+
+    private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it) }
 }

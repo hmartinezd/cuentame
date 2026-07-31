@@ -106,7 +106,6 @@ class BackupRestoreViewModelTest {
         val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
         val deferred2 = CompletableDeferred<BackupArchiveInspectionResult>()
         
-        // Use NonCancellable to simulate a non-cooperative repository return after cancellation
         coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
             withContext(NonCancellable) { deferred1.await() }
         }
@@ -115,19 +114,13 @@ class BackupRestoreViewModelTest {
         }
 
         viewModel.onFileSelected("uri-1")
-        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
+        viewModel.onFileSelected("uri-2")
         
-        viewModel.onFileSelected("uri-2") // This cancels operation 1
-        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
-        
-        // Complete 1 LATE
         deferred1.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
         advanceUntilIdle()
         
-        // UI should NOT show result 1
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
-        // Complete 2
         val preview2 = mockk<BackupRestorePreview>()
         deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(), preview2))
         advanceUntilIdle()
@@ -144,12 +137,40 @@ class BackupRestoreViewModelTest {
         }
         
         viewModel.onFileSelected("uri-1")
-        viewModel.onDismissRequest() // Cancel 1
+        viewModel.onDismissRequest()
         
         deferred1.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
         advanceUntilIdle()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `stale typed failure cannot replace active newer inspection`() = runTest {
+        val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
+        val deferred2 = CompletableDeferred<BackupArchiveInspectionResult>()
+        
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-2")) } coAnswers {
+            deferred2.await()
+        }
+
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected("uri-2")
+        
+        deferred1.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
+        
+        val preview2 = mockk<BackupRestorePreview>()
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(), preview2))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
+        assertThat((viewModel.uiState.value as BackupRestoreUiState.PreviewReady).preview).isEqualTo(preview2)
     }
 
     @Test
@@ -169,6 +190,33 @@ class BackupRestoreViewModelTest {
     }
 
     @Test
+    fun `stale exception cannot replace active newer inspection`() = runTest {
+        val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
+        val deferred2 = CompletableDeferred<BackupArchiveInspectionResult>()
+        
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers {
+            withContext(NonCancellable) { deferred1.await() }
+        }
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-2")) } coAnswers {
+            deferred2.await()
+        }
+
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected("uri-2")
+        
+        deferred1.completeExceptionally(RuntimeException("Crash"))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
+        
+        val preview2 = mockk<BackupRestorePreview>()
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(), preview2))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
+    }
+
+    @Test
     fun `stale cancellation completion is ignored`() = runTest {
         val deferred1 = CompletableDeferred<BackupArchiveInspectionResult>()
         val deferred2 = CompletableDeferred<BackupArchiveInspectionResult>()
@@ -181,16 +229,18 @@ class BackupRestoreViewModelTest {
         }
         
         viewModel.onFileSelected("uri-1")
-        
-        // Start 2
         viewModel.onFileSelected("uri-2")
         
-        // Make 1 throw CancellationException LATE
         deferred1.completeExceptionally(CancellationException())
         advanceUntilIdle()
         
-        // State should remain Inspecting (for uri-2), not reset to Idle by stale cancellation
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
+        
+        val preview2 = mockk<BackupRestorePreview>()
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(), preview2))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
     }
 
     @Test
@@ -199,6 +249,121 @@ class BackupRestoreViewModelTest {
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
         
         viewModel.onFileSelected(null)
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+        assertThat(savedStateHandle.get<Boolean>("inspection_active")).isFalse()
+    }
+
+    @Test
+    fun `late failure after picker cancellation is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected(null)
+        
+        deferred.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `late Ready after picker cancellation is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected(null)
+        
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+        assertThat(savedStateHandle.get<Boolean>("inspection_active")).isFalse()
+    }
+
+    @Test
+    fun `late ordinary exception after picker cancellation is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected(null)
+        
+        deferred.completeExceptionally(RuntimeException("Crash"))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `late CancellationException after picker cancellation does not leave Idle`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onFileSelected(null)
+        
+        deferred.completeExceptionally(CancellationException())
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `late Ready after dismiss is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onDismissRequest()
+        
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+        assertThat(savedStateHandle.get<Boolean>("inspection_active")).isFalse()
+    }
+
+    @Test
+    fun `late typed failure after dismiss is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onDismissRequest()
+        
+        deferred.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
+    }
+
+    @Test
+    fun `late ordinary exception after dismiss is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(any()) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onDismissRequest()
+        
+        deferred.completeExceptionally(RuntimeException("Crash"))
+        advanceUntilIdle()
+        
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
     }
 
@@ -228,8 +393,24 @@ class BackupRestoreViewModelTest {
         deferred.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
         advanceUntilIdle()
         
-        // State should remain SelectingFile, not move to PreviewReady from cancelled operation
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
+    }
+
+    @Test
+    fun `choose another late result is ignored`() = runTest {
+        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
+        coEvery { restoreRepository.inspect(BackupDocumentUri("uri-1")) } coAnswers { 
+            withContext(NonCancellable) { deferred.await() } 
+        }
+        
+        viewModel.onFileSelected("uri-1")
+        viewModel.onChooseAnotherClicked()
+        
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(), mockk()))
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
+        assertThat(savedStateHandle.get<Boolean>("inspection_active")).isFalse()
     }
 
     @Test
@@ -244,30 +425,12 @@ class BackupRestoreViewModelTest {
     }
 
     @Test
-    fun `late failure after picker cancellation is ignored`() = runTest {
-        val deferred = CompletableDeferred<BackupArchiveInspectionResult>()
-        coEvery { restoreRepository.inspect(any()) } coAnswers { 
-            withContext(NonCancellable) { deferred.await() } 
-        }
-        
-        viewModel.onFileSelected("uri-1")
-        viewModel.onFileSelected(null) // Cancel via picker
-        
-        deferred.complete(BackupArchiveInspectionResult.Failure(BackupRestoreFailure.InvalidZip))
-        advanceUntilIdle()
-        
-        assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
-    }
-
-    @Test
     fun `recreated active inspection marker cleared after initialization`() {
         val handle = SavedStateHandle(mapOf("inspection_active" to true))
         BackupRestoreViewModel(restoreRepository, handle)
         
-        // Marker should be false now
         assertThat(handle.get<Boolean>("inspection_active")).isFalse()
         
-        // A second VM with the same handle should now be Idle
         val vm2 = BackupRestoreViewModel(restoreRepository, handle)
         assertThat(vm2.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
     }
