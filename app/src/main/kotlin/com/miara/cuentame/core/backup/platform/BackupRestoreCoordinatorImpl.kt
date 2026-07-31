@@ -4,9 +4,10 @@ import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
 import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
-import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -22,16 +23,17 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
     private val journal: RestoreJournal,
     private val storage: InternalBackupRestoreStorage,
     private val recoveryCoordinator: RestoreRecoveryCoordinator,
+    private val operationGate: RestoreOperationGate,
     private val codecs: BackupJsonCodecs
 ) : BackupRestoreCoordinator {
 
-    private val operationLock = Mutex()
+    override val startupState: StateFlow<RestoreStartupState> = operationGate.recoveryState
 
     override suspend fun inspect(source: BackupDocumentUri): BackupArchiveInspectionResult {
         return restoreRepository.inspect(source)
     }
 
-    override suspend fun retryRecovery(): RestoreRecoveryResult = operationLock.withLock {
+    override suspend fun retryRecovery(): RestoreRecoveryResult = operationGate.mutex.withLock {
         recoveryCoordinator.retryRecovery()
     }
 
@@ -39,10 +41,14 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         source: BackupDocumentUri,
         expectedFingerprint: BackupArchiveFingerprint,
         onProgress: suspend (BackupRestoreProgress) -> Unit
-    ): BackupRestoreApplyResult = operationLock.withLock {
-        // 1. Verify startup recovery is not required
-        val recoveryCheck = recoveryCoordinator.recoverIfNeeded()
-        if (recoveryCheck is RestoreRecoveryResult.RecoveryRequired) {
+    ): BackupRestoreApplyResult = operationGate.mutex.withLock {
+        // 1. Verify startup recovery is terminal
+        val startupState = operationGate.recoveryState.first {
+            it is RestoreStartupState.Ready ||
+            it is RestoreStartupState.Recovered ||
+            it is RestoreStartupState.RecoveryRequired
+        }
+        if (startupState is RestoreStartupState.RecoveryRequired) {
             return BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
         }
 
@@ -64,7 +70,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             return BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired)
         }
 
-        // 4. Verify backup has no attachments (double check)
+        // 4. Verify backup has no attachments
         if (archive.manifest.attachments.isNotEmpty() || archive.snapshot.purchaseReceipts.any { it.attachmentId != null }) {
             return BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
         }
@@ -91,37 +97,66 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
         try {
             onProgress(BackupRestoreProgress.PreparingRollback)
+            
             // 7. Capture rollback
-            val rollback = databaseApplier.captureRollbackSnapshot()
-            val prevPrefs = preferencesApplier.captureRollback()
+            val rollback = try {
+                databaseApplier.captureRollbackSnapshot()
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
+
+            val prevPrefs = try {
+                preferencesApplier.captureRollback()
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
 
             // 8. Persist rollback snapshot atomically
-            storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+            try {
+                storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
 
-            // 9. Write journal ROLLBACK_CAPTURED
-            journal.write(currentJournal)
+            // 9. Write journal ROLLBACK_CAPTURED with previous preferences
+            currentJournal = currentJournal.copy(previousPreferences = prevPrefs)
+            try {
+                journal.write(currentJournal)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
 
             // 10. Mutation Boundary
+            if (currentJournal.previousPreferences == null) {
+                throw RestorePreparationException(IllegalStateException("Previous preferences not captured"))
+            }
             currentJournal = currentJournal.copy(phase = RestorePhase.MUTATION_STARTED)
-            journal.write(currentJournal)
+            try {
+                journal.write(currentJournal)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
 
             withContext(NonCancellable) {
                 try {
                     // 11. Replace Room
                     onProgress(BackupRestoreProgress.RestoringData)
-                    databaseApplier.replaceWithBackup(archive.snapshot)
+                    try {
+                        databaseApplier.replaceWithBackup(archive.snapshot)
+                    } catch (e: Exception) {
+                        throw RestoreDatabaseApplicationException(e)
+                    }
                     
                     currentJournal = currentJournal.copy(phase = RestorePhase.DATABASE_APPLIED)
                     journal.write(currentJournal)
 
                     // 12. Apply Preferences
                     onProgress(BackupRestoreProgress.RestoringSettings)
-                    preferencesApplier.apply(archive.preferences)
+                    try {
+                        preferencesApplier.apply(archive.preferences)
+                    } catch (e: Exception) {
+                        throw RestorePreferencesApplicationException(e)
+                    }
                     
                     // 13. Verify preferences
                     val verifiedPrefs = preferencesApplier.captureRollback()
                     if (verifiedPrefs != archive.preferences) {
-                        throw IllegalStateException("Preferences verification failed")
+                        throw RestorePreferencesApplicationException(IllegalStateException("Preferences verification failed"))
                     }
 
                     currentJournal = currentJournal.copy(phase = RestorePhase.PREFERENCES_APPLIED)
@@ -130,7 +165,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     // 14. Finalizing
                     onProgress(BackupRestoreProgress.Finalizing)
                     if (!databaseApplier.verifyMatchesBackup(archive.snapshot)) {
-                        throw IllegalStateException("Final database verification failed")
+                        throw RestoreFinalVerificationException()
                     }
 
                     currentJournal = currentJournal.copy(phase = RestorePhase.COMPLETED)
@@ -168,14 +203,20 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
             return BackupRestoreApplyResult.Success
 
+        } catch (e: CancellationException) {
+            if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED) {
+                storage.cleanupSession(sessionId)
+                journal.delete()
+            }
+            throw e
         } catch (e: Exception) {
             val journalResult = journal.read()
             if (journalResult is RestoreJournalReadResult.Present && journalResult.journal.phase == RestorePhase.RECOVERY_REQUIRED) {
                 return BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
             }
             
-            // If mutation didn't start or rollback succeeded, return meaningful failure
-            if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED || currentJournal.phase == RestorePhase.MUTATION_STARTED) {
+            // If mutation didn't start or rollback succeeded, clean up session
+            if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED || currentJournal.phase == RestorePhase.ROLLBACK_COMPLETED) {
                  storage.cleanupSession(sessionId)
                  journal.delete()
             }
@@ -186,12 +227,16 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
     private fun mapException(e: Exception): BackupRestoreFailure {
         return when (e) {
-            is IllegalStateException -> {
-                if (e.message?.contains("Database") == true) BackupRestoreFailure.DatabaseRestoreFailed
-                else if (e.message?.contains("Preferences") == true) BackupRestoreFailure.PreferencesRestoreFailed
-                else BackupRestoreFailure.GenericIo
-            }
+            is RestorePreparationException -> BackupRestoreFailure.RestorePreparationFailed
+            is RestoreDatabaseApplicationException -> BackupRestoreFailure.DatabaseRestoreFailed
+            is RestorePreferencesApplicationException -> BackupRestoreFailure.PreferencesRestoreFailed
+            is RestoreFinalVerificationException -> BackupRestoreFailure.FinalVerificationFailed
             else -> BackupRestoreFailure.GenericIo
         }
     }
+
+    private class RestoreDatabaseApplicationException(cause: Throwable) : Exception(cause)
+    private class RestorePreferencesApplicationException(cause: Throwable) : Exception(cause)
+    private class RestoreFinalVerificationException : Exception()
+    private class RestorePreparationException(cause: Throwable) : Exception(cause)
 }

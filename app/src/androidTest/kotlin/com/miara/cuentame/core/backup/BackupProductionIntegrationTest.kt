@@ -18,7 +18,7 @@ import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -73,9 +73,13 @@ class BackupProductionIntegrationTest {
         val writer = DefaultBackupArchiveWriter(mockk(relaxed = true))
         val validator = DefaultBackupArchiveValidator(codecs)
         
+        val operationGate = RestoreOperationGate()
+        operationGate.updateRecoveryState(RestoreStartupState.Ready)
+
         backupRepository = AndroidBackupRepository(
             snapshotSource, documentStore, planner, mockk(relaxed = true),
-            mockk(relaxed = true), mockk(relaxed = true), writer, validator
+            mockk(relaxed = true), mockk(relaxed = true), writer, validator,
+            operationGate
         )
         
         val processor = BackupArchiveProcessor(BackupReadLimits()) { input -> java.util.zip.ZipInputStream(input) }
@@ -91,7 +95,7 @@ class BackupProductionIntegrationTest {
         
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
-            journal, storage, recoveryCoordinator, codecs
+            journal, storage, recoveryCoordinator, operationGate, codecs
         )
     }
 
@@ -102,16 +106,30 @@ class BackupProductionIntegrationTest {
 
     @Test
     fun production_path_no_attachment_restore() = runBlocking {
-        // 1. Seed data
-        db.restaurantDao().insert(RestaurantEntity("r1", "Original", "USD", "en-US", 0, 0, null))
+        // 1. Seed data across multiple tables
+        val restaurant = RestaurantEntity("r1", "Original", "USD", "en-US", 0, 0, null)
+        db.restaurantDao().insert(restaurant)
         
+        val area = com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "r1", "Area 1", "area1", 0, true, 0, 0, null)
+        db.inventoryAreaDao().upsert(area)
+        
+        val category = com.miara.cuentame.core.database.entity.IngredientCategoryEntity("c1", "r1", "Cat 1", "cat1", 0, true, 0, 0, null)
+        db.ingredientCategoryDao().upsert(category)
+        
+        val unit = com.miara.cuentame.core.database.entity.UnitEntity("u1", "Unit", "u", "COUNT", java.math.BigDecimal.ONE, true, 0)
+        db.unitDao().insertSeedUnits(listOf(unit))
+        
+        val ingredient = com.miara.cuentame.core.database.entity.IngredientEntity("i1", "r1", "Ing 1", "ing1", "c1", "u1", "a1", null, null, null, true, 0, 0, null)
+        db.ingredientDao().insert(ingredient)
+
         // 2. Create backup
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         val backupUri = "content://backup/1.zip"
-        backupRepository.createBackup(backupUri).first()
+        val statuses = backupRepository.createBackup(backupUri).toList()
+        assertThat(statuses.last()).isInstanceOf(com.miara.cuentame.core.domain.repository.BackupOperationStatus.Success::class.java)
         
-        // 3. Mutate data
-        db.restaurantDao().insert(RestaurantEntity("r1", "Mutated", "USD", "en-US", 1000, 1000, null))
+        // 3. Mutate data (Delete everything)
+        db.restoreDao().clearAllInOrder()
         
         // 4. Inspect
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
@@ -124,9 +142,10 @@ class BackupProductionIntegrationTest {
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
         
         // 6. Verify original data restored
-        val current = db.restaurantDao().getById("r1")
-        assertThat(current?.name).isEqualTo("Original")
-        assertThat(current?.updatedAt).isEqualTo(0L)
+        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Original")
+        assertThat(db.inventoryAreaDao().getById("a1")?.name).isEqualTo("Area 1")
+        assertThat(db.ingredientCategoryDao().getById("c1")?.name).isEqualTo("Cat 1")
+        assertThat(db.ingredientDao().getById("i1")?.name).isEqualTo("Ing 1")
     }
 
     private class FakeInternalDocumentStore(private val root: File) : BackupDocumentStore {

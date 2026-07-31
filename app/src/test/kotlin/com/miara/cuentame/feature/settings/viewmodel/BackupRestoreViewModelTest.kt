@@ -9,6 +9,7 @@ import com.miara.cuentame.core.model.backup.BackupRestorePreview
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.*
 import kotlin.time.Duration.Companion.seconds
 import org.junit.After
@@ -27,6 +28,7 @@ class BackupRestoreViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         coEvery { restoreCoordinator.retryRecovery() } returns RestoreRecoveryResult.NoRecoveryNeeded
+        coEvery { restoreCoordinator.startupState } returns MutableStateFlow(RestoreStartupState.Ready)
         viewModel = BackupRestoreViewModel(restoreCoordinator, savedStateHandle)
     }
 

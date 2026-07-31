@@ -41,6 +41,9 @@ class AndroidBackupRepositoryTest {
     fun setup() {
         documentStore = AndroidBackupDocumentStore(context)
         
+        val gate = com.miara.cuentame.core.backup.internal.RestoreOperationGate()
+        gate.updateRecoveryState(com.miara.cuentame.core.backup.api.RestoreStartupState.Ready)
+
         repository = AndroidBackupRepository(
             snapshotSource = snapshotSource,
             documentStore = documentStore,
@@ -49,7 +52,8 @@ class AndroidBackupRepositoryTest {
             restaurantRepository = restaurantRepository,
             cleanupCoordinator = BackupCleanupCoordinator(documentStore),
             archiveWriter = archiveWriter,
-            archiveValidator = archiveValidator
+            archiveValidator = archiveValidator,
+            operationGate = gate
         )
     }
 

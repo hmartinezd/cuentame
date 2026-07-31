@@ -74,14 +74,15 @@ class BackupRestoreViewModel @Inject constructor(
     private var lastInspectedPreview: BackupRestorePreview? = null
 
     init {
-        runRecovery()
+        observeStartupState()
         checkInterruptedOperation()
     }
 
-    private fun runRecovery() {
+    private fun observeStartupState() {
         viewModelScope.launch {
-            val recoveryResult = restoreCoordinator.retryRecovery()
-            handleRecoveryResult(recoveryResult)
+            restoreCoordinator.startupState.collect { state ->
+                handleStartupState(state)
+            }
         }
     }
 
@@ -95,20 +96,25 @@ class BackupRestoreViewModel @Inject constructor(
         savedStateHandle[KEY_INSPECTION_ACTIVE] = false
     }
 
-    private fun handleRecoveryResult(result: RestoreRecoveryResult) {
-        when (result) {
-            RestoreRecoveryResult.NoRecoveryNeeded -> {
-                if (_uiState.value is BackupRestoreUiState.RecoveryRequired || _uiState.value is BackupRestoreUiState.RecoveryInProgress) {
+    private fun handleStartupState(state: RestoreStartupState) {
+        when (state) {
+            RestoreStartupState.NotStarted,
+            RestoreStartupState.Recovering -> {
+                _uiState.value = BackupRestoreUiState.RecoveryInProgress
+            }
+            RestoreStartupState.Ready -> {
+                if (_uiState.value is BackupRestoreUiState.RecoveryRequired || 
+                    _uiState.value is BackupRestoreUiState.RecoveryInProgress) {
                     _uiState.value = BackupRestoreUiState.Idle
                 }
             }
-            is RestoreRecoveryResult.Recovered -> {
+            is RestoreStartupState.Recovered -> {
                 _uiState.value = BackupRestoreUiState.Error(
                     reason = BackupRestoreFailure.OperationInterrupted,
                     canChooseAnotherFile = true
                 )
             }
-            is RestoreRecoveryResult.RecoveryRequired -> {
+            RestoreStartupState.RecoveryRequired -> {
                 _uiState.value = BackupRestoreUiState.RecoveryRequired
             }
         }
@@ -169,11 +175,9 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     fun onRestoreClicked() {
-        val archive = lastInspectedArchive ?: return
-        val preview = lastInspectedPreview ?: return
         if (isBlocked()) return
+        val preview = lastInspectedPreview ?: return
         
-        // Ensure eligibility check
         val state = _uiState.value
         if (state is BackupRestoreUiState.PreviewReady && state.eligibility != BackupRestoreEligibility.Eligible) {
              return
@@ -183,10 +187,9 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     fun onRestoreConfirmationCancelled() {
-        val preview = lastInspectedPreview ?: return
         if (isBlocked()) return
+        val preview = lastInspectedPreview ?: return
         
-        // Return to PreviewReady using the stored eligibility
         val currentArchive = lastInspectedArchive ?: return
         val eligibility = if (currentArchive.manifest.attachments.isNotEmpty()) {
             BackupRestoreEligibility.AttachmentsNotSupported
@@ -197,9 +200,9 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     fun onRestoreConfirmed() {
+        if (isBlocked()) return
         val archive = lastInspectedArchive ?: return
         val preview = lastInspectedPreview ?: return
-        if (isBlocked()) return
         
         val token = operationTokenGenerator.incrementAndGet()
         activeOperationToken = token
@@ -251,7 +254,9 @@ class BackupRestoreViewModel @Inject constructor(
     fun onRetryRecoveryClicked() {
         if (_uiState.value != BackupRestoreUiState.RecoveryRequired) return
         _uiState.value = BackupRestoreUiState.RecoveryInProgress
-        runRecovery()
+        viewModelScope.launch {
+            restoreCoordinator.retryRecovery()
+        }
     }
 
     fun onChooseAnotherClicked() {

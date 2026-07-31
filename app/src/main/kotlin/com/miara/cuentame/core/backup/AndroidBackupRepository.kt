@@ -11,8 +11,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.BufferedOutputStream
 import javax.inject.Inject
@@ -27,55 +29,70 @@ class AndroidBackupRepository @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
     private val cleanupCoordinator: BackupCleanupCoordinator,
     private val archiveWriter: BackupArchiveWriter,
-    private val archiveValidator: BackupArchiveValidator
+    private val archiveValidator: BackupArchiveValidator,
+    private val operationGate: com.miara.cuentame.core.backup.internal.RestoreOperationGate
 ) : BackupRepository {
 
     override fun createBackup(destinationUri: String): Flow<BackupOperationStatus> = flow {
-        emit(BackupOperationStatus.Creating)
-        val docUri = BackupDocumentUri(destinationUri)
-        try {
-            val restaurant = restaurantRepository.getRestaurant()
-                ?: throw BackupCreationException(BackupResult.Error.RestaurantUnavailable)
-
-            val snapshotResult = try {
-                snapshotSource.loadSnapshot(restaurant.id.value)
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { throw BackupCreationException(BackupResult.Error.DatabaseSnapshotFailure) }
-
-            val planningResult = planner.createPlan(restaurant, snapshotResult)
-            if (planningResult is BackupPlanningResult.Failure) {
-                throw BackupCreationException(mapPlanningFailure(planningResult.reason))
+        operationGate.mutex.withLock {
+            // Await terminal startup state
+            operationGate.recoveryState.first {
+                it is RestoreStartupState.Ready ||
+                it is RestoreStartupState.Recovered ||
+                it is RestoreStartupState.RecoveryRequired
+            }
+            
+            if (operationGate.recoveryState.value is RestoreStartupState.RecoveryRequired) {
+                emit(BackupOperationStatus.Error(BackupResult.Error.OperationInterrupted))
+                return@withLock
             }
 
-            val plan = (planningResult as BackupPlanningResult.Success).plan
+            emit(BackupOperationStatus.Creating)
+            val docUri = BackupDocumentUri(destinationUri)
+            try {
+                val restaurant = restaurantRepository.getRestaurant()
+                    ?: throw BackupCreationException(BackupResult.Error.RestaurantUnavailable)
 
-            documentStore.openForWrite(docUri).use { os ->
-                BufferedOutputStream(os).use { bos ->
-                    val writeResult = archiveWriter.write(bos, plan)
-                    if (writeResult is BackupArchiveWriteResult.Failure) {
-                        throw BackupCreationException(mapWriterFailure(writeResult))
+                val snapshotResult = try {
+                    snapshotSource.loadSnapshot(restaurant.id.value)
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { throw BackupCreationException(BackupResult.Error.DatabaseSnapshotFailure) }
+
+                val planningResult = planner.createPlan(restaurant, snapshotResult)
+                if (planningResult is BackupPlanningResult.Failure) {
+                    throw BackupCreationException(mapPlanningFailure(planningResult.reason))
+                }
+
+                val plan = (planningResult as BackupPlanningResult.Success).plan
+
+                documentStore.openForWrite(docUri).use { os ->
+                    BufferedOutputStream(os).use { bos ->
+                        val writeResult = archiveWriter.write(bos, plan)
+                        if (writeResult is BackupArchiveWriteResult.Failure) {
+                            throw BackupCreationException(mapWriterFailure(writeResult))
+                        }
                     }
                 }
-            }
 
-            emit(BackupOperationStatus.Validating)
-            val validation = validateBackup(destinationUri)
-            if (validation is BackupValidationResult.Valid) {
-                emit(BackupOperationStatus.Success(validation.manifest))
-            } else {
-                val invalid = validation as BackupValidationResult.Invalid
+                emit(BackupOperationStatus.Validating)
+                val validation = validateBackup(destinationUri)
+                if (validation is BackupValidationResult.Valid) {
+                    emit(BackupOperationStatus.Success(validation.manifest))
+                } else {
+                    val invalid = validation as BackupValidationResult.Invalid
+                    cleanupSafely(docUri)
+                    emit(BackupOperationStatus.Error(BackupResult.Error.ArchiveValidationFailure(invalid.code, invalid.diagnostic)))
+                }
+            } catch (e: CancellationException) {
                 cleanupSafely(docUri)
-                emit(BackupOperationStatus.Error(BackupResult.Error.ArchiveValidationFailure(invalid.code, invalid.diagnostic)))
+                throw e
+            } catch (e: BackupCreationException) {
+                cleanupSafely(docUri)
+                emit(BackupOperationStatus.Error(e.error))
+            } catch (e: Exception) {
+                cleanupSafely(docUri)
+                emit(BackupOperationStatus.Error(mapGeneralException(e)))
             }
-        } catch (e: CancellationException) {
-            cleanupSafely(docUri)
-            throw e
-        } catch (e: BackupCreationException) {
-            cleanupSafely(docUri)
-            emit(BackupOperationStatus.Error(e.error))
-        } catch (e: Exception) {
-            cleanupSafely(docUri)
-            emit(BackupOperationStatus.Error(mapGeneralException(e)))
         }
     }.flowOn(Dispatchers.IO)
 

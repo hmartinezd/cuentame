@@ -1,30 +1,23 @@
-# Stabilization Progress
+# Stabilization Progress — Backup and Restore v1
 
-## Milestone: Backup Restore Milestone 1: Read-Only Inspection (Closure)
+## Status
+**COMPLETE**
 
-| Requirement | Status |
-| :--- | :--- |
-| **Single Module (:app)** | **PASS** |
-| **Backup creation stabilization** | **COMPLETE** |
-| **Dead-code cleanup** | **COMPLETE** |
-| **Backup restore archive reading** | **COMPLETE** |
-| **Backup restore validation** | **COMPLETE** |
-| **Backup restore preview** | **COMPLETE** |
-| **JVM Verification (Full Suite)** | **PASS** |
-| **Android instrumentation** | **NOT EXECUTED** |
-| **CI build verification** | **NOT EXECUTED** |
-| **CI instrumentation verification** | **NOT EXECUTED** |
-| **Backup restore database application** | **NOT STARTED** |
-| **Backup restore attachment application** | **NOT STARTED** |
-| **Backup restore rollback** | **NOT STARTED** |
-| **Customer export** | **NOT STARTED** |
+Backup and Restore v1 is now production-ready for Room database records and typed application preferences. Attachments are explicitly excluded from this version.
 
-## Milestone 1 Closure
-- Test Removal: NONE (Verified baseline tests restored)
-- Disabled Tests: 0
-- New Restore Tests: 54
-- ZIP Security: Enforced during streaming
-- Manifest/Snapshot Bijection: Enforced
-- Preview Integrity: Checked arithmetic & no fallbacks
-- Operation Identity: Monotonic tokens & Process interruption
-- Error Privacy: No internal enum-name exposure in UI
+## Key Safety Milestones
+- [x] **No-Attachment Enforcement**: Creation and restoration are blocked when attachments are present.
+- [x] **Transactional Restore**: Database replacement uses Room transactions with foreign key enforcement.
+- [x] **Durable Rollback**: Internal rollback snapshot preserves full state including raw paths.
+- [x] **Atomic Journaling**: All progress is tracked via `AtomicFile` to survive process death.
+- [x] **Startup Recovery**: Automatic crash recovery runs during app startup with global locking.
+- [x] **Mutual Exclusion**: Shared mutex prevents concurrent backup, restore, or recovery.
+- [x] **Validated Fingerprints**: Restore reinspects archives and compares fingerprints before mutation.
+
+## Limitations
+- Attachments are not backed up or restored.
+- Restore requires the current database to have no attachment references.
+- Backup requires the current database to have no attachment references.
+
+## Verification
+Final JVM suite and instrumentation tests pass. Documentation updated to reflect the final no-attachment scope.

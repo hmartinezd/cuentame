@@ -52,7 +52,7 @@ class RestoreDatabaseApplierTest {
     }
 
     @Test
-    fun `replaceWithBackup performs ordered clear and insert`() = runTest {
+    fun `replaceWith performs ordered clear and insert`() = runTest {
         val snapshot = createMinimalSnapshot()
         
         applier.replaceWithBackup(snapshot)

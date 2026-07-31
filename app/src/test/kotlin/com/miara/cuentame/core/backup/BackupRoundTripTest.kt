@@ -180,4 +180,29 @@ class BackupRoundTripTest {
         assertThat(res2).isEqualTo(BackupArchiveWriteResult.Success)
         assertThat(out1.toByteArray()).isEqualTo(out2.toByteArray())
     }
+
+    @Test
+    fun `complete round trip with shared attachments`() = runTest {
+        // Historical test name preserved. Authoritative V1 behavior: Rejection.
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        
+        val attId = "0123456789abcdef"
+        val attUri = AttachmentSourceUri("content://shared")
+        
+        val snapshotDto = BackupTestFixtures.createEmptySnapshotDto().copy(
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
+                "p1", "rest-1", null, null, 0, "POSTED", null, attId, 0, 0, null, null
+            )),
+            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto(
+                "w1", "rest-1", "i1", "a1", "uo1", "1", "1", "SPOILED", 0, null, attId, "POSTED", 0, 0, 0, null
+            ))
+        )
+        val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
+
+        val result = planner.createPlan(makeRestaurant(), snapshotResult)
+        
+        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
+    }
 }

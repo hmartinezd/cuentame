@@ -59,7 +59,8 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `recoverIfNeeded performs rollback when mutation occurred`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", null, 0)
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         
         val rollbackSnapshot = setupRollbackFile("session")
@@ -67,7 +68,9 @@ class RestoreRecoveryCoordinatorTest {
         coEvery { databaseApplier.restoreRollback(any()) } just Runs
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { preferencesApplier.captureRollback() } returns prefs
         every { storage.cleanupSession("session") } just Runs
+        every { journal.write(any()) } just Runs
         every { journal.delete() } just Runs
         
         val result = coordinator.recoverIfNeeded()
@@ -78,14 +81,17 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `recovery is idempotent`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", null, 0)
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         setupRollbackFile("session")
         
         coEvery { databaseApplier.restoreRollback(any()) } just Runs
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { preferencesApplier.captureRollback() } returns prefs
         every { storage.cleanupSession("session") } just Runs
+        every { journal.write(any()) } just Runs
         every { journal.delete() } just Runs
         
         // First run

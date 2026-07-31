@@ -25,15 +25,17 @@ class BackupRestoreCoordinatorTest {
     private val journal = mockk<RestoreJournal>(relaxed = true)
     private val storage = mockk<InternalBackupRestoreStorage>(relaxed = true)
     private val recoveryCoordinator = mockk<RestoreRecoveryCoordinator>(relaxed = true)
+    private val operationGate = com.miara.cuentame.core.backup.internal.RestoreOperationGate()
     private val codecs = BackupJsonCodecs()
 
     private lateinit var coordinator: BackupRestoreCoordinatorImpl
 
     @Before
     fun setup() {
+        operationGate.updateRecoveryState(RestoreStartupState.Ready)
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
-            journal, storage, recoveryCoordinator, codecs
+            journal, storage, recoveryCoordinator, operationGate, codecs
         )
     }
 

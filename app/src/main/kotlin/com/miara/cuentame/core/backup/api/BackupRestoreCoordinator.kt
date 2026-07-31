@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.api
 
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -24,7 +25,17 @@ enum class BackupRestoreProgress {
     RollingBack
 }
 
+sealed interface RestoreStartupState {
+    data object NotStarted : RestoreStartupState
+    data object Recovering : RestoreStartupState
+    data object Ready : RestoreStartupState
+    data class Recovered(val sessionId: String) : RestoreStartupState
+    data object RecoveryRequired : RestoreStartupState
+}
+
 interface BackupRestoreCoordinator {
+    val startupState: StateFlow<RestoreStartupState>
+
     suspend fun inspect(
         source: BackupDocumentUri
     ): BackupArchiveInspectionResult

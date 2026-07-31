@@ -21,7 +21,6 @@ class RestoreRecoveryCoordinator @Inject constructor(
         return when (result) {
             RestoreJournalReadResult.Absent -> RestoreRecoveryResult.NoRecoveryNeeded
             RestoreJournalReadResult.Corrupt -> {
-                // Step 10.1: Corrupt journal results in RecoveryRequired
                 RestoreRecoveryResult.RecoveryRequired("unknown")
             }
             is RestoreJournalReadResult.Present -> {
@@ -29,7 +28,9 @@ class RestoreRecoveryCoordinator @Inject constructor(
                 try {
                     handlePhase(dto)
                 } catch (e: Exception) {
-                    journal.write(dto.copy(phase = RestorePhase.RECOVERY_REQUIRED))
+                    try {
+                        journal.write(dto.copy(phase = RestorePhase.RECOVERY_REQUIRED))
+                    } catch (ignore: Exception) {}
                     RestoreRecoveryResult.RecoveryRequired(dto.sessionId)
                 }
             }
@@ -39,7 +40,6 @@ class RestoreRecoveryCoordinator @Inject constructor(
     private suspend fun handlePhase(dto: RestoreJournalDto): RestoreRecoveryResult {
         return when (dto.phase) {
             RestorePhase.ROLLBACK_CAPTURED -> {
-                // Mutation not started, just cleanup
                 storage.cleanupSession(dto.sessionId)
                 journal.delete()
                 RestoreRecoveryResult.Recovered(dto.sessionId)
@@ -48,11 +48,14 @@ class RestoreRecoveryCoordinator @Inject constructor(
             RestorePhase.DATABASE_APPLIED,
             RestorePhase.PREFERENCES_APPLIED,
             RestorePhase.ROLLING_BACK -> {
-                performRollback(dto)
+                performFullRollback(dto)
+                RestoreRecoveryResult.Recovered(dto.sessionId)
+            }
+            RestorePhase.ROLLBACK_COMPLETED -> {
+                storage.cleanupSession(dto.sessionId)
                 journal.delete()
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
-            RestorePhase.ROLLBACK_COMPLETED,
             RestorePhase.COMPLETED -> {
                 storage.cleanupSession(dto.sessionId)
                 journal.delete()
@@ -64,12 +67,11 @@ class RestoreRecoveryCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun performRollback(dto: RestoreJournalDto) {
-        // 1. Load Rollback Snapshot
+    private suspend fun performFullRollback(dto: RestoreJournalDto) {
+        // 1. Read and validate rollback snapshot
         val snapshotFile = storage.getRollbackSnapshotFile(dto.sessionId)
         if (!snapshotFile.exists()) {
-            // Step 12.4: Missing rollback snapshot after mutation began
-            throw IllegalStateException("Rollback snapshot missing for active restore session")
+            throw IllegalStateException("Rollback snapshot missing")
         }
 
         val rollback = try {
@@ -78,18 +80,39 @@ class RestoreRecoveryCoordinator @Inject constructor(
             throw IllegalStateException("Rollback snapshot corrupt", e)
         }
 
-        // 2. Restore Preferences
-        dto.previousPreferences?.let { preferencesApplier.apply(it) }
-        
-        // 3. Restore Database
+        // 2. Require non-null previousPreferences
+        val prevPrefs = dto.previousPreferences ?: throw IllegalStateException("Previous preferences missing in journal")
+
+        // 3. Write or preserve ROLLING_BACK
+        if (dto.phase != RestorePhase.ROLLING_BACK) {
+            journal.write(dto.copy(phase = RestorePhase.ROLLING_BACK))
+        }
+
+        // 4. Restore database
         databaseApplier.restoreRollback(rollback)
         
-        // 4. Verify Rollback
+        // 5. Restore preferences
+        preferencesApplier.apply(prevPrefs)
+
+        // 6. Verify database
         if (!databaseApplier.verifyMatchesRollback(rollback)) {
-            throw IllegalStateException("Rollback verification failed")
+            throw IllegalStateException("Rollback database verification failed")
         }
-        
+
+        // 7. Verify preferences
+        val currentPrefs = preferencesApplier.captureRollback()
+        if (currentPrefs != prevPrefs) {
+            throw IllegalStateException("Rollback preferences verification failed")
+        }
+
+        // 8. Write ROLLBACK_COMPLETED
+        journal.write(dto.copy(phase = RestorePhase.ROLLBACK_COMPLETED))
+
+        // 9. Cleanup
         storage.cleanupSession(dto.sessionId)
+
+        // 10. Delete journal
+        journal.delete()
     }
     
     suspend fun retryRecovery(): RestoreRecoveryResult {
