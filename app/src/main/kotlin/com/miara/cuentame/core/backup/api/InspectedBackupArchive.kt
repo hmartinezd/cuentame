@@ -14,7 +14,8 @@ data class InspectedBackupArchive private constructor(
     val preferences: BackupPreferencesDto,
     val manifest: BackupManifest,
     val attachmentSummaries: List<InspectedBackupAttachment>,
-    val source: BackupDocumentUri
+    val source: BackupDocumentUri,
+    val fingerprint: BackupArchiveFingerprint
 ) {
     companion object {
         fun create(
@@ -22,7 +23,8 @@ data class InspectedBackupArchive private constructor(
             preferences: BackupPreferencesDto,
             manifest: BackupManifest,
             attachmentSummaries: List<InspectedBackupAttachment>,
-            source: BackupDocumentUri
+            source: BackupDocumentUri,
+            fingerprint: BackupArchiveFingerprint
         ): InspectedBackupArchive {
             return InspectedBackupArchive(
                 snapshot = snapshot.copy(
@@ -43,7 +45,7 @@ data class InspectedBackupArchive private constructor(
                     inventoryBalanceProjections = Collections.unmodifiableList(snapshot.inventoryBalanceProjections.toList()),
                     ingredientCostProjections = Collections.unmodifiableList(snapshot.ingredientCostProjections.toList())
                 ),
-                preferences = preferences.copy(), // data class copy is enough for shallow DTO
+                preferences = preferences.copy(),
                 manifest = manifest.copy(
                     includedSections = Collections.unmodifiableList(manifest.includedSections.toList()),
                     tableMetadata = Collections.unmodifiableMap(manifest.tableMetadata.toMap()),
@@ -52,7 +54,8 @@ data class InspectedBackupArchive private constructor(
                     })
                 ),
                 attachmentSummaries = Collections.unmodifiableList(attachmentSummaries.toList()),
-                source = source
+                source = source,
+                fingerprint = fingerprint
             )
         }
     }

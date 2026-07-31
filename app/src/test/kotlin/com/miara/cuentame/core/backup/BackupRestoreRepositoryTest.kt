@@ -60,6 +60,9 @@ class BackupRestoreRepositoryTest {
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         val failure = result as BackupArchiveInspectionResult.Failure
         assertThat(failure.reason).isEqualTo(BackupRestoreFailure.SourceUnavailable)
+        // Assert the expected open attempt according to fake contract
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
+        // Assert no successfully opened stream was closed (it failed to open)
         assertThat(documentStore.closeCountMap[docUri] ?: 0).isEqualTo(0)
     }
 
@@ -71,6 +74,7 @@ class BackupRestoreRepositoryTest {
         val result = repository.inspect(docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.InvalidZip)
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
@@ -83,6 +87,7 @@ class BackupRestoreRepositoryTest {
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
@@ -95,6 +100,7 @@ class BackupRestoreRepositoryTest {
             repository.inspect(docUri)
             org.junit.Assert.fail("Expected CancellationException")
         } catch (e: CancellationException) {
+            assertThat(documentStore.openForReadCalls).containsExactly(docUri)
             assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
         }
     }
@@ -108,6 +114,7 @@ class BackupRestoreRepositoryTest {
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.PermissionDenied)
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 
@@ -120,6 +127,7 @@ class BackupRestoreRepositoryTest {
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
+        assertThat(documentStore.openForReadCalls).containsExactly(docUri)
         assertThat(documentStore.closeCountMap[docUri]).isEqualTo(1)
     }
 }

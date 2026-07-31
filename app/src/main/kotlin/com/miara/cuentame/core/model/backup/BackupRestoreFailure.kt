@@ -27,4 +27,7 @@ sealed interface BackupRestoreFailure {
     data object AttachmentMismatch : BackupRestoreFailure
     data object GenericIo : BackupRestoreFailure
     data object OperationInterrupted : BackupRestoreFailure
+    data object InspectionExpired : BackupRestoreFailure
+    data object RollbackFailed : BackupRestoreFailure
+    data object RecoveryRequired : BackupRestoreFailure
 }

@@ -64,6 +64,13 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
+    fun `unsupported checksum algorithm fails`() {
+        val manifest = createValidBaseManifest().copy(checksumAlgorithm = "SHA-512")
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
     fun `missing identity fields fails`() {
         val manifest = createValidBaseManifest().copy(restaurantId = "", restaurantName = "")
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
@@ -113,7 +120,7 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `missing expected table metadata fails`() {
+    fun `missing expected tables fails`() {
         val tables = createValidBaseManifest().tableMetadata.toMutableMap()
         tables.remove("restaurants")
         val manifest = createValidBaseManifest().copy(tableMetadata = tables)
@@ -136,6 +143,16 @@ class BackupManifestContractValidatorTest {
         tables["restaurants"] = TableMetadata(-1, false)
         val manifest = createValidBaseManifest().copy(tableMetadata = tables)
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `invalid attachment metadata fails`() {
+        val att = createValidAttachment(attachmentId = "short")
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
+        val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
         assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
@@ -323,6 +340,24 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
+    fun `unexpected non-attachment entry rejected`() {
+        val manifest = createValidBaseManifest()
+        val checksums = createStructuralValidChecksums(mapOf("unexpected.txt" to "b".repeat(64)))
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, createStructuralValidSizes(mapOf("unexpected.txt" to 100L)))
+        assertThat(failure).isEqualTo(BackupRestoreFailure.UnexpectedEntry)
+    }
+
+    @Test
+    fun `attachment size mismatch fails`() {
+        val att = createValidAttachment(sizeBytes = 100)
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
+        val sizes = createStructuralValidSizes(mapOf(att.archivePath to 200L))
+        
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)).isEqualTo(BackupRestoreFailure.AttachmentMismatch)
+    }
+
+    @Test
     fun `physical attachment size mismatch fails`() {
         val att = createValidAttachment(sizeBytes = 100)
         val manifest = createValidBaseManifest().copy(attachments = listOf(att))
@@ -392,6 +427,15 @@ class BackupManifestContractValidatorTest {
         val manifest = createValidBaseManifest().copy(attachments = listOf(att))
         val snapshot = createValidEmptySnapshot()
         
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `snapshot missing referenced record fails`() {
+        val attId = "0123456789abcdef"
+        val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "missing")))
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val snapshot = createValidEmptySnapshot()
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 

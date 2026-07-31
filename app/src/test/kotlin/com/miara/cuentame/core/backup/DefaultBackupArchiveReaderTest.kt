@@ -2,6 +2,8 @@ package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
+import com.miara.cuentame.core.backup.internal.BackupArchiveFingerprinter
+import com.miara.cuentame.core.backup.internal.BackupArchiveProcessor
 import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import kotlinx.coroutines.CancellationException
@@ -19,10 +21,16 @@ class DefaultBackupArchiveReaderTest {
     private val jsonCodecs = BackupJsonCodecs()
     private val docUri = BackupDocumentUri("file:///test.zip")
     private lateinit var reader: DefaultBackupArchiveReader
+    private val defaultProcessor = BackupArchiveProcessor(BackupReadLimits(), BackupZipInputFactory { input -> ZipInputStream(input) })
+    private val fingerprinter = BackupArchiveFingerprinter(jsonCodecs)
 
     @Before
     fun setup() {
-        reader = DefaultBackupArchiveReader(jsonCodecs)
+        reader = DefaultBackupArchiveReader(jsonCodecs, defaultProcessor, fingerprinter)
+    }
+
+    private fun createCustomReader(limits: BackupReadLimits = BackupReadLimits(), factory: BackupZipInputFactory = BackupZipInputFactory { input -> ZipInputStream(input) }): DefaultBackupArchiveReader {
+        return DefaultBackupArchiveReader(jsonCodecs, BackupArchiveProcessor(limits, factory), fingerprinter)
     }
 
     @Test
@@ -88,7 +96,7 @@ class DefaultBackupArchiveReaderTest {
     @Test
     fun `inspect with oversized entry fails`() = runTest {
         val smallLimits = BackupReadLimits(maxDatabaseJsonBytes = 5L)
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
+        val customReader = createCustomReader(limits = smallLimits)
         
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build() // DB JSON > 5 bytes
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
@@ -101,7 +109,7 @@ class DefaultBackupArchiveReaderTest {
     @Test
     fun `inspect with total size limit exceeded fails`() = runTest {
         val smallLimits = BackupReadLimits(maxTotalUncompressedBytes = 100L)
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
+        val customReader = createCustomReader(limits = smallLimits)
         
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
@@ -127,7 +135,7 @@ class DefaultBackupArchiveReaderTest {
     @Test
     fun `inspect enforces total archive limit while streaming`() = runTest {
         val smallLimits = BackupReadLimits(maxTotalUncompressedBytes = 10L)
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
+        val customReader = createCustomReader(limits = smallLimits)
         
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
@@ -135,6 +143,15 @@ class DefaultBackupArchiveReaderTest {
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
         val failure = result as BackupArchiveInspectionResult.Failure
         assertThat(failure.reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)
+    }
+
+    @Test
+    fun `inspect caller owned stream remains open`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val input = TrackingInputStream(ByteArrayInputStream(bytes))
+        
+        reader.inspect(input, docUri)
+        assertThat(input.isClosed).isFalse()
     }
 
     @Test
@@ -173,7 +190,7 @@ class DefaultBackupArchiveReaderTest {
     @Test
     fun `inspect enforces core entry limit while streaming`() = runTest {
         val smallLimits = BackupReadLimits(maxDatabaseJsonBytes = 10L)
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits)
+        val customReader = createCustomReader(limits = smallLimits)
         
         val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
         val result = customReader.inspect(ByteArrayInputStream(bytes), docUri)
@@ -188,7 +205,7 @@ class DefaultBackupArchiveReaderTest {
             .build()
         val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
         
-        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnexpectedEntry)
     }
 
     @Test
@@ -292,7 +309,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         customReader.inspect(source, docUri)
         
@@ -314,7 +331,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         
@@ -336,7 +353,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         
@@ -358,7 +375,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         try {
             customReader.inspect(source, docUri)
@@ -387,7 +404,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
@@ -409,7 +426,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
@@ -432,7 +449,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         
@@ -457,7 +474,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MissingCoreEntry)
@@ -478,7 +495,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.DuplicateEntry)
@@ -499,7 +516,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        val customReader = createCustomReader(factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.UnsafeEntryPath)
@@ -521,7 +538,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits, factory)
+        val customReader = createCustomReader(limits = smallLimits, factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.EntryLimitExceeded)
@@ -543,7 +560,7 @@ class DefaultBackupArchiveReaderTest {
                 }
             }
         }
-        val customReader = DefaultBackupArchiveReader(jsonCodecs, smallLimits, factory)
+        val customReader = createCustomReader(limits = smallLimits, factory = factory)
         
         val result = customReader.inspect(source, docUri)
         assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.TotalLimitExceeded)

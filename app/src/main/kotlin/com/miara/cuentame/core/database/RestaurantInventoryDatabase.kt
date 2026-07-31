@@ -47,6 +47,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun inventoryProjectionDao(): InventoryProjectionDao
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
     abstract fun backupDao(): BackupDao
+    abstract fun restoreDao(): RestoreDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {

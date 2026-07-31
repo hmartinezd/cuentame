@@ -24,7 +24,7 @@ import java.io.InputStream
 import java.security.MessageDigest
 import java.time.Instant
 
-class BackupRoundTripTest {
+class BackupRoundipTest {
 
     private val localeReconciler = mockk<AppLocaleReconciler>()
     private val preferencesSource = FakeBackupPreferencesSource()
@@ -50,7 +50,9 @@ class BackupRoundTripTest {
         )
         writer = DefaultBackupArchiveWriter(attachmentSource)
         validator = DefaultBackupArchiveValidator(jsonCodecs)
-        reader = com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader(jsonCodecs)
+        val processor = com.miara.cuentame.core.backup.internal.BackupArchiveProcessor(BackupReadLimits(), BackupZipInputFactory { input -> java.util.zip.ZipInputStream(input) })
+        val fingerprinter = com.miara.cuentame.core.backup.internal.BackupArchiveFingerprinter(jsonCodecs)
+        reader = com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader(jsonCodecs, processor, fingerprinter)
 
         every { timeProvider.now() } returns Instant.parse("2026-01-01T12:00:00Z")
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"

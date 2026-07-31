@@ -48,6 +48,14 @@ interface BackupModule {
     @Singleton
     fun bindRestoreRepository(impl: AndroidBackupRestoreRepository): BackupRestoreRepository
 
+    @Binds
+    @Singleton
+    fun bindRestoreDatabaseApplier(impl: RoomRestoreDatabaseApplier): com.miara.cuentame.core.backup.internal.RestoreDatabaseApplier
+
+    @Binds
+    @Singleton
+    fun bindBackupRestoreCoordinator(impl: BackupRestoreCoordinatorImpl): BackupRestoreCoordinator
+
     companion object {
         @Provides
         @Singleton

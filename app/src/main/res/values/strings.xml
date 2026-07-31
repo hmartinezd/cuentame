@@ -483,7 +483,7 @@
     <string name="restore_preview_locale">Language: %1$s</string>
     <string name="restore_preview_records">Records: %1$d tables found</string>
     <string name="restore_preview_attachments">Attachments: %1$d files (%2$s)</string>
-    <string name="restore_preview_read_only_note">This is a preview only. Data application is not yet implemented.</string>
+    <string name="restore_preview_read_only_note">Confirming restore will replace current device data with this backup content.</string>
     <string name="restore_error_title">Restore Error</string>
     <string name="restore_error_message">Could not inspect backup: %1$s</string>
     <string name="restore_error_invalid_zip">Invalid ZIP archive.</string>
@@ -493,6 +493,23 @@
     <string name="restore_error_limit">Backup exceeds safety limits.</string>
     <string name="restore_error_integrity_generic">Logical consistency check failed.</string>
     <string name="restore_action_choose_another">Choose another file</string>
+    <string name="restore_action_restore">Restore now</string>
+    <string name="restore_action_confirm">Erase and Restore</string>
+    <string name="restore_applying">Restoring data…</string>
+    <string name="restore_applying_title">Restoring Backup</string>
+    <string name="restore_confirm_title">Confirm Restore</string>
+    <string name="restore_confirm_message">This will replace ALL current inventory, history, and attachments. This action cannot be undone manually. If the restore fails, the app will attempt to roll back to the current state.</string>
+    <string name="restore_phase_staging">Validating backup…</string>
+    <string name="restore_phase_staged">Preparing restore…</string>
+    <string name="restore_phase_preparing">Preparing system rollback…</string>
+    <string name="restore_phase_database">Restoring data tables…</string>
+    <string name="restore_phase_attachments">Restoring attachment files…</string>
+    <string name="restore_phase_preferences">Restoring settings…</string>
+    <string name="restore_phase_rolling_back">Restoring previous state…</string>
+    <string name="restore_success_title">Restore Successful</string>
+    <string name="restore_success_message">Successfully restored data for %1$s. %2$d records were updated.</string>
+    <string name="restore_recovery_required_title">Manual Recovery Required</string>
+    <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
 
     <!-- Waste Reasons -->
     <string name="reason_expired">Expired</string>

@@ -19,25 +19,9 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,7 +35,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.saveable.rememberSaveable
 import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.feature.settings.presentation.toUserMessageRes
@@ -63,6 +46,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.preferences.model.ThemeMode
+import com.miara.cuentame.core.backup.api.RestorePhase
 import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
@@ -174,6 +158,8 @@ fun SettingsRoute(
         onRestoreBackup = restoreViewModel::onSelectFileClicked,
         onChooseAnotherRestore = restoreViewModel::onChooseAnotherClicked,
         onDismissRestore = restoreViewModel::onDismissRequest,
+        onStartRestore = restoreViewModel::onRestoreClicked,
+        onConfirmRestore = restoreViewModel::onRestoreConfirmed,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
@@ -197,6 +183,8 @@ fun SettingsScreen(
     onRestoreBackup: () -> Unit,
     onChooseAnotherRestore: () -> Unit,
     onDismissRestore: () -> Unit,
+    onStartRestore: () -> Unit,
+    onConfirmRestore: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -243,6 +231,8 @@ fun SettingsScreen(
                                 backupUiState is BackupUiState.Validating || 
                                 backupUiState is BackupUiState.WaitingForDestination
                                 
+            val isRestoreApplying = restoreUiState is BackupRestoreUiState.Applying
+
             ListItem(
                 headlineContent = { Text(stringResource(R.string.create_backup_title)) },
                 supportingContent = {
@@ -273,34 +263,34 @@ fun SettingsScreen(
                 trailingContent = {
                     if (isBackupActive) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).testTag(when(backupUiState) {
-                                is BackupUiState.WaitingForDestination -> "backup_waiting_indicator"
-                                is BackupUiState.Creating -> "backup_creating_indicator"
-                                is BackupUiState.Validating -> "backup_validating_indicator"
-                                else -> "backup_active_indicator"
-                            })
+                            modifier = Modifier.size(24.dp).testTag("backup_active_indicator")
                         )
                     }
                 },
                 modifier = Modifier
                     .testTag("create_backup_button")
-                    .clickable(enabled = !isBackupActive) { onCreateBackup() }
+                    .clickable(enabled = !isBackupActive && !isRestoreApplying) { onCreateBackup() }
             )
 
-            val isRestoreActive = restoreUiState is BackupRestoreUiState.Inspecting
+            val isRestoreInspecting = restoreUiState is BackupRestoreUiState.Inspecting
             ListItem(
                 headlineContent = { Text(stringResource(R.string.restore_backup_title)) },
                 supportingContent = {
+                    val desc = when {
+                        isRestoreInspecting -> stringResource(R.string.restore_inspecting)
+                        isRestoreApplying -> stringResource(R.string.restore_applying)
+                        else -> stringResource(R.string.restore_backup_desc)
+                    }
                     Text(
-                        text = if (isRestoreActive) stringResource(R.string.restore_inspecting) else stringResource(R.string.restore_backup_desc),
+                        text = desc,
                         modifier = Modifier
-                            .testTag(if (isRestoreActive) "restore_backup_inspecting" else "restore_backup_idle")
+                            .testTag(if (isRestoreInspecting || isRestoreApplying) "restore_backup_active" else "restore_backup_idle")
                             .semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 },
                 leadingContent = { Icon(Icons.Default.Restore, contentDescription = null) },
                 trailingContent = {
-                    if (isRestoreActive) {
+                    if (isRestoreInspecting || isRestoreApplying) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp).testTag("restore_backup_progress")
                         )
@@ -308,7 +298,7 @@ fun SettingsScreen(
                 },
                 modifier = Modifier
                     .testTag("settings_restore_backup_button")
-                    .clickable(enabled = !isRestoreActive && !isBackupActive) { onRestoreBackup() }
+                    .clickable(enabled = !isRestoreInspecting && !isRestoreApplying && !isBackupActive) { onRestoreBackup() }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -386,25 +376,43 @@ fun SettingsScreen(
         )
     }
     
-    // Close language dialog on success
     LaunchedEffect(appLocaleTag) {
         showLanguageDialog = false
     }
 
-    if (restoreUiState is BackupRestoreUiState.PreviewReady) {
-        RestorePreviewDialog(
-            preview = restoreUiState.preview,
-            onDismiss = onDismissRestore,
-            onChooseAnother = onChooseAnotherRestore
-        )
-    }
-
-    if (restoreUiState is BackupRestoreUiState.Error) {
-        RestoreErrorDialog(
-            failure = restoreUiState.reason,
-            onDismiss = onDismissRestore,
-            onRetry = onChooseAnotherRestore
-        )
+    when (val state = restoreUiState) {
+        is BackupRestoreUiState.PreviewReady -> {
+            RestorePreviewDialog(
+                preview = state.preview,
+                onDismiss = onDismissRestore,
+                onChooseAnother = onChooseAnotherRestore,
+                onRestore = onStartRestore
+            )
+        }
+        is BackupRestoreUiState.ConfirmingRestore -> {
+            RestoreConfirmDialog(
+                onDismiss = { onStartRestore() }, // back to preview
+                onConfirm = onConfirmRestore
+            )
+        }
+        is BackupRestoreUiState.Applying -> {
+            RestoreApplyingDialog(phase = state.phase)
+        }
+        is BackupRestoreUiState.Success -> {
+            RestoreSuccessDialog(
+                summary = state.summary,
+                onDismiss = onDismissRestore
+            )
+        }
+        is BackupRestoreUiState.Error -> {
+            RestoreErrorDialog(
+                failure = state.reason,
+                onDismiss = onDismissRestore,
+                onRetry = if (state.canChooseAnotherFile) onChooseAnotherRestore else null,
+                recoveryRequired = state.recoveryRequired
+            )
+        }
+        else -> {}
     }
 }
 
@@ -412,7 +420,8 @@ fun SettingsScreen(
 fun RestorePreviewDialog(
     preview: com.miara.cuentame.core.model.backup.BackupRestorePreview,
     onDismiss: () -> Unit,
-    onChooseAnother: () -> Unit
+    onChooseAnother: () -> Unit,
+    onRestore: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -444,13 +453,92 @@ fun RestorePreviewDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("restore_backup_close")) {
-                Text(stringResource(android.R.string.ok))
+            TextButton(onClick = onRestore, modifier = Modifier.testTag("restore_backup_action")) {
+                Text(stringResource(R.string.restore_action_restore))
             }
         },
         dismissButton = {
-            TextButton(onClick = onChooseAnother, modifier = Modifier.testTag("restore_backup_choose_another")) {
-                Text(stringResource(R.string.restore_action_choose_another))
+            Row {
+                TextButton(onClick = onChooseAnother, modifier = Modifier.testTag("restore_backup_choose_another")) {
+                    Text(stringResource(R.string.restore_action_choose_another))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun RestoreConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_confirm_title)) },
+        text = {
+            Text(stringResource(R.string.restore_confirm_message))
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text(stringResource(R.string.restore_action_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun RestoreApplyingDialog(phase: RestorePhase) {
+    AlertDialog(
+        onDismissRequest = {}, // non-interruptible
+        confirmButton = {},
+        title = { Text(stringResource(R.string.restore_applying_title)) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(modifier = Modifier.padding(bottom = 16.dp))
+                val phaseText = when (phase) {
+                    RestorePhase.STAGING -> stringResource(R.string.restore_phase_staging)
+                    RestorePhase.STAGED -> stringResource(R.string.restore_phase_staged)
+                    RestorePhase.ROLLBACK_CAPTURED -> stringResource(R.string.restore_phase_preparing)
+                    RestorePhase.DATABASE_APPLIED -> stringResource(R.string.restore_phase_database)
+                    RestorePhase.ATTACHMENTS_APPLIED -> stringResource(R.string.restore_phase_attachments)
+                    RestorePhase.PREFERENCES_APPLIED -> stringResource(R.string.restore_phase_preferences)
+                    RestorePhase.ROLLING_BACK -> stringResource(R.string.restore_phase_rolling_back)
+                    else -> stringResource(R.string.restore_applying)
+                }
+                Text(text = phaseText, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    )
+}
+
+@Composable
+fun RestoreSuccessDialog(
+    summary: com.miara.cuentame.feature.settings.viewmodel.BackupRestoreSuccessSummary,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_success_title)) },
+        text = {
+            Text(stringResource(R.string.restore_success_message, summary.restaurantName, summary.recordCount))
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.ok))
             }
         }
     )
@@ -460,16 +548,19 @@ fun RestorePreviewDialog(
 fun RestoreErrorDialog(
     failure: com.miara.cuentame.core.model.backup.BackupRestoreFailure,
     onDismiss: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: (() -> Unit)?,
+    recoveryRequired: Boolean
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.restore_error_title)) },
+        onDismissRequest = { if (!recoveryRequired) onDismiss() },
+        title = { Text(stringResource(if (recoveryRequired) R.string.restore_recovery_required_title else R.string.restore_error_title)) },
         text = {
-            Text(
-                text = stringResource(R.string.restore_error_message, stringResource(failure.toUserMessageRes())),
-                modifier = Modifier.testTag("restore_backup_error")
-            )
+            val message = if (recoveryRequired) {
+                stringResource(R.string.restore_recovery_required_message)
+            } else {
+                stringResource(R.string.restore_error_message, stringResource(failure.toUserMessageRes()))
+            }
+            Text(text = message, modifier = Modifier.testTag("restore_backup_error"))
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
@@ -477,8 +568,10 @@ fun RestoreErrorDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.action_retry_desc))
+            if (onRetry != null) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.action_retry_desc))
+                }
             }
         }
     )

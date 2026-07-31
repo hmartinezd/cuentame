@@ -38,5 +38,9 @@ fun BackupRestoreFailure.toUserMessageRes(): Int {
 
         BackupRestoreFailure.GenericIo,
         BackupRestoreFailure.OperationInterrupted -> R.string.error_generic
+        
+        BackupRestoreFailure.InspectionExpired -> R.string.restore_error_checksum
+        BackupRestoreFailure.RollbackFailed,
+        BackupRestoreFailure.RecoveryRequired -> R.string.restore_recovery_required_title
     }
 }

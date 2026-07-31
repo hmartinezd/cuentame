@@ -1,7 +1,6 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
-import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode
 import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
@@ -70,6 +69,7 @@ object BackupManifestContractValidator {
             if (att.archivePath != BackupFormatV1Contract.attachmentArchivePath(att.attachmentId, att.displayName)) {
                 return BackupRestoreFailure.MalformedManifest
             }
+            // seenArchivePaths check is redundant but retained for clarity in external contract
             if (!seenArchivePaths.add(att.archivePath)) {
                 return BackupRestoreFailure.MalformedManifest
             }
@@ -129,7 +129,7 @@ object BackupManifestContractValidator {
         manifest: BackupManifest,
         snapshot: BackupSnapshotDto
     ): BackupRestoreFailure? {
-        // 1. Table counts check
+        // 1. Validate table counts
         val actualCounts = mapOf(
             "restaurants" to snapshot.restaurants.size,
             "inventory_areas" to snapshot.inventoryAreas.size,
@@ -150,35 +150,22 @@ object BackupManifestContractValidator {
         )
 
         for ((table, metadata) in manifest.tableMetadata) {
-            val actual = actualCounts[table]
-            if (actual == null) {
-                return BackupRestoreFailure.ManifestMismatch
-            }
+            val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch
             if (actual != metadata.entryCount) {
                 return BackupRestoreFailure.ManifestMismatch
             }
         }
 
-        // 2. Bi-directional attachment relationship validation
-        
-        // a. References from Snapshot -> Manifest
+        // 2. Build and compare bi-directional attachment reference keys
         val snapshotRefs = mutableSetOf<AttachmentReferenceKey>()
-        
         for (receipt in snapshot.purchaseReceipts) {
-            receipt.attachmentId?.let { attId ->
-                snapshotRefs.add(AttachmentReferenceKey(attId, "PURCHASE_RECEIPT", receipt.id))
-            }
+            receipt.attachmentId?.let { snapshotRefs.add(AttachmentReferenceKey(it, "PURCHASE_RECEIPT", receipt.id)) }
         }
         for (waste in snapshot.wasteEvents) {
-            waste.attachmentId?.let { attId ->
-                snapshotRefs.add(AttachmentReferenceKey(attId, "WASTE_EVENT", waste.id))
-            }
+            waste.attachmentId?.let { snapshotRefs.add(AttachmentReferenceKey(it, "WASTE_EVENT", waste.id)) }
         }
 
-        // b. References from Manifest -> Snapshot
         val manifestRefs = mutableSetOf<AttachmentReferenceKey>()
-        val manifestAttachmentIds = manifest.attachments.map { it.attachmentId }.toSet()
-
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 manifestRefs.add(AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId))
@@ -187,30 +174,6 @@ object BackupManifestContractValidator {
 
         if (snapshotRefs != manifestRefs) {
             return BackupRestoreFailure.ManifestMismatch
-        }
-
-        // Verify all manifest attachment IDs exist in snapshot/manifest relationship
-        for (ref in snapshotRefs) {
-            if (ref.attachmentId !in manifestAttachmentIds) {
-                return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
-            }
-        }
-
-        // c. Referenced record existence
-        val purchaseIds = snapshot.purchaseReceipts.map { it.id }.toSet()
-        val wasteIds = snapshot.wasteEvents.map { it.id }.toSet()
-
-        for (att in manifest.attachments) {
-            for (ref in att.referencedBy) {
-                when (ref.recordType) {
-                    "PURCHASE_RECEIPT" -> if (ref.recordId !in purchaseIds) {
-                        return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
-                    }
-                    "WASTE_EVENT" -> if (ref.recordId !in wasteIds) {
-                        return BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
-                    }
-                }
-            }
         }
 
         return null

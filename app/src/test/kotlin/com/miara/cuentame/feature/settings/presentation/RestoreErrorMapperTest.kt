@@ -30,7 +30,10 @@ class RestoreErrorMapperTest {
             BackupRestoreFailure.MalformedChecksums to R.string.restore_error_checksum,
             BackupRestoreFailure.MalformedSnapshot to R.string.restore_error_checksum,
             BackupRestoreFailure.MalformedPreferences to R.string.restore_error_checksum,
-            BackupRestoreFailure.MalformedManifest to R.string.restore_error_checksum
+            BackupRestoreFailure.MalformedManifest to R.string.restore_error_checksum,
+            BackupRestoreFailure.InspectionExpired to R.string.restore_error_checksum,
+            BackupRestoreFailure.RollbackFailed to R.string.restore_recovery_required_title,
+            BackupRestoreFailure.RecoveryRequired to R.string.restore_recovery_required_title
         )
 
         mappings.forEach { (failure, expectedRes) ->

@@ -99,4 +99,71 @@ interface BackupDao {
 
     @Query("SELECT * FROM ingredient_cost_projection WHERE restaurantId = :restaurantId ORDER BY ingredientId ASC")
     suspend fun getIngredientCostProjections(restaurantId: String): List<IngredientCostProjectionEntity>
+
+    @Transaction
+    suspend fun createGlobalSnapshot(): BackupSnapshot {
+        return BackupSnapshot(
+            restaurants = getAllRestaurants(),
+            inventoryAreas = getAllInventoryAreas(),
+            ingredientCategories = getAllIngredientCategories(),
+            units = getUnits(),
+            ingredients = getAllIngredients(),
+            ingredientUnitOptions = getAllIngredientUnitOptions(),
+            suppliers = getAllSuppliers(),
+            purchaseReceipts = getAllPurchaseReceipts(),
+            purchaseLines = getAllPurchaseLines(),
+            stockCounts = getAllStockCounts(),
+            stockCountAreas = getAllStockCountAreas(),
+            stockCountLines = getAllStockCountLines(),
+            wasteEvents = getAllWasteEvents(),
+            inventoryMovements = getAllInventoryMovements(),
+            inventoryBalanceProjections = getAllInventoryBalanceProjections(),
+            ingredientCostProjections = getAllIngredientCostProjections()
+        )
+    }
+
+    @Query("SELECT * FROM restaurants")
+    suspend fun getAllRestaurants(): List<RestaurantEntity>
+
+    @Query("SELECT * FROM inventory_areas")
+    suspend fun getAllInventoryAreas(): List<InventoryAreaEntity>
+
+    @Query("SELECT * FROM ingredient_categories")
+    suspend fun getAllIngredientCategories(): List<IngredientCategoryEntity>
+
+    @Query("SELECT * FROM ingredients")
+    suspend fun getAllIngredients(): List<IngredientEntity>
+
+    @Query("SELECT * FROM ingredient_unit_options")
+    suspend fun getAllIngredientUnitOptions(): List<IngredientUnitOptionEntity>
+
+    @Query("SELECT * FROM suppliers")
+    suspend fun getAllSuppliers(): List<SupplierEntity>
+
+    @Query("SELECT * FROM purchase_receipts")
+    suspend fun getAllPurchaseReceipts(): List<PurchaseReceiptEntity>
+
+    @Query("SELECT * FROM purchase_lines")
+    suspend fun getAllPurchaseLines(): List<PurchaseLineEntity>
+
+    @Query("SELECT * FROM stock_counts")
+    suspend fun getAllStockCounts(): List<StockCountEntity>
+
+    @Query("SELECT * FROM stock_count_areas")
+    suspend fun getAllStockCountAreas(): List<StockCountAreaEntity>
+
+    @Query("SELECT * FROM stock_count_lines")
+    suspend fun getAllStockCountLines(): List<StockCountLineEntity>
+
+    @Query("SELECT * FROM waste_events")
+    suspend fun getAllWasteEvents(): List<WasteEventEntity>
+
+    @Query("SELECT * FROM inventory_movements")
+    suspend fun getAllInventoryMovements(): List<InventoryMovementEntity>
+
+    @Query("SELECT * FROM inventory_balance_projection")
+    suspend fun getAllInventoryBalanceProjections(): List<InventoryBalanceProjectionEntity>
+
+    @Query("SELECT * FROM ingredient_cost_projection")
+    suspend fun getAllIngredientCostProjections(): List<IngredientCostProjectionEntity>
 }
