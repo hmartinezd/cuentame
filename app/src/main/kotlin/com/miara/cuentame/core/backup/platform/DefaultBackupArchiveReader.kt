@@ -146,6 +146,12 @@ class DefaultBackupArchiveReader @Inject constructor(
             totalAttachmentBytes = totalAttachmentBytes
         )
 
+        val eligibility = if (manifest.attachments.isNotEmpty()) {
+            com.miara.cuentame.core.model.backup.BackupRestoreEligibility.AttachmentsNotSupported
+        } else {
+            com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible
+        }
+
         return BackupArchiveInspectionResult.Ready(
             archive = InspectedBackupArchive.create(
                 snapshot = snapshot,
@@ -163,7 +169,8 @@ class DefaultBackupArchiveReader @Inject constructor(
                 source = source,
                 fingerprint = fingerprinter.calculate(manifest, declaredChecksums)
             ),
-            preview = preview
+            preview = preview,
+            eligibility = eligibility
         )
     }
 }

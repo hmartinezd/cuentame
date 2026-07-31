@@ -82,4 +82,19 @@ class AndroidBackupRepositoryTest {
         assertThat(results.last()).isInstanceOf(BackupOperationStatus.Error::class.java)
         assertThat(documentStore.deleteCalls).isNotEmpty()
     }
+
+    @Test
+    fun `backup orchestration rejects AttachmentsNotSupported and never opens stream`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } returns mockk(relaxed = true)
+        snapshotSource.result = BackupSnapshotResult(BackupTestFixtures.createEmptySnapshotDto(), emptyList())
+        coEvery { planner.createPlan(any(), any()) } returns BackupPlanningResult.Failure(BackupPlanningFailure.AttachmentsNotSupported)
+
+        val results = repository.createBackup("content://attachments").toList()
+        
+        val lastResult = results.last() as BackupOperationStatus.Error
+        assertThat(lastResult.result).isEqualTo(BackupResult.Error.AttachmentsNotSupported)
+        
+        assertThat(documentStore.openForWriteCalls).isEmpty()
+        io.mockk.coVerify(exactly = 0) { archiveWriter.write(any(), any()) }
+    }
 }

@@ -40,6 +40,13 @@ fun BackupRestoreFailure.toUserMessageRes(): Int {
         BackupRestoreFailure.OperationInterrupted -> R.string.error_generic
         
         BackupRestoreFailure.InspectionExpired -> R.string.restore_error_checksum
+        
+        BackupRestoreFailure.AttachmentsNotSupported -> R.string.restore_error_attachments_unsupported
+        BackupRestoreFailure.DatabaseRestoreFailed -> R.string.restore_error_database_failed
+        BackupRestoreFailure.PreferencesRestoreFailed -> R.string.restore_error_preferences_failed
+        BackupRestoreFailure.RestorePreparationFailed -> R.string.restore_error_preparation_failed
+        BackupRestoreFailure.FinalVerificationFailed -> R.string.restore_error_final_verification_failed
+        
         BackupRestoreFailure.RollbackFailed,
         BackupRestoreFailure.RecoveryRequired -> R.string.restore_recovery_required_title
     }

@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.api.*
+import com.miara.cuentame.core.backup.internal.RoomRestoreDatabaseApplier
 import dagger.Binds
 import dagger.Module
 import dagger.Provides

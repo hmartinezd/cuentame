@@ -3,7 +3,7 @@ package com.miara.cuentame.feature.settings.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
-import com.miara.cuentame.core.backup.internal.RestoreRecoveryResult
+import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.model.backup.BackupRestorePreview
 import io.mockk.coEvery
@@ -26,7 +26,7 @@ class BackupRestoreViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        coEvery { restoreCoordinator.recoverIfNeeded() } returns RestoreRecoveryResult.NoRecoveryNeeded
+        coEvery { restoreCoordinator.retryRecovery() } returns RestoreRecoveryResult.NoRecoveryNeeded
         viewModel = BackupRestoreViewModel(restoreCoordinator, savedStateHandle)
     }
 
@@ -64,7 +64,7 @@ class BackupRestoreViewModelTest {
     @Test
     fun `preview ready entered when inspection succeeds`() = runTest {
         val preview = mockk<BackupRestorePreview>(relaxed = true)
-        coEvery { restoreCoordinator.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview)
+        coEvery { restoreCoordinator.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview, BackupRestoreEligibility.Eligible)
 
         viewModel.onFileSelected("uri")
         advanceUntilIdle()
@@ -72,6 +72,7 @@ class BackupRestoreViewModelTest {
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
         val state = viewModel.uiState.value as BackupRestoreUiState.PreviewReady
         assertThat(state.preview).isEqualTo(preview)
+        assertThat(state.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
     }
 
     @Test
@@ -119,13 +120,13 @@ class BackupRestoreViewModelTest {
         runCurrent()
         started2.await()
         
-        deferred1.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true)))
+        deferred1.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
         val preview2 = mockk<BackupRestorePreview>(relaxed = true)
-        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2))
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2, BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
@@ -188,7 +189,7 @@ class BackupRestoreViewModelTest {
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
         val preview2 = mockk<BackupRestorePreview>(relaxed = true)
-        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2))
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2, BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
@@ -251,7 +252,7 @@ class BackupRestoreViewModelTest {
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
         val preview2 = mockk<BackupRestorePreview>(relaxed = true)
-        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2))
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2, BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
@@ -289,7 +290,7 @@ class BackupRestoreViewModelTest {
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Inspecting)
         
         val preview2 = mockk<BackupRestorePreview>(relaxed = true)
-        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2))
+        deferred2.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), preview2, BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isInstanceOf(BackupRestoreUiState.PreviewReady::class.java)
@@ -347,7 +348,7 @@ class BackupRestoreViewModelTest {
         viewModel.onFileSelected(null)
         runCurrent()
         
-        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true)))
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
@@ -420,7 +421,7 @@ class BackupRestoreViewModelTest {
         viewModel.onDismissRequest()
         runCurrent()
         
-        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true)))
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.Idle)
@@ -477,7 +478,7 @@ class BackupRestoreViewModelTest {
 
     @Test
     fun `choose another from preview returns to selecting file`() = runTest {
-        coEvery { restoreCoordinator.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true))
+        coEvery { restoreCoordinator.inspect(any()) } returns BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         
         viewModel.onFileSelected("uri-1")
         advanceUntilIdle()
@@ -505,7 +506,7 @@ class BackupRestoreViewModelTest {
         runCurrent()
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
         
-        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true)))
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
@@ -529,7 +530,7 @@ class BackupRestoreViewModelTest {
         viewModel.onChooseAnotherClicked()
         runCurrent()
         
-        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true)))
+        deferred.complete(BackupArchiveInspectionResult.Ready(mockk(relaxed = true), mockk(relaxed = true), BackupRestoreEligibility.Eligible))
         runCurrent()
         
         assertThat(viewModel.uiState.value).isEqualTo(BackupRestoreUiState.SelectingFile)
@@ -558,7 +559,7 @@ class BackupRestoreViewModelTest {
     @Test
     fun `recreated active inspection marker cleared after initialization`() = runTest {
         val handle = SavedStateHandle(mapOf("inspection_active" to true))
-        coEvery { restoreCoordinator.recoverIfNeeded() } returns RestoreRecoveryResult.NoRecoveryNeeded
+        coEvery { restoreCoordinator.retryRecovery() } returns RestoreRecoveryResult.NoRecoveryNeeded
         val vm = BackupRestoreViewModel(restoreCoordinator, handle)
         
         advanceUntilIdle()

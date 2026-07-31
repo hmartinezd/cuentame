@@ -469,6 +469,7 @@
     <string name="backup_error_attachment_unreadable">Unreadable attachment: %1$s</string>
     <string name="backup_error_checksum">Checksum failure: %1$s</string>
     <string name="backup_error_validation">Archive validation failed: %1$s</string>
+    <string name="backup_error_attachments_unsupported">Attachments are not supported yet. Please remove attachments from records before creating a backup.</string>
     <string name="backup_error_unsupported">Unsupported persistent data.</string>
     <string name="backup_error_unknown">An unknown error occurred: %1$s</string>
 
@@ -483,6 +484,7 @@
     <string name="restore_preview_locale">Language: %1$s</string>
     <string name="restore_preview_records">Records: %1$d tables found</string>
     <string name="restore_preview_attachments">Attachments: %1$d files (%2$s)</string>
+    <string name="restore_preview_attachments_unsupported">This backup contains attachments which are not supported in this version. Restoration is disabled.</string>
     <string name="restore_preview_read_only_note">Confirming restore will replace current device data with this backup content.</string>
     <string name="restore_error_title">Restore Error</string>
     <string name="restore_error_message">Could not inspect backup: %1$s</string>
@@ -492,19 +494,25 @@
     <string name="restore_error_incompatible">Incompatible backup format or schema.</string>
     <string name="restore_error_limit">Backup exceeds safety limits.</string>
     <string name="restore_error_integrity_generic">Logical consistency check failed.</string>
+    <string name="restore_error_attachments_unsupported">Attachments are not supported by Backup and Restore yet. Remove the attachments or wait for a future version before continuing.</string>
+    <string name="restore_error_database_failed">Database restore failed.</string>
+    <string name="restore_error_preferences_failed">Preferences restore failed.</string>
+    <string name="restore_error_preparation_failed">Restore preparation failed.</string>
+    <string name="restore_error_final_verification_failed">Final verification failed.</string>
     <string name="restore_action_choose_another">Choose another file</string>
     <string name="restore_action_restore">Restore now</string>
     <string name="restore_action_confirm">Erase and Restore</string>
     <string name="restore_applying">Restoring data…</string>
     <string name="restore_applying_title">Restoring Backup</string>
     <string name="restore_confirm_title">Confirm Restore</string>
-    <string name="restore_confirm_message">This will replace ALL current inventory, history, and attachments. This action cannot be undone manually. If the restore fails, the app will attempt to roll back to the current state.</string>
+    <string name="restore_confirm_message">This will replace ALL current inventory and history. Attachments are NOT replaced in this version. This action cannot be undone manually. If the restore fails, the app will attempt to roll back to the current state.</string>
     <string name="restore_phase_staging">Validating backup…</string>
     <string name="restore_phase_staged">Preparing restore…</string>
     <string name="restore_phase_preparing">Preparing system rollback…</string>
     <string name="restore_phase_database">Restoring data tables…</string>
     <string name="restore_phase_attachments">Restoring attachment files…</string>
     <string name="restore_phase_preferences">Restoring settings…</string>
+    <string name="restore_phase_finalizing">Finalizing…</string>
     <string name="restore_phase_rolling_back">Restoring previous state…</string>
     <string name="restore_success_title">Restore Successful</string>
     <string name="restore_success_message">Successfully restored data for %1$s. %2$d records were updated.</string>

@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.internal
 
 import android.content.Context
+import androidx.core.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -12,6 +13,9 @@ class InternalBackupRestoreStorage @Inject constructor(
 ) {
     private val baseDir = File(context.filesDir, "backup_restore")
 
+    /**
+     * @deprecated Not used by Backup and Restore v1.
+     */
     fun getStagingDir(sessionId: String): File {
         return File(baseDir, "staging/$sessionId").apply { mkdirs() }
     }
@@ -21,9 +25,25 @@ class InternalBackupRestoreStorage @Inject constructor(
     }
 
     fun getRollbackSnapshotFile(sessionId: String): File {
-        return File(getRollbackDir(sessionId), "database_rollback.json")
+        return File(getRollbackDir(sessionId), "rollback_snapshot.json")
     }
 
+    fun saveRollbackSnapshot(sessionId: String, json: String) {
+        val file = getRollbackSnapshotFile(sessionId)
+        val atomicFile = AtomicFile(file)
+        val fos = atomicFile.startWrite()
+        try {
+            fos.write(json.toByteArray(Charsets.UTF_8))
+            atomicFile.finishWrite(fos)
+        } catch (e: Exception) {
+            atomicFile.failWrite(fos)
+            throw e
+        }
+    }
+
+    /**
+     * @deprecated Not used by Backup and Restore v1.
+     */
     fun getLiveAttachmentDir(): File {
         return File(context.filesDir, "attachments").apply { mkdirs() }
     }

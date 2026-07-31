@@ -97,6 +97,9 @@ object DatabaseModule {
     fun provideBackupDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.BackupDao = db.backupDao()
 
     @Provides
+    fun provideRestoreDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.RestoreDao = db.restoreDao()
+
+    @Provides
     fun provideDetailedReportsRepository(
         inventoryProjectionDao: InventoryProjectionDao,
         purchaseDao: PurchaseDao,

@@ -469,6 +469,7 @@
     <string name="backup_error_attachment_unreadable">Adjunto ilegible: %1$s</string>
     <string name="backup_error_checksum">Error de suma de comprobación: %1$s</string>
     <string name="backup_error_validation">Error al validar el archivo: %1$s</string>
+    <string name="backup_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles. Elimine los adjuntos de los registros antes de crear una copia de seguridad.</string>
     <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
     <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
 
@@ -483,6 +484,7 @@
     <string name="restore_preview_locale">Idioma: %1$s</string>
     <string name="restore_preview_records">Registros: %1$d tablas encontradas</string>
     <string name="restore_preview_attachments">Adjuntos: %1$d archivos (%2$s)</string>
+    <string name="restore_preview_attachments_unsupported">Esta copia de seguridad contiene archivos adjuntos que no son compatibles en esta versión. La restauración está desactivada.</string>
     <string name="restore_preview_read_only_note">Confirmar la restauración reemplazará los datos actuales del dispositivo con el contenido de esta copia.</string>
     <string name="restore_error_title">Error de Restauración</string>
     <string name="restore_error_message">No se pudo inspeccionar la copia de seguridad: %1$s</string>
@@ -492,19 +494,25 @@
     <string name="restore_error_incompatible">Formato o esquema de copia de seguridad incompatible.</string>
     <string name="restore_error_limit">La copia de seguridad excede los límites de seguridad.</string>
     <string name="restore_error_integrity_generic">Error en la comprobación de consistencia lógica.</string>
+    <string name="restore_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles con la Función de Copia de Seguridad y Restauración. Elimine los adjuntos o espere a una versión futura antes de continuar.</string>
+    <string name="restore_error_database_failed">Error al restaurar la base de datos.</string>
+    <string name="restore_error_preferences_failed">Error al restaurar los ajustes.</string>
+    <string name="restore_error_preparation_failed">Error en la preparación de la restauración.</string>
+    <string name="restore_error_final_verification_failed">Error en la verificación final.</string>
     <string name="restore_action_choose_another">Elegir otro archivo</string>
     <string name="restore_action_restore">Restaurar ahora</string>
     <string name="restore_action_confirm">Borrar y Restaurar</string>
     <string name="restore_applying">Restaurando datos…</string>
     <string name="restore_applying_title">Restaurando Copia</string>
     <string name="restore_confirm_title">Confirmar Restauración</string>
-    <string name="restore_confirm_message">Esto reemplazará TODOS los ingredientes, historial y adjuntos actuales. Esta acción no se puede deshacer manualmente. Si la restauración falla, la aplicación intentará volver al estado actual.</string>
+    <string name="restore_confirm_message">Esto reemplazará TODOS los ingredientes e historial actuales. Los archivos adjuntos NO se reemplazan en esta versión. Esta acción no se puede deshacer manualmente. Si la restauración falla, la aplicación intentará volver al estado actual.</string>
     <string name="restore_phase_staging">Validando copia de seguridad…</string>
     <string name="restore_phase_staged">Preparando restauración…</string>
     <string name="restore_phase_preparing">Preparando reversión del sistema…</string>
     <string name="restore_phase_database">Restaurando tablas de datos…</string>
     <string name="restore_phase_attachments">Restaurando archivos adjuntos…</string>
     <string name="restore_phase_preferences">Restaurando ajustes…</string>
+    <string name="restore_phase_finalizing">Finalizando…</string>
     <string name="restore_phase_rolling_back">Restaurando estado anterior…</string>
     <string name="restore_success_title">Restauración Exitosa</string>
     <string name="restore_success_message">Se restauraron con éxito los datos de %1$s. Se actualizaron %2$d registros.</string>

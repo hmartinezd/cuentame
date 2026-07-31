@@ -1,22 +1,27 @@
 package com.miara.cuentame.core.backup.api
 
-import com.miara.cuentame.core.backup.internal.RestoreRecoveryResult
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import kotlinx.serialization.Serializable
 
 @Serializable
 enum class RestorePhase {
-    IDLE,
-    STAGING,
-    STAGED,
     ROLLBACK_CAPTURED,
+    MUTATION_STARTED,
     DATABASE_APPLIED,
-    ATTACHMENTS_APPLIED,
     PREFERENCES_APPLIED,
     COMPLETED,
     ROLLING_BACK,
     ROLLBACK_COMPLETED,
     RECOVERY_REQUIRED
+}
+
+enum class BackupRestoreProgress {
+    ValidatingBackup,
+    PreparingRollback,
+    RestoringData,
+    RestoringSettings,
+    Finalizing,
+    RollingBack
 }
 
 interface BackupRestoreCoordinator {
@@ -26,13 +31,20 @@ interface BackupRestoreCoordinator {
 
     suspend fun apply(
         source: BackupDocumentUri,
-        expectedFingerprint: BackupArchiveFingerprint
+        expectedFingerprint: BackupArchiveFingerprint,
+        onProgress: suspend (BackupRestoreProgress) -> Unit
     ): BackupRestoreApplyResult
 
-    suspend fun recoverIfNeeded(): RestoreRecoveryResult
+    suspend fun retryRecovery(): RestoreRecoveryResult
 }
 
 sealed interface BackupRestoreApplyResult {
     data object Success : BackupRestoreApplyResult
     data class Failure(val reason: BackupRestoreFailure) : BackupRestoreApplyResult
+}
+
+sealed interface RestoreRecoveryResult {
+    data object NoRecoveryNeeded : RestoreRecoveryResult
+    data class Recovered(val sessionId: String) : RestoreRecoveryResult
+    data class RecoveryRequired(val sessionId: String) : RestoreRecoveryResult
 }

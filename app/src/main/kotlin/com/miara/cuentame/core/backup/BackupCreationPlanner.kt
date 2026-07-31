@@ -38,6 +38,14 @@ class BackupCreationPlanner @Inject constructor(
                 return failure(BackupPlanningFailure.UnsupportedDatabaseSchema)
             }
 
+            // 0.1 Attachment check (V1 Policy: No attachments allowed)
+            val snapshotDto = snapshotResult.dto
+            if (snapshotDto.purchaseReceipts.any { it.attachmentId != null } ||
+                snapshotDto.wasteEvents.any { it.attachmentId != null } ||
+                snapshotResult.attachmentBindings.isNotEmpty()) {
+                return failure(BackupPlanningFailure.AttachmentsNotSupported)
+            }
+
             // 1. Reconcile locale
             val reconciliation = localeReconciler.reconcile()
             if (reconciliation is LocaleReconciliationResult.RestaurantNotFound) {
@@ -75,7 +83,6 @@ class BackupCreationPlanner @Inject constructor(
             }
 
             // 5. Snapshot Grouping
-            val snapshotDto = snapshotResult.dto
             val attachmentRefs = mutableMapOf<String, MutableList<BackupAttachmentReference>>()
 
             snapshotDto.purchaseReceipts.forEach { r ->

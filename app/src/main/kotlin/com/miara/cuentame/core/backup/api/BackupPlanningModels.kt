@@ -42,6 +42,7 @@ sealed interface BackupPlanningFailure {
     data object SerializationFailed : BackupPlanningFailure
     data object UnexpectedPlanningFailure : BackupPlanningFailure
     data object UnsupportedDatabaseSchema : BackupPlanningFailure
+    data object AttachmentsNotSupported : BackupPlanningFailure
 }
 
 class PlannedBackupAttachment private constructor(

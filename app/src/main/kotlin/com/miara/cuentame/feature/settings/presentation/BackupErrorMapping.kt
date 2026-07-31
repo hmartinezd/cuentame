@@ -22,6 +22,7 @@ fun BackupResult.Error.toUserMessageRes(): Int = when (this) {
     is BackupResult.Error.UnexpectedInternalFailure -> R.string.backup_error_unknown
     is BackupResult.Error.SystemIOFailure -> R.string.backup_error_unknown
     is BackupResult.Error.AttachmentPreflightFailure -> R.string.backup_error_attachment_unreadable
+    is BackupResult.Error.AttachmentsNotSupported -> R.string.backup_error_attachments_unsupported
     is BackupResult.Error.LocaleConsistencyFailure -> R.string.backup_error_unsupported
     is BackupResult.Error.OperationInterrupted -> R.string.backup_error_unknown
 }

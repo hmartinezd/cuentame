@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -46,7 +47,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.preferences.model.ThemeMode
-import com.miara.cuentame.core.backup.api.RestorePhase
+import com.miara.cuentame.core.backup.api.BackupRestoreProgress
+import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.feature.settings.viewmodel.BackupOperationId
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiEvent
 import com.miara.cuentame.feature.settings.viewmodel.BackupUiState
@@ -159,7 +161,9 @@ fun SettingsRoute(
         onChooseAnotherRestore = restoreViewModel::onChooseAnotherClicked,
         onDismissRestore = restoreViewModel::onDismissRequest,
         onStartRestore = restoreViewModel::onRestoreClicked,
+        onCancelConfirmRestore = restoreViewModel::onRestoreConfirmationCancelled,
         onConfirmRestore = restoreViewModel::onRestoreConfirmed,
+        onRetryRecovery = restoreViewModel::onRetryRecoveryClicked,
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
@@ -184,7 +188,9 @@ fun SettingsScreen(
     onChooseAnotherRestore: () -> Unit,
     onDismissRestore: () -> Unit,
     onStartRestore: () -> Unit,
+    onCancelConfirmRestore: () -> Unit,
     onConfirmRestore: () -> Unit,
+    onRetryRecovery: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -231,7 +237,8 @@ fun SettingsScreen(
                                 backupUiState is BackupUiState.Validating || 
                                 backupUiState is BackupUiState.WaitingForDestination
                                 
-            val isRestoreApplying = restoreUiState is BackupRestoreUiState.Applying
+            val isRestoreApplying = restoreUiState is BackupRestoreUiState.Applying || 
+                                   restoreUiState is BackupRestoreUiState.RecoveryInProgress
 
             ListItem(
                 headlineContent = { Text(stringResource(R.string.create_backup_title)) },
@@ -269,7 +276,7 @@ fun SettingsScreen(
                 },
                 modifier = Modifier
                     .testTag("create_backup_button")
-                    .clickable(enabled = !isBackupActive && !isRestoreApplying) { onCreateBackup() }
+                    .clickable(enabled = !isBackupActive && !isRestoreApplying && restoreUiState != BackupRestoreUiState.RecoveryRequired) { onCreateBackup() }
             )
 
             val isRestoreInspecting = restoreUiState is BackupRestoreUiState.Inspecting
@@ -279,6 +286,7 @@ fun SettingsScreen(
                     val desc = when {
                         isRestoreInspecting -> stringResource(R.string.restore_inspecting)
                         isRestoreApplying -> stringResource(R.string.restore_applying)
+                        restoreUiState is BackupRestoreUiState.RecoveryRequired -> stringResource(R.string.restore_recovery_required_title)
                         else -> stringResource(R.string.restore_backup_desc)
                     }
                     Text(
@@ -384,6 +392,7 @@ fun SettingsScreen(
         is BackupRestoreUiState.PreviewReady -> {
             RestorePreviewDialog(
                 preview = state.preview,
+                eligibility = state.eligibility,
                 onDismiss = onDismissRestore,
                 onChooseAnother = onChooseAnotherRestore,
                 onRestore = onStartRestore
@@ -391,12 +400,12 @@ fun SettingsScreen(
         }
         is BackupRestoreUiState.ConfirmingRestore -> {
             RestoreConfirmDialog(
-                onDismiss = { onStartRestore() }, // back to preview
+                onDismiss = onCancelConfirmRestore,
                 onConfirm = onConfirmRestore
             )
         }
         is BackupRestoreUiState.Applying -> {
-            RestoreApplyingDialog(phase = state.phase)
+            RestoreApplyingDialog(progress = state.progress)
         }
         is BackupRestoreUiState.Success -> {
             RestoreSuccessDialog(
@@ -409,8 +418,19 @@ fun SettingsScreen(
                 failure = state.reason,
                 onDismiss = onDismissRestore,
                 onRetry = if (state.canChooseAnotherFile) onChooseAnotherRestore else null,
-                recoveryRequired = state.recoveryRequired
+                recoveryRequired = false
             )
+        }
+        BackupRestoreUiState.RecoveryRequired -> {
+            RestoreErrorDialog(
+                failure = com.miara.cuentame.core.model.backup.BackupRestoreFailure.RecoveryRequired,
+                onDismiss = {},
+                onRetry = onRetryRecovery,
+                recoveryRequired = true
+            )
+        }
+        BackupRestoreUiState.RecoveryInProgress -> {
+             RestoreApplyingDialog(progress = null)
         }
         else -> {}
     }
@@ -419,6 +439,7 @@ fun SettingsScreen(
 @Composable
 fun RestorePreviewDialog(
     preview: com.miara.cuentame.core.model.backup.BackupRestorePreview,
+    eligibility: BackupRestoreEligibility,
     onDismiss: () -> Unit,
     onChooseAnother: () -> Unit,
     onRestore: () -> Unit
@@ -444,6 +465,21 @@ fun RestorePreviewDialog(
                 val sizeStr = Formatters.formatFileSize(preview.totalAttachmentBytes)
                 Text(text = stringResource(R.string.restore_preview_attachments, preview.attachmentCount, sizeStr))
                 
+                if (eligibility is BackupRestoreEligibility.AttachmentsNotSupported) {
+                    Spacer(modifier = Modifier.size(16.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = stringResource(R.string.restore_preview_attachments_unsupported),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+                
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Text(
                     text = stringResource(R.string.restore_preview_read_only_note),
@@ -453,7 +489,11 @@ fun RestorePreviewDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onRestore, modifier = Modifier.testTag("restore_backup_action")) {
+            TextButton(
+                onClick = onRestore, 
+                enabled = eligibility == BackupRestoreEligibility.Eligible,
+                modifier = Modifier.testTag("restore_backup_action")
+            ) {
                 Text(stringResource(R.string.restore_action_restore))
             }
         },
@@ -498,28 +538,28 @@ fun RestoreConfirmDialog(
 }
 
 @Composable
-fun RestoreApplyingDialog(phase: RestorePhase) {
+fun RestoreApplyingDialog(progress: BackupRestoreProgress?) {
     AlertDialog(
         onDismissRequest = {}, // non-interruptible
         confirmButton = {},
-        title = { Text(stringResource(R.string.restore_applying_title)) },
+        title = { Text(stringResource(if (progress == null) R.string.state_loading_desc else R.string.restore_applying_title)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 CircularProgressIndicator(modifier = Modifier.padding(bottom = 16.dp))
-                val phaseText = when (phase) {
-                    RestorePhase.STAGING -> stringResource(R.string.restore_phase_staging)
-                    RestorePhase.STAGED -> stringResource(R.string.restore_phase_staged)
-                    RestorePhase.ROLLBACK_CAPTURED -> stringResource(R.string.restore_phase_preparing)
-                    RestorePhase.DATABASE_APPLIED -> stringResource(R.string.restore_phase_database)
-                    RestorePhase.ATTACHMENTS_APPLIED -> stringResource(R.string.restore_phase_attachments)
-                    RestorePhase.PREFERENCES_APPLIED -> stringResource(R.string.restore_phase_preferences)
-                    RestorePhase.ROLLING_BACK -> stringResource(R.string.restore_phase_rolling_back)
-                    else -> stringResource(R.string.restore_applying)
+                if (progress != null) {
+                    val progressText = when (progress) {
+                        BackupRestoreProgress.ValidatingBackup -> stringResource(R.string.restore_phase_staging)
+                        BackupRestoreProgress.PreparingRollback -> stringResource(R.string.restore_phase_preparing)
+                        BackupRestoreProgress.RestoringData -> stringResource(R.string.restore_phase_database)
+                        BackupRestoreProgress.RestoringSettings -> stringResource(R.string.restore_phase_preferences)
+                        BackupRestoreProgress.Finalizing -> stringResource(R.string.restore_phase_finalizing)
+                        BackupRestoreProgress.RollingBack -> stringResource(R.string.restore_phase_rolling_back)
+                    }
+                    Text(text = progressText, style = MaterialTheme.typography.bodyMedium)
                 }
-                Text(text = phaseText, style = MaterialTheme.typography.bodyMedium)
             }
         }
     )
@@ -563,14 +603,16 @@ fun RestoreErrorDialog(
             Text(text = message, modifier = Modifier.testTag("restore_backup_error"))
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(android.R.string.ok))
+            if (!recoveryRequired) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(android.R.string.ok))
+                }
             }
         },
         dismissButton = {
             if (onRetry != null) {
                 TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.action_retry_desc))
+                    Text(stringResource(if (recoveryRequired) R.string.action_retry_desc else R.string.restore_action_choose_another))
                 }
             }
         }

@@ -50,6 +50,24 @@ data class BackupPreferencesDto(
     val appLocaleTag: String
 )
 
+/**
+ * Eligibility status for backup restoration.
+ */
+sealed interface BackupRestoreEligibility {
+    data object Eligible : BackupRestoreEligibility
+    data object AttachmentsNotSupported : BackupRestoreEligibility
+}
+
+/**
+ * Internal rollback model to preserve raw database state.
+ */
+@Serializable
+data class RestoreDatabaseRollbackSnapshot(
+    val snapshot: com.miara.cuentame.core.backup.model.BackupSnapshotDto,
+    val purchaseReceiptAttachmentPaths: Map<String, String?>,
+    val wasteEventAttachmentPaths: Map<String, String?>
+)
+
 sealed interface BackupResult {
     data class Success(val manifest: BackupManifest) : BackupResult
     sealed interface Error : BackupResult {
@@ -71,6 +89,7 @@ sealed interface BackupResult {
         data object SystemIOFailure : Error
         data object LocaleConsistencyFailure : Error
         data object AttachmentPreflightFailure : Error
+        data object AttachmentsNotSupported : Error
         data object OperationInterrupted : Error
 
         data class ArchiveValidationFailure(

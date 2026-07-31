@@ -27,7 +27,7 @@ class BackupRestoreRepositoryTest {
 
     @Test
     fun `inspect successfully returns ready result and closes stream`() = runTest {
-        val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk())
+        val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk(), com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible)
         documentStore.storage[docUri] = "data".toByteArray()
         coEvery { archiveReader.inspect(any(), any()) } returns ready
         
@@ -40,7 +40,7 @@ class BackupRestoreRepositoryTest {
 
     @Test
     fun `inspect successfully returns ready result and closes stream exactly once`() = runTest {
-        val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk())
+        val ready = BackupArchiveInspectionResult.Ready(mockk(), mockk(), com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible)
         documentStore.storage[docUri] = "data".toByteArray()
         coEvery { archiveReader.inspect(any(), any()) } returns ready
         

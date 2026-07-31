@@ -21,10 +21,9 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.security.MessageDigest
 import java.time.Instant
 
-class BackupRoundipTest {
+class BackupRoundTripTest {
 
     private val localeReconciler = mockk<AppLocaleReconciler>()
     private val preferencesSource = FakeBackupPreferencesSource()
@@ -50,7 +49,7 @@ class BackupRoundipTest {
         )
         writer = DefaultBackupArchiveWriter(attachmentSource)
         validator = DefaultBackupArchiveValidator(jsonCodecs)
-        val processor = com.miara.cuentame.core.backup.internal.BackupArchiveProcessor(BackupReadLimits(), BackupZipInputFactory { input -> java.util.zip.ZipInputStream(input) })
+        val processor = com.miara.cuentame.core.backup.internal.BackupArchiveProcessor(BackupReadLimits()) { input -> java.util.zip.ZipInputStream(input) }
         val fingerprinter = com.miara.cuentame.core.backup.internal.BackupArchiveFingerprinter(jsonCodecs)
         reader = com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader(jsonCodecs, processor, fingerprinter)
 
@@ -102,21 +101,14 @@ class BackupRoundipTest {
     }
 
     @Test
-    fun `complete round trip with shared attachments`() = runTest {
+    fun `complete round trip without attachments`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
-        val attId = "0123456789abcdef"
-        val attUri = AttachmentSourceUri("content://shared")
-        val attData = "shared data".toByteArray()
-        val expectedHash = hash(attData)
-        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "file.jpg", "image/jpeg")
-        attachmentSource.dataMap[attUri] = attData
-
         val snapshotDto = BackupTestFixtures.createEmptySnapshotDto().copy(
             restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("rest-1", "Test Restaurant", "USD", "en-US", 0L, 0L, null)),
-            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, attId, 1000, 1000, 1000, null)),
-            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto("w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 1000, null, attId, "POSTED", 1000, 1000, 1000, null)),
+            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto("p1", "rest-1", null, null, 0, "POSTED", null, null, 1000, 1000, 1000, null)),
+            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto("w1", "rest-1", "i1", "a1", "o1", "1.0", "1.0", "SPOILED", 1000, null, null, "POSTED", 1000, 1000, 1000, null)),
             ingredients = listOf(com.miara.cuentame.core.backup.model.IngredientBackupDto("i1", "rest-1", "I", "i", null, "u1", "a1", null, null, null, true, 0, 0, null)),
             inventoryAreas = listOf(com.miara.cuentame.core.backup.model.InventoryAreaBackupDto("a1", "rest-1", "A", "a", 0, true, 0, 0, null)),
             units = listOf(com.miara.cuentame.core.backup.model.UnitBackupDto("u1", "U", "u", "MASS", "1.0", true, 0)),
@@ -129,16 +121,13 @@ class BackupRoundipTest {
             inventoryBalanceProjections = listOf(com.miara.cuentame.core.backup.model.InventoryBalanceProjectionBackupDto("rest-1", "i1", "a1", "0.0", 0L)),
             ingredientCostProjections = listOf(com.miara.cuentame.core.backup.model.IngredientCostProjectionBackupDto("rest-1", "i1", "1.0", 0L))
         )
-        val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
+        val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
 
         val planResult = planner.createPlan(makeRestaurant(), snapshotResult)
         if (planResult is BackupPlanningResult.Failure) throw Exception("Planning failed: ${planResult.reason}")
         
         val plan = (planResult as BackupPlanningResult.Success).plan
         
-        assertThat(plan.attachments).hasSize(1)
-        assertThat(plan.attachments.first().references).hasSize(2)
-
         val output = ByteArrayOutputStream()
         val writeResult = writer.write(output, plan)
         assertThat(writeResult).isEqualTo(BackupArchiveWriteResult.Success)
@@ -151,31 +140,8 @@ class BackupRoundipTest {
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         val ready = inspection as BackupArchiveInspectionResult.Ready
         
-        assertThat(ready.archive.attachmentSummaries).hasSize(1)
-        val att = ready.archive.attachmentSummaries.first()
-        assertThat(att.attachmentId).isEqualTo(attId)
-        assertThat(att.sizeBytes).isEqualTo(attData.size.toLong())
-        assertThat(att.displayName).isEqualTo("file.jpg")
-        assertThat(att.archivePath).isEqualTo(plan.attachments.single().archivePath)
-        assertThat(att.checksumSha256).isEqualTo(expectedHash)
+        assertThat(ready.archive.attachmentSummaries).isEmpty()
         
-        val manifestAtt = ready.archive.manifest.attachments.first()
-        assertThat(manifestAtt.attachmentId).isEqualTo(attId)
-        assertThat(manifestAtt.referencedBy).hasSize(2)
-        assertThat(manifestAtt.referencedBy.map { it.recordId }).containsExactly("p1", "w1")
-        assertThat(manifestAtt.referencedBy.map { it.recordType }).containsExactly("PURCHASE_RECEIPT", "WASTE_EVENT")
-        assertThat(manifestAtt.checksumSha256).isEqualTo(expectedHash)
-        assertThat(manifestAtt.archivePath).isEqualTo(plan.attachments.single().archivePath)
-        assertThat(manifestAtt.displayName).isEqualTo("file.jpg")
-        assertThat(manifestAtt.sizeBytes).isEqualTo(attData.size.toLong())
-
-        assertThat(ready.archive.snapshot.purchaseReceipts.first().attachmentId).isEqualTo(attId)
-        assertThat(ready.archive.snapshot.wasteEvents.first().attachmentId).isEqualTo(attId)
-        
-        assertThat(ready.preview.attachmentCount).isEqualTo(1)
-        assertThat(ready.preview.totalAttachmentBytes).isEqualTo(attData.size.toLong())
-        assertThat(ready.preview.totalRecordCount).isEqualTo(10L)
-
         // Verify planned vs inspected snapshot equality
         assertThat(ready.archive.snapshot).isEqualTo(snapshotDto)
         assertThat(ready.archive.preferences).isEqualTo(preferencesSource.result)
@@ -214,8 +180,4 @@ class BackupRoundipTest {
         assertThat(res2).isEqualTo(BackupArchiveWriteResult.Success)
         assertThat(out1.toByteArray()).isEqualTo(out2.toByteArray())
     }
-
-    private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
-        .digest(bytes)
-        .joinToString("") { "%02x".format(it) }
 }

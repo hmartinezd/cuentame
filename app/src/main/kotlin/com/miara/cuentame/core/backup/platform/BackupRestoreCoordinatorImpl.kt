@@ -2,8 +2,12 @@ package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
+import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
+import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import java.util.UUID
@@ -12,135 +16,151 @@ import javax.inject.Singleton
 
 @Singleton
 class BackupRestoreCoordinatorImpl @Inject constructor(
-    private val reader: BackupArchiveReader,
-    private val stager: BackupArchiveRestoreStager,
+    private val restoreRepository: BackupRestoreRepository,
     private val databaseApplier: RestoreDatabaseApplier,
-    private val attachmentInstaller: RestoreAttachmentInstaller,
     private val preferencesApplier: RestorePreferencesApplier,
     private val journal: RestoreJournal,
     private val storage: InternalBackupRestoreStorage,
     private val recoveryCoordinator: RestoreRecoveryCoordinator,
-    private val documentStore: BackupDocumentStore,
     private val codecs: BackupJsonCodecs
 ) : BackupRestoreCoordinator {
 
+    private val operationLock = Mutex()
+
     override suspend fun inspect(source: BackupDocumentUri): BackupArchiveInspectionResult {
-        return try {
-            documentStore.openForRead(source).use { input ->
-                reader.inspect(input, source)
-            }
-        } catch (e: Exception) {
-            BackupArchiveInspectionResult.Failure(BackupRestoreFailure.GenericIo)
-        }
+        return restoreRepository.inspect(source)
     }
 
-    override suspend fun recoverIfNeeded(): RestoreRecoveryResult {
-        return recoveryCoordinator.recoverIfNeeded()
+    override suspend fun retryRecovery(): RestoreRecoveryResult = operationLock.withLock {
+        recoveryCoordinator.retryRecovery()
     }
 
     override suspend fun apply(
         source: BackupDocumentUri,
-        expectedFingerprint: BackupArchiveFingerprint
-    ): BackupRestoreApplyResult {
-        // 1. Verify no recovery-required state blocks restore
-        val recoveryResult = recoverIfNeeded()
-        if (recoveryResult is RestoreRecoveryResult.RecoveryRequired) {
+        expectedFingerprint: BackupArchiveFingerprint,
+        onProgress: suspend (BackupRestoreProgress) -> Unit
+    ): BackupRestoreApplyResult = operationLock.withLock {
+        // 1. Verify startup recovery is not required
+        val recoveryCheck = recoveryCoordinator.recoverIfNeeded()
+        if (recoveryCheck is RestoreRecoveryResult.RecoveryRequired) {
             return BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
         }
 
-        // 2. Create restore session
+        // 2. Reinspect source with production reader
+        onProgress(BackupRestoreProgress.ValidatingBackup)
+        val inspection = restoreRepository.inspect(source)
+        val archive = when (inspection) {
+            is BackupArchiveInspectionResult.Ready -> {
+                if (inspection.eligibility is BackupRestoreEligibility.AttachmentsNotSupported) {
+                    return BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
+                }
+                inspection.archive
+            }
+            is BackupArchiveInspectionResult.Failure -> return BackupRestoreApplyResult.Failure(inspection.reason)
+        }
+
+        // 3. Verify fingerprint
+        if (archive.fingerprint != expectedFingerprint) {
+            return BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired)
+        }
+
+        // 4. Verify backup has no attachments (double check)
+        if (archive.manifest.attachments.isNotEmpty() || archive.snapshot.purchaseReceipts.any { it.attachmentId != null }) {
+            return BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
+        }
+
+        // 5. Verify current live data has no attachment references
+        if (databaseApplier.hasExistingAttachmentReferences()) {
+            return BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
+        }
+
+        // 6. Validate incoming preferences
+        try {
+            com.miara.cuentame.core.preferences.model.ThemeMode.valueOf(archive.preferences.themeMode)
+        } catch (e: Exception) {
+            return BackupRestoreApplyResult.Failure(BackupRestoreFailure.MalformedPreferences)
+        }
+
         val sessionId = UUID.randomUUID().toString()
         var currentJournal = RestoreJournalDto(
             sessionId = sessionId,
-            phase = RestorePhase.STAGING,
+            phase = RestorePhase.ROLLBACK_CAPTURED,
             expectedArchiveFingerprint = expectedFingerprint.value,
-            stagingDirPath = storage.getStagingDir(sessionId).absolutePath,
-            rollbackDirPath = storage.getRollbackDir(sessionId).absolutePath,
             startedAt = System.currentTimeMillis()
         )
-        
+
         try {
-            // 3. Write journal phase STAGING
-            journal.write(currentJournal)
-
-            // 4. Reopen source, Stream, validate and stage archive
-            val stagingResult = documentStore.openForRead(source).use { input ->
-                stager.stage(sessionId, input)
-            }
-
-            val staged = when (stagingResult) {
-                is BackupArchiveStagingResult.Success -> stagingResult
-                is BackupArchiveStagingResult.Failure -> return BackupRestoreApplyResult.Failure(stagingResult.reason)
-            }
-
-            // 6. Compare archive fingerprint
-            if (staged.fingerprint != expectedFingerprint) {
-                return BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired)
-            }
-
-            // 7. Write journal phase STAGED
-            currentJournal = currentJournal.copy(phase = RestorePhase.STAGED)
-            journal.write(currentJournal)
-
-            // 8. Capture rollback
-            val rollbackSnapshot = databaseApplier.captureRollbackSnapshot()
+            onProgress(BackupRestoreProgress.PreparingRollback)
+            // 7. Capture rollback
+            val rollback = databaseApplier.captureRollbackSnapshot()
             val prevPrefs = preferencesApplier.captureRollback()
-            
-            // Save snapshot to disk
-            storage.getRollbackSnapshotFile(sessionId).writeText(
-                codecs.writer.encodeToString(rollbackSnapshot)
-            )
-            
-            attachmentInstaller.captureRollback(sessionId)
-            
-            // 11. Write journal phase ROLLBACK_CAPTURED
-            currentJournal = currentJournal.copy(
-                phase = RestorePhase.ROLLBACK_CAPTURED,
-                previousPreferences = prevPrefs
-            )
+
+            // 8. Persist rollback snapshot atomically
+            storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+
+            // 9. Write journal ROLLBACK_CAPTURED
             journal.write(currentJournal)
 
-            // 12. Enter the non-interruptible mutation section
+            // 10. Mutation Boundary
+            currentJournal = currentJournal.copy(phase = RestorePhase.MUTATION_STARTED)
+            journal.write(currentJournal)
+
             withContext(NonCancellable) {
                 try {
-                    // 13. Apply database
-                    databaseApplier.replaceWith(staged.snapshot)
+                    // 11. Replace Room
+                    onProgress(BackupRestoreProgress.RestoringData)
+                    databaseApplier.replaceWithBackup(archive.snapshot)
                     
-                    // 14. Write journal phase DATABASE_APPLIED
                     currentJournal = currentJournal.copy(phase = RestorePhase.DATABASE_APPLIED)
                     journal.write(currentJournal)
+
+                    // 12. Apply Preferences
+                    onProgress(BackupRestoreProgress.RestoringSettings)
+                    preferencesApplier.apply(archive.preferences)
                     
-                    // 15. Install attachments
-                    attachmentInstaller.installStaged(sessionId, staged.stagingDir)
-                    
-                    // 16. Write journal phase ATTACHMENTS_APPLIED
-                    currentJournal = currentJournal.copy(phase = RestorePhase.ATTACHMENTS_APPLIED)
-                    journal.write(currentJournal)
-                    
-                    // 17. Apply preferences
-                    preferencesApplier.apply(staged.preferences)
-                    
-                    // 18. Write journal phase PREFERENCES_APPLIED
+                    // 13. Verify preferences
+                    val verifiedPrefs = preferencesApplier.captureRollback()
+                    if (verifiedPrefs != archive.preferences) {
+                        throw IllegalStateException("Preferences verification failed")
+                    }
+
                     currentJournal = currentJournal.copy(phase = RestorePhase.PREFERENCES_APPLIED)
                     journal.write(currentJournal)
-                    
-                    // 20. Write journal phase COMPLETED
+
+                    // 14. Finalizing
+                    onProgress(BackupRestoreProgress.Finalizing)
+                    if (!databaseApplier.verifyMatchesBackup(archive.snapshot)) {
+                        throw IllegalStateException("Final database verification failed")
+                    }
+
                     currentJournal = currentJournal.copy(phase = RestorePhase.COMPLETED)
                     journal.write(currentJournal)
-                    
-                    // 21-23. Cleanup
+
+                    // 15. Cleanup
                     storage.cleanupSession(sessionId)
                     journal.delete()
                 } catch (e: Exception) {
-                    // 24. Failure after mutation began -> Rollback
+                    // Failure after mutation began -> Rollback
+                    onProgress(BackupRestoreProgress.RollingBack)
                     currentJournal = currentJournal.copy(phase = RestorePhase.ROLLING_BACK)
                     journal.write(currentJournal)
-                    
+
                     try {
-                        performRollback(currentJournal)
+                        databaseApplier.restoreRollback(rollback)
+                        preferencesApplier.apply(prevPrefs)
+                        
+                        if (!databaseApplier.verifyMatchesRollback(rollback)) {
+                            throw IllegalStateException("Rollback verification failed")
+                        }
+                        
+                        currentJournal = currentJournal.copy(phase = RestorePhase.ROLLBACK_COMPLETED)
+                        journal.write(currentJournal)
+                        
+                        storage.cleanupSession(sessionId)
                         journal.delete()
                     } catch (rollbackError: Exception) {
                         journal.write(currentJournal.copy(phase = RestorePhase.RECOVERY_REQUIRED))
+                        throw rollbackError
                     }
                     throw e
                 }
@@ -149,32 +169,29 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             return BackupRestoreApplyResult.Success
 
         } catch (e: Exception) {
-            // Cleanup staging if failure before mutation began
-            if (currentJournal.phase.ordinal < RestorePhase.DATABASE_APPLIED.ordinal) {
-                storage.cleanupSession(sessionId)
-                journal.delete()
-                return BackupRestoreApplyResult.Failure(BackupRestoreFailure.GenericIo)
-            }
-
-            val finalDto = journal.read()
-            if (finalDto?.phase == RestorePhase.RECOVERY_REQUIRED) {
+            val journalResult = journal.read()
+            if (journalResult is RestoreJournalReadResult.Present && journalResult.journal.phase == RestorePhase.RECOVERY_REQUIRED) {
                 return BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
             }
-
-            return BackupRestoreApplyResult.Failure(BackupRestoreFailure.RollbackFailed)
+            
+            // If mutation didn't start or rollback succeeded, return meaningful failure
+            if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED || currentJournal.phase == RestorePhase.MUTATION_STARTED) {
+                 storage.cleanupSession(sessionId)
+                 journal.delete()
+            }
+            
+            return BackupRestoreApplyResult.Failure(mapException(e))
         }
     }
 
-    private suspend fun performRollback(dto: RestoreJournalDto) {
-        dto.previousPreferences?.let { preferencesApplier.apply(it) }
-        attachmentInstaller.rollback(dto.sessionId)
-        
-        val snapshotFile = storage.getRollbackSnapshotFile(dto.sessionId)
-        if (snapshotFile.exists()) {
-            val snapshot = codecs.reader.decodeFromString<com.miara.cuentame.core.backup.model.BackupSnapshotDto>(snapshotFile.readText())
-            databaseApplier.replaceWith(snapshot)
+    private fun mapException(e: Exception): BackupRestoreFailure {
+        return when (e) {
+            is IllegalStateException -> {
+                if (e.message?.contains("Database") == true) BackupRestoreFailure.DatabaseRestoreFailed
+                else if (e.message?.contains("Preferences") == true) BackupRestoreFailure.PreferencesRestoreFailed
+                else BackupRestoreFailure.GenericIo
+            }
+            else -> BackupRestoreFailure.GenericIo
         }
-        
-        storage.cleanupSession(dto.sessionId)
     }
 }

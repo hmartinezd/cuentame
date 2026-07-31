@@ -2,7 +2,6 @@ package com.miara.cuentame.core.backup.internal
 
 import com.google.common.truth.Truth.assertThat
 import androidx.room.withTransaction
-import com.miara.cuentame.core.backup.platform.RoomRestoreDatabaseApplier
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
@@ -22,8 +21,6 @@ class RestoreDatabaseApplierTest {
     @Before
     fun setup() {
         mockkStatic("androidx.room.RoomDatabaseKt")
-        every { database.backupDao() } returns backupDao
-        every { database.restoreDao() } returns restoreDao
         
         coEvery { restoreDao.clearAllInOrder() } just Runs
         coEvery { restoreDao.insertRestaurants(any()) } just Runs
@@ -47,15 +44,18 @@ class RestoreDatabaseApplierTest {
         coEvery { database.withTransaction(capture(transactionSlot)) } coAnswers {
             transactionSlot.captured.invoke()
         }
+
+        // Mock verification call
+        coEvery { backupDao.createGlobalSnapshot() } returns createEmptyRawSnapshot()
         
-        applier = RoomRestoreDatabaseApplier(database)
+        applier = RoomRestoreDatabaseApplier(database, backupDao, restoreDao)
     }
 
     @Test
-    fun `replaceWith performs ordered clear and insert`() = runTest {
+    fun `replaceWithBackup performs ordered clear and insert`() = runTest {
         val snapshot = createMinimalSnapshot()
         
-        applier.replaceWith(snapshot)
+        applier.replaceWithBackup(snapshot)
         
         coVerifyOrder {
             restoreDao.clearAllInOrder()
@@ -80,24 +80,7 @@ class RestoreDatabaseApplierTest {
 
     @Test
     fun `captureRollbackSnapshot calls createGlobalSnapshot`() = runTest {
-        val rawSnapshot = com.miara.cuentame.core.database.backup.BackupSnapshot(
-            restaurants = emptyList(),
-            inventoryAreas = emptyList(),
-            ingredientCategories = emptyList(),
-            units = emptyList(),
-            ingredients = emptyList(),
-            ingredientUnitOptions = emptyList(),
-            suppliers = emptyList(),
-            purchaseReceipts = emptyList(),
-            purchaseLines = emptyList(),
-            stockCounts = emptyList(),
-            stockCountAreas = emptyList(),
-            stockCountLines = emptyList(),
-            wasteEvents = emptyList(),
-            inventoryMovements = emptyList(),
-            inventoryBalanceProjections = emptyList(),
-            ingredientCostProjections = emptyList()
-        )
+        val rawSnapshot = createEmptyRawSnapshot()
         coEvery { backupDao.createGlobalSnapshot() } returns rawSnapshot
         
         val result = applier.captureRollbackSnapshot()
@@ -105,6 +88,25 @@ class RestoreDatabaseApplierTest {
         assertThat(result).isNotNull()
         coVerify { backupDao.createGlobalSnapshot() }
     }
+
+    private fun createEmptyRawSnapshot() = com.miara.cuentame.core.database.backup.BackupSnapshot(
+        restaurants = emptyList(),
+        inventoryAreas = emptyList(),
+        ingredientCategories = emptyList(),
+        units = emptyList(),
+        ingredients = emptyList(),
+        ingredientUnitOptions = emptyList(),
+        suppliers = emptyList(),
+        purchaseReceipts = emptyList(),
+        purchaseLines = emptyList(),
+        stockCounts = emptyList(),
+        stockCountAreas = emptyList(),
+        stockCountLines = emptyList(),
+        wasteEvents = emptyList(),
+        inventoryMovements = emptyList(),
+        inventoryBalanceProjections = emptyList(),
+        ingredientCostProjections = emptyList()
+    )
 
     private fun createMinimalSnapshot() = BackupSnapshotDto(
         restaurants = emptyList(),

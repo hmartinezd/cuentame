@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.backup.api.*
-import com.miara.cuentame.core.backup.internal.RestoreRecoveryResult
+import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.model.backup.BackupRestorePreview
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,9 +26,11 @@ sealed interface BackupRestoreUiState {
     data object Idle : BackupRestoreUiState
     data object SelectingFile : BackupRestoreUiState
     data object Inspecting : BackupRestoreUiState
+    data object RecoveryInProgress : BackupRestoreUiState
 
     data class PreviewReady(
-        val preview: BackupRestorePreview
+        val preview: BackupRestorePreview,
+        val eligibility: BackupRestoreEligibility
     ) : BackupRestoreUiState
 
     data class ConfirmingRestore(
@@ -36,8 +38,7 @@ sealed interface BackupRestoreUiState {
     ) : BackupRestoreUiState
 
     data class Applying(
-        val phase: RestorePhase,
-        val progress: Float? = null
+        val progress: BackupRestoreProgress
     ) : BackupRestoreUiState
 
     data class Success(
@@ -46,9 +47,10 @@ sealed interface BackupRestoreUiState {
 
     data class Error(
         val reason: BackupRestoreFailure,
-        val canChooseAnotherFile: Boolean = true,
-        val recoveryRequired: Boolean = false
+        val canChooseAnotherFile: Boolean = true
     ) : BackupRestoreUiState
+
+    data object RecoveryRequired : BackupRestoreUiState
 }
 
 @HiltViewModel
@@ -69,36 +71,57 @@ class BackupRestoreViewModel @Inject constructor(
     private var activeJob: Job? = null
     
     private var lastInspectedArchive: InspectedBackupArchive? = null
+    private var lastInspectedPreview: BackupRestorePreview? = null
 
     init {
+        runRecovery()
+        checkInterruptedOperation()
+    }
+
+    private fun runRecovery() {
         viewModelScope.launch {
-            val recoveryResult = restoreCoordinator.recoverIfNeeded()
-            if (recoveryResult is RestoreRecoveryResult.RecoveryRequired) {
-                _uiState.value = BackupRestoreUiState.Error(
-                    reason = BackupRestoreFailure.RecoveryRequired,
-                    canChooseAnotherFile = false,
-                    recoveryRequired = true
-                )
-            } else if (recoveryResult is RestoreRecoveryResult.Recovered) {
+            val recoveryResult = restoreCoordinator.retryRecovery()
+            handleRecoveryResult(recoveryResult)
+        }
+    }
+
+    private fun checkInterruptedOperation() {
+        if (savedStateHandle.get<Boolean>(KEY_INSPECTION_ACTIVE) == true) {
+            _uiState.value = BackupRestoreUiState.Error(
+                reason = BackupRestoreFailure.OperationInterrupted,
+                canChooseAnotherFile = true
+            )
+        }
+        savedStateHandle[KEY_INSPECTION_ACTIVE] = false
+    }
+
+    private fun handleRecoveryResult(result: RestoreRecoveryResult) {
+        when (result) {
+            RestoreRecoveryResult.NoRecoveryNeeded -> {
+                if (_uiState.value is BackupRestoreUiState.RecoveryRequired || _uiState.value is BackupRestoreUiState.RecoveryInProgress) {
+                    _uiState.value = BackupRestoreUiState.Idle
+                }
+            }
+            is RestoreRecoveryResult.Recovered -> {
                 _uiState.value = BackupRestoreUiState.Error(
                     reason = BackupRestoreFailure.OperationInterrupted,
                     canChooseAnotherFile = true
                 )
-            } else if (savedStateHandle.get<Boolean>(KEY_INSPECTION_ACTIVE) == true) {
-                _uiState.value = BackupRestoreUiState.Error(BackupRestoreFailure.OperationInterrupted)
             }
-            savedStateHandle[KEY_INSPECTION_ACTIVE] = false
+            is RestoreRecoveryResult.RecoveryRequired -> {
+                _uiState.value = BackupRestoreUiState.RecoveryRequired
+            }
         }
     }
 
     fun onSelectFileClicked() {
-        if (isMutationActive()) return
+        if (isBlocked()) return
         cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.SelectingFile
     }
 
     fun onFileSelected(uri: String?) {
-        if (isMutationActive()) return
+        if (isBlocked()) return
         cancelActiveOperation()
         if (uri == null) {
             _uiState.value = BackupRestoreUiState.Idle
@@ -123,7 +146,8 @@ class BackupRestoreViewModel @Inject constructor(
                 _uiState.value = when (result) {
                     is BackupArchiveInspectionResult.Ready -> {
                         lastInspectedArchive = result.archive
-                        BackupRestoreUiState.PreviewReady(result.preview)
+                        lastInspectedPreview = result.preview
+                        BackupRestoreUiState.PreviewReady(result.preview, result.eligibility)
                     }
                     is BackupArchiveInspectionResult.Failure -> BackupRestoreUiState.Error(result.reason)
                 }
@@ -146,38 +170,70 @@ class BackupRestoreViewModel @Inject constructor(
 
     fun onRestoreClicked() {
         val archive = lastInspectedArchive ?: return
-        if (isMutationActive()) return
-        _uiState.value = BackupRestoreUiState.ConfirmingRestore(
-            preview = createPreviewFromArchive(archive)
-        )
+        val preview = lastInspectedPreview ?: return
+        if (isBlocked()) return
+        
+        // Ensure eligibility check
+        val state = _uiState.value
+        if (state is BackupRestoreUiState.PreviewReady && state.eligibility != BackupRestoreEligibility.Eligible) {
+             return
+        }
+
+        _uiState.value = BackupRestoreUiState.ConfirmingRestore(preview)
+    }
+
+    fun onRestoreConfirmationCancelled() {
+        val preview = lastInspectedPreview ?: return
+        if (isBlocked()) return
+        
+        // Return to PreviewReady using the stored eligibility
+        val currentArchive = lastInspectedArchive ?: return
+        val eligibility = if (currentArchive.manifest.attachments.isNotEmpty()) {
+            BackupRestoreEligibility.AttachmentsNotSupported
+        } else {
+            BackupRestoreEligibility.Eligible
+        }
+        _uiState.value = BackupRestoreUiState.PreviewReady(preview, eligibility)
     }
 
     fun onRestoreConfirmed() {
         val archive = lastInspectedArchive ?: return
-        if (isMutationActive()) return
+        val preview = lastInspectedPreview ?: return
+        if (isBlocked()) return
         
         val token = operationTokenGenerator.incrementAndGet()
         activeOperationToken = token
         
-        _uiState.value = BackupRestoreUiState.Applying(RestorePhase.STAGING)
+        _uiState.value = BackupRestoreUiState.Applying(BackupRestoreProgress.ValidatingBackup)
         
         activeJob = viewModelScope.launch {
             try {
-                val result = restoreCoordinator.apply(archive.source, archive.fingerprint)
+                val result = restoreCoordinator.apply(archive.source, archive.fingerprint) { progress ->
+                    _uiState.value = BackupRestoreUiState.Applying(progress)
+                }
                 if (activeOperationToken != token) return@launch
                 
                 _uiState.value = when (result) {
-                    is BackupRestoreApplyResult.Success -> BackupRestoreUiState.Success(
-                        BackupRestoreSuccessSummary(
-                            restaurantName = archive.manifest.restaurantName ?: "",
-                            recordCount = archive.preview().totalRecordCount
+                    is BackupRestoreApplyResult.Success -> {
+                        lastInspectedArchive = null
+                        lastInspectedPreview = null
+                        BackupRestoreUiState.Success(
+                            BackupRestoreSuccessSummary(
+                                restaurantName = archive.manifest.restaurantName ?: "",
+                                recordCount = preview.totalRecordCount
+                            )
                         )
-                    )
-                    is BackupRestoreApplyResult.Failure -> BackupRestoreUiState.Error(
-                        reason = result.reason,
-                        recoveryRequired = result.reason == BackupRestoreFailure.RecoveryRequired,
-                        canChooseAnotherFile = result.reason != BackupRestoreFailure.RecoveryRequired
-                    )
+                    }
+                    is BackupRestoreApplyResult.Failure -> {
+                        if (result.reason == BackupRestoreFailure.RecoveryRequired) {
+                            BackupRestoreUiState.RecoveryRequired
+                        } else {
+                            BackupRestoreUiState.Error(
+                                reason = result.reason,
+                                canChooseAnotherFile = true
+                            )
+                        }
+                    }
                 }
             } catch (e: CancellationException) {
                 if (activeOperationToken == token) {
@@ -192,14 +248,21 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
+    fun onRetryRecoveryClicked() {
+        if (_uiState.value != BackupRestoreUiState.RecoveryRequired) return
+        _uiState.value = BackupRestoreUiState.RecoveryInProgress
+        runRecovery()
+    }
+
     fun onChooseAnotherClicked() {
-        if (isMutationActive()) return
+        if (isBlocked()) return
         cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.SelectingFile
     }
 
     fun onDismissRequest() {
-        if (isMutationActive()) return
+        if (isBlocked()) return
+        if (_uiState.value is BackupRestoreUiState.RecoveryRequired) return
         cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.Idle
     }
@@ -209,39 +272,19 @@ class BackupRestoreViewModel @Inject constructor(
         activeJob?.cancel()
         savedStateHandle[KEY_INSPECTION_ACTIVE] = false
         lastInspectedArchive = null
+        lastInspectedPreview = null
     }
 
-    private fun isMutationActive(): Boolean {
+    private fun isBlocked(): Boolean {
         val state = _uiState.value
-        return state is BackupRestoreUiState.Applying
-    }
-
-    private fun createPreviewFromArchive(archive: InspectedBackupArchive): BackupRestorePreview {
-        // Re-use logic or just provide from the Ready state if we stored it
-        // Actually, we should probably have stored the preview too.
-        // For now, I'll just use a dummy or re-calculate.
-        return archive.preview()
-    }
-
-    private fun InspectedBackupArchive.preview(): BackupRestorePreview {
-        // Re-calculating preview from manifest (simplified)
-        val totalRecordCount = manifest.tableMetadata.values.sumOf { it.entryCount.toLong() }
-        val totalAttachmentBytes = manifest.attachments.sumOf { it.sizeBytes }
-        return BackupRestorePreview(
-            restaurantName = manifest.restaurantName ?: "",
-            createdAt = null, // simplified
-            backupFormatVersion = manifest.backupFormatVersion,
-            databaseSchemaVersion = manifest.databaseSchemaVersion,
-            localeTag = manifest.localeTag ?: "",
-            totalRecordCount = totalRecordCount,
-            attachmentCount = manifest.attachments.size,
-            totalAttachmentBytes = totalAttachmentBytes
-        )
+        return state is BackupRestoreUiState.Applying || 
+               state is BackupRestoreUiState.RecoveryRequired ||
+               state is BackupRestoreUiState.RecoveryInProgress
     }
 
     override fun onCleared() {
         super.onCleared()
-        if (!isMutationActive()) {
+        if (!isBlocked()) {
             cancelActiveOperation()
         }
     }

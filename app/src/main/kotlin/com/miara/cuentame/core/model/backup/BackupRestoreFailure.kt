@@ -25,6 +25,11 @@ sealed interface BackupRestoreFailure {
     data object ManifestMismatch : BackupRestoreFailure
     data class SnapshotIntegrityFailure(val code: BackupSnapshotIntegrityCode) : BackupRestoreFailure
     data object AttachmentMismatch : BackupRestoreFailure
+    data object AttachmentsNotSupported : BackupRestoreFailure
+    data object DatabaseRestoreFailed : BackupRestoreFailure
+    data object PreferencesRestoreFailed : BackupRestoreFailure
+    data object RestorePreparationFailed : BackupRestoreFailure
+    data object FinalVerificationFailed : BackupRestoreFailure
     data object GenericIo : BackupRestoreFailure
     data object OperationInterrupted : BackupRestoreFailure
     data object InspectionExpired : BackupRestoreFailure

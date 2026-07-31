@@ -103,6 +103,7 @@ class AndroidBackupRepository @Inject constructor(
             BackupPlanningFailure.SerializationFailed -> BackupResult.Error.SerializationFailure
             BackupPlanningFailure.UnexpectedPlanningFailure -> BackupResult.Error.UnexpectedInternalFailure
             BackupPlanningFailure.UnsupportedDatabaseSchema -> BackupResult.Error.UnsupportedPersistentData
+            BackupPlanningFailure.AttachmentsNotSupported -> BackupResult.Error.AttachmentsNotSupported
         }
     }
 
