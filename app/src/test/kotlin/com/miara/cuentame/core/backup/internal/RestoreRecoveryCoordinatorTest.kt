@@ -47,14 +47,14 @@ class RestoreRecoveryCoordinatorTest {
     fun `recoverIfNeeded cleans up session when mutation not started`() = runTest {
         val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
-        every { storage.cleanupSession("session") } just Runs
-        every { journal.delete() } just Runs
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.deleteOrThrow() } just Runs
         
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
-        verify { storage.cleanupSession("session") }
-        verify { journal.delete() }
+        verify { storage.cleanupSessionOrThrow("session") }
+        verify { journal.deleteOrThrow() }
     }
 
     @Test
@@ -70,15 +70,30 @@ class RestoreRecoveryCoordinatorTest {
         coEvery { preferencesApplier.apply(any()) } just Runs
         coEvery { preferencesApplier.captureRollback() } returns prefs
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
-        every { storage.cleanupSession("session") } just Runs
+        every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.write(any()) } just Runs
-        every { journal.delete() } just Runs
+        every { journal.deleteOrThrow() } just Runs
         
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
         coVerify { databaseApplier.restoreRollback(match { it.snapshot == rollbackSnapshot.snapshot }) }
         coVerify { preferencesApplier.apply(prefs) }
+    }
+
+    @Test
+    fun `retry from COMPLETED performs cleanup only`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.deleteOrThrow() } just Runs
+        
+        val result = coordinator.retryRecovery()
+        
+        assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
+        verify { storage.cleanupSessionOrThrow("session") }
+        verify { journal.deleteOrThrow() }
+        coVerify(exactly = 0) { databaseApplier.restoreRollback(any()) }
     }
 
     @Test
@@ -99,7 +114,7 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
-        verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) }
+        // verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) } // NO LONGER WRITTEN
     }
 
     @Test
@@ -113,9 +128,9 @@ class RestoreRecoveryCoordinatorTest {
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         coEvery { preferencesApplier.apply(any()) } just Runs
         coEvery { preferencesApplier.captureRollback() } returns prefs
-        every { storage.cleanupSession("session") } just Runs
+        every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.write(any()) } just Runs
-        every { journal.delete() } just Runs
+        every { journal.deleteOrThrow() } just Runs
         
         // First run
         coordinator.recoverIfNeeded()
@@ -142,12 +157,9 @@ class RestoreRecoveryCoordinatorTest {
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.getRollbackSnapshotFile("session") } returns File(tempFolder.root, "missing")
         
-        every { journal.write(any()) } just Runs
-        
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
-        verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) }
     }
 
     @Test
@@ -158,12 +170,21 @@ class RestoreRecoveryCoordinatorTest {
         setupRollbackFile("session")
         
         coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("DB Restore Fail")
-        every { journal.write(any()) } just Runs
 
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
-        verify { journal.write(match { it.phase == RestorePhase.RECOVERY_REQUIRED }) }
+    }
+
+    @Test
+    fun `cleanup failure from COMPLETED returns RecoveryRequired`() = runTest {
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup fail")
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
     }
 
     private fun setupRollbackFile(sessionId: String): RestoreDatabaseRollbackSnapshot {

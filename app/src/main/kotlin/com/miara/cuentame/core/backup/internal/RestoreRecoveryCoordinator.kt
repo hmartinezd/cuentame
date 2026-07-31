@@ -28,9 +28,6 @@ class RestoreRecoveryCoordinator @Inject constructor(
                 try {
                     handlePhase(dto)
                 } catch (e: Exception) {
-                    try {
-                        journal.write(dto.copy(phase = RestorePhase.RECOVERY_REQUIRED))
-                    } catch (ignore: Exception) {}
                     RestoreRecoveryResult.RecoveryRequired(dto.sessionId)
                 }
             }
@@ -40,8 +37,8 @@ class RestoreRecoveryCoordinator @Inject constructor(
     private suspend fun handlePhase(dto: RestoreJournalDto): RestoreRecoveryResult {
         return when (dto.phase) {
             RestorePhase.ROLLBACK_CAPTURED -> {
-                storage.cleanupSession(dto.sessionId)
-                journal.delete()
+                storage.cleanupSessionOrThrow(dto.sessionId)
+                journal.deleteOrThrow()
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
             RestorePhase.MUTATION_STARTED,
@@ -52,13 +49,13 @@ class RestoreRecoveryCoordinator @Inject constructor(
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
             RestorePhase.ROLLBACK_COMPLETED -> {
-                storage.cleanupSession(dto.sessionId)
-                journal.delete()
+                storage.cleanupSessionOrThrow(dto.sessionId)
+                journal.deleteOrThrow()
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
             RestorePhase.COMPLETED -> {
-                storage.cleanupSession(dto.sessionId)
-                journal.delete()
+                storage.cleanupSessionOrThrow(dto.sessionId)
+                journal.deleteOrThrow()
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
             RestorePhase.RECOVERY_REQUIRED -> {
@@ -109,10 +106,10 @@ class RestoreRecoveryCoordinator @Inject constructor(
         journal.write(dto.copy(phase = RestorePhase.ROLLBACK_COMPLETED))
 
         // 9. Cleanup
-        storage.cleanupSession(dto.sessionId)
+        storage.cleanupSessionOrThrow(dto.sessionId)
 
         // 10. Delete journal
-        journal.delete()
+        journal.deleteOrThrow()
     }
     
     suspend fun retryRecovery(): RestoreRecoveryResult {

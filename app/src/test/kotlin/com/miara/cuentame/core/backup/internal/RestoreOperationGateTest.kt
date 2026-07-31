@@ -113,4 +113,35 @@ class RestoreOperationGateTest {
         runCurrent()
         assertThat(results).containsExactly("operation_started")
     }
+
+    @Test
+    fun `withOperationalLock invokes onRecoveryRequired when state is RecoveryRequired`() = runTest {
+        val results = mutableListOf<String>()
+        gate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
+        
+        gate.withOperationalLock(
+            onRecoveryRequired = { results.add("recovery_required") }
+        ) {
+            results.add("success")
+        }
+        
+        assertThat(results).containsExactly("recovery_required")
+    }
+
+    @Test
+    fun `operation is blocked after restore requires recovery`() = runTest {
+        val results = mutableListOf<String>()
+        
+        // 1. Set state to RecoveryRequired
+        gate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
+        
+        // 2. Attempt an operation
+        gate.withOperationalLock(
+            onRecoveryRequired = { results.add("blocked") }
+        ) {
+            results.add("allowed")
+        }
+        
+        assertThat(results).containsExactly("blocked")
+    }
 }

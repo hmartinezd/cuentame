@@ -17,13 +17,16 @@ class RestorePreferencesApplier @Inject constructor(
     }
 
     fun validate(dto: BackupPreferencesDto): Boolean {
-        return try {
+        val validTheme = try {
             ThemeMode.valueOf(dto.themeMode)
-            SupportedAppLocale.fromLanguageTag(dto.appLocaleTag) != null
             true
         } catch (e: Exception) {
             false
         }
+
+        val validLocale = SupportedAppLocale.fromLanguageTag(dto.appLocaleTag) != null
+
+        return validTheme && validLocale
     }
 
     suspend fun apply(dto: BackupPreferencesDto) {

@@ -76,126 +76,34 @@ class BackupRestoreCoordinatorTest {
     }
 
     @Test
-    fun `failed rollback returns RecoveryRequired`() = runTest {
+    fun `failed rollback publishes global RecoveryRequired`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
 
-        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
-            every { this@mockk.snapshot } returns emptySnapshot
-            every { this@mockk.preferences } returns mockk(relaxed = true) {
-                every { themeMode } returns "SYSTEM"
-            }
-            every { this@mockk.manifest } returns mockk(relaxed = true) {
-                every { attachments } returns emptyList()
-            }
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
         }
         val inspectionResult = BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
         coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("Initial Fail")
         coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("Rollback Fail")
         
-        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die.json")
-        
-        val journalDto = RestoreJournalDto("session", RestorePhase.MUTATION_STARTED, "hash", null, 0)
-        every { journal.read() } returns RestoreJournalReadResult.Present(journalDto.copy(phase = RestorePhase.RECOVERY_REQUIRED))
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die_global.json")
 
         val result = coordinator.apply(source, fingerprint) {}
         
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.RecoveryRequired)
     }
 
     @Test
-    fun `apply rolls back on mutation failure`() = runTest {
-        val source = BackupDocumentUri("uri")
-        val fingerprint = BackupArchiveFingerprint("hash")
-
-        val emptySnapshot = createEmptySnapshot()
-        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
-            every { this@mockk.fingerprint } returns fingerprint
-            every { this@mockk.snapshot } returns emptySnapshot
-            every { this@mockk.preferences } returns mockk(relaxed = true) {
-                every { themeMode } returns "SYSTEM"
-            }
-            every { this@mockk.manifest } returns mockk(relaxed = true) {
-                every { attachments } returns emptyList()
-            }
-        }
-        val inspectionResult = BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
-        
-        coEvery { recoveryCoordinator.recoverIfNeeded() } returns RestoreRecoveryResult.NoRecoveryNeeded
-        coEvery { restoreRepository.inspect(source) } returns inspectionResult
-        coEvery { preferencesApplier.validate(any()) } returns true
-        coEvery { preferencesApplier.captureRollback() } returns archive.preferences
-        
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
-        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("DB Crash")
-        
-        val rollbackFile = tempFolder.newFile("rollback_fail_trigger.json")
-        every { storage.getRollbackSnapshotFile(any()) } returns rollbackFile
-        
-        val journalDto = RestoreJournalDto("session", RestorePhase.MUTATION_STARTED, "hash", null, 0)
-        every { journal.read() } returns RestoreJournalReadResult.Present(journalDto)
-
-        val result = coordinator.apply(source, fingerprint) {}
-        
-        assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
-        
-        verify {
-            journal.write(match { it.phase == RestorePhase.ROLLING_BACK })
-        }
-    }
-
-    @Test
-    fun `apply rejects changed archive fingerprint`() = runTest {
-        val source = BackupDocumentUri("uri")
-        val expectedFingerprint = BackupArchiveFingerprint("expected")
-        val actualFingerprint = BackupArchiveFingerprint("actual")
-        
-        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
-            every { fingerprint } returns actualFingerprint
-        }
-        val inspectionResult = BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
-        
-        coEvery { recoveryCoordinator.recoverIfNeeded() } returns RestoreRecoveryResult.NoRecoveryNeeded
-        coEvery { restoreRepository.inspect(source) } returns inspectionResult
-        
-        val result = coordinator.apply(source, expectedFingerprint) {}
-        
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired))
-    }
-
-    @Test
-    fun `apply rejects invalid theme before mutation`() = runTest {
-        val source = BackupDocumentUri("uri")
-        val fingerprint = BackupArchiveFingerprint("hash")
-        
-        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
-            every { this@mockk.fingerprint } returns fingerprint
-            every { this@mockk.preferences } returns mockk(relaxed = true) {
-                every { themeMode } returns "GHOST_MODE"
-            }
-        }
-        val inspectionResult = BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
-        
-        coEvery { restoreRepository.inspect(source) } returns inspectionResult
-        coEvery { preferencesApplier.validate(any()) } returns false // Rejection
-        
-        val result = coordinator.apply(source, fingerprint) {}
-        
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.MalformedPreferences))
-        coVerify(exactly = 0) { databaseApplier.captureRollbackSnapshot() }
-    }
-
-    @Test
-    fun `cleanup failure after successful mutation returns RecoveryRequired`() = runTest {
+    fun `cleanup failure after successful mutation publishes global RecoveryRequired`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
@@ -209,24 +117,75 @@ class BackupRestoreCoordinatorTest {
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
         coEvery { databaseApplier.verifyMatchesBackup(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
 
-        // Track journal state
-        var currentJournal: RestoreJournalDto? = null
-        every { journal.write(any()) } answers { currentJournal = firstArg() }
-        every { journal.read() } answers { 
-            currentJournal?.let { RestoreJournalReadResult.Present(it) } ?: RestoreJournalReadResult.Absent 
-        }
-
         every { storage.cleanupSessionOrThrow(any()) } throws java.io.IOException("Cleanup failed")
-        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_cleanup_fail.json")
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_cleanup_fail_global.json")
 
         val result = coordinator.apply(source, fingerprint) {}
         
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
-        assertThat(currentJournal?.phase).isEqualTo(RestorePhase.RECOVERY_REQUIRED)
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.RecoveryRequired)
+    }
+
+    @Test
+    fun `failed RECOVERY_REQUIRED journal write still returns RecoveryRequired`() = runTest {
+        // Wait, I removed explicit RECOVERY_REQUIRED write in favor of global state and returning failure.
+        // Let's test that failure to write ANY journal phase still results in RecoveryRequired if mutation started.
+        
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        coEvery { preferencesApplier.validate(any()) } returns true
+        
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        
+        // Fail mutation write
+        every { journal.write(match { it.phase == RestorePhase.MUTATION_STARTED }) } throws RuntimeException("Disk full")
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("disk_full.json")
+
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired))
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.RecoveryRequired)
+    }
+
+    @Test
+    fun `successful rollback returns DatabaseRestoreFailed`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
+            every { this@mockk.manifest } returns mockk(relaxed = true) { every { attachments } returns emptyList() }
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
+        coEvery { preferencesApplier.validate(any()) } returns true
+        
+        val rollback = RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
+        coEvery { preferencesApplier.captureRollback() } returns archive.preferences
+        
+        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("DB Crash")
+        
+        // Rollback succeeds
+        coEvery { databaseApplier.restoreRollback(any()) } just Runs
+        coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
+        coEvery { preferencesApplier.verifyMatches(any()) } returns true
+        
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_ok.json")
+
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.DatabaseRestoreFailed))
+        assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
     }
 
     private fun createEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

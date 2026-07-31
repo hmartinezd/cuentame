@@ -46,4 +46,28 @@ class RestorePreferencesApplierTest {
         val expected = BackupPreferencesDto("LIGHT", true, "en-US")
         assert(result == expected)
     }
+
+    @Test
+    fun `validate returns true for valid theme and locale`() {
+        val dto = BackupPreferencesDto("LIGHT", true, "en-US")
+        assert(applier.validate(dto))
+    }
+
+    @Test
+    fun `validate returns false for invalid theme`() {
+        val dto = BackupPreferencesDto("GHOST", true, "en-US")
+        assert(!applier.validate(dto))
+    }
+
+    @Test
+    fun `validate returns false for unsupported locale`() {
+        val dto = BackupPreferencesDto("LIGHT", true, "fr-FR")
+        assert(!applier.validate(dto))
+    }
+
+    @Test
+    fun `validate returns false for empty locale`() {
+        val dto = BackupPreferencesDto("LIGHT", true, "")
+        assert(!applier.validate(dto))
+    }
 }

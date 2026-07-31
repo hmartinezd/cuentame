@@ -102,6 +102,8 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             startedAt = System.currentTimeMillis()
         )
 
+        var recoveryRequired = false
+
         try {
             onProgress(BackupRestoreProgress.PreparingRollback)
             
@@ -183,10 +185,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                 } catch (e: Exception) {
                     if (currentJournal.phase == RestorePhase.COMPLETED) {
                          // Successfully applied but failed to clean up.
-                         // Do not roll back, but require recovery (manual or auto on next startup)
-                         try {
-                             journal.write(currentJournal.copy(phase = RestorePhase.RECOVERY_REQUIRED))
-                         } catch (ignore: Exception) {}
+                         recoveryRequired = true
                          throw e
                     }
 
@@ -215,9 +214,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         storage.cleanupSessionOrThrow(sessionId)
                         journal.deleteOrThrow()
                     } catch (rollbackError: Exception) {
-                        try {
-                            journal.write(currentJournal.copy(phase = RestorePhase.RECOVERY_REQUIRED))
-                        } catch (ignore: Exception) {}
+                        recoveryRequired = true
                         throw rollbackError
                     }
                     throw e
@@ -229,26 +226,28 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         } catch (e: CancellationException) {
             if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED) {
                 try {
-                    storage.cleanupSession(sessionId)
-                    journal.delete()
+                    storage.cleanupSessionOrThrow(sessionId)
+                    journal.deleteOrThrow()
                 } catch (ignore: Exception) {}
             }
             throw e
         } catch (e: Exception) {
-            val journalResult = journal.read()
-            if (journalResult is RestoreJournalReadResult.Present && journalResult.journal.phase == RestorePhase.RECOVERY_REQUIRED) {
+            if (recoveryRequired) {
+                operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
                 return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
             }
             
             // If mutation didn't start or rollback succeeded, clean up session
             if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED || currentJournal.phase == RestorePhase.ROLLBACK_COMPLETED) {
                  try {
-                     storage.cleanupSession(sessionId)
-                     journal.delete()
+                     storage.cleanupSessionOrThrow(sessionId)
+                     journal.deleteOrThrow()
                  } catch (ignore: Exception) {}
+                 return@withOperationalLock BackupRestoreApplyResult.Failure(mapException(e))
             }
             
-            return@withOperationalLock BackupRestoreApplyResult.Failure(mapException(e))
+            operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
+            return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
         }
     }
 
