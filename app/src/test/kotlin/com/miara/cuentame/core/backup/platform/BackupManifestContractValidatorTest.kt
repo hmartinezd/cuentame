@@ -39,14 +39,60 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `missing identity fields fails`() {
-        val manifest = createValidBaseManifest().copy(restaurantName = "   ")
+    fun `incompatible schema version fails`() {
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 99)
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.IncompatibleSchemaVersion)
+    }
+
+    @Test
+    fun `blank restaurant ID fails`() {
+        val manifest = createValidBaseManifest().copy(restaurantId = "")
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
         assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
-    fun `manifest to zip attachment bijection enforced`() {
+    fun `blank locale tag fails`() {
+        val manifest = createValidBaseManifest().copy(localeTag = " ")
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `blank currency code fails`() {
+        val manifest = createValidBaseManifest().copy(currencyCode = "   ")
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `negative table count fails`() {
+        val manifest = createValidBaseManifest().copy(
+            tableMetadata = mapOf("restaurants" to TableMetadata(-1, false))
+        )
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `invalid attachment ID fails`() {
+        val att = BackupAttachmentMetadata("invalid!", "path", "name", null, 10, "sum", emptyList())
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `negative attachment size fails`() {
+        val att = BackupAttachmentMetadata("att-1", "path", "name", null, -1, "sum", emptyList())
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, emptyMap(), emptyMap())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `manifest to zip attachment bijection exact match succeeds`() {
         val attId = "0123456789abcdef"
         val path = "attachments/$attId/file.jpg"
         val att = BackupAttachmentMetadata(
@@ -73,16 +119,90 @@ class BackupManifestContractValidatorTest {
             path to 100L
         )
         
-        // 1. Exact match succeeds
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)).isNull()
+    }
+
+    @Test
+    fun `extra file in ZIP fails`() {
+        val manifest = createValidBaseManifest()
+        val checksums = mapOf(
+            "data/database.json" to "a".repeat(64),
+            "preferences/settings.json" to "a".repeat(64),
+            "manifest.json" to "a".repeat(64),
+            "attachments/extra/file.jpg" to "b".repeat(64)
+        )
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, emptyMap())).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `extra entry in manifest fails`() {
+        val attId = "0123456789abcdef"
+        val path = "attachments/$attId/file.jpg"
+        val att = BackupAttachmentMetadata(
+            attachmentId = attId,
+            archivePath = path,
+            displayName = "file.jpg",
+            mimeType = null,
+            sizeBytes = 100,
+            checksumSha256 = "a".repeat(64),
+            referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
+        )
         
-        // 2. Extra file in ZIP fails
-        val extraChecksums = checksums + ("attachments/extra/file.jpg" to "b".repeat(64))
-        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, extraChecksums, sizes)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val checksums = mapOf(
+            "data/database.json" to "a".repeat(64),
+            "preferences/settings.json" to "a".repeat(64),
+            "manifest.json" to "a".repeat(64)
+            // missing 'path'
+        )
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, emptyMap())).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `snapshot attachment missing from manifest fails`() {
+        val manifest = createValidBaseManifest() // No attachments
+        val snapshot = createValidEmptySnapshot().copy(
+            wasteEvents = listOf(createWasteEvent("w1", "some-id"))
+        )
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `manifest reference missing from snapshot fails`() {
+        val attId = "0123456789abcdef"
+        val att = BackupAttachmentMetadata(
+            attachmentId = attId,
+            archivePath = "attachments/$attId/file.jpg",
+            displayName = "file.jpg",
+            mimeType = null,
+            sizeBytes = 0,
+            checksumSha256 = "a".repeat(64),
+            referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "missing"))
+        )
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val snapshot = createValidEmptySnapshot()
         
-        // 3. Extra entry in manifest fails
-        val missingChecksums = checksums - path
-        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, missingChecksums, sizes)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `physical attachment size mismatch fails`() {
+        val attId = "0123456789abcdef"
+        val path = "attachments/$attId/file.jpg"
+        val att = BackupAttachmentMetadata(
+            attachmentId = attId,
+            archivePath = path,
+            displayName = "file.jpg",
+            mimeType = null,
+            sizeBytes = 100,
+            checksumSha256 = "a".repeat(64),
+            referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
+        )
+        val manifest = createValidBaseManifest().copy(attachments = listOf(att))
+        val checksums = mapOf(path to att.checksumSha256)
+        val sizes = mapOf(path to 200L) // Mismatch
+        
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)).isEqualTo(BackupRestoreFailure.AttachmentMismatch)
     }
 
     @Test
@@ -99,7 +219,7 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `bi-directional attachment relationship validation`() {
+    fun `bi-directional attachment relationship exact match succeeds`() {
         val attId = "0123456789abcdef"
         val att = BackupAttachmentMetadata(
             attachmentId = attId,
@@ -111,7 +231,6 @@ class BackupManifestContractValidatorTest {
             referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
         )
         
-        // 1. Exact match succeeds
         val manifest = createValidBaseManifest().copy(
             attachments = listOf(att),
             tableMetadata = createValidBaseManifest().tableMetadata.toMutableMap().apply {
@@ -123,14 +242,6 @@ class BackupManifestContractValidatorTest {
             wasteEvents = listOf(createWasteEvent("w1", attId))
         )
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isNull()
-        
-        // 2. Snapshot has attachment not in manifest fails
-        val snapshotExtra = snapshot.copy(wasteEvents = listOf(createWasteEvent("w1", "different-id")))
-        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotExtra)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
-        
-        // 3. Manifest references non-existent snapshot record fails
-        val manifestExtra = manifest.copy(attachments = listOf(att.copy(referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "missing")))))
-        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifestExtra, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 
     private fun createValidEmptySnapshot() = BackupSnapshotDto(

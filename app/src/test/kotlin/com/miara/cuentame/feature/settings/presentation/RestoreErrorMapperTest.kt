@@ -1,6 +1,7 @@
 package com.miara.cuentame.feature.settings.presentation
 
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.R
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode
 import org.junit.Test
@@ -8,18 +9,43 @@ import org.junit.Test
 class RestoreErrorMapperTest {
 
     @Test
-    fun `snapshot integrity failure maps to generic integrity message`() {
-        val failure = BackupRestoreFailure.SnapshotIntegrityFailure(BackupSnapshotIntegrityCode.RESTAURANT_NAME_MISMATCH)
-        val resId = failure.toUserMessageRes()
-        
-        // We can't easily check the string content in JVM test without robolectric,
-        // but we can verify it doesn't return a "leaky" ID if we had one.
-        // The most important thing is that it maps to a specific R.string constant.
-        assertThat(resId).isNotEqualTo(0)
+    fun `restore failure mappings are correct`() {
+        val mappings = mapOf(
+            BackupRestoreFailure.InvalidZip to R.string.restore_error_invalid_zip,
+            BackupRestoreFailure.MissingCoreEntry to R.string.restore_error_missing_core,
+            BackupRestoreFailure.ChecksumMismatch to R.string.restore_error_checksum,
+            BackupRestoreFailure.ManifestMismatch to R.string.restore_error_checksum,
+            BackupRestoreFailure.AttachmentMismatch to R.string.restore_error_checksum,
+            BackupRestoreFailure.UnsupportedFormatVersion to R.string.restore_error_incompatible,
+            BackupRestoreFailure.IncompatibleSchemaVersion to R.string.restore_error_incompatible,
+            BackupRestoreFailure.EntryLimitExceeded to R.string.restore_error_limit,
+            BackupRestoreFailure.TotalLimitExceeded to R.string.restore_error_limit,
+            BackupRestoreFailure.SourceUnavailable to R.string.backup_error_destination,
+            BackupRestoreFailure.PermissionDenied to R.string.backup_error_permission,
+            BackupRestoreFailure.GenericIo to R.string.error_generic,
+            BackupRestoreFailure.OperationInterrupted to R.string.error_generic,
+            BackupRestoreFailure.DuplicateEntry to R.string.restore_error_checksum,
+            BackupRestoreFailure.UnsafeEntryPath to R.string.restore_error_checksum,
+            BackupRestoreFailure.UnexpectedEntry to R.string.restore_error_checksum,
+            BackupRestoreFailure.MalformedChecksums to R.string.restore_error_checksum,
+            BackupRestoreFailure.MalformedSnapshot to R.string.restore_error_checksum,
+            BackupRestoreFailure.MalformedPreferences to R.string.restore_error_checksum,
+            BackupRestoreFailure.MalformedManifest to R.string.restore_error_checksum
+        )
+
+        mappings.forEach { (failure, expectedRes) ->
+            assertThat(failure.toUserMessageRes()).isEqualTo(expectedRes)
+        }
     }
 
     @Test
-    fun `all failures have a mapping`() {
-        // This is implicitly verified by the 'when' expression in the implementation being exhaustive.
+    fun `snapshot integrity failure maps to generic integrity message`() {
+        val failures = BackupSnapshotIntegrityCode.entries.map { 
+            BackupRestoreFailure.SnapshotIntegrityFailure(it)
+        }
+        
+        failures.forEach { failure ->
+            assertThat(failure.toUserMessageRes()).isEqualTo(R.string.restore_error_integrity_generic)
+        }
     }
 }

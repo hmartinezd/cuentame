@@ -113,6 +113,11 @@ class BackupRestoreViewModel @Inject constructor(
         }
     }
 
+    fun onChooseAnotherClicked() {
+        cancelActiveOperation()
+        _uiState.value = BackupRestoreUiState.SelectingFile
+    }
+
     fun onDismissRequest() {
         cancelActiveOperation()
         _uiState.value = BackupRestoreUiState.Idle

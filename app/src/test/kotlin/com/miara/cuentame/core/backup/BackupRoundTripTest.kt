@@ -150,8 +150,15 @@ class BackupRoundTripTest {
         val att = ready.archive.attachmentSummaries.first()
         assertThat(att.attachmentId).isEqualTo(attId)
         assertThat(att.sizeBytes).isEqualTo(attData.size.toLong())
+        assertThat(att.displayName).isEqualTo("file.jpg")
+        assertThat(att.archivePath).startsWith("attachments/$attId/")
         
-        assertThat(ready.archive.manifest.attachments.first().referencedBy).hasSize(2)
+        val manifestAtt = ready.archive.manifest.attachments.first()
+        assertThat(manifestAtt.attachmentId).isEqualTo(attId)
+        assertThat(manifestAtt.referencedBy).hasSize(2)
+        assertThat(manifestAtt.referencedBy.map { it.recordId }).containsExactly("p1", "w1")
+        assertThat(manifestAtt.referencedBy.map { it.recordType }).containsExactly("PURCHASE_RECEIPT", "WASTE_EVENT")
+
         assertThat(ready.archive.snapshot.purchaseReceipts.first().attachmentId).isEqualTo(attId)
         assertThat(ready.archive.snapshot.wasteEvents.first().attachmentId).isEqualTo(attId)
         
@@ -160,6 +167,10 @@ class BackupRoundTripTest {
         // Records: rest(1) + area(1) + ing(1) + unit(1) + opt(1) + pRec(1) + pLine(1) + waste(1) + move(2) = 10
         // projections (2) are excluded.
         assertThat(ready.preview.totalRecordCount).isEqualTo(10L)
+
+        // Verify planned vs inspected snapshot equality
+        assertThat(ready.archive.snapshot).isEqualTo(snapshotDto)
+        assertThat(ready.archive.preferences).isEqualTo(preferencesSource.result)
     }
 
     @Test

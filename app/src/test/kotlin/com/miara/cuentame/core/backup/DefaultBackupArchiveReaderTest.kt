@@ -4,9 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.platform.DefaultBackupArchiveReader
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -219,67 +216,157 @@ class DefaultBackupArchiveReaderTest {
 
     @Test
     fun `ZipInputStream closes exactly once after success`() = runTest {
-        val mockZis = mockk<ZipInputStream>(relaxed = true)
-        val factory = BackupZipInputFactory { mockZis }
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
         val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
         
-        every { mockZis.nextEntry } returns null 
+        val result = customReader.inspect(source, docUri)
         
-        customReader.inspect(ByteArrayInputStream(ByteArray(0)), docUri)
-        
-        verify(exactly = 1) { mockZis.close() }
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
     fun `ZipInputStream closes exactly once after failure`() = runTest {
-        val mockZis = mockk<ZipInputStream>(relaxed = true)
-        val factory = BackupZipInputFactory { mockZis }
+        val source = TrackingInputStream(ByteArrayInputStream(ByteArray(0)))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun getNextEntry(): java.util.zip.ZipEntry? = throw IOException("Read error")
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
         val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
         
-        every { mockZis.nextEntry } throws IOException("Read error")
+        val result = customReader.inspect(source, docUri)
         
-        customReader.inspect(ByteArrayInputStream(ByteArray(0)), docUri)
-        
-        verify(exactly = 1) { mockZis.close() }
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
     fun `ZipInputStream closes exactly once after cancellation`() = runTest {
-        val mockZis = mockk<ZipInputStream>(relaxed = true)
-        val factory = BackupZipInputFactory { mockZis }
+        val source = TrackingInputStream(ByteArrayInputStream(ByteArray(0)))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun getNextEntry(): java.util.zip.ZipEntry? = throw CancellationException()
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
         val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
         
-        every { mockZis.nextEntry } throws CancellationException()
+        try {
+            customReader.inspect(source, docUri)
+            org.junit.Assert.fail("Should have thrown CancellationException")
+        } catch (e: CancellationException) {
+            // Success
+        }
         
-        try { customReader.inspect(ByteArrayInputStream(ByteArray(0)), docUri) } catch (e: CancellationException) {}
-        
-        verify(exactly = 1) { mockZis.close() }
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
     fun `closeEntry failure cannot produce Ready`() = runTest {
-        val mockZis = mockk<ZipInputStream>(relaxed = true)
-        val factory = BackupZipInputFactory { mockZis }
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun closeEntry() {
+                    throw IOException("Close entry failed")
+                }
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
         val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
         
-        every { mockZis.nextEntry } returns java.util.zip.ZipEntry("manifest.json") andThen null
-        every { mockZis.closeEntry() } throws IOException("Close entry failed")
-        
-        val result = customReader.inspect(ByteArrayInputStream(ByteArray(0)), docUri)
+        val result = customReader.inspect(source, docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.InvalidZip)
+        assertThat(zipCloseCount).isEqualTo(1)
+        assertThat(source.isClosed).isFalse()
     }
 
     @Test
     fun `ZipInputStream close failure cannot produce Ready`() = runTest {
-        val mockZis = mockk<ZipInputStream>(relaxed = true)
-        val factory = BackupZipInputFactory { mockZis }
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    throw IOException("Close failed")
+                }
+            }
+        }
         val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
         
-        every { mockZis.nextEntry } returns null
-        every { mockZis.close() } throws IOException("Close failed")
-        
-        val result = customReader.inspect(ByteArrayInputStream(ByteArray(0)), docUri)
+        val result = customReader.inspect(source, docUri)
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.GenericIo)
+        assertThat(source.isClosed).isFalse()
+    }
+
+    @Test
+    fun `inspect with missing core entry closes exactly once`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).removeEntry("data/database.json").build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        
+        val result = customReader.inspect(source, docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MissingCoreEntry)
+        assertThat(zipCloseCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `inspect with duplicate entry closes exactly once`() = runTest {
+        val bytes = BackupArchiveTestBuilder(jsonCodecs).addDuplicateEntry("data/database.json", "{}".toByteArray()).build()
+        val source = TrackingInputStream(ByteArrayInputStream(bytes))
+        var zipCloseCount = 0
+        val factory = BackupZipInputFactory { input ->
+            object : ZipInputStream(input) {
+                override fun close() {
+                    zipCloseCount++
+                    super.close()
+                }
+            }
+        }
+        val customReader = DefaultBackupArchiveReader(jsonCodecs, BackupReadLimits(), factory)
+        
+        val result = customReader.inspect(source, docUri)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.DuplicateEntry)
+        assertThat(zipCloseCount).isEqualTo(1)
     }
 
     private fun createValidEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(
