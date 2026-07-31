@@ -1,19 +1,18 @@
 package com.miara.cuentame.core.presentation.navigation
 
-import android.net.Uri
 import com.miara.cuentame.core.common.ids.*
-import io.mockk.every
-import io.mockk.mockkStatic
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.net.URLEncoder
 
 class AppRoutesTest {
 
     @Before
     fun setup() {
-        mockkStatic(Uri::class)
-        every { Uri.encode(any()) } answers { it.invocation.args[0] as String }
+        AppRoutes.encoder = object : RouteEncoder {
+            override fun encode(s: String): String = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+        }
     }
 
     @Test
@@ -104,5 +103,19 @@ class AppRoutesTest {
     @Test
     fun `reportWasteDetail produces correct route`() {
         assertEquals("reports/waste?range=LAST_30_DAYS", AppRoutes.reportWasteDetail("LAST_30_DAYS"))
+    }
+
+    @Test
+    fun `encoding special characters`() {
+        val id = IngredientId("item/one?#%")
+        val encoded = AppRoutes.ingredientDetail(id)
+        assertEquals("inventory/item%2Fone%3F%23%25", encoded)
+    }
+
+    @Test
+    fun `encoding space`() {
+        val id = IngredientId("item one")
+        val encoded = AppRoutes.ingredientDetail(id)
+        assertEquals("inventory/item%20one", encoded)
     }
 }

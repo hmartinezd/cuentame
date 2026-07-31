@@ -84,6 +84,7 @@ fun StockCountListScreen(
     onCountClick: (StockCountId, StockCountStatus) -> Unit
 ) {
     Scaffold(
+        modifier = Modifier.testTag("stock_count_list_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(

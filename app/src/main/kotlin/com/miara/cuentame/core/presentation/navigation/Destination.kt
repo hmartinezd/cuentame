@@ -32,8 +32,8 @@ enum class Destination(val route: String) {
     INGREDIENT_EDIT("inventory/{ingredientId}/edit"),
     
     REPORT_INVENTORY_DETAIL("reports/inventory"),
-    REPORT_PURCHASE_DETAIL("reports/purchases"),
-    REPORT_WASTE_DETAIL("reports/waste"),
+    REPORT_PURCHASE_DETAIL("reports/purchases?range={range}"),
+    REPORT_WASTE_DETAIL("reports/waste?range={range}"),
     
     SUPPLIER_LIST("suppliers"),
     SUPPLIER_CREATE("suppliers/create"),

@@ -42,7 +42,7 @@ class AndroidBackupRepositoryTest {
         documentStore = AndroidBackupDocumentStore(context)
         
         val gate = com.miara.cuentame.core.backup.internal.RestoreOperationGate()
-        gate.updateRecoveryState(com.miara.cuentame.core.backup.api.RestoreStartupState.Ready)
+        gate.updateRecoveryState(RestoreStartupState.Ready)
 
         repository = AndroidBackupRepository(
             snapshotSource = snapshotSource,

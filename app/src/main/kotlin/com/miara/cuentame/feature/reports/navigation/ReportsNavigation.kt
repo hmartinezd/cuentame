@@ -2,7 +2,9 @@ package com.miara.cuentame.feature.reports.navigation
 
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
@@ -22,10 +24,28 @@ fun NavGraphBuilder.reportsGraph(navController: NavHostController) {
     composable(route = Destination.REPORT_INVENTORY_DETAIL.route) {
         InventoryDetailRoute(onBack = { navController.popBackStack() })
     }
-    composable(route = Destination.REPORT_PURCHASE_DETAIL.route) {
+    composable(
+        route = Destination.REPORT_PURCHASE_DETAIL.route,
+        arguments = listOf(
+            navArgument("range") {
+                type = NavType.StringType
+                defaultValue = "LAST_30_DAYS"
+                nullable = true
+            }
+        )
+    ) {
         ReportsPurchaseDetailRoute(onBack = { navController.popBackStack() })
     }
-    composable(route = Destination.REPORT_WASTE_DETAIL.route) {
+    composable(
+        route = Destination.REPORT_WASTE_DETAIL.route,
+        arguments = listOf(
+            navArgument("range") {
+                type = NavType.StringType
+                defaultValue = "LAST_30_DAYS"
+                nullable = true
+            }
+        )
+    ) {
         ReportsWasteDetailRoute(onBack = { navController.popBackStack() })
     }
 }

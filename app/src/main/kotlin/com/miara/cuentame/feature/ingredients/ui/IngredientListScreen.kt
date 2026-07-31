@@ -77,6 +77,7 @@ fun IngredientListScreen(
     onIngredientClick: (IngredientId) -> Unit
 ) {
     Scaffold(
+        modifier = Modifier.testTag("ingredient_list_screen"),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddIngredient,

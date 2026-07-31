@@ -1,6 +1,5 @@
 package com.miara.cuentame.core.presentation.navigation
 
-import android.net.Uri
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.StockCountAreaId
 import com.miara.cuentame.core.common.ids.StockCountId
@@ -10,48 +9,50 @@ import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.WasteEventId
 
 object AppRoutes {
+    var encoder: RouteEncoder = AndroidRouteEncoder
+
     fun ingredientDetail(id: IngredientId): String =
-        "inventory/${Uri.encode(id.value)}"
+        "inventory/${encoder.encode(id.value)}"
 
     fun ingredientEdit(id: IngredientId): String =
-        "inventory/${Uri.encode(id.value)}/edit"
+        "inventory/${encoder.encode(id.value)}/edit"
 
     fun stockCountDraft(id: StockCountId): String =
-        "count/${Uri.encode(id.value)}"
+        "count/${encoder.encode(id.value)}"
 
     fun stockCountDetail(id: StockCountId): String =
-        "count/${Uri.encode(id.value)}/detail"
+        "count/${encoder.encode(id.value)}/detail"
 
     fun stockCountArea(countId: StockCountId, areaId: StockCountAreaId): String =
-        "count/${Uri.encode(countId.value)}/area/${Uri.encode(areaId.value)}"
+        "count/${encoder.encode(countId.value)}/area/${encoder.encode(areaId.value)}"
 
     fun purchaseDraft(id: PurchaseReceiptId): String =
-        "purchases/${Uri.encode(id.value)}"
+        "purchases/${encoder.encode(id.value)}"
 
     fun purchaseDetail(id: PurchaseReceiptId): String =
-        "purchases/${Uri.encode(id.value)}/detail"
+        "purchases/${encoder.encode(id.value)}/detail"
 
     fun purchaseLineCreate(receiptId: PurchaseReceiptId): String =
-        "purchases/${Uri.encode(receiptId.value)}/line"
+        "purchases/${encoder.encode(receiptId.value)}/line"
 
     fun purchaseLineEdit(receiptId: PurchaseReceiptId, lineId: PurchaseLineId): String =
-        "purchases/${Uri.encode(receiptId.value)}/line/${Uri.encode(lineId.value)}"
+        "purchases/${encoder.encode(receiptId.value)}/line/${encoder.encode(lineId.value)}"
 
     fun wasteDraft(id: WasteEventId): String =
-        "waste/draft/${Uri.encode(id.value)}"
+        "waste/draft/${encoder.encode(id.value)}"
 
     fun wasteEdit(id: WasteEventId): String =
-        "waste/${Uri.encode(id.value)}/edit"
+        "waste/${encoder.encode(id.value)}/edit"
 
     fun wasteDetail(id: WasteEventId): String =
-        "waste/${Uri.encode(id.value)}"
+        "waste/${encoder.encode(id.value)}"
 
     fun supplierEdit(id: SupplierId): String =
-        "suppliers/${Uri.encode(id.value)}/edit"
+        "suppliers/${encoder.encode(id.value)}/edit"
 
     fun reportPurchaseDetail(rangeName: String): String =
-        "reports/purchases?range=${Uri.encode(rangeName)}"
+        "reports/purchases?range=${encoder.encode(rangeName)}"
 
     fun reportWasteDetail(rangeName: String): String =
-        "reports/waste?range=${Uri.encode(rangeName)}"
+        "reports/waste?range=${encoder.encode(rangeName)}"
 }

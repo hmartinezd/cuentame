@@ -165,7 +165,7 @@ fun StockCountAreaScreen(
                 }
             }
             is StockCountAreaScreenState.InvalidRoute -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxSize().padding(padding).testTag("stock_count_invalid_route"), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.error_invalid_count_route))
                 }
             }

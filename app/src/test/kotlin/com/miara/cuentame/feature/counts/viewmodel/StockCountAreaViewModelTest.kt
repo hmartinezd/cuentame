@@ -5,6 +5,7 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.domain.model.count.*
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.domain.usecase.*
 import com.miara.cuentame.core.domain.service.*
@@ -13,6 +14,8 @@ import com.miara.cuentame.core.model.count.*
 import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -188,6 +191,33 @@ class StockCountAreaViewModelTest {
     }
 
     @Test
+    fun `missing countAreaId produces InvalidRoute`() = runTest {
+        val vm = StockCountAreaViewModel(
+            SavedStateHandle(mapOf("countId" to countId.value)),
+            fakeRepo,
+            fakeRestaurantRepo,
+            GetMissingCountItemsUseCase(fakeIngredientRepo, fakeRepo, object : InventorySnapshotService {
+                override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = InventorySnapshot(false, BigDecimal.ZERO, null)
+                override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = emptyMap<IngredientId, BigDecimal>()
+            }),
+            PreviewStockCountLineUseCase(object : InventorySnapshotService {
+                override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = InventorySnapshot(false, BigDecimal.ZERO, null)
+                override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = emptyMap<IngredientId, BigDecimal>()
+            }),
+            fakeIngredientRepo,
+            fakeCategoryRepo,
+            timeProvider
+        )
+        vm.uiState.test {
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+            assertThat(state.screenState).isEqualTo(StockCountAreaScreenState.InvalidRoute)
+        }
+    }
+
+    @Test
     fun `area belonging to another count produces OwnershipMismatch`() = runTest {
         detailsFlow.value = detailsFlow.value?.copy(
             area = detailsFlow.value!!.area.copy(stockCountId = StockCountId("other-count"))
@@ -276,6 +306,145 @@ class StockCountAreaViewModelTest {
         viewModel.events.test {
             viewModel.onBackRequested()
             assertThat(awaitItem()).isInstanceOf(StockCountAreaEvent.NavigateBack::class.java)
+        }
+    }
+
+    @Test
+    fun `untouched suggestions are not pending`() = runTest {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        val candidateResult = CountCandidateResult(listOf(ingredient), listOf(ingredient), emptyList())
+        
+        val mockGetMissing = mockk<GetMissingCountItemsUseCase>()
+        coEvery { mockGetMissing(any(), any(), any(), any()) } returns candidateResult
+        
+        val vm = StockCountAreaViewModel(
+            SavedStateHandle(mapOf("countId" to countId.value, "countAreaId" to countAreaId.value)),
+            fakeRepo,
+            fakeRestaurantRepo,
+            mockGetMissing,
+            PreviewStockCountLineUseCase(mockk(relaxed = true)),
+            fakeIngredientRepo,
+            fakeCategoryRepo,
+            timeProvider
+        )
+
+        vm.uiState.test {
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+            
+            val entry = state.lineEntries.first()
+            assertThat(entry.hasUserEdit).isFalse()
+            assertThat(entry.isPending).isFalse()
+            assertThat(state.hasPendingSaves).isFalse()
+        }
+    }
+
+    @Test
+    fun `rapid unit selection preserves final selection`() = runTest {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        
+        viewModel.uiState.test {
+            // Wait for initial load
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+
+            viewModel.onAddIngredient(ingredient)
+            
+            // Wait for ingredient to be added
+            state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+            
+            viewModel.onQuantityChanged(ingId.value, "10")
+            viewModel.onUnitChanged(ingId.value, "o1")
+            viewModel.onUnitChanged(ingId.value, "o2")
+            
+            state = awaitItem()
+            while (state.lineEntries.first().unitId != "o2") {
+                state = awaitItem()
+            }
+            assertThat(state.lineEntries.first().unitId).isEqualTo("o2")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `invalid input blocks completion`() = runTest {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        
+        viewModel.uiState.test {
+            // Wait for initial load
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+
+            viewModel.onAddIngredient(ingredient)
+            
+            // Wait for ingredient to be added
+            state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+            
+            viewModel.onQuantityChanged(ingId.value, "invalid")
+            viewModel.onCompleteArea()
+            
+            state = awaitItem()
+            while (state.error == null) {
+                state = awaitItem()
+            }
+            assertThat(state.error).isEqualTo(ValidationError.PendingCountSaves)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `stale save result does not overwrite newer state`() = runTest {
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        
+        viewModel.uiState.test {
+            // Wait for initial load
+            var state = awaitItem()
+            while (state.screenState == StockCountAreaScreenState.Loading) {
+                state = awaitItem()
+            }
+
+            viewModel.onAddIngredient(ingredient)
+            
+            // Wait for ingredient to be added
+            state = awaitItem()
+            while (state.lineEntries.isEmpty()) {
+                state = awaitItem()
+            }
+
+            // Revision 1
+            viewModel.onQuantityChanged(ingId.value, "10")
+            
+            // Revision 2 (immediate)
+            viewModel.onQuantityChanged(ingId.value, "20")
+            
+            state = awaitItem()
+            while (state.lineEntries.first().quantityText != "20") {
+                state = awaitItem()
+            }
+            
+            // Wait for saves to finish
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            state = awaitItem()
+            while (state.hasPendingSaves) {
+                state = awaitItem()
+            }
+            
+            assertThat(state.lineEntries.first().quantityText).isEqualTo("20")
+            assertThat(state.lineEntries.first().savedRevision).isEqualTo(2)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 }

@@ -56,13 +56,16 @@ class StockCountNavigationTest {
             }
             
             // Start New Count
-            composeTestRule.onNodeWithTag("start_count_button").performClick()
+            composeTestRule.onNodeWithTag("start_count_fab").performClick()
             
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("stock_count_start_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Select an area (testStateManager seeds "Storage")
+            // Verify count_name_input contains a real generated default name
+            composeTestRule.onNodeWithTag("count_name_input").assert(hasText("", ignoreCase = true).not())
+            
+            // Select the seeded count area (Storage)
             composeTestRule.onNodeWithText("Storage").performClick()
             
             // Start
@@ -83,7 +86,7 @@ class StockCountNavigationTest {
             
             // Verify it's Ready and not InvalidRoute
             composeTestRule.onNodeWithTag("ingredient_search").assertIsDisplayed()
-            composeTestRule.onNodeWithText("We couldn't open this inventory count").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("stock_count_invalid_route").assertDoesNotExist()
         }
     }
 }

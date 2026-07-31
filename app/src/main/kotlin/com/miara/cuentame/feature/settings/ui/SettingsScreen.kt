@@ -200,6 +200,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = Modifier.testTag("settings_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(

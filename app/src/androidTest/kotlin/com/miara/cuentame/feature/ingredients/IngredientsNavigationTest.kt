@@ -56,7 +56,7 @@ class IngredientsNavigationTest {
             }
             
             // Tap Add
-            composeTestRule.onNodeWithTag("add_ingredient_button").performClick()
+            composeTestRule.onNodeWithTag("add_ingredient_fab").performClick()
             
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_form_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -65,8 +65,17 @@ class IngredientsNavigationTest {
             // Fill form
             composeTestRule.onNodeWithTag("ingredient_name_input").performTextInput("New Ingredient")
             
-            // Save
-            composeTestRule.onNodeWithTag("save_ingredient_button").performClick()
+            // Select Dimension (MASS)
+            composeTestRule.onNodeWithTag("dimension_selector").performClick()
+            composeTestRule.onNodeWithTag("dimension_item_MASS").performClick()
+            
+            // Select Base Unit (unit-test-1 seeded as Pound/lb)
+            composeTestRule.onNodeWithTag("base_unit_selector").performClick()
+            composeTestRule.onNodeWithTag("base_unit_item_unit-test-1").performClick()
+            
+            // Confirm Save is enabled and Save
+            composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled()
+            composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
             
             // Verify navigation to detail
             composeTestRule.waitUntil(15000) {
@@ -75,6 +84,10 @@ class IngredientsNavigationTest {
             
             composeTestRule.onNodeWithTag("ingredient_detail_screen").assertIsDisplayed()
             composeTestRule.onNodeWithText("New Ingredient").assertIsDisplayed()
+            
+            // Verify form is gone (back goes to list)
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("ingredient_list_screen").assertIsDisplayed()
         }
     }
 }
