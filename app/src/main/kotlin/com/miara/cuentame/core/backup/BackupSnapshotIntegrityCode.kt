@@ -42,4 +42,9 @@ enum class BackupSnapshotIntegrityCode {
     // Projections
     INVALID_BALANCE_PROJECTION,
     INVALID_COST_PROJECTION,
+
+    // Recipes
+    INVALID_RECIPE_STATUS,
+    INVALID_RECIPE_STRUCTURE,
+    INVALID_RECIPE_GRAPH,
 }

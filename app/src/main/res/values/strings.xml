@@ -110,6 +110,8 @@
     <string name="error_draft_save">Draft save failed</string>
     <string name="error_overlapping_area">Area %1$s is already included in another draft count</string>
     <string name="error_no_restaurant">Restaurant not configured</string>
+    <string name="error_unit_option_used_by_recipe">Unit option is used as a yield unit by a non-archived preparation recipe</string>
+    <string name="error_unit_option_used_by_recipe_comp">Unit option is used by a component in a non-archived preparation recipe</string>
 
     <!-- States -->
     <string name="state_loading_desc">Loading…</string>

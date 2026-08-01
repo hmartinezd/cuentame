@@ -284,22 +284,32 @@ class BackupCreationPlanner @Inject constructor(
     private fun computeSha256(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
-    private fun createTableMetadata(dto: com.miara.cuentame.core.backup.model.BackupSnapshotDto): Map<String, TableMetadata> = mapOf(
-        "restaurants" to TableMetadata(dto.restaurants.size, false),
-        "inventory_areas" to TableMetadata(dto.inventoryAreas.size, false),
-        "ingredient_categories" to TableMetadata(dto.ingredientCategories.size, false),
-        "units" to TableMetadata(dto.units.size, false),
-        "ingredients" to TableMetadata(dto.ingredients.size, false),
-        "ingredient_unit_options" to TableMetadata(dto.ingredientUnitOptions.size, false),
-        "suppliers" to TableMetadata(dto.suppliers.size, false),
-        "purchase_receipts" to TableMetadata(dto.purchaseReceipts.size, false),
-        "purchase_lines" to TableMetadata(dto.purchaseLines.size, false),
-        "stock_counts" to TableMetadata(dto.stockCounts.size, false),
-        "stock_count_areas" to TableMetadata(dto.stockCountAreas.size, false),
-        "stock_count_lines" to TableMetadata(dto.stockCountLines.size, false),
-        "waste_events" to TableMetadata(dto.wasteEvents.size, false),
-        "inventory_movements" to TableMetadata(dto.inventoryMovements.size, false),
-        "inventory_balance_projections" to TableMetadata(dto.inventoryBalanceProjections.size, true),
-        "ingredient_cost_projections" to TableMetadata(dto.ingredientCostProjections.size, true)
-    ).entries.sortedBy { it.key }.associate { it.key to it.value }
+    private fun createTableMetadata(dto: com.miara.cuentame.core.backup.model.BackupSnapshotDto): Map<String, TableMetadata> {
+        val tables = mutableMapOf(
+            "restaurants" to TableMetadata(dto.restaurants.size, false),
+            "inventory_areas" to TableMetadata(dto.inventoryAreas.size, false),
+            "ingredient_categories" to TableMetadata(dto.ingredientCategories.size, false),
+            "units" to TableMetadata(dto.units.size, false),
+            "ingredients" to TableMetadata(dto.ingredients.size, false),
+            "ingredient_unit_options" to TableMetadata(dto.ingredientUnitOptions.size, false),
+            "suppliers" to TableMetadata(dto.suppliers.size, false),
+            "purchase_receipts" to TableMetadata(dto.purchaseReceipts.size, false),
+            "purchase_lines" to TableMetadata(dto.purchaseLines.size, false),
+            "stock_counts" to TableMetadata(dto.stockCounts.size, false),
+            "stock_count_areas" to TableMetadata(dto.stockCountAreas.size, false),
+            "stock_count_lines" to TableMetadata(dto.stockCountLines.size, false),
+            "waste_events" to TableMetadata(dto.wasteEvents.size, false),
+            "inventory_movements" to TableMetadata(dto.inventoryMovements.size, false),
+            "inventory_balance_projections" to TableMetadata(dto.inventoryBalanceProjections.size, true),
+            "ingredient_cost_projections" to TableMetadata(dto.ingredientCostProjections.size, true)
+        )
+
+        // Add recipe tables for schema 3
+        if (appVersionProvider.databaseSchemaVersion >= 3) {
+            tables["preparation_recipes"] = TableMetadata(dto.preparationRecipes.size, false)
+            tables["preparation_recipe_components"] = TableMetadata(dto.preparationRecipeComponents.size, false)
+        }
+
+        return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
+    }
 }

@@ -40,6 +40,7 @@ class RoomIngredientRepositoryTest {
             db.unitDao(),
             db.restaurantDao(),
             db.ingredientCategoryDao(),
+            db.preparationRecipeDao(),
             StandardUnitConverter(),
             object : IdGenerator { override fun newId(): String = "id" },
             object : TimeProvider { override fun now(): Instant = Instant.EPOCH }
@@ -93,5 +94,46 @@ class RoomIngredientRepositoryTest {
         
         val loaded = repository.getById(ingId)
         assertThat(loaded?.name).isEqualTo("Test")
+    }
+
+    @Test
+    fun archiveUnitOption_failsIfUsedByNonArchivedRecipe() = runBlocking {
+        val unitId = UnitId("u1")
+        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity(unitId.value, "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+
+        val ingId = IngredientId("i1")
+        val optId = IngredientUnitOptionId("opt2")
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", null, null, null, null, true, 0, 0, null))
+        db.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(optId.value, ingId.value, "O", "o", null, BigDecimal.ONE, false, false, false, true, 0, 0, null))
+
+        // Create a draft recipe using this option
+        db.preparationRecipeDao().insert(com.miara.cuentame.core.database.entity.PreparationRecipeEntity(
+            "r1", restId.value, ingId.value, "R", "r", BigDecimal.ONE, BigDecimal.ONE, optId.value, "DRAFT", null, 0, 0, null
+        ))
+
+        try {
+            repository.archiveUnitOption(optId, Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: com.miara.cuentame.core.domain.validation.ValidationError) {
+            assertThat(e).isEqualTo(com.miara.cuentame.core.domain.validation.ValidationError.UnitOptionUsedByRecipe)
+        }
+    }
+
+    @Test
+    fun archiveIngredient_failsIfOutputOfNonArchivedRecipe() = runBlocking {
+        val ingId = IngredientId("i1")
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", null, null, null, null, true, 0, 0, null))
+
+        // Create a draft recipe
+        db.preparationRecipeDao().insert(com.miara.cuentame.core.database.entity.PreparationRecipeEntity(
+            "r1", restId.value, ingId.value, "R", "r", null, null, null, "DRAFT", null, 0, 0, null
+        ))
+
+        try {
+            repository.archive(ingId, Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: com.miara.cuentame.core.domain.validation.ValidationError) {
+            assertThat(e).isEqualTo(com.miara.cuentame.core.domain.validation.ValidationError.IngredientIsRecipeOutput)
+        }
     }
 }

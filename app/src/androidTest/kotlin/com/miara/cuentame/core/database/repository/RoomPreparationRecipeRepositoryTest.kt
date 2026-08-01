@@ -158,6 +158,216 @@ class RoomPreparationRecipeRepositoryTest {
     }
 
     @Test
+    fun crossRestaurantOutput_isRejected() = runBlocking {
+        val otherRestId = "rest-2"
+        db.restaurantDao().insert(RestaurantEntity(otherRestId, "R2", "USD", "en-US", 0L, 0L, null))
+        
+        val ingId = IngredientId(idGenerator.newId())
+        db.ingredientDao().insert(IngredientEntity(ingId.value, otherRestId, "Other", "other", null, "u1", null, null, null, null, true, 0L, 0L, null))
+        
+        val command = CreatePreparationRecipeCommand(restId, ingId, "Fail", BigDecimal.ONE, null, null)
+        
+        try {
+            repository.createDraft(command)
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.OutputIngredientMustBelongToRestaurant)
+        }
+    }
+
+    @Test
+    fun deletedOutput_isRejected() = runBlocking {
+        val ingId = setupIngredient("Deleted")
+        db.ingredientDao().softArchive(ingId.value, 1000L)
+        
+        val command = CreatePreparationRecipeCommand(restId, ingId, "Fail", BigDecimal.ONE, null, null)
+        
+        try {
+            repository.createDraft(command)
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.OutputIngredientDeleted)
+        }
+    }
+
+    @Test
+    fun activeRecipe_isImmutable() = runBlocking {
+        val ingId = setupIngredient("Active")
+        val unitId = setupUnitOption(ingId, "U", BigDecimal.ONE)
+        val recipeId = repository.createDraft(CreatePreparationRecipeCommand(restId, ingId, "Active", BigDecimal.ONE, unitId, null))
+        
+        val compId = setupIngredient("Comp")
+        val compUnitId = setupUnitOption(compId, "U", BigDecimal.ONE)
+        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, compUnitId, BigDecimal.ONE, 0, null))
+        
+        repository.activate(recipeId)
+        
+        // Attempt update
+        try {
+            repository.updateDraft(UpdatePreparationRecipeCommand(recipeId, "New Name", BigDecimal.TEN, unitId, null))
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidStatusTransition)
+        }
+        
+        // Attempt add component
+        try {
+            repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, compUnitId, BigDecimal.TEN, 1, null))
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidStatusTransition)
+        }
+    }
+
+    @Test
+    fun oneNonArchivedRecipePerOutput_isEnforced() = runBlocking {
+        val ingId = setupIngredient("Output")
+        setupDraftRecipe("Recipe 1", ingId)
+        
+        // Attempt to create another draft for same output
+        try {
+            setupDraftRecipe("Recipe 2", ingId)
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput)
+        }
+    }
+
+    @Test
+    fun archiveAndNewRecipe_succeeds() = runBlocking {
+        val ingId = setupIngredient("Output")
+        val r1 = setupDraftRecipe("Recipe 1", ingId)
+        repository.archive(r1)
+        
+        // Now creating a new one should succeed
+        val r2 = setupDraftRecipe("Recipe 2", ingId)
+        assertThat(r2).isNotEqualTo(r1)
+    }
+
+    @Test
+    fun restoreConflict_isRejected() = runBlocking {
+        val ingId = setupIngredient("Output")
+        val r1 = setupDraftRecipe("Recipe 1", ingId)
+        repository.archive(r1)
+        
+        val r2 = setupDraftRecipe("Recipe 2", ingId)
+        
+        // Attempt to restore r1 while r2 is active/draft
+        try {
+            repository.restoreToDraft(r1)
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput)
+        }
+    }
+
+    @Test
+    fun cycleDetection_worksForDirectCycle() = runBlocking {
+        val ingA = setupIngredient("A")
+        val unitA = setupUnitOption(ingA, "U", BigDecimal.ONE)
+        val recipeA = repository.createDraft(CreatePreparationRecipeCommand(restId, ingA, "A", BigDecimal.ONE, unitA, null))
+        
+        val ingB = setupIngredient("B")
+        val unitB = setupUnitOption(ingB, "U", BigDecimal.ONE)
+        val recipeB = repository.createDraft(CreatePreparationRecipeCommand(restId, ingB, "B", BigDecimal.ONE, unitB, null))
+        
+        // A uses B
+        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeA, null, ingB, unitB, BigDecimal.ONE, 0, null))
+        repository.activate(recipeA)
+        
+        // B attempts to use A
+        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeB, null, ingA, unitA, BigDecimal.ONE, 0, null))
+        
+        try {
+            repository.activate(recipeB)
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeWouldCreateCycle)
+        }
+    }
+
+    @Test
+    fun reactiveObservation_emitsOnComponentChange() = runBlocking {
+        val recipeId = setupDraftRecipe("Observed")
+        val compId = setupIngredient("C")
+        val unitId = setupUnitOption(compId, "U", BigDecimal.ONE)
+        
+        repository.observeRecipe(recipeId).test {
+            val initial = awaitItem()
+            assertThat(initial!!.components).isEmpty()
+            
+            repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, unitId, BigDecimal.ONE, 0, null))
+            val updated = awaitItem()
+            assertThat(updated!!.components).hasSize(1)
+            
+            repository.removeComponent(recipeId, updated.components[0].id)
+            val final = awaitItem()
+            assertThat(final!!.components).isEmpty()
+        }
+    }
+
+    @Test
+    fun saveComponent_duplicateIngredient_preservesIdentityAndUpdateSortOrder() = runBlocking {
+        val recipeId = setupDraftRecipe("Stock")
+        val compId = setupIngredient("Water")
+        val unitId = setupUnitOption(compId, "L", BigDecimal.ONE)
+        
+        val c1 = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, unitId, BigDecimal.ONE, 0, null))
+        
+        // Save again with same ingredient but different sort order
+        val c2 = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, unitId, BigDecimal.TEN, 5, "More water"))
+        
+        assertThat(c2).isEqualTo(c1)
+        
+        val recipe = repository.getRecipe(recipeId)
+        assertThat(recipe!!.components).hasSize(1)
+        val comp = recipe.components[0]
+        assertThat(comp.quantityEntered.compareTo(BigDecimal.TEN)).isEqualTo(0)
+        assertThat(comp.sortOrder).isEqualTo(5)
+        assertThat(comp.notes).isEqualTo("More water")
+    }
+
+    @Test
+    fun reorderComponents_atomicUpdate() = runBlocking {
+        val recipeId = setupDraftRecipe("Stock")
+        val c1Id = setupIngredient("C1")
+        val u1Id = setupUnitOption(c1Id, "U", BigDecimal.ONE)
+        val comp1Id = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, c1Id, u1Id, BigDecimal.ONE, 0, null))
+        
+        val c2Id = setupIngredient("C2")
+        val u2Id = setupUnitOption(c2Id, "U", BigDecimal.ONE)
+        val comp2Id = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, c2Id, u2Id, BigDecimal.ONE, 1, null))
+        
+        // Swap
+        repository.reorderComponents(recipeId, listOf(comp2Id, comp1Id))
+        
+        val recipe = repository.getRecipe(recipeId)
+        assertThat(recipe!!.components[0].id).isEqualTo(comp2Id)
+        assertThat(recipe.components[0].sortOrder).isEqualTo(0)
+        assertThat(recipe.components[1].id).isEqualTo(comp1Id)
+        assertThat(recipe.components[1].sortOrder).isEqualTo(1)
+    }
+
+    @Test
+    fun reorderComponents_invalidIds_rejectedAtomics() = runBlocking {
+        val recipeId = setupDraftRecipe("Stock")
+        val c1Id = setupIngredient("C1")
+        val u1Id = setupUnitOption(c1Id, "U", BigDecimal.ONE)
+        val comp1Id = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, c1Id, u1Id, BigDecimal.ONE, 0, null))
+        
+        try {
+            repository.reorderComponents(recipeId, listOf(comp1Id, PreparationRecipeComponentId("fake")))
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidComponentOrder)
+        }
+        
+        // Verify sort order remains unchanged
+        val recipe = repository.getRecipe(recipeId)
+        assertThat(recipe!!.components[0].sortOrder).isEqualTo(0)
+    }
+
+    @Test
     fun observeRecipeSummaries_returnsCorrectData() = runBlocking {
         val ingId = setupIngredient("A")
         setupDraftRecipe("Recipe A", ingId)

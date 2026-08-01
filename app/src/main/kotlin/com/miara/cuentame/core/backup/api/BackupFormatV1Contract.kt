@@ -3,7 +3,9 @@ package com.miara.cuentame.core.backup.api
 object BackupFormatV1Contract {
 
     const val BACKUP_FORMAT_VERSION = 1
-    const val DATABASE_SCHEMA_VERSION = 2
+    const val DATABASE_SCHEMA_VERSION = 3
+
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -46,8 +48,36 @@ object BackupFormatV1Contract {
         "waste_events",
         "inventory_movements",
         "inventory_balance_projections",
-        "ingredient_cost_projections"
+        "ingredient_cost_projections",
+        "preparation_recipes",
+        "preparation_recipe_components"
     )
+
+    fun expectedTablesForSchema(schemaVersion: Int): Set<String> {
+        val base = setOf(
+            "restaurants",
+            "inventory_areas",
+            "ingredient_categories",
+            "units",
+            "ingredients",
+            "ingredient_unit_options",
+            "suppliers",
+            "purchase_receipts",
+            "purchase_lines",
+            "stock_counts",
+            "stock_count_areas",
+            "stock_count_lines",
+            "waste_events",
+            "inventory_movements",
+            "inventory_balance_projections",
+            "ingredient_cost_projections"
+        )
+        return if (schemaVersion >= 3) {
+            base + setOf("preparation_recipes", "preparation_recipe_components")
+        } else {
+            base
+        }
+    }
 
     val DERIVED_TABLES = setOf(
         "inventory_balance_projections",

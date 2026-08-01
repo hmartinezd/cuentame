@@ -108,6 +108,109 @@ class BackupSnapshotIntegrityValidatorTest {
         assertThat(ex.code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_DOCUMENT_LIFECYCLE)
     }
 
+    @Test
+    fun `validate rejects broken output ingredient FK`() {
+        val dto = createEmptyDto().copy(
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", restId, "fake-ing", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
+    }
+
+    @Test
+    fun `validate rejects multiple non-archived recipes for one output`() {
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(mockkIngredient("ing-1")),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name 1", "name 1", null, null, null, "DRAFT", null, 0, 0, null),
+                PreparationRecipeBackupDto("r2", restId, "ing-1", "Name 2", "name 2", null, null, null, "ACTIVE", null, 0, 0, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects recipe cycle`() {
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(mockkIngredient("ing-A"), mockkIngredient("ing-B")),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r-A", restId, "ing-A", "A", "a", null, null, null, "DRAFT", null, 0, 0, null),
+                PreparationRecipeBackupDto("r-B", restId, "ing-B", "B", "b", null, null, null, "DRAFT", null, 0, 0, null)
+            ),
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto("c1", "r-A", "ing-B", "opt-B", "1.0", "1.0", 0, null, 0, 0),
+                PreparationRecipeComponentBackupDto("c2", "r-B", "ing-A", "opt-A", "1.0", "1.0", 0, null, 0, 0)
+            ),
+            ingredientUnitOptions = listOf(
+                mockkOption("opt-A", "ing-A"),
+                mockkOption("opt-B", "ing-B")
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_GRAPH)
+    }
+
+    @Test
+    fun `validate rejects active recipe without yield`() {
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(mockkIngredient("ing-1")),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "ACTIVE", null, 0, 0, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE)
+    }
+
+    @Test
+    fun `validate rejects component from other restaurant`() {
+        val otherRestId = "rest-2"
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(
+                mockkIngredient("ing-1"),
+                IngredientBackupDto("ing-2", otherRestId, "Other", "other", null, "u1", null, null, null, null, true, 0, 0, null)
+            ),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
+            ),
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto("c1", "r1", "ing-2", "opt-2", "1.0", "1.0", 0, null, 0, 0)
+            ),
+            ingredientUnitOptions = listOf(
+                mockkOption("opt-1", "ing-1"),
+                IngredientUnitOptionBackupDto("opt-2", "ing-2", "O", "o", null, "1.0", true, true, true, true, 0, 0, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RESTAURANT_ISOLATION_FAILURE)
+    }
+
+    @Test
+    fun `validate rejects duplicate component ingredient in one recipe`() {
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(mockkIngredient("ing-1"), mockkIngredient("ing-2")),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
+            ),
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto("c1", "r1", "ing-2", "opt-2", "1.0", "1.0", 0, null, 0, 0),
+                PreparationRecipeComponentBackupDto("c2", "r1", "ing-2", "opt-2", "2.0", "2.0", 1, null, 0, 0)
+            ),
+            ingredientUnitOptions = listOf(mockkOption("opt-2", "ing-2"))
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
     // Helpers
     private fun mockkIngredient(id: String) = IngredientBackupDto(id, restId, "Name", "name", null, "u1", null, null, null, null, true, 0, 0, null)
     private fun mockkUnit(id: String) = UnitBackupDto(id, "Unit", "u", "MASS", "1.0", true, 0)

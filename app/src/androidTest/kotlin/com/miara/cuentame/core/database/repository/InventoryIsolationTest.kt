@@ -1,125 +1,109 @@
 package com.miara.cuentame.core.database.repository
 
-import android.content.Context
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.common.ids.*
-import com.miara.cuentame.core.common.time.TimeProvider
-import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.IngredientEntity
-import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
-import com.miara.cuentame.core.domain.repository.CreatePreparationRecipeCommand
-import com.miara.cuentame.core.domain.repository.SavePreparationRecipeComponentCommand
-import com.miara.cuentame.core.domain.validation.PreparationRecipeValidator
+import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.math.BigDecimal
-import java.time.Instant
+import javax.inject.Inject
 
+@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class InventoryIsolationTest {
-    private lateinit var db: RestaurantInventoryDatabase
-    private lateinit var repository: RoomPreparationRecipeRepository
-    private val restId = RestaurantId("rest-1")
+
+    @get:Rule
+    var hiltRule = HiltAndroidRule(this)
+
+    @Inject
+    lateinit var repository: PreparationRecipeRepository
+
+    @Inject
+    lateinit var database: com.miara.cuentame.core.database.RestaurantInventoryDatabase
+
+    private val restaurantId = RestaurantId("rest-1")
 
     @Before
-    fun setup() = runBlocking {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java).build()
-        val validator = PreparationRecipeValidator()
-        repository = RoomPreparationRecipeRepository(
-            db,
-            db.preparationRecipeDao(),
-            db.ingredientDao(),
-            db.ingredientUnitOptionDao(),
-            validator,
-            object : IdGenerator { override fun newId(): String = "id" },
-            object : TimeProvider { override fun now(): Instant = Instant.EPOCH }
-        )
-        
-        db.restaurantDao().insert(RestaurantEntity(restId.value, "R", "USD", "en-US", 0L, 0L, null))
-        db.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
-    }
-
-    @After
-    fun tearDown() {
-        db.close()
+    fun init() {
+        hiltRule.inject()
     }
 
     @Test
-    fun recipeOperations_doNotModifyInventory() = runBlocking {
-        // 1. Initial counts
-        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(0)
-        assertThat(db.inventoryProjectionDao().getAll().size).isEqualTo(0)
-        
-        // 2. Setup recipe
-        val ingId = setupIngredient("A")
-        val unitId = setupUnitOption(ingId, "U")
-        val compId = setupIngredient("B")
-        val compUnitId = setupUnitOption(compId, "U")
-        
-        // 3. Create Draft
-        val recipeId = repository.createDraft(CreatePreparationRecipeCommand(restId, ingId, "Rec", BigDecimal.ONE, unitId, null))
-        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(0)
-        
-        // 4. Save Component
-        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, compUnitId, BigDecimal.TEN, 0, null))
-        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(0)
-        
-        // 5. Activate
+    fun recipeOperationsLeaveInventoryUntouched() = runBlocking {
+        // 1. Capture initial counts
+        val initialCounts = captureInventoryCounts()
+
+        // 2. Perform various recipe operations
+        val outputId = IngredientId("ing-output")
+        val compId = IngredientId("ing-comp")
+        val yieldUnitId = IngredientUnitOptionId("opt-yield")
+        val compUnitId = IngredientUnitOptionId("opt-comp")
+
+        val recipeId = repository.createDraft(CreatePreparationRecipeCommand(
+            restaurantId = restaurantId,
+            outputIngredientId = outputId,
+            name = "Test Recipe",
+            standardYieldQuantity = BigDecimal("10.0"),
+            yieldUnitOptionId = yieldUnitId,
+            notes = "Initial notes"
+        ))
+
+        repository.updateDraft(UpdatePreparationRecipeCommand(
+            recipeId = recipeId,
+            name = "Updated Recipe",
+            standardYieldQuantity = BigDecimal("20.0"),
+            yieldUnitOptionId = yieldUnitId,
+            notes = "Updated notes"
+        ))
+
+        val componentId = repository.saveComponent(SavePreparationRecipeComponentCommand(
+            recipeId = recipeId,
+            componentId = null,
+            componentIngredientId = compId,
+            unitOptionId = compUnitId,
+            quantityEntered = BigDecimal("5.0"),
+            sortOrder = 1,
+            notes = "Comp notes"
+        ))
+
+        repository.reorderComponents(recipeId, listOf(componentId))
         repository.activate(recipeId)
-        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(0)
-        
-        // 6. Final projections check
-        assertThat(db.inventoryProjectionDao().getAll().size).isEqualTo(0)
-        assertThat(db.ingredientCostProjectionDao().getAll().size).isEqualTo(0)
+        repository.moveToDraft(recipeId)
+        repository.archive(recipeId)
+        repository.restoreToDraft(recipeId)
+
+        // 3. Capture final counts
+        val finalCounts = captureInventoryCounts()
+
+        // 4. Verify exact equality
+        assertThat(finalCounts).isEqualTo(initialCounts)
     }
 
-    private suspend fun setupIngredient(name: String): IngredientId {
-        val id = IngredientId(name)
-        db.ingredientDao().insert(IngredientEntity(
-            id = id.value,
-            restaurantId = restId.value,
-            name = name,
-            normalizedName = name.lowercase(),
-            categoryId = null,
-            baseUnitId = "u1",
-            defaultAreaId = null,
-            sku = null,
-            notes = null,
-            reorderPointBase = null,
-            isActive = true,
-            createdAt = 0L,
-            updatedAt = 0L,
-            deletedAt = null
-        ))
-        return id
-    }
-
-    private suspend fun setupUnitOption(ingId: IngredientId, name: String): IngredientUnitOptionId {
-        val id = IngredientUnitOptionId(ingId.value + name)
-        db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(
-            id = id.value,
-            ingredientId = ingId.value,
-            displayName = name,
-            shortLabel = name,
-            standardUnitId = null,
-            factorToBase = BigDecimal.ONE,
-            isBase = false,
-            isDefaultCount = false,
-            isDefaultPurchase = false,
-            isActive = true,
-            createdAt = 0L,
-            updatedAt = 0L,
-            deletedAt = null
-        ))
-        return id
+    private fun captureInventoryCounts(): Map<String, Int> {
+        val tables = listOf(
+            "inventory_movements",
+            "inventory_balance_projections",
+            "ingredient_cost_projections",
+            "purchase_receipts",
+            "purchase_lines",
+            "stock_counts",
+            "waste_events"
+        )
+        return tables.associateWith { table ->
+            val cursor = database.query("SELECT COUNT(*) FROM $table", null)
+            cursor.moveToFirst()
+            val count = cursor.getInt(0)
+            cursor.close()
+            count
+        }
     }
 }

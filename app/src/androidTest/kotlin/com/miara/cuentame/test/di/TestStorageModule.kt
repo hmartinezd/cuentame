@@ -75,6 +75,8 @@ object TestStorageModule {
     @Provides
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase) = db.ingredientCostProjectionDao()
     @Provides
+    fun providePreparationRecipeDao(db: RestaurantInventoryDatabase) = db.preparationRecipeDao()
+    @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase) = db.backupDao()
     @Provides
     fun provideRestoreDao(db: RestaurantInventoryDatabase) = db.restoreDao()

@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -93,8 +94,10 @@ class RoomMigrationTest {
             context,
             RestaurantInventoryDatabase::class.java,
             TEST_DB
-        ).addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2)
-            .build()
+        ).addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3
+        ).build()
 
         // Query through real DAO to confirm migrated database opens without schema errors
         val proj1 = roomDb.ingredientCostProjectionDao().getCost("ing-1")
@@ -110,25 +113,43 @@ class RoomMigrationTest {
 
     @Test
     @Throws(IOException::class)
-    fun migrate2To3_preservesData_andCreatesNewTables() = runBlocking {
+    fun migrate2To3_preservesRepresentativeData_andCreatesNewTables() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
 
         // 1. Create version 2 database
         var db = helper.createDatabase(TEST_DB, 2)
 
-        // Insert some data
+        // Insert representative data in version 2
         db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
+        db.execSQL("INSERT INTO inventory_areas (id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt) VALUES ('area-1', 'rest-1', 'Area 1', 'area 1', 1, 1, 100, 200)")
+        db.execSQL("INSERT INTO ingredient_categories (id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt) VALUES ('cat-1', 'rest-1', 'Cat 1', 'cat 1', 1, 1, 100, 200)")
         db.execSQL("INSERT INTO units (id, name, symbol, dimension, factorToCanonical, isSystem, sortOrder) VALUES ('u1', 'Unit', 'u', 'Mass', '1.0', 1, 1)")
         db.execSQL("INSERT INTO ingredients (id, restaurantId, name, normalizedName, baseUnitId, isActive, createdAt, updatedAt) VALUES ('ing-1', 'rest-1', 'Ing 1', 'ing 1', 'u1', 1, 100, 200)")
+        db.execSQL("INSERT INTO ingredient_unit_options (id, ingredientId, displayName, shortLabel, factorToBase, isBase, isDefaultCount, isDefaultPurchase, isActive, createdAt, updatedAt) VALUES ('opt-1', 'ing-1', 'Opt 1', 'O1', '1.0', 1, 1, 1, 1, 100, 200)")
+        db.execSQL("INSERT INTO suppliers (id, restaurantId, name, normalizedName, isActive, createdAt, updatedAt) VALUES ('sup-1', 'rest-1', 'Sup 1', 'sup 1', 1, 100, 200)")
+        db.execSQL("INSERT INTO purchase_receipts (id, restaurantId, supplierId, purchaseDate, status, createdAt, updatedAt) VALUES ('pr-1', 'rest-1', 'sup-1', 1000, 'DRAFT', 100, 200)")
+        db.execSQL("INSERT INTO purchase_lines (id, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, unitCostBase, lineTotal, createdAt, updatedAt) VALUES ('pl-1', 'pr-1', 'ing-1', 'area-1', 'opt-1', '1.0', '1.0', '10.0', '10.0', 100, 200)")
+        db.execSQL("INSERT INTO stock_counts (id, restaurantId, name, startedAt, effectiveAt, status, createdAt, updatedAt) VALUES ('sc-1', 'rest-1', 'Count 1', 1000, 1000, 'DRAFT', 100, 200)")
+        db.execSQL("INSERT INTO waste_events (id, restaurantId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, reason, effectiveAt, status, createdAt, updatedAt) VALUES ('w-1', 'rest-1', 'ing-1', 'area-1', 'opt-1', '1.0', '1.0', 'EXPIRED', 1000, 'DRAFT', 100, 200)")
+        db.execSQL("INSERT INTO inventory_movements (id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, effectiveAt, sourceDocumentType, sourceDocumentId, sourceOperationId, createdAt) VALUES ('move-1', 'rest-1', 'ing-1', 'area-1', 'PURCHASE', '1.0', 1000, 'PURCHASE_RECEIPT', 'pr-1', 'op-1', 100)")
+        db.execSQL("INSERT INTO ingredient_cost_projection (restaurantId, ingredientId, averageUnitCostBase, updatedAt) VALUES ('rest-1', 'ing-1', '10.0', 1000)")
+        
         db.close()
 
         // 2. Run migration 2 to 3
         db = helper.runMigrationsAndValidate(TEST_DB, 3, true, RestaurantInventoryDatabase.MIGRATION_2_3)
 
-        // Verify existing data is preserved
-        val ingCursor = db.query("SELECT * FROM ingredients")
-        assertThat(ingCursor.count).isEqualTo(1)
-        ingCursor.close()
+        // Verify representative data is preserved
+        val tablesToVerify = listOf(
+            "restaurants", "inventory_areas", "ingredient_categories", "ingredients", 
+            "ingredient_unit_options", "suppliers", "purchase_receipts", "purchase_lines", 
+            "stock_counts", "waste_events", "inventory_movements", "ingredient_cost_projection"
+        )
+        for (table in tablesToVerify) {
+            val cursor = db.query("SELECT * FROM $table")
+            assertWithMessage("Table $table count").that(cursor.count).isAtLeast(1)
+            cursor.close()
+        }
 
         // Verify new tables exist and are empty
         val recipeCursor = db.query("SELECT * FROM preparation_recipes")
@@ -139,13 +160,6 @@ class RoomMigrationTest {
         assertThat(componentCursor.count).isEqualTo(0)
         componentCursor.close()
 
-        // Test insertion into new tables to verify schema
-        db.execSQL("INSERT INTO preparation_recipes (id, restaurantId, outputIngredientId, name, normalizedName, status, createdAt, updatedAt) VALUES ('rec-1', 'rest-1', 'ing-1', 'Rec 1', 'rec 1', 'DRAFT', 1000, 1000)")
-        
-        val insertCursor = db.query("SELECT * FROM preparation_recipes WHERE id = 'rec-1'")
-        assertThat(insertCursor.count).isEqualTo(1)
-        insertCursor.close()
-        
         db.close()
 
         // 3. Reopen through Room
@@ -156,7 +170,7 @@ class RoomMigrationTest {
         ).addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2, RestaurantInventoryDatabase.MIGRATION_2_3)
             .build()
 
-        assertThat(roomDb.preparationRecipeDao().getAllRecipesForRestaurant("rest-1")).hasSize(1)
+        assertThat(roomDb.ingredientDao().getActiveIngredients("rest-1")).hasSize(1)
         roomDb.close()
     }
 

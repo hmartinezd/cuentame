@@ -62,7 +62,7 @@ fun StockCountListRoute(
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
-            snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
+            snackbarHostState.showSnackbar(message = context.getString(it.toUserMessageRes()))
             viewModel.clearError()
         }
     }

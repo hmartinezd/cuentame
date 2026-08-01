@@ -22,7 +22,7 @@ object BackupManifestContractValidator {
         if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
             return BackupRestoreFailure.UnsupportedFormatVersion
         }
-        if (manifest.databaseSchemaVersion != BackupFormatV1Contract.DATABASE_SCHEMA_VERSION) {
+        if (manifest.databaseSchemaVersion !in BackupFormatV1Contract.SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS) {
             return BackupRestoreFailure.IncompatibleSchemaVersion
         }
         if (manifest.checksumAlgorithm != BackupFormatV1Contract.CHECKSUM_ALGORITHM) {
@@ -44,10 +44,11 @@ object BackupManifestContractValidator {
         }
 
         // 4. Table metadata existence and validity
-        if (!manifest.tableMetadata.keys.containsAll(BackupFormatV1Contract.EXPECTED_TABLES)) {
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(manifest.databaseSchemaVersion)
+        if (!manifest.tableMetadata.keys.containsAll(expectedTables)) {
             return BackupRestoreFailure.MalformedManifest
         }
-        val unexpectedTables = manifest.tableMetadata.keys - BackupFormatV1Contract.EXPECTED_TABLES
+        val unexpectedTables = manifest.tableMetadata.keys - expectedTables
         if (unexpectedTables.isNotEmpty()) {
             return BackupRestoreFailure.MalformedManifest
         }
@@ -130,7 +131,7 @@ object BackupManifestContractValidator {
         snapshot: BackupSnapshotDto
     ): BackupRestoreFailure? {
         // 1. Validate table counts
-        val actualCounts = mapOf(
+        val actualCounts = mutableMapOf(
             "restaurants" to snapshot.restaurants.size,
             "inventory_areas" to snapshot.inventoryAreas.size,
             "ingredient_categories" to snapshot.ingredientCategories.size,
@@ -148,6 +149,11 @@ object BackupManifestContractValidator {
             "inventory_balance_projections" to snapshot.inventoryBalanceProjections.size,
             "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
         )
+
+        if (manifest.databaseSchemaVersion >= 3) {
+            actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
+            actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+        }
 
         for ((table, metadata) in manifest.tableMetadata) {
             val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch

@@ -111,8 +111,8 @@ class RoomIngredientRepository @Inject constructor(
             val outputRecipeCount = recipeDao.countActiveOrDraftRecipesForOutput(id.value)
             if (outputRecipeCount > 0) throw ValidationError.IngredientIsRecipeOutput
 
-            val usageCount = recipeDao.getRecipesUsingIngredient(id.value).size
-            if (usageCount > 0) throw ValidationError.IngredientUsedByRecipe
+            val nonArchivedUsage = recipeDao.getRecipesUsingIngredient(id.value)
+            if (nonArchivedUsage.isNotEmpty()) throw ValidationError.IngredientUsedByRecipe
 
             ingredientDao.softArchive(id.value, at.toEpochMilli())
         }
@@ -289,7 +289,14 @@ class RoomIngredientRepository @Inject constructor(
             if (option.isBase) throw ValidationError.BaseUnitOptionCannotBeArchived
             if (option.isDefaultCount || option.isDefaultPurchase) throw ValidationError.DefaultUnitOptionCannotBeArchived
             if (option.deletedAt != null) return@withTransaction // Idempotent
-            
+
+            // Milestone 1 integrity: Check recipe usage
+            val yieldUsage = recipeDao.countActiveOrDraftRecipesUsingYieldOption(id.value)
+            if (yieldUsage > 0) throw ValidationError.UnitOptionUsedByRecipe
+
+            val componentUsage = recipeDao.countActiveOrDraftRecipeComponentsUsingOption(id.value)
+            if (componentUsage > 0) throw ValidationError.UnitOptionUsedByRecipeComponent
+
             unitOptionDao.softArchive(id.value, at.toEpochMilli())
         }
     }

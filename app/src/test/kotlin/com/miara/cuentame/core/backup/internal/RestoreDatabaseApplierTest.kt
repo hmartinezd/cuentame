@@ -6,6 +6,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
+import com.miara.cuentame.core.database.backup.BackupSnapshot
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -68,6 +69,8 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertSuppliers(any())
             restoreDao.insertIngredients(any())
             restoreDao.insertIngredientUnitOptions(any())
+            restoreDao.insertPreparationRecipes(any())
+            restoreDao.insertPreparationRecipeComponents(any())
             restoreDao.insertPurchaseReceipts(any())
             restoreDao.insertPurchaseLines(any())
             restoreDao.insertStockCounts(any())
@@ -91,7 +94,7 @@ class RestoreDatabaseApplierTest {
         coVerify { backupDao.createGlobalSnapshot() }
     }
 
-    private fun createEmptyRawSnapshot() = com.miara.cuentame.core.database.backup.BackupSnapshot(
+    private fun createEmptyRawSnapshot() = BackupSnapshot(
         restaurants = emptyList(),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),

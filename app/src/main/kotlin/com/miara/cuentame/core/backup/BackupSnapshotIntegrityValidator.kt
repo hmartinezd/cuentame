@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.*
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
 
@@ -39,6 +40,7 @@ object BackupSnapshotIntegrityValidator {
         validateDocumentLifecycle(dto)?.let { return Result.failure(it) }
         validateBalanceProjections(dto)?.let { return Result.failure(it) }
         validateCostProjections(dto, ctx)?.let { return Result.failure(it) }
+        validateRecipes(dto, ctx)?.let { return Result.failure(it) }
 
         return Result.success(Unit)
     }
@@ -99,6 +101,9 @@ object BackupSnapshotIntegrityValidator {
         val countLineById = dto.stockCountLines.associateBy { it.id }
         val wasteById = dto.wasteEvents.associateBy { it.id }
         val movementById = dto.inventoryMovements.associateBy { it.id }
+        val recipeById = dto.preparationRecipes.associateBy { it.id }
+        val recipeComponentById = dto.preparationRecipeComponents.associateBy { it.id }
+        val componentsByRecipeId = dto.preparationRecipeComponents.groupBy { it.recipeId }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -140,6 +145,8 @@ object BackupSnapshotIntegrityValidator {
         check(dto.stockCountLines, { it.id }, "stock_count_lines")?.let { return it }
         check(dto.wasteEvents, { it.id }, "waste_events")?.let { return it }
         check(dto.inventoryMovements, { it.id }, "inventory_movements")?.let { return it }
+        check(dto.preparationRecipes, { it.id }, "preparation_recipes")?.let { return it }
+        check(dto.preparationRecipeComponents, { it.id }, "preparation_recipe_components")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -173,6 +180,7 @@ object BackupSnapshotIntegrityValidator {
         if (dto.inventoryMovements.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_movements")
         if (dto.inventoryBalanceProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_balance_projections")
         if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projections")
+        if (dto.preparationRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in preparation_recipes")
 
         return null
     }
@@ -887,6 +895,133 @@ object BackupSnapshotIntegrityValidator {
                 }
             }
         }
+        return null
+    }
+
+    private fun validateRecipes(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        val nonArchivedByOutput = mutableMapOf<String, String>() // outputIngredientId -> recipeId
+
+        for (recipe in dto.preparationRecipes) {
+            val status = try {
+                PreparationRecipeStatus.valueOf(recipe.status)
+            } catch (_: Exception) {
+                return err(INVALID_ENUM, "Invalid status in preparation_recipes")
+            }
+
+            // Isolation
+            val outputIng = ctx.ingById[recipe.outputIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: recipe to output ingredient")
+            if (outputIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in recipe output ingredient")
+
+            // Lifecycle
+            if (status == PreparationRecipeStatus.ARCHIVED) {
+                if (recipe.archivedAt == null) return err(INVALID_RECIPE_STATUS, "ARCHIVED recipe must have archivedAt")
+            } else {
+                if (recipe.archivedAt != null) return err(INVALID_RECIPE_STATUS, "Non-ARCHIVED recipe must not have archivedAt")
+                
+                // Uniqueness: at most one non-archived recipe per output ingredient
+                val existing = nonArchivedByOutput[recipe.outputIngredientId]
+                if (existing != null) return err(INVALID_RECIPE_STRUCTURE, "Multiple non-archived recipes for one output ingredient")
+                nonArchivedByOutput[recipe.outputIngredientId] = recipe.id
+            }
+
+            // Yield
+            if (recipe.yieldUnitOptionId != null) {
+                val yieldOpt = ctx.optionById[recipe.yieldUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: recipe to yield unit option")
+                if (yieldOpt.ingredientId != recipe.outputIngredientId) return err(RELATIONSHIP_MISMATCH, "Yield unit option mismatch in recipe")
+            }
+
+            val yieldQtyResult = parseNullableDecimal(recipe.standardYieldQuantity, "Invalid standardYieldQuantity")
+            val yieldQtyBaseResult = parseNullableDecimal(recipe.standardYieldQuantityBase, "Invalid standardYieldQuantityBase")
+
+            if (yieldQtyResult is NullableDecimalResult.Err) return err(yieldQtyResult.code, yieldQtyResult.msg)
+            if (yieldQtyBaseResult is NullableDecimalResult.Err) return err(yieldQtyBaseResult.code, yieldQtyBaseResult.msg)
+
+            if (status == PreparationRecipeStatus.ACTIVE) {
+                if (yieldQtyResult !is NullableDecimalResult.Ok || yieldQtyResult.value <= BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "ACTIVE recipe requires positive standardYieldQuantity")
+                }
+                if (yieldQtyBaseResult !is NullableDecimalResult.Ok || yieldQtyBaseResult.value <= BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "ACTIVE recipe requires positive standardYieldQuantityBase")
+                }
+                if (recipe.yieldUnitOptionId == null) return err(INVALID_RECIPE_STRUCTURE, "ACTIVE recipe requires yieldUnitOptionId")
+                
+                // Base quantity check
+                val yieldOpt = ctx.optionById[recipe.yieldUnitOptionId]!!
+                val factor = (parseDecimal(yieldOpt.factorToBase, "Invalid factor in yield option") as BigDecimalResult.Ok).value
+                if (yieldQtyBaseResult.value.compareTo(yieldQtyResult.value.multiply(factor)) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "standardYieldQuantityBase mismatch in recipe")
+                }
+            }
+
+            // Components
+            val components = ctx.componentsByRecipeId[recipe.id] ?: emptyList()
+            if (status == PreparationRecipeStatus.ACTIVE && components.isEmpty()) {
+                return err(INVALID_RECIPE_STRUCTURE, "ACTIVE recipe must have components")
+            }
+
+            val seenIngredientsInRecipe = mutableSetOf<String>()
+            for (comp in components) {
+                if (comp.recipeId != recipe.id) return err(RELATIONSHIP_MISMATCH, "Component recipeId mismatch")
+                if (!seenIngredientsInRecipe.add(comp.componentIngredientId)) return err(INVALID_RECIPE_STRUCTURE, "Duplicate component ingredient in recipe")
+                if (comp.componentIngredientId == recipe.outputIngredientId) return err(INVALID_RECIPE_STRUCTURE, "Output ingredient cannot be a component of itself")
+
+                val compIng = ctx.ingById[comp.componentIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to ingredient")
+                if (compIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in recipe component ingredient")
+
+                val compOpt = ctx.optionById[comp.unitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to unit option")
+                if (compOpt.ingredientId != comp.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Component unit option mismatch")
+
+                val qtyResult = parseDecimal(comp.quantityEntered, "Invalid quantityEntered in component")
+                val qtyBaseResult = parseDecimal(comp.quantityBase, "Invalid quantityBase in component")
+
+                if (qtyResult is BigDecimalResult.Err) return err(qtyResult.code, qtyResult.msg)
+                if (qtyBaseResult is BigDecimalResult.Err) return err(qtyBaseResult.code, qtyBaseResult.msg)
+
+                val qty = (qtyResult as BigDecimalResult.Ok).value
+                val qtyBase = (qtyBaseResult as BigDecimalResult.Ok).value
+
+                if (qty <= BigDecimal.ZERO || qtyBase <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Component quantity must be positive")
+
+                val factor = (parseDecimal(compOpt.factorToBase, "Invalid factor in component option") as BigDecimalResult.Ok).value
+                if (qtyBase.compareTo(qty.multiply(factor)) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "quantityBase mismatch in recipe component")
+                }
+            }
+        }
+
+        // Graph validation (cycle detection)
+        validateRecipeGraph(dto, ctx)?.let { return it }
+
+        return null
+    }
+
+    private fun validateRecipeGraph(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        val edges = dto.preparationRecipes
+            .filter { it.status != PreparationRecipeStatus.ARCHIVED.name }
+            .flatMap { recipe ->
+                val components = ctx.componentsByRecipeId[recipe.id] ?: emptyList()
+                components.map { it.componentIngredientId to recipe.outputIngredientId } // component -> output
+            }
+
+        val adj = edges.groupBy({ it.first }, { it.second })
+        val visited = mutableSetOf<String>()
+        val path = mutableSetOf<String>()
+
+        fun hasCycle(u: String): Boolean {
+            visited.add(u)
+            path.add(u)
+            for (v in adj[u] ?: emptyList()) {
+                if (v in path) return true
+                if (v !in visited && hasCycle(v)) return true
+            }
+            path.remove(u)
+            return false
+        }
+
+        for (u in adj.keys) {
+            if (u !in visited && hasCycle(u)) return err(INVALID_RECIPE_GRAPH, "Cycle detected in recipe dependency graph")
+        }
+
         return null
     }
 }

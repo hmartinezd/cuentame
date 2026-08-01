@@ -13,8 +13,9 @@ A **preparation** is an inventory ingredient that is produced in-house from othe
     *   `DRAFT`: Incomplete or being edited.
     *   `ACTIVE`: The authoritative recipe for production.
     *   `ARCHIVED`: Historical record.
-3.  **One Recipe Per Output**: At most one non-archived (Draft or Active) recipe can exist for a specific output ingredient at any time.
-4.  **No Immediate Inventory Side Effects**: In Milestone 1, saving, editing, or archiving a recipe does not create inventory movements, update balances, or affect projections. Production batch implementation is deferred to a future milestone.
+3.  **One Recipe Per Output**: At most one non-archived (Draft or Active) recipe can exist for a specific output ingredient at any time. Archived recipes may remain as historical records.
+4.  **Strict Immutability**: Recipe definitions (components, yields, notes) are mutable ONLY while the recipe is in `DRAFT` status. Once `ACTIVE` or `ARCHIVED`, the definition is immutable. To edit an active recipe, it must first be moved back to `DRAFT`.
+5.  **No Immediate Inventory Side Effects**: In Milestone 1, saving, editing, or archiving a recipe does not create inventory movements, update balances, or affect projections. Production batch implementation is deferred to a future milestone.
 
 ## Data Model
 
@@ -60,13 +61,31 @@ Recipes are stored in the `preparation_recipes` and `preparation_recipe_componen
 
 ### Migration
 
-The database was migrated from version 2 to 3 to include these new tables. The migration preserves all existing inventory data, categories, and settings.
+The database was migrated from version 2 to 3 to include these new tables. The Room schema version is 3. The migration preserves all existing inventory data, categories, and settings.
 
 ## Backup and Restore
 
 The backup snapshot now includes `preparationRecipes` and `preparationRecipeComponents` arrays.
-*   **Backward Compatibility**: The system can read older backups (v2) by defaulting recipe arrays to empty lists.
+*   **Database Schema 3**: New backups are created with database schema version 3.
+*   **Backward Compatibility**: The system supports restoring Schema 2 and Schema 3 backups. For Schema 2 backups, recipe arrays are defaulted to empty lists.
 *   **Foreign Key Integrity**: The restore process ensures ingredients are restored before recipes, and recipes before components.
+
+## Integrity and Protections
+
+### Reference Protection
+
+To maintain historical and operational integrity:
+*   **Ingredients**: Cannot be archived if they are the output or a component of a `DRAFT` or `ACTIVE` recipe.
+*   **Unit Options**: Cannot be archived if they are used as a yield unit or component unit in a `DRAFT` or `ACTIVE` recipe.
+
+### Lifecycle Transitions
+
+Allowed transitions are strictly enforced:
+*   `DRAFT` -> `ACTIVE`
+*   `DRAFT` -> `ARCHIVED`
+*   `ACTIVE` -> `DRAFT`
+*   `ACTIVE` -> `ARCHIVED`
+*   `ARCHIVED` -> `DRAFT` (only if no other non-archived recipe exists for that output)
 
 ## Future Scope (Milestone 2+)
 

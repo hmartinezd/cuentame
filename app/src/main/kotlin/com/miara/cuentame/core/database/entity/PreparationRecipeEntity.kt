@@ -32,13 +32,8 @@ import java.math.BigDecimal
         Index("restaurantId"),
         Index("outputIngredientId"),
         Index("yieldUnitOptionId"),
-        Index(
-            value = ["restaurantId", "outputIngredientId"],
-            unique = true
-        ),
-        Index(
-            value = ["restaurantId", "status"]
-        )
+        Index("restaurantId", "outputIngredientId"),
+        Index("restaurantId", "status")
     ]
 )
 data class PreparationRecipeEntity(

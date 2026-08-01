@@ -32,6 +32,8 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object AdditionalOptionCannotBeBase : ValidationError("Additional options cannot be marked as base")
     data object IngredientIsRecipeOutput : ValidationError("Ingredient is the output of an active preparation recipe")
     data object IngredientUsedByRecipe : ValidationError("Ingredient is used as a component by an active preparation recipe")
+    data object UnitOptionUsedByRecipe : ValidationError("Unit option is used as a yield unit by a non-archived preparation recipe")
+    data object UnitOptionUsedByRecipeComponent : ValidationError("Unit option is used by a component in a non-archived preparation recipe")
     
     // Suppliers
     data object SupplierNotFound : ValidationError("Supplier not found")

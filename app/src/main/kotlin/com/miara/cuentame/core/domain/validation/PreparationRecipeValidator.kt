@@ -29,6 +29,12 @@ sealed interface PreparationRecipeValidationFailure {
     data object RecipeWouldCreateCycle : PreparationRecipeValidationFailure
     data object RecipeAlreadyExistsForOutput : PreparationRecipeValidationFailure
     data object InvalidStatusTransition : PreparationRecipeValidationFailure
+    data object OutputIngredientMustBelongToRestaurant : PreparationRecipeValidationFailure
+    data object ComponentNotFound : PreparationRecipeValidationFailure
+    data object ComponentDoesNotBelongToRecipe : PreparationRecipeValidationFailure
+    data object InvalidComponentOrder : PreparationRecipeValidationFailure
+    data object UnitOptionUsedByRecipe : PreparationRecipeValidationFailure
+    data object UnitOptionUsedByRecipeComponent : PreparationRecipeValidationFailure
 }
 
 class PreparationRecipeValidator @Inject constructor() {

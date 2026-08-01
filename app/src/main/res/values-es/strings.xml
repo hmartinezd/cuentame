@@ -551,4 +551,6 @@
     <string name="error_reason_required">Se requiere una razón de merma válida</string>
     <string name="error_future_effective_time">La fecha de merma no puede ser futura</string>
     <string name="error_attachment_unavailable">La foto adjunta ya no está disponible</string>
+    <string name="error_unit_option_used_by_recipe">Esta unidad es utilizada por una receta no archivada y no se puede archivar.</string>
+    <string name="error_unit_option_used_by_recipe_comp">Esta unidad es utilizada como componente en una receta y no se puede archivar.</string>
 </resources>

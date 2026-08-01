@@ -37,6 +37,9 @@ interface PreparationRecipeDao {
     @Query("SELECT * FROM preparation_recipes WHERE restaurantId = :restaurantId AND outputIngredientId = :outputIngredientId AND status != 'ARCHIVED'")
     suspend fun getActiveOrDraftByOutputIngredient(restaurantId: String, outputIngredientId: String): PreparationRecipeEntity?
 
+    @Query("SELECT * FROM preparation_recipe_components WHERE id = :componentId")
+    suspend fun getComponentById(componentId: String): PreparationRecipeComponentEntity?
+
     @Query("SELECT * FROM preparation_recipe_components WHERE recipeId = :recipeId ORDER BY sortOrder ASC, id ASC")
     suspend fun getComponentsForRecipe(recipeId: String): List<PreparationRecipeComponentEntity>
 
@@ -94,6 +97,12 @@ interface PreparationRecipeDao {
 
     @Query("SELECT COUNT(*) FROM preparation_recipes WHERE outputIngredientId = :ingredientId AND status != 'ARCHIVED'")
     suspend fun countActiveOrDraftRecipesForOutput(ingredientId: String): Int
+
+    @Query("SELECT COUNT(*) FROM preparation_recipes WHERE yieldUnitOptionId = :optionId AND status != 'ARCHIVED'")
+    suspend fun countActiveOrDraftRecipesUsingYieldOption(optionId: String): Int
+
+    @Query("SELECT COUNT(*) FROM preparation_recipe_components prc JOIN preparation_recipes pr ON prc.recipeId = pr.id WHERE prc.unitOptionId = :optionId AND pr.status != 'ARCHIVED'")
+    suspend fun countActiveOrDraftRecipeComponentsUsingOption(optionId: String): Int
 }
 
 data class RecipeSummaryRow(

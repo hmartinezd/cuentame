@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "6dfd205f1e8166c7eadc87a0f35b9605",
+    "identityHash": "fcc8b91c57f8b9ffce30df2a7273c2c2",
     "entities": [
       {
         "tableName": "restaurants",
@@ -2185,13 +2185,13 @@
           },
           {
             "name": "index_preparation_recipes_restaurantId_outputIngredientId",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "restaurantId",
               "outputIngredientId"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_outputIngredientId` ON `${TABLE_NAME}` (`restaurantId`, `outputIngredientId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_outputIngredientId` ON `${TABLE_NAME}` (`restaurantId`, `outputIngredientId`)"
           },
           {
             "name": "index_preparation_recipes_restaurantId_status",
@@ -2388,7 +2388,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6dfd205f1e8166c7eadc87a0f35b9605')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fcc8b91c57f8b9ffce30df2a7273c2c2')"
     ]
   }
 }
