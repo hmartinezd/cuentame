@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.internal
 
 import com.miara.cuentame.core.backup.api.BackupJsonCodecs
+import com.miara.cuentame.core.backup.api.RecoveryFailureCategory
 import com.miara.cuentame.core.backup.api.RestorePhase
 import com.miara.cuentame.core.backup.api.RestoreRecoveryResult
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
@@ -21,14 +22,40 @@ class RestoreRecoveryCoordinator @Inject constructor(
         return when (result) {
             RestoreJournalReadResult.Absent -> RestoreRecoveryResult.NoRecoveryNeeded
             RestoreJournalReadResult.Corrupt -> {
-                RestoreRecoveryResult.RecoveryRequired("unknown")
+                RestoreRecoveryResult.RecoveryRequired(
+                    sessionId = "unknown",
+                    phase = RestorePhase.RECOVERY_REQUIRED,
+                    category = RecoveryFailureCategory.JOURNAL_CORRUPT
+                )
             }
             is RestoreJournalReadResult.Present -> {
                 val dto = result.journal
                 try {
                     handlePhase(dto)
                 } catch (e: Exception) {
-                    RestoreRecoveryResult.RecoveryRequired(dto.sessionId)
+                    val category = when (e) {
+
+
+
+                        is SnapshotMissingException -> RecoveryFailureCategory.SNAPSHOT_MISSING
+                        is SnapshotCorruptException -> RecoveryFailureCategory.SNAPSHOT_CORRUPT
+                        is PreferencesMissingException -> RecoveryFailureCategory.PREFERENCES_MISSING
+                        is DatabaseRestoreException -> RecoveryFailureCategory.DATABASE_RESTORE_FAILED
+                        is PreferencesRestoreException -> RecoveryFailureCategory.PREFERENCES_RESTORE_FAILED
+                        is VerificationFailedException -> RecoveryFailureCategory.VERIFICATION_FAILED
+                        is CleanupFailedException -> RecoveryFailureCategory.CLEANUP_FAILED
+                        else -> RecoveryFailureCategory.UNKNOWN
+                    }
+
+                    RestoreRecoveryResult.RecoveryRequired(
+                        sessionId = dto.sessionId,
+                        phase = dto.phase,
+                        category = category,
+                        databaseReplacementBegan = e is DatabaseRestoreException || e is VerificationFailedException,
+                        rollbackBegan = dto.phase == RestorePhase.ROLLING_BACK || e is DatabaseRestoreException,
+                        rollbackVerificationFailed = e is VerificationFailedException,
+                        cleanupFailed = e is CleanupFailedException
+                    )
                 }
             }
         }
@@ -37,9 +64,13 @@ class RestoreRecoveryCoordinator @Inject constructor(
     private suspend fun handlePhase(dto: RestoreJournalDto): RestoreRecoveryResult {
         return when (dto.phase) {
             RestorePhase.ROLLBACK_CAPTURED -> {
-                storage.cleanupSessionOrThrow(dto.sessionId)
-                journal.deleteOrThrow()
-                RestoreRecoveryResult.Recovered(dto.sessionId)
+                try {
+                    storage.cleanupSessionOrThrow(dto.sessionId)
+                    journal.deleteOrThrow()
+                    RestoreRecoveryResult.Recovered(dto.sessionId)
+                } catch (e: Exception) {
+                    throw CleanupFailedException(e)
+                }
             }
             RestorePhase.MUTATION_STARTED,
             RestorePhase.DATABASE_APPLIED,
@@ -49,17 +80,29 @@ class RestoreRecoveryCoordinator @Inject constructor(
                 RestoreRecoveryResult.Recovered(dto.sessionId)
             }
             RestorePhase.ROLLBACK_COMPLETED -> {
-                storage.cleanupSessionOrThrow(dto.sessionId)
-                journal.deleteOrThrow()
-                RestoreRecoveryResult.Recovered(dto.sessionId)
+                try {
+                    storage.cleanupSessionOrThrow(dto.sessionId)
+                    journal.deleteOrThrow()
+                    RestoreRecoveryResult.Recovered(dto.sessionId)
+                } catch (e: Exception) {
+                    throw CleanupFailedException(e)
+                }
             }
             RestorePhase.COMPLETED -> {
-                storage.cleanupSessionOrThrow(dto.sessionId)
-                journal.deleteOrThrow()
-                RestoreRecoveryResult.Recovered(dto.sessionId)
+                try {
+                    storage.cleanupSessionOrThrow(dto.sessionId)
+                    journal.deleteOrThrow()
+                    RestoreRecoveryResult.Recovered(dto.sessionId)
+                } catch (e: Exception) {
+                    throw CleanupFailedException(e)
+                }
             }
             RestorePhase.RECOVERY_REQUIRED -> {
-                RestoreRecoveryResult.RecoveryRequired(dto.sessionId)
+                RestoreRecoveryResult.RecoveryRequired(
+                    sessionId = dto.sessionId,
+                    phase = RestorePhase.RECOVERY_REQUIRED,
+                    category = RecoveryFailureCategory.UNKNOWN
+                )
             }
         }
     }
@@ -68,17 +111,17 @@ class RestoreRecoveryCoordinator @Inject constructor(
         // 1. Read and validate rollback snapshot
         val snapshotFile = storage.getRollbackSnapshotFile(dto.sessionId)
         if (!snapshotFile.exists()) {
-            throw IllegalStateException("Rollback snapshot missing")
+            throw SnapshotMissingException()
         }
 
         val rollback = try {
             codecs.reader.decodeFromString<RestoreDatabaseRollbackSnapshot>(snapshotFile.readText())
         } catch (e: Exception) {
-            throw IllegalStateException("Rollback snapshot corrupt", e)
+            throw SnapshotCorruptException(e)
         }
 
         // 2. Require non-null previousPreferences
-        val prevPrefs = dto.previousPreferences ?: throw IllegalStateException("Previous preferences missing in journal")
+        val prevPrefs = dto.previousPreferences ?: throw PreferencesMissingException()
 
         // 3. Write or preserve ROLLING_BACK
         if (dto.phase != RestorePhase.ROLLING_BACK) {
@@ -86,33 +129,60 @@ class RestoreRecoveryCoordinator @Inject constructor(
         }
 
         // 4. Restore database
-        databaseApplier.restoreRollback(rollback)
+        try {
+            databaseApplier.restoreRollback(rollback)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw DatabaseRestoreException(e)
+        }
         
         // 5. Restore preferences
-        preferencesApplier.apply(prevPrefs)
+        try {
+            preferencesApplier.apply(prevPrefs)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw PreferencesRestoreException(e)
+        }
 
         // 6. Verify database
         if (!databaseApplier.verifyMatchesRollback(rollback)) {
-            throw IllegalStateException("Rollback database verification failed")
+            throw VerificationFailedException("Database verification failed")
         }
 
         // 7. Verify preferences
         val currentPrefs = preferencesApplier.captureRollback()
         if (currentPrefs != prevPrefs) {
-            throw IllegalStateException("Rollback preferences verification failed")
+            throw VerificationFailedException("Preferences verification failed")
         }
 
         // 8. Write ROLLBACK_COMPLETED
         journal.write(dto.copy(phase = RestorePhase.ROLLBACK_COMPLETED))
 
         // 9. Cleanup
-        storage.cleanupSessionOrThrow(dto.sessionId)
+        try {
+            storage.cleanupSessionOrThrow(dto.sessionId)
+        } catch (e: Exception) {
+            throw CleanupFailedException(e)
+        }
 
         // 10. Delete journal
-        journal.deleteOrThrow()
+        try {
+            journal.deleteOrThrow()
+        } catch (e: Exception) {
+            throw CleanupFailedException(e)
+        }
     }
-    
+
     suspend fun retryRecovery(): RestoreRecoveryResult {
         return recoverIfNeeded()
     }
 }
+
+private class SnapshotMissingException : RuntimeException()
+private class SnapshotCorruptException(cause: Throwable) : RuntimeException(cause)
+private class PreferencesMissingException : RuntimeException()
+private class DatabaseRestoreException(cause: Throwable) : RuntimeException(cause)
+private class PreferencesRestoreException(cause: Throwable) : RuntimeException(cause)
+private class VerificationFailedException(message: String) : RuntimeException(message)
+private class CleanupFailedException(cause: Throwable) : RuntimeException(cause)
+

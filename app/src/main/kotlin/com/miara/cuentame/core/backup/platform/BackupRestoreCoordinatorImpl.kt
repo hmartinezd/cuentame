@@ -46,8 +46,13 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             result
         } catch (e: Exception) {
             operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
-            RestoreRecoveryResult.RecoveryRequired("unknown")
+            RestoreRecoveryResult.RecoveryRequired(
+                sessionId = "unknown",
+                phase = RestorePhase.RECOVERY_REQUIRED,
+                category = RecoveryFailureCategory.UNKNOWN
+            )
         }
+
     }
 
     override suspend fun apply(

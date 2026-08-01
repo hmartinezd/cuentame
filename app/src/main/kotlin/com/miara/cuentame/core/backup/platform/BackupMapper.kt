@@ -32,55 +32,427 @@ object BackupMapper {
         )
     }
 
-    private fun RestaurantEntity.toDto() = RestaurantBackupDto(id, name, currencyCode, localeTag, createdAt, updatedAt, deletedAt)
-    private fun InventoryAreaEntity.toDto() = InventoryAreaBackupDto(id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt, deletedAt)
-    private fun IngredientCategoryEntity.toDto() = IngredientCategoryBackupDto(id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt, deletedAt)
-    private fun UnitEntity.toDto() = UnitBackupDto(id, name, symbol, dimension, factorToCanonical.toPlainString(), isSystem, sortOrder)
-    private fun IngredientEntity.toDto() = IngredientBackupDto(id, restaurantId, name, normalizedName, categoryId, baseUnitId, defaultAreaId, sku, notes, reorderPointBase?.toPlainString(), isActive, createdAt, updatedAt, deletedAt)
-    private fun IngredientUnitOptionEntity.toDto() = IngredientUnitOptionBackupDto(id, ingredientId, displayName, shortLabel, standardUnitId, factorToBase.toPlainString(), isBase, isDefaultCount, isDefaultPurchase, isActive, createdAt, updatedAt, deletedAt)
-    private fun SupplierEntity.toDto() = SupplierBackupDto(id, restaurantId, name, normalizedName, phone, email, notes, isActive, createdAt, updatedAt, deletedAt)
-    
-    private fun PurchaseReceiptEntity.toDto(attachmentIdMap: Map<String, String>) = PurchaseReceiptBackupDto(
-        id, restaurantId, supplierId, invoiceNumber, purchaseDate, status, notes, 
-        attachmentPath?.let { attachmentIdMap[it] }, 
-        createdAt, updatedAt, postedAt, voidedAt
+    internal fun RestaurantEntity.toDto() = RestaurantBackupDto(
+        id = id,
+        name = name,
+        currencyCode = currencyCode,
+        localeTag = localeTag,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
     )
-    
-    private fun PurchaseLineEntity.toDto() = PurchaseLineBackupDto(id, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, unitCostBase, lineTotal, notes, createdAt, updatedAt)
-    
-    private fun StockCountEntity.toDto() = StockCountBackupDto(id, restaurantId, name, startedAt, effectiveAt, completedAt, status, notes, createdAt, updatedAt, voidedAt)
-    
-    private fun StockCountAreaEntity.toDto() = StockCountAreaBackupDto(id, stockCountId, areaId, status, startedAt, completedAt, sortOrder)
-    private fun StockCountLineEntity.toDto() = StockCountLineBackupDto(id, stockCountAreaId, ingredientId, ingredientUnitOptionId, quantityEntered, quantityBase, expectedQuantityBaseSnapshot, adjustmentQuantityBase, notes, createdAt, updatedAt)
-    
-    private fun WasteEventEntity.toDto(attachmentIdMap: Map<String, String>) = WasteEventBackupDto(
-        id, restaurantId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, reason, effectiveAt, notes, 
-        attachmentPath?.let { attachmentIdMap[it] }, 
-        status, createdAt, updatedAt, postedAt, voidedAt
-    )
-    
-    private fun InventoryMovementEntity.toDto() = InventoryMovementBackupDto(id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, unitCostBaseSnapshot, totalValueSnapshot, effectiveAt, sourceDocumentType, sourceDocumentId, sourceOperationId, sourceLineId, reversalOfMovementId, createdAt)
-    private fun InventoryBalanceProjectionEntity.toDto() = InventoryBalanceProjectionBackupDto(restaurantId, ingredientId, areaId, quantityBase, updatedAt)
-    private fun IngredientCostProjectionEntity.toDto() = IngredientCostProjectionBackupDto(restaurantId, ingredientId, averageUnitCostBase, updatedAt)
 
-    fun RestaurantBackupDto.toEntity() = RestaurantEntity(id, name, currencyCode, localeTag, createdAt, updatedAt, deletedAt)
-    fun InventoryAreaBackupDto.toEntity() = InventoryAreaEntity(id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt, deletedAt)
-    fun IngredientCategoryBackupDto.toEntity() = IngredientCategoryEntity(id, restaurantId, name, normalizedName, sortOrder, isActive, createdAt, updatedAt, deletedAt)
-    fun UnitBackupDto.toEntity() = UnitEntity(id, name, symbol, dimension, java.math.BigDecimal(factorToCanonical), isSystem, sortOrder)
-    fun SupplierBackupDto.toEntity() = SupplierEntity(id, restaurantId, name, normalizedName, phone, email, notes, isActive, createdAt, updatedAt, deletedAt)
-    fun IngredientBackupDto.toEntity() = IngredientEntity(id, restaurantId, name, normalizedName, categoryId, baseUnitId, defaultAreaId, sku, notes, reorderPointBase?.let { java.math.BigDecimal(it) }, isActive, createdAt, updatedAt, deletedAt)
-    fun IngredientUnitOptionBackupDto.toEntity() = IngredientUnitOptionEntity(id, ingredientId, displayName, shortLabel, standardUnitId, java.math.BigDecimal(factorToBase), isBase, isDefaultCount, isDefaultPurchase, isActive, createdAt, updatedAt, deletedAt)
+    internal fun InventoryAreaEntity.toDto() = InventoryAreaBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        sortOrder = sortOrder,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    internal fun IngredientCategoryEntity.toDto() = IngredientCategoryBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        sortOrder = sortOrder,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    internal fun UnitEntity.toDto() = UnitBackupDto(
+        id = id,
+        name = name,
+        symbol = symbol,
+        dimension = dimension,
+        factorToCanonical = factorToCanonical.toPlainString(),
+        isSystem = isSystem,
+        sortOrder = sortOrder
+    )
+
+    internal fun IngredientEntity.toDto() = IngredientBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        categoryId = categoryId,
+        baseUnitId = baseUnitId,
+        defaultAreaId = defaultAreaId,
+        sku = sku,
+        notes = notes,
+        reorderPointBase = reorderPointBase?.toPlainString(),
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    internal fun IngredientUnitOptionEntity.toDto() = IngredientUnitOptionBackupDto(
+        id = id,
+        ingredientId = ingredientId,
+        displayName = displayName,
+        shortLabel = shortLabel,
+        standardUnitId = standardUnitId,
+        factorToBase = factorToBase.toPlainString(),
+        isBase = isBase,
+        isDefaultCount = isDefaultCount,
+        isDefaultPurchase = isDefaultPurchase,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    internal fun SupplierEntity.toDto() = SupplierBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        phone = phone,
+        email = email,
+        notes = notes,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
     
-    fun PurchaseReceiptBackupDto.toEntity() = PurchaseReceiptEntity(id, restaurantId, supplierId, invoiceNumber, purchaseDate, status, notes, attachmentId, createdAt, updatedAt, postedAt, voidedAt)
-    fun PurchaseLineBackupDto.toEntity() = PurchaseLineEntity(id, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, unitCostBase, lineTotal, notes, createdAt, updatedAt)
+    internal fun PurchaseReceiptEntity.toDto(attachmentIdMap: Map<String, String>) = PurchaseReceiptBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        supplierId = supplierId,
+        invoiceNumber = invoiceNumber,
+        purchaseDate = purchaseDate,
+        status = status,
+        notes = notes, 
+        attachmentId = attachmentPath?.let { attachmentIdMap[it] }, 
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
     
-    fun StockCountBackupDto.toEntity() = StockCountEntity(id, restaurantId, name, startedAt, effectiveAt, completedAt, status, notes, createdAt, updatedAt, voidedAt)
-    fun StockCountAreaBackupDto.toEntity() = StockCountAreaEntity(id, stockCountId, areaId, status, startedAt, completedAt, sortOrder)
-    fun StockCountLineBackupDto.toEntity() = StockCountLineEntity(id, stockCountAreaId, ingredientId, ingredientUnitOptionId, quantityEntered, quantityBase, expectedQuantityBaseSnapshot, adjustmentQuantityBase, notes, createdAt, updatedAt)
+    internal fun PurchaseLineEntity.toDto() = PurchaseLineBackupDto(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        unitCostBase = unitCostBase,
+        lineTotal = lineTotal,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
     
-    fun WasteEventBackupDto.toEntity() = WasteEventEntity(id, restaurantId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, reason, effectiveAt, notes, attachmentId, status, createdAt, updatedAt, postedAt, voidedAt)
+    internal fun StockCountEntity.toDto() = StockCountBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        startedAt = startedAt,
+        effectiveAt = effectiveAt,
+        completedAt = completedAt,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        voidedAt = voidedAt
+    )
     
-    fun InventoryMovementBackupDto.toEntity() = InventoryMovementEntity(id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, unitCostBaseSnapshot, totalValueSnapshot, effectiveAt, sourceDocumentType, sourceDocumentId, sourceOperationId, sourceLineId, reversalOfMovementId, createdAt)
-    fun InventoryBalanceProjectionBackupDto.toEntity() = InventoryBalanceProjectionEntity(restaurantId, ingredientId, areaId, quantityBase, updatedAt)
-    fun IngredientCostProjectionBackupDto.toEntity() = IngredientCostProjectionEntity(restaurantId, ingredientId, averageUnitCostBase, updatedAt)
+    internal fun StockCountAreaEntity.toDto() = StockCountAreaBackupDto(
+        id = id,
+        stockCountId = stockCountId,
+        areaId = areaId,
+        status = status,
+        startedAt = startedAt,
+        completedAt = completedAt,
+        sortOrder = sortOrder
+    )
+
+    internal fun StockCountLineEntity.toDto() = StockCountLineBackupDto(
+        id = id,
+        stockCountAreaId = stockCountAreaId,
+        ingredientId = ingredientId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        expectedQuantityBaseSnapshot = expectedQuantityBaseSnapshot,
+        adjustmentQuantityBase = adjustmentQuantityBase,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+    
+    internal fun WasteEventEntity.toDto(attachmentIdMap: Map<String, String>) = WasteEventBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        reason = reason,
+        effectiveAt = effectiveAt,
+        notes = notes, 
+        attachmentId = attachmentPath?.let { attachmentIdMap[it] }, 
+        status = status,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
+    
+    internal fun InventoryMovementEntity.toDto() = InventoryMovementBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        movementType = movementType,
+        quantityBaseSigned = quantityBaseSigned,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalValueSnapshot = totalValueSnapshot,
+        effectiveAt = effectiveAt,
+        sourceDocumentType = sourceDocumentType,
+        sourceDocumentId = sourceDocumentId,
+        sourceOperationId = sourceOperationId,
+        sourceLineId = sourceLineId,
+        reversalOfMovementId = reversalOfMovementId,
+        createdAt = createdAt
+    )
+
+    internal fun InventoryBalanceProjectionEntity.toDto() = InventoryBalanceProjectionBackupDto(
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        quantityBase = quantityBase,
+        updatedAt = updatedAt
+    )
+
+    internal fun IngredientCostProjectionEntity.toDto() = IngredientCostProjectionBackupDto(
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        averageUnitCostBase = averageUnitCostBase,
+        updatedAt = updatedAt
+    )
+
+
+    fun RestaurantBackupDto.toEntity() = RestaurantEntity(
+        id = id,
+        name = name,
+        currencyCode = currencyCode,
+        localeTag = localeTag,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    fun InventoryAreaBackupDto.toEntity() = InventoryAreaEntity(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        sortOrder = sortOrder,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    fun IngredientCategoryBackupDto.toEntity() = IngredientCategoryEntity(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        sortOrder = sortOrder,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    fun UnitBackupDto.toEntity() = UnitEntity(
+        id = id,
+        name = name,
+        symbol = symbol,
+        dimension = dimension,
+        factorToCanonical = java.math.BigDecimal(factorToCanonical),
+        isSystem = isSystem,
+        sortOrder = sortOrder
+    )
+
+    fun SupplierBackupDto.toEntity() = SupplierEntity(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        phone = phone,
+        email = email,
+        notes = notes,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    fun IngredientBackupDto.toEntity() = IngredientEntity(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = normalizedName,
+        categoryId = categoryId,
+        baseUnitId = baseUnitId,
+        defaultAreaId = defaultAreaId,
+        sku = sku,
+        notes = notes,
+        reorderPointBase = reorderPointBase?.let { java.math.BigDecimal(it) },
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    fun IngredientUnitOptionBackupDto.toEntity() = IngredientUnitOptionEntity(
+        id = id,
+        ingredientId = ingredientId,
+        displayName = displayName,
+        shortLabel = shortLabel,
+        standardUnitId = standardUnitId,
+        factorToBase = java.math.BigDecimal(factorToBase),
+        isBase = isBase,
+        isDefaultCount = isDefaultCount,
+        isDefaultPurchase = isDefaultPurchase,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+    
+    fun PurchaseReceiptBackupDto.toEntity() = PurchaseReceiptEntity(
+        id = id,
+        restaurantId = restaurantId,
+        supplierId = supplierId,
+        invoiceNumber = invoiceNumber,
+        purchaseDate = purchaseDate,
+        status = status,
+        notes = notes,
+        attachmentPath = attachmentId,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
+
+    fun PurchaseLineBackupDto.toEntity() = PurchaseLineEntity(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        lineTotal = lineTotal,
+        unitCostBase = unitCostBase,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+    
+    fun StockCountBackupDto.toEntity() = StockCountEntity(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        startedAt = startedAt,
+        effectiveAt = effectiveAt,
+        completedAt = completedAt,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        voidedAt = voidedAt
+    )
+
+    fun StockCountAreaBackupDto.toEntity() = StockCountAreaEntity(
+        id = id,
+        stockCountId = stockCountId,
+        areaId = areaId,
+        status = status,
+        startedAt = startedAt,
+        completedAt = completedAt,
+        sortOrder = sortOrder
+    )
+
+    fun StockCountLineBackupDto.toEntity() = StockCountLineEntity(
+        id = id,
+        stockCountAreaId = stockCountAreaId,
+        ingredientId = ingredientId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        expectedQuantityBaseSnapshot = expectedQuantityBaseSnapshot,
+        adjustmentQuantityBase = adjustmentQuantityBase,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+    
+    fun WasteEventBackupDto.toEntity() = WasteEventEntity(
+        id = id,
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        ingredientUnitOptionId = ingredientUnitOptionId,
+        quantityEntered = quantityEntered,
+        quantityBase = quantityBase,
+        reason = reason,
+        effectiveAt = effectiveAt,
+        notes = notes,
+        attachmentPath = attachmentId,
+        status = status,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
+    
+    fun InventoryMovementBackupDto.toEntity() = InventoryMovementEntity(
+        id = id,
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        movementType = movementType,
+        quantityBaseSigned = quantityBaseSigned,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalValueSnapshot = totalValueSnapshot,
+        effectiveAt = effectiveAt,
+        sourceDocumentType = sourceDocumentType,
+        sourceDocumentId = sourceDocumentId,
+        sourceOperationId = sourceOperationId,
+        sourceLineId = sourceLineId,
+        reversalOfMovementId = reversalOfMovementId,
+        createdAt = createdAt
+    )
+
+    fun InventoryBalanceProjectionBackupDto.toEntity() = InventoryBalanceProjectionEntity(
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        areaId = areaId,
+        quantityBase = quantityBase,
+        updatedAt = updatedAt
+    )
+
+    fun IngredientCostProjectionBackupDto.toEntity() = IngredientCostProjectionEntity(
+        restaurantId = restaurantId,
+        ingredientId = ingredientId,
+        averageUnitCostBase = averageUnitCostBase,
+        updatedAt = updatedAt
+    )
+
 }

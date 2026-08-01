@@ -519,6 +519,10 @@
     <string name="restore_phase_rolling_back">Restaurando estado anterior…</string>
     <string name="restore_success_title">Restauración Exitosa</string>
     <string name="restore_success_message">Se restauraron con éxito los datos de %1$s. Se actualizaron %2$d registros.</string>
+
+    <string name="restore_recovery_success_title">Recuperación completada</string>
+    <string name="restore_recovery_success_message">Se restauraron los datos anteriores.</string>
+
     <string name="restore_recovery_required_title">Se requiere recuperación manual</string>
     <string name="restore_recovery_required_message">La operación de restauración se interrumpió y el sistema no pudo revertir los cambios automáticamente. Por favor, contacte con soporte o intente restaurar de nuevo con una copia válida.</string>
 

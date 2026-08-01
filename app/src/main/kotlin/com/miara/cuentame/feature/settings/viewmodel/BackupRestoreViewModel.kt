@@ -45,6 +45,8 @@ sealed interface BackupRestoreUiState {
         val summary: BackupRestoreSuccessSummary
     ) : BackupRestoreUiState
 
+    data object RecoverySuccess : BackupRestoreUiState
+
     data class Error(
         val reason: BackupRestoreFailure,
         val canChooseAnotherFile: Boolean = true
@@ -109,16 +111,14 @@ class BackupRestoreViewModel @Inject constructor(
                 }
             }
             is RestoreStartupState.Recovered -> {
-                _uiState.value = BackupRestoreUiState.Error(
-                    reason = BackupRestoreFailure.OperationInterrupted,
-                    canChooseAnotherFile = true
-                )
+                _uiState.value = BackupRestoreUiState.RecoverySuccess
             }
             RestoreStartupState.RecoveryRequired -> {
                 _uiState.value = BackupRestoreUiState.RecoveryRequired
             }
         }
     }
+
 
     fun onSelectFileClicked() {
         if (isBlocked()) return

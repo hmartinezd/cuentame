@@ -14,8 +14,8 @@ fun NavGraphBuilder.homeGraph(navController: NavHostController) {
             onViewWaste = { navController.navigate(Destination.WASTE_LIST.route) },
             onNewPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
             onStartCount = { navController.navigate(Destination.STOCK_COUNT_START.route) },
-            onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) },
-            onOpenSettings = { navController.navigate(Destination.SETTINGS.route) }
+            onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) }
         )
     }
 }
+

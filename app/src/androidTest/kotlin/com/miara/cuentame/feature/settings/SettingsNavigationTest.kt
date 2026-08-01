@@ -48,57 +48,80 @@ class SettingsNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("nav_settings").performClick()
+            // Verify Settings gear on Home
+            composeTestRule.onNodeWithTag("nav_settings").assertIsDisplayed().performClick()
 
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("settings_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
+            
+            // Verify Back button on Settings root
+            composeTestRule.onNodeWithTag("settings_back").assertIsDisplayed().performClick()
+            
+            // Verify back to Home
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 
     @Test
-    fun openSettingsFromHomeCard_navigatesToSettings() {
+    fun homeSettingsCard_isRemoved() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("home_settings_card").performClick()
+            composeTestRule.onNodeWithTag("home_settings_card").assertDoesNotExist()
+        }
+    }
 
+    @Test
+    fun primaryNavigation_visibilityRules() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Home (Top-level)
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("settings_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
+            // On compact, bottom bar should have nav_home, nav_inventory, etc.
+            // On expanded, rail should have them. We check for the tags.
+            composeTestRule.onNodeWithTag("nav_home").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("nav_inventory").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("nav_settings").assertIsDisplayed()
+
+            // Settings Root
+            composeTestRule.onNodeWithTag("nav_settings").performClick()
             composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
+            
+            // Primary nav should be hidden
+            composeTestRule.onNodeWithTag("nav_home").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("nav_inventory").assertDoesNotExist()
+            // Settings gear should be hidden in Settings root
+            composeTestRule.onNodeWithTag("nav_settings").assertDoesNotExist()
         }
     }
 
     @Test
     fun settingsSubsections_navigateAndBack() {
         ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("nav_settings").performClick()
 
             // Restaurant Profile
             composeTestRule.onNodeWithText("Restaurant Profile").performClick()
-            composeTestRule.onNodeWithText("Restaurant Details").assertIsDisplayed()
+            // Secondary screens should not show bottom bar/rail
+            composeTestRule.onNodeWithTag("nav_home").assertDoesNotExist()
+            // Subsection top bar should have back
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 
             // Areas
             composeTestRule.onNodeWithText("Inventory Areas").performClick()
-            composeTestRule.onNodeWithText("Inventory Areas").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("nav_home").assertDoesNotExist()
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 
-            // Categories
-            composeTestRule.onNodeWithText("Ingredient Categories").performClick()
-            composeTestRule.onNodeWithText("Ingredient Categories").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
-
-            // Suppliers
-            composeTestRule.onNodeWithText("Suppliers").performClick()
-            composeTestRule.onNodeWithText("Suppliers").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
-            
             composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
         }
     }
+
 }

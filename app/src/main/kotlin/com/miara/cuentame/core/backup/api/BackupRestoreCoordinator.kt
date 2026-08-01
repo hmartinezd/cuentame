@@ -60,5 +60,26 @@ sealed interface BackupRestoreApplyResult {
 sealed interface RestoreRecoveryResult {
     data object NoRecoveryNeeded : RestoreRecoveryResult
     data class Recovered(val sessionId: String) : RestoreRecoveryResult
-    data class RecoveryRequired(val sessionId: String) : RestoreRecoveryResult
+    data class RecoveryRequired(
+        val sessionId: String,
+        val phase: RestorePhase,
+        val category: RecoveryFailureCategory,
+        val databaseReplacementBegan: Boolean = false,
+        val rollbackBegan: Boolean = false,
+        val rollbackVerificationFailed: Boolean = false,
+        val cleanupFailed: Boolean = false
+    ) : RestoreRecoveryResult
 }
+
+enum class RecoveryFailureCategory {
+    UNKNOWN,
+    JOURNAL_CORRUPT,
+    SNAPSHOT_MISSING,
+    SNAPSHOT_CORRUPT,
+    PREFERENCES_MISSING,
+    DATABASE_RESTORE_FAILED,
+    PREFERENCES_RESTORE_FAILED,
+    VERIFICATION_FAILED,
+    CLEANUP_FAILED
+}
+

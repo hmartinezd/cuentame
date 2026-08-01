@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -129,41 +130,75 @@ fun MainAppContent(
     windowSizeClass: WindowSizeClass,
     navController: NavHostController = rememberNavController()
 ) {
-    val shouldShowBottomBar = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
-    val shouldShowNavRail = !shouldShowBottomBar
+    val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
 
-    val currentTopLevelDestination = TopLevelDestination.entries.find { destination ->
+    val currentTopLevelDestination = TopLevelDestination.entries.firstOrNull { destination ->
         currentDestination?.hierarchy?.any { it.route == destination.route } == true
     }
+    
+    val isTopLevelDestination = currentTopLevelDestination != null
+    val isSettingsRoot = currentDestination?.route == Destination.SETTINGS.route
+    
+    val shouldShowBottomBar = isCompact && isTopLevelDestination
+    val shouldShowNavRail = !isCompact && isTopLevelDestination
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = currentTopLevelDestination?.let { stringResource(it.titleTextId) }
-                            ?: stringResource(com.miara.cuentame.R.string.app_name)
-                    )
-                },
-                actions = {
-                    IconButton(
-                        onClick = { navController.navigate(Destination.SETTINGS.route) },
-                        modifier = Modifier.testTag("nav_settings")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = stringResource(com.miara.cuentame.R.string.nav_settings)
+            if (isTopLevelDestination || isSettingsRoot) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            text = if (isSettingsRoot) {
+                                stringResource(com.miara.cuentame.R.string.nav_settings)
+                            } else {
+                                currentTopLevelDestination?.let { stringResource(it.titleTextId) }
+                                    ?: stringResource(com.miara.cuentame.R.string.app_name)
+                            }
                         )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    },
+                    navigationIcon = {
+                        if (isSettingsRoot) {
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                modifier = Modifier.testTag("settings_back")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = stringResource(com.miara.cuentame.R.string.action_back)
+                                )
+
+
+
+                            }
+                        }
+                    },
+
+                    actions = {
+                        if (isTopLevelDestination) {
+                            IconButton(
+                                onClick = {
+                                    navController.navigate(Destination.SETTINGS.route) {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                modifier = Modifier.testTag("nav_settings")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = stringResource(com.miara.cuentame.R.string.nav_settings)
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    )
                 )
-            )
+            }
         },
         bottomBar = {
             if (shouldShowBottomBar) {
@@ -200,6 +235,7 @@ fun MainAppContent(
         }
     }
 }
+
 
 @Composable
 private fun CuentameBottomBar(

@@ -66,7 +66,6 @@ fun HomeRoute(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -81,7 +80,6 @@ fun HomeRoute(
         onNewPurchase = onNewPurchase,
         onStartCount = onStartCount,
         onViewReports = onViewReports,
-        onOpenSettings = onOpenSettings,
         modifier = modifier
     )
 }
@@ -97,7 +95,6 @@ fun HomeScreen(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -143,8 +140,7 @@ fun HomeScreen(
                     onViewWaste = onViewWaste,
                     onNewPurchase = onNewPurchase,
                     onStartCount = onStartCount,
-                    onViewReports = onViewReports,
-                    onOpenSettings = onOpenSettings
+                    onViewReports = onViewReports
                 )
             }
         }
@@ -160,8 +156,7 @@ private fun DashboardContent(
     onViewWaste: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
-    onViewReports: () -> Unit,
-    onOpenSettings: () -> Unit
+    onViewReports: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -231,7 +226,7 @@ private fun DashboardContent(
         }
 
         item {
-            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onOpenSettings)
+            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste)
         }
 
         item {
@@ -251,6 +246,7 @@ private fun DashboardContent(
         }
     }
 }
+
 
 @Composable
 private fun DashboardHeader(restaurantName: String) {
@@ -453,8 +449,7 @@ private fun QuickActionsSection(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onViewWasteHistory: () -> Unit,
-    onOpenSettings: () -> Unit
+    onViewWasteHistory: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -466,22 +461,9 @@ private fun QuickActionsSection(
             QuickActionButton(Icons.Default.Straighten, stringResource(R.string.start_count_action), onStartCount, Modifier.weight(1f).testTag("start_count_button"))
         }
         QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.fillMaxWidth().testTag("view_reports_button"))
-        
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        
-        Card(
-            onClick = onOpenSettings,
-            modifier = Modifier.fillMaxWidth().testTag("home_settings_card")
-        ) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.nav_settings)) },
-                supportingContent = { Text(stringResource(R.string.home_settings_desc)) },
-                leadingContent = { Icon(Icons.Default.Settings, contentDescription = null) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            )
-        }
     }
 }
+
 
 @Composable
 private fun QuickActionButton(

@@ -519,6 +519,10 @@
     <string name="restore_phase_rolling_back">Restoring previous state…</string>
     <string name="restore_success_title">Restore Successful</string>
     <string name="restore_success_message">Successfully restored data for %1$s. %2$d records were updated.</string>
+
+    <string name="restore_recovery_success_title">Recovery completed</string>
+    <string name="restore_recovery_success_message">Your previous data was restored.</string>
+
     <string name="restore_recovery_required_title">Manual Recovery Required</string>
     <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
 

@@ -33,7 +33,11 @@ class RestoreRecoveryCoordinatorTest {
             journal, storage, databaseApplier, preferencesApplier, codecs
         )
         every { preferencesApplier.validate(any()) } returns true
+        every { journal.write(any()) } just Runs
+        every { journal.deleteOrThrow() } just Runs
+        every { storage.cleanupSessionOrThrow(any()) } just Runs
     }
+
 
     @Test
     fun `recoverIfNeeded does nothing when journal absent`() = runTest {
@@ -70,7 +74,6 @@ class RestoreRecoveryCoordinatorTest {
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         coEvery { preferencesApplier.apply(any()) } just Runs
         coEvery { preferencesApplier.captureRollback() } returns prefs
-        coEvery { preferencesApplier.verifyMatches(any()) } returns true
         every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.write(any()) } just Runs
         every { journal.deleteOrThrow() } just Runs
@@ -81,6 +84,31 @@ class RestoreRecoveryCoordinatorTest {
         coVerify { databaseApplier.restoreRollback(match { it.snapshot == rollbackSnapshot.snapshot }) }
         coVerify { preferencesApplier.apply(prefs) }
     }
+
+    @Test
+    fun `recovery handles ROLLING_BACK phase correctly`() = runTest {
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLING_BACK, "hash", prefs, 0)
+        every { journal.read() } returns RestoreJournalReadResult.Present(dto)
+        
+        setupRollbackFile("session")
+        
+        coEvery { databaseApplier.restoreRollback(any()) } just Runs
+        coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
+        coEvery { preferencesApplier.apply(any()) } just Runs
+        coEvery { preferencesApplier.captureRollback() } returns prefs
+        every { storage.cleanupSessionOrThrow("session") } just Runs
+        every { journal.write(any()) } just Runs
+        every { journal.deleteOrThrow() } just Runs
+        
+        val result = coordinator.recoverIfNeeded()
+        
+        assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered("session"))
+        // Should NOT write ROLLING_BACK again if already there
+        verify(exactly = 0) { journal.write(match { it.phase == RestorePhase.ROLLING_BACK }) }
+        verify(exactly = 1) { journal.write(match { it.phase == RestorePhase.ROLLBACK_COMPLETED }) }
+    }
+
 
     @Test
     fun `retry from COMPLETED performs cleanup only`() = runTest {
@@ -130,7 +158,11 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.VERIFICATION_FAILED)
+        assertThat(recovery.rollbackVerificationFailed).isTrue()
     }
+
 
     @Test
     fun `recovery is idempotent`() = runTest {
@@ -164,6 +196,8 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.JOURNAL_CORRUPT)
     }
 
     @Test
@@ -175,6 +209,8 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.SNAPSHOT_MISSING)
     }
 
     @Test
@@ -189,6 +225,9 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.DATABASE_RESTORE_FAILED)
+        assertThat(recovery.databaseReplacementBegan).isTrue()
     }
 
     @Test
@@ -200,7 +239,10 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.CLEANUP_FAILED)
     }
+
 
     @Test
     fun `ROLLBACK_CAPTURED cleanup failure preserves journal`() = runTest {
@@ -211,6 +253,8 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.CLEANUP_FAILED)
         verify(exactly = 0) { journal.deleteOrThrow() }
     }
 
@@ -223,6 +267,8 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.CLEANUP_FAILED)
         verify(exactly = 0) { journal.deleteOrThrow() }
     }
 
@@ -236,8 +282,11 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.category).isEqualTo(com.miara.cuentame.core.backup.api.RecoveryFailureCategory.CLEANUP_FAILED)
         // Journal was NOT deleted, so it's still Present for next retry
     }
+
 
     @Test
     fun `retry succeeds after cleanup failure becomes available`() = runTest {
@@ -266,12 +315,15 @@ class RestoreRecoveryCoordinatorTest {
         val result = coordinator.recoverIfNeeded()
         
         assertThat(result).isInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+        val recovery = result as RestoreRecoveryResult.RecoveryRequired
+        assertThat(recovery.phase).isEqualTo(RestorePhase.RECOVERY_REQUIRED)
         verify(exactly = 0) {
             storage.cleanupSessionOrThrow(any())
             journal.deleteOrThrow()
             journal.write(any())
         }
     }
+
 
     @Test
     fun `validate returns true for valid theme and locale`() {

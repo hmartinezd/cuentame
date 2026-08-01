@@ -414,6 +414,11 @@ fun SettingsScreen(
                 onDismiss = onDismissRestore
             )
         }
+        BackupRestoreUiState.RecoverySuccess -> {
+            RestoreRecoverySuccessDialog(
+                onDismiss = onDismissRestore
+            )
+        }
         is BackupRestoreUiState.Error -> {
             RestoreErrorDialog(
                 failure = state.reason,
@@ -576,6 +581,24 @@ fun RestoreSuccessDialog(
         title = { Text(stringResource(R.string.restore_success_title)) },
         text = {
             Text(stringResource(R.string.restore_success_message, summary.restaurantName, summary.recordCount))
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.ok))
+            }
+        }
+    )
+}
+
+@Composable
+fun RestoreRecoverySuccessDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_recovery_success_title)) },
+        text = {
+            Text(stringResource(R.string.restore_recovery_success_message))
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
