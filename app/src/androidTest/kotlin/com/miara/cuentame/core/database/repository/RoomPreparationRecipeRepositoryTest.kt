@@ -9,7 +9,6 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
@@ -378,6 +377,71 @@ class RoomPreparationRecipeRepositoryTest {
             assertThat(list[0].outputIngredientName).isEqualTo("A")
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun saveComponent_editExisting_changingIngredientToOneAlreadyInRecipe_isRejected() = runBlocking {
+        val recipeId = setupDraftRecipe("Stock")
+        val waterId = setupIngredient("Water")
+        val waterUnitId = setupUnitOption(waterId, "L", BigDecimal.ONE)
+        val saltId = setupIngredient("Salt")
+        val saltUnitId = setupUnitOption(saltId, "g", BigDecimal.ONE)
+        
+        val waterCompId = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, waterId, waterUnitId, BigDecimal.ONE, 0, null))
+        val saltCompId = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, saltId, saltUnitId, BigDecimal.ONE, 1, null))
+        
+        // Attempt to change salt component to water
+        try {
+            repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, saltCompId, waterId, waterUnitId, BigDecimal.TEN, 1, null))
+            assertThat(false).isTrue()
+        } catch (e: RecipeValidationException) {
+            assertThat(e.failures).contains(PreparationRecipeValidationFailure.ComponentAlreadyExists)
+        }
+        
+        // Verify both components unchanged
+        val recipe = repository.getRecipe(recipeId)
+        assertThat(recipe!!.components).hasSize(2)
+        assertThat(recipe.components.find { it.id == waterCompId }!!.componentIngredientId).isEqualTo(waterId)
+        assertThat(recipe.components.find { it.id == saltCompId }!!.componentIngredientId).isEqualTo(saltId)
+    }
+
+    @Test
+    fun saveComponent_editExisting_preservesCreatedAt() = runBlocking {
+        val recipeId = setupDraftRecipe("Stock")
+        val compId = setupIngredient("Water")
+        val unitId = setupUnitOption(compId, "L", BigDecimal.ONE)
+        
+        val c1Id = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, unitId, BigDecimal.ONE, 0, null))
+        val c1 = db.preparationRecipeDao().getComponentById(c1Id.value)!!
+        val originalCreatedAt = c1.createdAt
+        
+        // Small delay if needed, but here we use a fixed timeProvider so we'll just check it's the same
+        val c2Id = repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, c1Id, compId, unitId, BigDecimal.TEN, 0, "Updated"))
+        val c2 = db.preparationRecipeDao().getComponentById(c2Id.value)!!
+        
+        assertThat(c2.id).isEqualTo(c1.id)
+        assertThat(c2.createdAt).isEqualTo(originalCreatedAt)
+    }
+
+    @Test
+    fun recipeOperations_keepInventoryIsolation() = runBlocking {
+        val ingId = setupIngredient("Stock")
+        val unitId = setupUnitOption(ingId, "L", BigDecimal.ONE)
+        
+        // Initial counts
+        val initialMoves = db.inventoryMovementDao().getAll().size
+        
+        val recipeId = repository.createDraft(CreatePreparationRecipeCommand(restId, ingId, "Stock", BigDecimal.ONE, unitId, null))
+        val compIngId = setupIngredient("Water")
+        val compUnitId = setupUnitOption(compIngId, "L", BigDecimal.ONE)
+        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compIngId, compUnitId, BigDecimal.ONE, 0, null))
+        repository.activate(recipeId)
+        repository.moveToDraft(recipeId)
+        repository.archive(recipeId)
+        repository.restoreToDraft(recipeId)
+        
+        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(initialMoves)
+        assertThat(db.inventoryProjectionDao().getAll().size).isEqualTo(0)
     }
 
     private suspend fun setupIngredient(name: String): IngredientId {

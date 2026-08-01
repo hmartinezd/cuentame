@@ -16,6 +16,7 @@ sealed interface PreparationRecipeValidationFailure {
     data object YieldRequired : PreparationRecipeValidationFailure
     data object YieldMustBePositive : PreparationRecipeValidationFailure
     data object YieldUnitNotFound : PreparationRecipeValidationFailure
+    data object YieldUnitInactive : PreparationRecipeValidationFailure
     data object YieldUnitDoesNotBelongToOutput : PreparationRecipeValidationFailure
     data object AtLeastOneComponentRequired : PreparationRecipeValidationFailure
     data object ComponentIngredientNotFound : PreparationRecipeValidationFailure
@@ -25,6 +26,7 @@ sealed interface PreparationRecipeValidationFailure {
     data object ComponentAlreadyExists : PreparationRecipeValidationFailure
     data object ComponentQuantityMustBePositive : PreparationRecipeValidationFailure
     data object ComponentUnitNotFound : PreparationRecipeValidationFailure
+    data object ComponentUnitInactive : PreparationRecipeValidationFailure
     data object ComponentUnitDoesNotBelongToIngredient : PreparationRecipeValidationFailure
     data object RecipeWouldCreateCycle : PreparationRecipeValidationFailure
     data object RecipeAlreadyExistsForOutput : PreparationRecipeValidationFailure
@@ -35,6 +37,7 @@ sealed interface PreparationRecipeValidationFailure {
     data object InvalidComponentOrder : PreparationRecipeValidationFailure
     data object UnitOptionUsedByRecipe : PreparationRecipeValidationFailure
     data object UnitOptionUsedByRecipeComponent : PreparationRecipeValidationFailure
+    data object RecipeNameRequired : PreparationRecipeValidationFailure
 }
 
 class PreparationRecipeValidator @Inject constructor() {
@@ -46,16 +49,29 @@ class PreparationRecipeValidator @Inject constructor() {
     ): List<PreparationRecipeValidationFailure> {
         val failures = mutableListOf<PreparationRecipeValidationFailure>()
 
+        if (recipe.name.isBlank()) {
+            failures.add(PreparationRecipeValidationFailure.RecipeNameRequired)
+        }
+
         if (outputIngredient == null) {
             failures.add(PreparationRecipeValidationFailure.OutputIngredientNotFound)
         } else if (outputIngredient.deletedAt != null) {
             failures.add(PreparationRecipeValidationFailure.OutputIngredientDeleted)
         }
 
+        if (recipe.standardYieldQuantity != null && recipe.standardYieldQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
+        }
+
         if (recipe.yieldUnitOptionId != null && yieldUnitOption == null) {
             failures.add(PreparationRecipeValidationFailure.YieldUnitNotFound)
-        } else if (yieldUnitOption != null && yieldUnitOption.ingredientId != recipe.outputIngredientId) {
-            failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
+        } else if (yieldUnitOption != null) {
+            if (yieldUnitOption.ingredientId != recipe.outputIngredientId) {
+                failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
+            }
+            if (yieldUnitOption.deletedAt != null || !yieldUnitOption.isActive) {
+                failures.add(PreparationRecipeValidationFailure.YieldUnitInactive)
+            }
         }
 
         return failures
@@ -71,6 +87,10 @@ class PreparationRecipeValidator @Inject constructor() {
         existingGraphEdges: List<PreparationRecipeDependencyEdge>
     ): List<PreparationRecipeValidationFailure> {
         val failures = mutableListOf<PreparationRecipeValidationFailure>()
+
+        if (recipe.name.isBlank()) {
+            failures.add(PreparationRecipeValidationFailure.RecipeNameRequired)
+        }
 
         // Output validation
         if (outputIngredient == null) {
@@ -96,8 +116,13 @@ class PreparationRecipeValidator @Inject constructor() {
             val unitOption = allOutputUnitOptions.find { it.id == recipe.yieldUnitOptionId }
             if (unitOption == null) {
                 failures.add(PreparationRecipeValidationFailure.YieldUnitNotFound)
-            } else if (unitOption.ingredientId != recipe.outputIngredientId) {
-                failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
+            } else {
+                if (unitOption.ingredientId != recipe.outputIngredientId) {
+                    failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
+                }
+                if (unitOption.deletedAt != null || !unitOption.isActive) {
+                    failures.add(PreparationRecipeValidationFailure.YieldUnitInactive)
+                }
             }
         }
 
@@ -126,8 +151,13 @@ class PreparationRecipeValidator @Inject constructor() {
             val option = options.find { it.id == component.unitOptionId }
             if (option == null) {
                 failures.add(PreparationRecipeValidationFailure.ComponentUnitNotFound)
-            } else if (option.ingredientId != component.componentIngredientId) {
-                failures.add(PreparationRecipeValidationFailure.ComponentUnitDoesNotBelongToIngredient)
+            } else {
+                if (option.ingredientId != component.componentIngredientId) {
+                    failures.add(PreparationRecipeValidationFailure.ComponentUnitDoesNotBelongToIngredient)
+                }
+                if (option.deletedAt != null || !option.isActive) {
+                    failures.add(PreparationRecipeValidationFailure.ComponentUnitInactive)
+                }
             }
 
             if (component.quantityEntered.compareTo(BigDecimal.ZERO) <= 0) {

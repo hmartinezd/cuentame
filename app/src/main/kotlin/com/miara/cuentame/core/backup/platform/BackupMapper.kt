@@ -73,7 +73,7 @@ object BackupMapper {
         name = name,
         symbol = symbol,
         dimension = dimension,
-        factorToCanonical = factorToCanonical.toPlainString(),
+        factorToCanonical = factorToCanonical.toNormalizedString(),
         isSystem = isSystem,
         sortOrder = sortOrder
     )
@@ -88,7 +88,7 @@ object BackupMapper {
         defaultAreaId = defaultAreaId,
         sku = sku,
         notes = notes,
-        reorderPointBase = reorderPointBase?.toPlainString(),
+        reorderPointBase = reorderPointBase?.toNormalizedString(),
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -101,7 +101,7 @@ object BackupMapper {
         displayName = displayName,
         shortLabel = shortLabel,
         standardUnitId = standardUnitId,
-        factorToBase = factorToBase.toPlainString(),
+        factorToBase = factorToBase.toNormalizedString(),
         isBase = isBase,
         isDefaultCount = isDefaultCount,
         isDefaultPurchase = isDefaultPurchase,
@@ -251,8 +251,8 @@ object BackupMapper {
         outputIngredientId = outputIngredientId,
         name = name,
         normalizedName = normalizedName,
-        standardYieldQuantity = standardYieldQuantity?.toPlainString(),
-        standardYieldQuantityBase = standardYieldQuantityBase?.toPlainString(),
+        standardYieldQuantity = standardYieldQuantity?.toNormalizedString(),
+        standardYieldQuantityBase = standardYieldQuantityBase?.toNormalizedString(),
         yieldUnitOptionId = yieldUnitOptionId,
         status = status,
         notes = notes,
@@ -266,13 +266,18 @@ object BackupMapper {
         recipeId = recipeId,
         componentIngredientId = componentIngredientId,
         unitOptionId = unitOptionId,
-        quantityEntered = quantityEntered.toPlainString(),
-        quantityBase = quantityBase.toPlainString(),
+        quantityEntered = quantityEntered.toNormalizedString(),
+        quantityBase = quantityBase.toNormalizedString(),
         sortOrder = sortOrder,
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    private fun java.math.BigDecimal.toNormalizedString(): String {
+        return if (this.compareTo(java.math.BigDecimal.ZERO) == 0) "0"
+        else this.stripTrailingZeros().toPlainString()
+    }
 
 
     fun RestaurantBackupDto.toEntity() = RestaurantEntity(

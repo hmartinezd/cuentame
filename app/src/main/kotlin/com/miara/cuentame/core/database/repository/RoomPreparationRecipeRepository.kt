@@ -93,8 +93,16 @@ class RoomPreparationRecipeRepository @Inject constructor(
             val recipeId = PreparationRecipeId(idGenerator.newId())
             val now = timeProvider.now().toEpochMilli()
             val name = command.name ?: outputIngredient.name
+
+            if (name.isBlank()) {
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
+            }
             
             val unitOption = command.yieldUnitOptionId?.let { unitOptionDao.getById(it.value) }
+            if (unitOption != null && (unitOption.deletedAt != null || !unitOption.isActive)) {
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
+            }
+
             val standardYieldQuantityBase = if (command.standardYieldQuantity != null && unitOption != null) {
                 command.standardYieldQuantity.multiply(unitOption.factorToBase)
             } else null
@@ -138,8 +146,16 @@ class RoomPreparationRecipeRepository @Inject constructor(
                 throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
+            if (command.name.isBlank()) {
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
+            }
+
             val outputIngredient = ingredientDao.getById(existing.outputIngredientId)
             val unitOption = command.yieldUnitOptionId?.let { unitOptionDao.getById(it.value) }
+
+            if (unitOption != null && (unitOption.deletedAt != null || !unitOption.isActive)) {
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
+            }
             
             val standardYieldQuantityBase = if (command.standardYieldQuantity != null && unitOption != null) {
                 command.standardYieldQuantity.multiply(unitOption.factorToBase)
@@ -196,7 +212,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                 ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitNotFound))
 
             if (unitOption.deletedAt != null || !unitOption.isActive) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitNotFound))
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitInactive))
             }
 
             if (unitOption.ingredientId != command.componentIngredientId.value) {
@@ -210,34 +226,37 @@ class RoomPreparationRecipeRepository @Inject constructor(
             val now = timeProvider.now().toEpochMilli()
             val quantityBase = command.quantityEntered.multiply(unitOption.factorToBase)
 
-            // 1. Check if same ingredient already exists in recipe
+            // Collision check: Search for another component using the proposed ingredient
             val duplicate = recipeDao.getComponentByIngredient(recipe.id, command.componentIngredientId.value)
-
-            // 2. Handle componentId if provided
-            val existingById = if (command.componentId != null) {
-                val comp = recipeDao.getComponentById(command.componentId.value)
+            
+            if (command.componentId != null) {
+                // Editing an existing component
+                val existingById = recipeDao.getComponentById(command.componentId.value)
                     ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
-                if (comp.recipeId != recipe.id) {
+                
+                if (existingById.recipeId != recipe.id) {
                     throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
                 }
-                comp
-            } else null
 
-            val targetEntity = when {
-                // Scenario A: Updating existing by ID
-                existingById != null -> {
-                    existingById.copy(
-                        componentIngredientId = command.componentIngredientId.value,
-                        unitOptionId = command.unitOptionId.value,
-                        quantityEntered = command.quantityEntered,
-                        quantityBase = quantityBase,
-                        sortOrder = command.sortOrder,
-                        notes = command.notes,
-                        updatedAt = now
-                    )
+                if (duplicate != null && duplicate.id != command.componentId.value) {
+                    throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentAlreadyExists))
                 }
-                // Scenario B: Found duplicate ingredient (and no componentId was provided)
-                duplicate != null -> {
+
+                val targetEntity = existingById.copy(
+                    componentIngredientId = command.componentIngredientId.value,
+                    unitOptionId = command.unitOptionId.value,
+                    quantityEntered = command.quantityEntered,
+                    quantityBase = quantityBase,
+                    sortOrder = command.sortOrder,
+                    notes = command.notes,
+                    updatedAt = now
+                )
+                recipeDao.upsertComponent(targetEntity)
+                PreparationRecipeComponentId(targetEntity.id)
+            } else {
+                // Add without component ID
+                val targetEntity = if (duplicate != null) {
+                    // Update existing component
                     duplicate.copy(
                         unitOptionId = command.unitOptionId.value,
                         quantityEntered = command.quantityEntered,
@@ -246,9 +265,8 @@ class RoomPreparationRecipeRepository @Inject constructor(
                         notes = command.notes,
                         updatedAt = now
                     )
-                }
-                // Scenario C: Brand new component
-                else -> {
+                } else {
+                    // Brand new component
                     PreparationRecipeComponentEntity(
                         id = PreparationRecipeComponentId(idGenerator.newId()).value,
                         recipeId = command.recipeId.value,
@@ -262,10 +280,9 @@ class RoomPreparationRecipeRepository @Inject constructor(
                         updatedAt = now
                     )
                 }
+                recipeDao.upsertComponent(targetEntity)
+                PreparationRecipeComponentId(targetEntity.id)
             }
-
-            recipeDao.upsertComponent(targetEntity)
-            PreparationRecipeComponentId(targetEntity.id)
         }
     }
 

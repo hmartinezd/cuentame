@@ -121,6 +121,9 @@ class RoomIngredientRepositoryTest {
 
     @Test
     fun archiveIngredient_failsIfOutputOfNonArchivedRecipe() = runBlocking {
+        val unitId = UnitId("u1")
+        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity(unitId.value, "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+
         val ingId = IngredientId("i1")
         db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", null, null, null, null, true, 0, 0, null))
 

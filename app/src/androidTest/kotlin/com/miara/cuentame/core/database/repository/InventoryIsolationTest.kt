@@ -39,15 +39,24 @@ class InventoryIsolationTest {
 
     @Test
     fun recipeOperationsLeaveInventoryUntouched() = runBlocking {
-        // 1. Capture initial counts
-        val initialCounts = captureInventoryCounts()
-
-        // 2. Perform various recipe operations
+        // 0. Setup dependencies
+        database.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(restaurantId.value, "R", "USD", "en-US", 0L, 0L, null))
+        database.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+        
         val outputId = IngredientId("ing-output")
         val compId = IngredientId("ing-comp")
         val yieldUnitId = IngredientUnitOptionId("opt-yield")
         val compUnitId = IngredientUnitOptionId("opt-comp")
 
+        database.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(outputId.value, restaurantId.value, "Output", "output", null, "u1", null, null, null, null, true, 0, 0, null))
+        database.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(compId.value, restaurantId.value, "Comp", "comp", null, "u1", null, null, null, null, true, 0, 0, null))
+        database.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(yieldUnitId.value, outputId.value, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+        database.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(compUnitId.value, compId.value, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+
+        // 1. Capture initial counts
+        val initialCounts = captureInventoryCounts()
+
+        // 2. Perform various recipe operations
         val recipeId = repository.createDraft(CreatePreparationRecipeCommand(
             restaurantId = restaurantId,
             outputIngredientId = outputId,
@@ -91,8 +100,8 @@ class InventoryIsolationTest {
     private fun captureInventoryCounts(): Map<String, Int> {
         val tables = listOf(
             "inventory_movements",
-            "inventory_balance_projections",
-            "ingredient_cost_projections",
+            "inventory_balance_projection",
+            "ingredient_cost_projection",
             "purchase_receipts",
             "purchase_lines",
             "stock_counts",

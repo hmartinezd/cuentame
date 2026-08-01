@@ -181,7 +181,7 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.SNAPSHOT_INVALID)
         }
 
-        if (manifest.tableMetadata != createTableMetadata(dbDto)) {
+        if (manifest.tableMetadata != createTableMetadata(dbDto, manifest.databaseSchemaVersion)) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
         }
 
@@ -245,24 +245,31 @@ class DefaultBackupArchiveValidator @Inject constructor(
         }
     }
 
-    private fun createTableMetadata(dbDto: BackupSnapshotDto): Map<String, TableMetadata> = mapOf(
-        "restaurants" to TableMetadata(dbDto.restaurants.size, false),
-        "inventory_areas" to TableMetadata(dbDto.inventoryAreas.size, false),
-        "ingredient_categories" to TableMetadata(dbDto.ingredientCategories.size, false),
-        "units" to TableMetadata(dbDto.units.size, false),
-        "ingredients" to TableMetadata(dbDto.ingredients.size, false),
-        "ingredient_unit_options" to TableMetadata(dbDto.ingredientUnitOptions.size, false),
-        "suppliers" to TableMetadata(dbDto.suppliers.size, false),
-        "purchase_receipts" to TableMetadata(dbDto.purchaseReceipts.size, false),
-        "purchase_lines" to TableMetadata(dbDto.purchaseLines.size, false),
-        "stock_counts" to TableMetadata(dbDto.stockCounts.size, false),
-        "stock_count_areas" to TableMetadata(dbDto.stockCountAreas.size, false),
-        "stock_count_lines" to TableMetadata(dbDto.stockCountLines.size, false),
-        "waste_events" to TableMetadata(dbDto.wasteEvents.size, false),
-        "inventory_movements" to TableMetadata(dbDto.inventoryMovements.size, false),
-        "inventory_balance_projections" to TableMetadata(dbDto.inventoryBalanceProjections.size, true),
-        "ingredient_cost_projections" to TableMetadata(dbDto.ingredientCostProjections.size, true)
-    ).entries.sortedBy { it.key }.associate { it.key to it.value }
+    private fun createTableMetadata(dbDto: BackupSnapshotDto, schemaVersion: Int): Map<String, TableMetadata> {
+        val tables = mutableMapOf(
+            "restaurants" to TableMetadata(dbDto.restaurants.size, false),
+            "inventory_areas" to TableMetadata(dbDto.inventoryAreas.size, false),
+            "ingredient_categories" to TableMetadata(dbDto.ingredientCategories.size, false),
+            "units" to TableMetadata(dbDto.units.size, false),
+            "ingredients" to TableMetadata(dbDto.ingredients.size, false),
+            "ingredient_unit_options" to TableMetadata(dbDto.ingredientUnitOptions.size, false),
+            "suppliers" to TableMetadata(dbDto.suppliers.size, false),
+            "purchase_receipts" to TableMetadata(dbDto.purchaseReceipts.size, false),
+            "purchase_lines" to TableMetadata(dbDto.purchaseLines.size, false),
+            "stock_counts" to TableMetadata(dbDto.stockCounts.size, false),
+            "stock_count_areas" to TableMetadata(dbDto.stockCountAreas.size, false),
+            "stock_count_lines" to TableMetadata(dbDto.stockCountLines.size, false),
+            "waste_events" to TableMetadata(dbDto.wasteEvents.size, false),
+            "inventory_movements" to TableMetadata(dbDto.inventoryMovements.size, false),
+            "inventory_balance_projections" to TableMetadata(dbDto.inventoryBalanceProjections.size, true),
+            "ingredient_cost_projections" to TableMetadata(dbDto.ingredientCostProjections.size, true)
+        )
+        if (schemaVersion >= 3) {
+            tables["preparation_recipes"] = TableMetadata(dbDto.preparationRecipes.size, false)
+            tables["preparation_recipe_components"] = TableMetadata(dbDto.preparationRecipeComponents.size, false)
+        }
+        return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
+    }
 
     private data class EntryInfo(val name: String, val checksum: String, val size: Long)
 }

@@ -19,7 +19,7 @@ class BackupManifestContractValidatorTest {
         restaurantName = "Test Rest",
         localeTag = "en-US",
         currencyCode = "USD",
-        tableMetadata = BackupFormatV1Contract.EXPECTED_TABLES.associate { it to TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) },
+        tableMetadata = BackupFormatV1Contract.expectedTablesForSchema(2).associate { it to TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) },
         attachments = emptyList(),
         includedSections = listOf("data", "preferences", "attachments")
     )
@@ -43,8 +43,36 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `valid manifest structure succeeds`() {
-        val manifest = createValidBaseManifest()
+    fun `schema 2 manifest with schema 3 metadata fails`() {
+        val manifest = createValidBaseManifest().copy(
+            databaseSchemaVersion = 2,
+            tableMetadata = createValidBaseManifest().tableMetadata.toMutableMap().apply {
+                put("preparation_recipes", TableMetadata(0, false))
+            }
+        )
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `schema 3 manifest missing recipe metadata fails`() {
+        val manifest = createValidBaseManifest().copy(
+            databaseSchemaVersion = 3,
+            tableMetadata = createValidBaseManifest().tableMetadata.filterKeys { 
+                it != "preparation_recipes" && it != "preparation_recipe_components"
+            }
+        )
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `valid schema 3 manifest structure succeeds`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(3).associateWith { TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val manifest = createValidBaseManifest().copy(
+            databaseSchemaVersion = 3,
+            tableMetadata = tables
+        )
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
         assertThat(failure).isNull()
     }

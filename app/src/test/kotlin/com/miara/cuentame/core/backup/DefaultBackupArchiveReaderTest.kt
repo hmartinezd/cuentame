@@ -34,14 +34,45 @@ class DefaultBackupArchiveReaderTest {
     }
 
     @Test
-    fun `inspect valid minimal archive succeeds`() = runTest {
-        val bytes = BackupArchiveTestBuilder(jsonCodecs).build()
-        val result = reader.inspect(ByteArrayInputStream(bytes), docUri)
+    fun `inspect schema 2 archive succeeds and excludes recipes`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        val manifest = buildManifest().copy(databaseSchemaVersion = 2)
+        builder.replaceManifest(manifest).recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
         
         assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         val ready = result as BackupArchiveInspectionResult.Ready
-        assertThat(ready.preview.restaurantName).isEqualTo("Test Rest")
-        assertThat(ready.archive.attachmentSummaries).isEmpty()
+        assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(2)
+        assertThat(ready.archive.snapshot.preparationRecipes).isEmpty()
+    }
+
+    @Test
+    fun `inspect schema 2 manifest with schema 3 metadata fails`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        val manifest = buildManifest().copy(
+            databaseSchemaVersion = 2,
+            tableMetadata = buildManifest().tableMetadata + ("preparation_recipes" to com.miara.cuentame.core.model.backup.TableMetadata(0, false))
+        )
+        builder.replaceManifest(manifest).recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `inspect schema 3 manifest missing recipe metadata fails`() = runTest {
+        val builder = BackupArchiveTestBuilder(jsonCodecs)
+        val manifest = buildManifest().copy(
+            databaseSchemaVersion = 3,
+            tableMetadata = buildManifest().tableMetadata.filterKeys { it != "preparation_recipes" }
+        )
+        builder.replaceManifest(manifest).recomputeAllChecksums()
+        
+        val result = reader.inspect(ByteArrayInputStream(builder.build()), docUri)
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((result as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
@@ -588,7 +619,7 @@ class DefaultBackupArchiveReaderTest {
     )
 
     private fun buildManifest(): com.miara.cuentame.core.model.backup.BackupManifest {
-        val tables = BackupFormatV1Contract.EXPECTED_TABLES
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(2)
             .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) }
         return com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1,

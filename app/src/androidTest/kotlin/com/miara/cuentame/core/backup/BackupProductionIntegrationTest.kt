@@ -81,9 +81,15 @@ class BackupProductionIntegrationTest {
         val operationGate = RestoreOperationGate()
         operationGate.updateRecoveryState(RestoreStartupState.Ready)
 
+        val restaurantRepository = mockk<com.miara.cuentame.core.domain.repository.RestaurantRepository>(relaxed = true) {
+            coEvery { getRestaurant() } returns com.miara.cuentame.core.model.restaurant.Restaurant(
+                com.miara.cuentame.core.common.ids.RestaurantId("r1"), "Original", "USD", "en-US", Instant.EPOCH, Instant.EPOCH
+            )
+        }
+
         backupRepository = AndroidBackupRepository(
             snapshotSource, documentStore, planner, mockk(relaxed = true),
-            mockk(relaxed = true), mockk(relaxed = true), writer, validator,
+            restaurantRepository, mockk(relaxed = true), writer, validator,
             operationGate
         )
         
@@ -114,7 +120,7 @@ class BackupProductionIntegrationTest {
 
     @Test
     fun production_path_no_attachment_restore() = runBlocking {
-        // 1. Seed data across all 16 tables
+        // 1. Seed data
         seedAllTables()
 
         // 2. Create backup
@@ -140,7 +146,6 @@ class BackupProductionIntegrationTest {
         // 6. Verify original data restored
         verifyAllTables()
         
-        // Specifically verify PurchaseLine values to ensure no field swapping
         val line = db.purchaseDao().getLineById("pl1")!!
         assertThat(line.lineTotal).isEqualTo("60")
         assertThat(line.unitCostBase).isEqualTo("3")
@@ -192,12 +197,17 @@ class BackupProductionIntegrationTest {
 
     private suspend fun seedAllTables() {
         db.restaurantDao().insert(RestaurantEntity("r1", "Original", "USD", "en-US", 100, 100, null))
-        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "r1", "Area 1", "area1", 1, true, 100, 100, null))
-        db.ingredientCategoryDao().upsert(IngredientCategoryEntity("c1", "r1", "Cat 1", "cat1", 1, true, 100, 100, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "r1", "Area 1", "area 1", 1, true, 100, 100, null))
+        db.ingredientCategoryDao().upsert(IngredientCategoryEntity("c1", "r1", "Cat 1", "cat 1", 1, true, 100, 100, null))
         db.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "Unit", "u", "COUNT", BigDecimal.ONE, true, 1)))
-        db.ingredientDao().insert(IngredientEntity("i1", "r1", "Ing 1", "ing1", "c1", "u1", "a1", "SKU1", "Notes", BigDecimal.TEN, true, 100, 100, null))
+        
+        db.ingredientDao().insert(IngredientEntity("i1", "r1", "Ing 1", "ing 1", "c1", "u1", "a1", "SKU1", "Notes", BigDecimal("10"), true, 100, 100, null))
         db.ingredientUnitOptionDao().upsert(IngredientUnitOptionEntity("o1", "i1", "Opt 1", "o1", "u1", BigDecimal.ONE, true, true, true, true, 100, 100, null))
-        db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup1", "123", "sup@test.com", "Notes", true, 100, 100, null))
+        
+        db.ingredientDao().insert(IngredientEntity("i2", "r1", "Ing 2", "ing 2", "c1", "u1", "a1", "SKU2", "Notes", BigDecimal("10"), true, 100, 100, null))
+        db.ingredientUnitOptionDao().upsert(IngredientUnitOptionEntity("o2", "i2", "Opt 2", "o2", "u1", BigDecimal.ONE, true, true, true, true, 100, 100, null))
+
+        db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup 1", "123", "sup@test.com", "Notes", true, 100, 100, null))
         db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, 100, 100, 1000, null))
         db.purchaseDao().insertLine(PurchaseLineEntity(
             id = "pl1",
@@ -223,6 +233,14 @@ class BackupProductionIntegrationTest {
         ))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "18", 1200))
         db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3", 1200))
+        
+        // Preparation recipes
+        db.preparationRecipeDao().insert(PreparationRecipeEntity(
+            "r1", "r1", "i1", "Recipe 1", "recipe 1", BigDecimal("10"), BigDecimal("10"), "o1", "ACTIVE", "Notes", 100, 100, null
+        ))
+        db.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity(
+            "rc1", "r1", "i2", "o2", BigDecimal("5"), BigDecimal("5"), 0, "Comp notes", 100, 100
+        ))
     }
 
     private suspend fun verifyAllTables() {
@@ -242,6 +260,14 @@ class BackupProductionIntegrationTest {
         assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(2)
         assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("18")
         assertThat(db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase).isEqualTo("3")
+        
+        val recipe = db.preparationRecipeDao().getById("r1")!!
+        assertThat(recipe.name).isEqualTo("Recipe 1")
+        assertThat(recipe.status).isEqualTo("ACTIVE")
+        val components = db.preparationRecipeDao().getComponentsForRecipe("r1")
+        assertThat(components).hasSize(1)
+        assertThat(components[0].id).isEqualTo("rc1")
+        assertThat(components[0].notes).isEqualTo("Comp notes")
     }
 
 

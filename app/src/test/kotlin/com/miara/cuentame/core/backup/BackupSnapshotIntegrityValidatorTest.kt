@@ -41,12 +41,142 @@ class BackupSnapshotIntegrityValidatorTest {
         wasteEvents = emptyList(),
         inventoryMovements = emptyList(),
         inventoryBalanceProjections = emptyList(),
-        ingredientCostProjections = emptyList()
+        ingredientCostProjections = emptyList(),
+        preparationRecipes = emptyList(),
+        preparationRecipeComponents = emptyList()
     )
 
+    private fun createValidRecipeSnapshot(): BackupSnapshotDto {
+        val unit = mockkUnit("u1")
+        val outputIng = mockkIngredient("ing-output")
+        val yieldOpt = mockkOption("opt-yield", "ing-output")
+        val compIng = mockkIngredient("ing-comp")
+        val compOpt = mockkOption("opt-comp", "ing-comp")
+        
+        return createEmptyDto().copy(
+            units = listOf(unit),
+            ingredients = listOf(outputIng, compIng),
+            ingredientUnitOptions = listOf(yieldOpt, compOpt),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto(
+                    "r1", restId, "ing-output", "Recipe", "recipe", 
+                    "10.0", "10.0", "opt-yield", "ACTIVE", null, 1000, 1000, null
+                )
+            ),
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto(
+                    "c1", "r1", "ing-comp", "opt-comp", "5.0", "5.0", 0, null, 1000, 1000
+                )
+            )
+        )
+    }
+
     @Test
-    fun `validate accepts valid simple snapshot`() {
-        val result = BackupSnapshotIntegrityValidator.validate(createEmptyDto(), manifest)
+    fun `validate accepts valid recipe snapshot`() {
+        val result = BackupSnapshotIntegrityValidator.validate(createValidRecipeSnapshot(), manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun `validate rejects orphan recipe component`() {
+        val dto = createValidRecipeSnapshot().copy(
+            preparationRecipes = emptyList()
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        val ex = result.exceptionOrNull() as BackupSnapshotIntegrityException
+        assertThat(ex.code).isEqualTo(BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY)
+        assertThat(ex.message).contains("Broken FK: preparation recipe component to recipe")
+    }
+
+    @Test
+    fun `validate rejects active recipe with archived output ingredient`() {
+        val dto = createValidRecipeSnapshot()
+        val archivedOutput = dto.ingredients[0].copy(isActive = false, deletedAt = 2000L)
+        val newDto = dto.copy(ingredients = listOf(archivedOutput, dto.ingredients[1]))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects active recipe with archived yield option`() {
+        val dto = createValidRecipeSnapshot()
+        val archivedOpt = dto.ingredientUnitOptions[0].copy(isActive = false, deletedAt = 2000L)
+        val newDto = dto.copy(ingredientUnitOptions = listOf(archivedOpt, dto.ingredientUnitOptions[1]))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects draft recipe with blank name`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(status = "DRAFT", name = "  ", normalizedName = "")
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects recipe with incorrect normalizedName`() {
+        val dto = createValidRecipeSnapshot()
+        val recipe = dto.preparationRecipes[0].copy(name = "Tomato Sauce", normalizedName = "tomato")
+        val newDto = dto.copy(preparationRecipes = listOf(recipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects draft recipe with zero yield`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(status = "DRAFT", standardYieldQuantity = "0.0", standardYieldQuantityBase = "0.0")
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE)
+    }
+
+    @Test
+    fun `validate rejects recipe with invalid timestamp order`() {
+        val dto = createValidRecipeSnapshot()
+        val recipe = dto.preparationRecipes[0].copy(createdAt = 2000, updatedAt = 1000)
+        val newDto = dto.copy(preparationRecipes = listOf(recipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_TIMESTAMP_ORDER)
+    }
+
+    @Test
+    fun `validate rejects archived recipe with invalid archivedAt`() {
+        val dto = createValidRecipeSnapshot()
+        val recipe = dto.preparationRecipes[0].copy(status = "ARCHIVED", archivedAt = 500, updatedAt = 1000)
+        val newDto = dto.copy(preparationRecipes = listOf(recipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_TIMESTAMP_ORDER)
+    }
+
+    @Test
+    fun `validate accepts archived recipe with archived references`() {
+        val dto = createValidRecipeSnapshot()
+        val recipe = dto.preparationRecipes[0].copy(status = "ARCHIVED", archivedAt = 1000)
+        val compIng = dto.ingredients[1].copy(isActive = false, deletedAt = 500L)
+        val newDto = dto.copy(
+            preparationRecipes = listOf(recipe),
+            ingredients = listOf(dto.ingredients[0], compIng)
+        )
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isSuccess).isTrue()
     }
 
@@ -110,10 +240,10 @@ class BackupSnapshotIntegrityValidatorTest {
 
     @Test
     fun `validate rejects broken output ingredient FK`() {
-        val dto = createEmptyDto().copy(
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r1", restId, "fake-ing", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
-            )
+        val dto = createValidRecipeSnapshot().copy(
+            ingredients = emptyList(),
+            ingredientUnitOptions = emptyList(),
+            preparationRecipeComponents = emptyList()
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isFailure).isTrue()
@@ -122,33 +252,35 @@ class BackupSnapshotIntegrityValidatorTest {
 
     @Test
     fun `validate rejects multiple non-archived recipes for one output`() {
-        val dto = createEmptyDto().copy(
-            ingredients = listOf(mockkIngredient("ing-1")),
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name 1", "name 1", null, null, null, "DRAFT", null, 0, 0, null),
-                PreparationRecipeBackupDto("r2", restId, "ing-1", "Name 2", "name 2", null, null, null, "ACTIVE", null, 0, 0, null)
-            )
+        val dto = createValidRecipeSnapshot()
+        val recipe2 = dto.preparationRecipes[0].copy(id = "r2")
+        val newDto = dto.copy(
+            preparationRecipes = listOf(dto.preparationRecipes[0], recipe2)
         )
-        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isFailure).isTrue()
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
     }
 
     @Test
     fun `validate rejects recipe cycle`() {
+        val unit = mockkUnit("u1")
+        val ingA = mockkIngredient("ing-A")
+        val ingB = mockkIngredient("ing-B")
+        val optA = mockkOption("opt-A", "ing-A")
+        val optB = mockkOption("opt-B", "ing-B")
+
         val dto = createEmptyDto().copy(
-            ingredients = listOf(mockkIngredient("ing-A"), mockkIngredient("ing-B")),
+            units = listOf(unit),
+            ingredients = listOf(ingA, ingB),
+            ingredientUnitOptions = listOf(optA, optB),
             preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r-A", restId, "ing-A", "A", "a", null, null, null, "DRAFT", null, 0, 0, null),
-                PreparationRecipeBackupDto("r-B", restId, "ing-B", "B", "b", null, null, null, "DRAFT", null, 0, 0, null)
+                PreparationRecipeBackupDto("r-A", restId, "ing-A", "A", "a", "1", "1", "opt-A", "DRAFT", null, 0, 0, null),
+                PreparationRecipeBackupDto("r-B", restId, "ing-B", "B", "b", "1", "1", "opt-B", "DRAFT", null, 0, 0, null)
             ),
             preparationRecipeComponents = listOf(
                 PreparationRecipeComponentBackupDto("c1", "r-A", "ing-B", "opt-B", "1.0", "1.0", 0, null, 0, 0),
                 PreparationRecipeComponentBackupDto("c2", "r-B", "ing-A", "opt-A", "1.0", "1.0", 0, null, 0, 0)
-            ),
-            ingredientUnitOptions = listOf(
-                mockkOption("opt-A", "ing-A"),
-                mockkOption("opt-B", "ing-B")
             )
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
@@ -158,13 +290,11 @@ class BackupSnapshotIntegrityValidatorTest {
 
     @Test
     fun `validate rejects active recipe without yield`() {
-        val dto = createEmptyDto().copy(
-            ingredients = listOf(mockkIngredient("ing-1")),
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "ACTIVE", null, 0, 0, null)
-            )
-        )
-        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        val dto = createValidRecipeSnapshot()
+        val recipe = dto.preparationRecipes[0].copy(standardYieldQuantity = null, standardYieldQuantityBase = null)
+        val newDto = dto.copy(preparationRecipes = listOf(recipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isFailure).isTrue()
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE)
     }
@@ -172,41 +302,23 @@ class BackupSnapshotIntegrityValidatorTest {
     @Test
     fun `validate rejects component from other restaurant`() {
         val otherRestId = "rest-2"
-        val dto = createEmptyDto().copy(
-            ingredients = listOf(
-                mockkIngredient("ing-1"),
-                IngredientBackupDto("ing-2", otherRestId, "Other", "other", null, "u1", null, null, null, null, true, 0, 0, null)
-            ),
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
-            ),
-            preparationRecipeComponents = listOf(
-                PreparationRecipeComponentBackupDto("c1", "r1", "ing-2", "opt-2", "1.0", "1.0", 0, null, 0, 0)
-            ),
-            ingredientUnitOptions = listOf(
-                mockkOption("opt-1", "ing-1"),
-                IngredientUnitOptionBackupDto("opt-2", "ing-2", "O", "o", null, "1.0", true, true, true, true, 0, 0, null)
-            )
-        )
-        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        val dto = createValidRecipeSnapshot()
+        val otherIng = dto.ingredients[1].copy(restaurantId = otherRestId)
+        val newDto = dto.copy(ingredients = listOf(dto.ingredients[0], otherIng))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isFailure).isTrue()
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RESTAURANT_ISOLATION_FAILURE)
     }
 
     @Test
     fun `validate rejects duplicate component ingredient in one recipe`() {
-        val dto = createEmptyDto().copy(
-            ingredients = listOf(mockkIngredient("ing-1"), mockkIngredient("ing-2")),
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto("r1", restId, "ing-1", "Name", "name", null, null, null, "DRAFT", null, 0, 0, null)
-            ),
-            preparationRecipeComponents = listOf(
-                PreparationRecipeComponentBackupDto("c1", "r1", "ing-2", "opt-2", "1.0", "1.0", 0, null, 0, 0),
-                PreparationRecipeComponentBackupDto("c2", "r1", "ing-2", "opt-2", "2.0", "2.0", 1, null, 0, 0)
-            ),
-            ingredientUnitOptions = listOf(mockkOption("opt-2", "ing-2"))
+        val dto = createValidRecipeSnapshot()
+        val comp2 = dto.preparationRecipeComponents[0].copy(id = "c2")
+        val newDto = dto.copy(
+            preparationRecipeComponents = listOf(dto.preparationRecipeComponents[0], comp2)
         )
-        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 3))
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
         assertThat(result.isFailure).isTrue()
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
     }

@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
@@ -45,7 +46,7 @@ class MainActivity : AppCompatActivity() {
 
             CuentameTheme(
                 darkTheme = when (preferences?.themeMode) {
-                    ThemeMode.SYSTEM, null -> androidx.compose.foundation.isSystemInDarkTheme()
+                    ThemeMode.SYSTEM, null -> isSystemInDarkTheme()
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 },

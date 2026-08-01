@@ -84,7 +84,7 @@ class BackupRoundTripTest {
         
         // Verify specific fields
         val active = restoredSnapshot.preparationRecipes.find { it.status == PreparationRecipeStatus.ACTIVE.name }!!
-        assertThat(active.standardYieldQuantity).isEqualTo("10.0")
+        assertThat(active.standardYieldQuantity).isEqualTo("10")
         assertThat(active.archivedAt).isNull()
         
         val archived = restoredSnapshot.preparationRecipes.find { it.status == PreparationRecipeStatus.ARCHIVED.name }!!
@@ -109,12 +109,12 @@ class BackupRoundTripTest {
         database.preparationRecipeDao().insert(PreparationRecipeEntity("r-draft", restId.value, ing1, "Draft", "draft", BigDecimal.ONE, BigDecimal.ONE, opt1, "DRAFT", "Notes", 100, 100, null))
         
         // Active
-        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-active", restId.value, ing2, "Active", "active", BigDecimal.TEN, BigDecimal.TEN, opt2, "ACTIVE", null, 200, 200, null))
-        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-1", "r-active", ing1, opt1, BigDecimal.ONE, BigDecimal.ONE, 0, "Comp notes", 200, 200))
+        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-active", restId.value, ing2, "Active", "active", BigDecimal("10.0"), BigDecimal("10.0"), opt2, "ACTIVE", null, 200, 200, null))
+        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-1", "r-active", ing1, opt1, BigDecimal("1.0"), BigDecimal("1.0"), 0, "Comp notes", 200, 200))
 
         // Archived
-        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-archived", restId.value, ing1, "Old", "old", BigDecimal.ONE, BigDecimal.ONE, opt1, "ARCHIVED", null, 50, 50, 500))
-        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-2", "r-archived", ing2, opt2, BigDecimal.TEN, BigDecimal.TEN, 0, null, 50, 50))
+        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-archived", restId.value, ing1, "Old", "old", BigDecimal("1.0"), BigDecimal("1.0"), opt1, "ARCHIVED", null, 50, 50, 500))
+        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-2", "r-archived", ing2, opt2, BigDecimal("10.0"), BigDecimal("10.0"), 0, null, 50, 50))
     }
 
     @Test

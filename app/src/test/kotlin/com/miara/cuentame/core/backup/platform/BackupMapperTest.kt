@@ -101,8 +101,8 @@ class BackupMapperTest {
             outputIngredientId = "ing-1",
             name = "Recipe",
             normalizedName = "recipe",
-            standardYieldQuantity = "5.0",
-            standardYieldQuantityBase = "5.0",
+            standardYieldQuantity = "5",
+            standardYieldQuantityBase = "5",
             yieldUnitOptionId = "unit-1",
             status = "ACTIVE",
             notes = "notes",
@@ -112,7 +112,7 @@ class BackupMapperTest {
         )
 
         val entity = BackupMapper.run { dto.toEntity() }
-        assertThat(entity.standardYieldQuantity?.toPlainString()).isEqualTo("5.0")
+        assertThat(entity.standardYieldQuantity?.toPlainString()).isEqualTo("5")
         assertThat(entity.status).isEqualTo("ACTIVE")
 
         val roundTrip = BackupMapper.run { entity.toDto() }
@@ -126,8 +126,8 @@ class BackupMapperTest {
             recipeId = "rec-1",
             componentIngredientId = "ing-2",
             unitOptionId = "unit-2",
-            quantityEntered = "10.0",
-            quantityBase = "10.0",
+            quantityEntered = "10.5",
+            quantityBase = "10.5",
             sortOrder = 5,
             notes = "comp notes",
             createdAt = 1000L,
@@ -135,7 +135,7 @@ class BackupMapperTest {
         )
 
         val entity = BackupMapper.run { dto.toEntity() }
-        assertThat(entity.quantityEntered.toPlainString()).isEqualTo("10.0")
+        assertThat(entity.quantityEntered.toPlainString()).isEqualTo("10.5")
         assertThat(entity.sortOrder).isEqualTo(5)
 
         val roundTrip = BackupMapper.run { entity.toDto() }

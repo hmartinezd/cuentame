@@ -17,7 +17,7 @@ object BackupManifestValidator {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.VERSION_MISMATCH)
         }
 
-        if (manifest.databaseSchemaVersion != BackupFormatV1Contract.DATABASE_SCHEMA_VERSION) {
+        if (manifest.databaseSchemaVersion !in BackupFormatV1Contract.SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.DATABASE_SCHEMA_MISMATCH)
         }
 
@@ -57,7 +57,8 @@ object BackupManifestValidator {
         }
 
         val tables = manifest.tableMetadata.keys
-        if (tables != BackupFormatV1Contract.EXPECTED_TABLES) {
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(manifest.databaseSchemaVersion)
+        if (tables != expectedTables) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.TABLE_METADATA_MISMATCH)
         }
 

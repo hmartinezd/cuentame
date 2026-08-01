@@ -2,6 +2,7 @@ package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.*
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
+import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
@@ -256,6 +257,13 @@ object BackupSnapshotIntegrityValidator {
             val option = ctx.optionById[waste.ingredientUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: waste_event to unit_option")
             if (option.ingredientId != waste.ingredientId) {
                 return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in waste event")
+            }
+        }
+
+        // Preparation recipes orphans
+        for (comp in dto.preparationRecipeComponents) {
+            if (!ctx.recipeById.containsKey(comp.recipeId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: preparation recipe component to recipe")
             }
         }
 
@@ -908,6 +916,9 @@ object BackupSnapshotIntegrityValidator {
                 return err(INVALID_ENUM, "Invalid status in preparation_recipes")
             }
 
+            // Timestamps
+            if (recipe.createdAt > recipe.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "recipe.createdAt must be <= recipe.updatedAt")
+
             // Isolation
             val outputIng = ctx.ingById[recipe.outputIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: recipe to output ingredient")
             if (outputIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in recipe output ingredient")
@@ -915,8 +926,14 @@ object BackupSnapshotIntegrityValidator {
             // Lifecycle
             if (status == PreparationRecipeStatus.ARCHIVED) {
                 if (recipe.archivedAt == null) return err(INVALID_RECIPE_STATUS, "ARCHIVED recipe must have archivedAt")
+                if (recipe.updatedAt > recipe.archivedAt) return err(INVALID_TIMESTAMP_ORDER, "recipe.updatedAt must be <= recipe.archivedAt")
             } else {
                 if (recipe.archivedAt != null) return err(INVALID_RECIPE_STATUS, "Non-ARCHIVED recipe must not have archivedAt")
+
+                // Active-reference validation for non-archived
+                if (outputIng.deletedAt != null || !outputIng.isActive) {
+                    return err(INVALID_RECIPE_STRUCTURE, "Non-archived recipe output ingredient must be active and not deleted")
+                }
                 
                 // Uniqueness: at most one non-archived recipe per output ingredient
                 val existing = nonArchivedByOutput[recipe.outputIngredientId]
@@ -924,10 +941,22 @@ object BackupSnapshotIntegrityValidator {
                 nonArchivedByOutput[recipe.outputIngredientId] = recipe.id
             }
 
+            // Name validation
+            if (recipe.name.isBlank()) return err(INVALID_RECIPE_STRUCTURE, "Recipe name must not be blank")
+            if (recipe.normalizedName.isBlank()) return err(INVALID_RECIPE_STRUCTURE, "Recipe normalizedName must not be blank")
+            if (recipe.normalizedName != recipe.name.normalizeName()) {
+                return err(INVALID_RECIPE_STRUCTURE, "Recipe normalizedName mismatch")
+            }
+
             // Yield
             if (recipe.yieldUnitOptionId != null) {
                 val yieldOpt = ctx.optionById[recipe.yieldUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: recipe to yield unit option")
                 if (yieldOpt.ingredientId != recipe.outputIngredientId) return err(RELATIONSHIP_MISMATCH, "Yield unit option mismatch in recipe")
+                if (status != PreparationRecipeStatus.ARCHIVED) {
+                    if (yieldOpt.deletedAt != null || !yieldOpt.isActive) {
+                        return err(INVALID_RECIPE_STRUCTURE, "Non-archived recipe yield unit option must be active and not deleted")
+                    }
+                }
             }
 
             val yieldQtyResult = parseNullableDecimal(recipe.standardYieldQuantity, "Invalid standardYieldQuantity")
@@ -951,6 +980,14 @@ object BackupSnapshotIntegrityValidator {
                 if (yieldQtyBaseResult.value.compareTo(yieldQtyResult.value.multiply(factor)) != 0) {
                     return err(INVALID_NUMERIC_RANGE, "standardYieldQuantityBase mismatch in recipe")
                 }
+            } else if (status == PreparationRecipeStatus.DRAFT) {
+                // Draft yield validation: if quantity supplied, must be > 0
+                if (yieldQtyResult is NullableDecimalResult.Ok && yieldQtyResult.value <= BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "Draft recipe standardYieldQuantity must be positive if supplied")
+                }
+                if (yieldQtyBaseResult is NullableDecimalResult.Ok && yieldQtyBaseResult.value <= BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "Draft recipe standardYieldQuantityBase must be positive if supplied")
+                }
             }
 
             // Components
@@ -965,11 +1002,23 @@ object BackupSnapshotIntegrityValidator {
                 if (!seenIngredientsInRecipe.add(comp.componentIngredientId)) return err(INVALID_RECIPE_STRUCTURE, "Duplicate component ingredient in recipe")
                 if (comp.componentIngredientId == recipe.outputIngredientId) return err(INVALID_RECIPE_STRUCTURE, "Output ingredient cannot be a component of itself")
 
+                // Timestamps
+                if (comp.createdAt > comp.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "component.createdAt must be <= component.updatedAt")
+
                 val compIng = ctx.ingById[comp.componentIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to ingredient")
                 if (compIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in recipe component ingredient")
 
                 val compOpt = ctx.optionById[comp.unitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to unit option")
                 if (compOpt.ingredientId != comp.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Component unit option mismatch")
+
+                if (status != PreparationRecipeStatus.ARCHIVED) {
+                    if (compIng.deletedAt != null || !compIng.isActive) {
+                        return err(INVALID_RECIPE_STRUCTURE, "Non-archived recipe component ingredient must be active and not deleted")
+                    }
+                    if (compOpt.deletedAt != null || !compOpt.isActive) {
+                        return err(INVALID_RECIPE_STRUCTURE, "Non-archived recipe component unit option must be active and not deleted")
+                    }
+                }
 
                 val qtyResult = parseDecimal(comp.quantityEntered, "Invalid quantityEntered in component")
                 val qtyBaseResult = parseDecimal(comp.quantityBase, "Invalid quantityBase in component")
