@@ -71,12 +71,25 @@ class OnboardingViewModelTest {
     private val validator = LocalSetupValidator()
     private lateinit var viewModel: OnboardingViewModel
 
+    private val fakeStarterCatalogSeeder = object : com.miara.cuentame.core.domain.service.StarterCatalogSeeder {
+        override suspend fun seedNewRestaurant(restaurantId: String, catalog: com.miara.cuentame.core.model.catalog.StarterCatalogDefinition): com.miara.cuentame.core.domain.service.StarterCatalogSeedResult {
+            return com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
+        }
+    }
+
+
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        val completeOnboardingUseCase = CompleteOnboardingUseCase(fakeSetupRepository, fakeRestaurantRepository, fakePreferencesRepository)
+        val completeOnboardingUseCase = CompleteOnboardingUseCase(
+            fakeSetupRepository, 
+            fakeRestaurantRepository, 
+            fakePreferencesRepository,
+            fakeStarterCatalogSeeder
+        )
         viewModel = OnboardingViewModel(fakePreferencesRepository, completeOnboardingUseCase, idGenerator, validator)
     }
+
 
     @After
     fun tearDown() {

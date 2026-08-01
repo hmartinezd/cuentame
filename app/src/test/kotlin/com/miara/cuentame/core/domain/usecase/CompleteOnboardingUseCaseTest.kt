@@ -50,7 +50,15 @@ class CompleteOnboardingUseCaseTest {
         }
     }
 
-    private val useCase = CompleteOnboardingUseCase(fakeSetupRepository, fakeRestaurantRepository, fakePreferencesRepository)
+    private val fakeStarterCatalogSeeder = object : com.miara.cuentame.core.domain.service.StarterCatalogSeeder {
+        override suspend fun seedNewRestaurant(restaurantId: String, catalog: com.miara.cuentame.core.model.catalog.StarterCatalogDefinition): com.miara.cuentame.core.domain.service.StarterCatalogSeedResult {
+            return com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
+        }
+    }
+
+
+    private val useCase = CompleteOnboardingUseCase(fakeSetupRepository, fakeRestaurantRepository, fakePreferencesRepository, fakeStarterCatalogSeeder)
+
 
     @Test
     fun `Success updates DataStore and clears draft`() = runTest {
