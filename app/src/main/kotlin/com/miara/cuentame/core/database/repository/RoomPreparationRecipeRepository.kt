@@ -18,9 +18,11 @@ import com.miara.cuentame.core.database.entity.PreparationRecipeEntity
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.domain.validation.PreparationRecipeGraphValidator
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationFailure
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidator
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeDependencyEdge
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeSummary
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +37,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
     private val ingredientDao: IngredientDao,
     private val unitOptionDao: IngredientUnitOptionDao,
     private val validator: PreparationRecipeValidator,
+    private val graphValidator: PreparationRecipeGraphValidator,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
 ) : PreparationRecipeRepository {
@@ -228,12 +231,20 @@ class RoomPreparationRecipeRepository @Inject constructor(
 
             // Collision check: Search for another component using the proposed ingredient
             val duplicate = recipeDao.getComponentByIngredient(recipe.id, command.componentIngredientId.value)
-            
+
+            // Proposed graph check
+            val existingComponents = recipeDao.getComponentsForRecipe(recipe.id)
+            val proposedComponents = existingComponents.toMutableList()
             if (command.componentId != null) {
-                // Editing an existing component
+                proposedComponents.removeAll { it.id == command.componentId.value }
+            } else if (duplicate != null) {
+                proposedComponents.removeAll { it.id == duplicate.id }
+            }
+
+            val componentEntity = if (command.componentId != null) {
                 val existingById = recipeDao.getComponentById(command.componentId.value)
                     ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
-                
+
                 if (existingById.recipeId != recipe.id) {
                     throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
                 }
@@ -242,7 +253,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                     throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentAlreadyExists))
                 }
 
-                val targetEntity = existingById.copy(
+                existingById.copy(
                     componentIngredientId = command.componentIngredientId.value,
                     unitOptionId = command.unitOptionId.value,
                     quantityEntered = command.quantityEntered,
@@ -251,38 +262,42 @@ class RoomPreparationRecipeRepository @Inject constructor(
                     notes = command.notes,
                     updatedAt = now
                 )
-                recipeDao.upsertComponent(targetEntity)
-                PreparationRecipeComponentId(targetEntity.id)
+            } else if (duplicate != null) {
+                duplicate.copy(
+                    unitOptionId = command.unitOptionId.value,
+                    quantityEntered = command.quantityEntered,
+                    quantityBase = quantityBase,
+                    sortOrder = command.sortOrder,
+                    notes = command.notes,
+                    updatedAt = now
+                )
             } else {
-                // Add without component ID
-                val targetEntity = if (duplicate != null) {
-                    // Update existing component
-                    duplicate.copy(
-                        unitOptionId = command.unitOptionId.value,
-                        quantityEntered = command.quantityEntered,
-                        quantityBase = quantityBase,
-                        sortOrder = command.sortOrder,
-                        notes = command.notes,
-                        updatedAt = now
-                    )
-                } else {
-                    // Brand new component
-                    PreparationRecipeComponentEntity(
-                        id = PreparationRecipeComponentId(idGenerator.newId()).value,
-                        recipeId = command.recipeId.value,
-                        componentIngredientId = command.componentIngredientId.value,
-                        unitOptionId = command.unitOptionId.value,
-                        quantityEntered = command.quantityEntered,
-                        quantityBase = quantityBase,
-                        sortOrder = command.sortOrder,
-                        notes = command.notes,
-                        createdAt = now,
-                        updatedAt = now
-                    )
-                }
-                recipeDao.upsertComponent(targetEntity)
-                PreparationRecipeComponentId(targetEntity.id)
+                PreparationRecipeComponentEntity(
+                    id = PreparationRecipeComponentId(idGenerator.newId()).value,
+                    recipeId = command.recipeId.value,
+                    componentIngredientId = command.componentIngredientId.value,
+                    unitOptionId = command.unitOptionId.value,
+                    quantityEntered = command.quantityEntered,
+                    quantityBase = quantityBase,
+                    sortOrder = command.sortOrder,
+                    notes = command.notes,
+                    createdAt = now,
+                    updatedAt = now
+                )
             }
+            proposedComponents.add(componentEntity)
+
+            val existingGraph = recipeDao.getNonArchivedDependencyGraph(recipe.restaurantId)
+            val proposedEdges = proposedComponents.map {
+                PreparationRecipeDependencyEdge(recipe.outputIngredientId, it.componentIngredientId)
+            }
+
+            if (graphValidator.wouldCreateCycle(existingGraph, recipe.outputIngredientId, proposedEdges)) {
+                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeWouldCreateCycle))
+            }
+
+            recipeDao.upsertComponent(componentEntity)
+            PreparationRecipeComponentId(componentEntity.id)
         }
     }
 
@@ -416,16 +431,40 @@ class RoomPreparationRecipeRepository @Inject constructor(
 
     override suspend fun restoreToDraft(recipeId: PreparationRecipeId) {
         database.withTransaction {
-            val recipe = recipeDao.getById(recipeId.value)
+            val recipeEntity = recipeDao.getById(recipeId.value)
                 ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
-            if (recipe.status != PreparationRecipeStatus.ARCHIVED.name) {
+            if (recipeEntity.status != PreparationRecipeStatus.ARCHIVED.name) {
                 throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
-            val existing = recipeDao.getActiveOrDraftByOutputIngredient(recipe.restaurantId, recipe.outputIngredientId)
+            val existing = recipeDao.getActiveOrDraftByOutputIngredient(recipeEntity.restaurantId, recipeEntity.outputIngredientId)
             if (existing != null) {
                 throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput))
+            }
+
+            val outputIngredient = ingredientDao.getById(recipeEntity.outputIngredientId)
+            val components = recipeDao.getComponentsForRecipe(recipeEntity.id)
+            val yieldUnitOption = recipeEntity.yieldUnitOptionId?.let { unitOptionDao.getById(it) }
+
+            val componentIngredientIds = components.map { it.componentIngredientId }
+            val allComponentIngredients = ingredientDao.getByIds(componentIngredientIds).associateBy { it.id }
+            val allComponentUnitOptions = unitOptionDao.getByIngredients(componentIngredientIds).groupBy { it.ingredientId }
+
+            val existingGraphEdges = recipeDao.getNonArchivedDependencyGraph(recipeEntity.restaurantId)
+
+            val failures = validator.validateRestoreToDraft(
+                recipe = recipeEntity.toDomain(components),
+                outputIngredient = outputIngredient?.toDomain(),
+                yieldUnitOption = yieldUnitOption?.toDomain(),
+                components = components.map { it.toDomain() },
+                allComponentIngredients = allComponentIngredients.mapValues { it.value.toDomain() },
+                allComponentUnitOptions = allComponentUnitOptions.mapValues { it.value.map { opt -> opt.toDomain() } },
+                existingGraphEdges = existingGraphEdges
+            )
+
+            if (failures.isNotEmpty()) {
+                throw RecipeValidationException(failures)
             }
 
             recipeDao.updateStatus(

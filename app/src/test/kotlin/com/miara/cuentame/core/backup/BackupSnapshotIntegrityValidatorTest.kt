@@ -323,6 +323,82 @@ class BackupSnapshotIntegrityValidatorTest {
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
     }
 
+    @Test
+    fun `validate rejects draft recipe with base yield but no entered yield`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(
+            status = "DRAFT", 
+            standardYieldQuantity = null, 
+            standardYieldQuantityBase = "10.0"
+        )
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects draft recipe with base yield but no unit option`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(
+            status = "DRAFT", 
+            standardYieldQuantity = "10.0", 
+            standardYieldQuantityBase = "10.0",
+            yieldUnitOptionId = null
+        )
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_RECIPE_STRUCTURE)
+    }
+
+    @Test
+    fun `validate rejects draft recipe with mismatched yield conversion`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(
+            status = "DRAFT", 
+            standardYieldQuantity = "10.0", 
+            standardYieldQuantityBase = "5.0"
+        )
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE)
+    }
+
+    @Test
+    fun `validate accepts draft recipe with entered yield but no option`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(
+            status = "DRAFT", 
+            standardYieldQuantity = "10.0", 
+            standardYieldQuantityBase = null,
+            yieldUnitOptionId = null
+        )
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun `validate accepts draft recipe with null yield and null option`() {
+        val dto = createValidRecipeSnapshot()
+        val draftRecipe = dto.preparationRecipes[0].copy(
+            status = "DRAFT", 
+            standardYieldQuantity = null, 
+            standardYieldQuantityBase = null,
+            yieldUnitOptionId = null
+        )
+        val newDto = dto.copy(preparationRecipes = listOf(draftRecipe))
+        
+        val result = BackupSnapshotIntegrityValidator.validate(newDto, manifest.copy(databaseSchemaVersion = 3))
+        assertThat(result.isSuccess).isTrue()
+    }
+
     // Helpers
     private fun mockkIngredient(id: String) = IngredientBackupDto(id, restId, "Name", "name", null, "u1", null, null, null, null, true, 0, 0, null)
     private fun mockkUnit(id: String) = UnitBackupDto(id, "Unit", "u", "MASS", "1.0", true, 0)

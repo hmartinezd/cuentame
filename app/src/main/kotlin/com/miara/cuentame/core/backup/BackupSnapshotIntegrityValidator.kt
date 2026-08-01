@@ -965,6 +965,10 @@ object BackupSnapshotIntegrityValidator {
             if (yieldQtyResult is NullableDecimalResult.Err) return err(yieldQtyResult.code, yieldQtyResult.msg)
             if (yieldQtyBaseResult is NullableDecimalResult.Err) return err(yieldQtyBaseResult.code, yieldQtyBaseResult.msg)
 
+            val hasEntered = yieldQtyResult is NullableDecimalResult.Ok
+            val hasBase = yieldQtyBaseResult is NullableDecimalResult.Ok
+            val hasOption = recipe.yieldUnitOptionId != null
+
             if (status == PreparationRecipeStatus.ACTIVE) {
                 if (yieldQtyResult !is NullableDecimalResult.Ok || yieldQtyResult.value <= BigDecimal.ZERO) {
                     return err(INVALID_NUMERIC_RANGE, "ACTIVE recipe requires positive standardYieldQuantity")
@@ -972,21 +976,40 @@ object BackupSnapshotIntegrityValidator {
                 if (yieldQtyBaseResult !is NullableDecimalResult.Ok || yieldQtyBaseResult.value <= BigDecimal.ZERO) {
                     return err(INVALID_NUMERIC_RANGE, "ACTIVE recipe requires positive standardYieldQuantityBase")
                 }
-                if (recipe.yieldUnitOptionId == null) return err(INVALID_RECIPE_STRUCTURE, "ACTIVE recipe requires yieldUnitOptionId")
-                
+                if (!hasOption) return err(INVALID_RECIPE_STRUCTURE, "ACTIVE recipe requires yieldUnitOptionId")
+
                 // Base quantity check
                 val yieldOpt = ctx.optionById[recipe.yieldUnitOptionId]!!
                 val factor = (parseDecimal(yieldOpt.factorToBase, "Invalid factor in yield option") as BigDecimalResult.Ok).value
                 if (yieldQtyBaseResult.value.compareTo(yieldQtyResult.value.multiply(factor)) != 0) {
                     return err(INVALID_NUMERIC_RANGE, "standardYieldQuantityBase mismatch in recipe")
                 }
-            } else if (status == PreparationRecipeStatus.DRAFT) {
-                // Draft yield validation: if quantity supplied, must be > 0
+            } else {
+                // DRAFT or ARCHIVED
                 if (yieldQtyResult is NullableDecimalResult.Ok && yieldQtyResult.value <= BigDecimal.ZERO) {
-                    return err(INVALID_NUMERIC_RANGE, "Draft recipe standardYieldQuantity must be positive if supplied")
+                    return err(INVALID_NUMERIC_RANGE, "$status recipe standardYieldQuantity must be positive if supplied")
                 }
                 if (yieldQtyBaseResult is NullableDecimalResult.Ok && yieldQtyBaseResult.value <= BigDecimal.ZERO) {
-                    return err(INVALID_NUMERIC_RANGE, "Draft recipe standardYieldQuantityBase must be positive if supplied")
+                    return err(INVALID_NUMERIC_RANGE, "$status recipe standardYieldQuantityBase must be positive if supplied")
+                }
+
+                if (hasBase && !hasEntered) {
+                    return err(INVALID_RECIPE_STRUCTURE, "$status recipe has base yield but no entered yield")
+                }
+                if (hasBase && !hasOption) {
+                    return err(INVALID_RECIPE_STRUCTURE, "$status recipe has base yield but no unit option")
+                }
+
+                if (hasEntered && hasBase) {
+                    val yieldOpt = ctx.optionById[recipe.yieldUnitOptionId]!!
+                    val factor = (parseDecimal(yieldOpt.factorToBase, "Invalid factor in yield option") as BigDecimalResult.Ok).value
+                    if ((yieldQtyBaseResult as NullableDecimalResult.Ok).value.compareTo((yieldQtyResult as NullableDecimalResult.Ok).value.multiply(factor)) != 0) {
+                        return err(INVALID_NUMERIC_RANGE, "$status recipe standardYieldQuantityBase mismatch")
+                    }
+                }
+
+                if (status == PreparationRecipeStatus.DRAFT && hasEntered && !hasBase && hasOption) {
+                    return err(INVALID_RECIPE_STRUCTURE, "Draft recipe has entered yield and option but no base yield")
                 }
             }
 
@@ -1049,7 +1072,7 @@ object BackupSnapshotIntegrityValidator {
             .filter { it.status != PreparationRecipeStatus.ARCHIVED.name }
             .flatMap { recipe ->
                 val components = ctx.componentsByRecipeId[recipe.id] ?: emptyList()
-                components.map { it.componentIngredientId to recipe.outputIngredientId } // component -> output
+                components.map { recipe.outputIngredientId to it.componentIngredientId } // output -> component
             }
 
         val adj = edges.groupBy({ it.first }, { it.second })

@@ -16,10 +16,12 @@ import java.time.Instant
 class PreparationRecipeValidatorTest {
 
     private lateinit var validator: PreparationRecipeValidator
+    private lateinit var graphValidator: PreparationRecipeGraphValidator
 
     @Before
     fun setup() {
-        validator = PreparationRecipeValidator()
+        graphValidator = PreparationRecipeGraphValidator()
+        validator = PreparationRecipeValidator(graphValidator)
     }
 
     @Test
@@ -104,6 +106,92 @@ class PreparationRecipeValidatorTest {
         assertThat(failures).contains(PreparationRecipeValidationFailure.RecipeWouldCreateCycle)
     }
 
+    @Test
+    fun `restore archived to draft - valid recipe passes`() {
+        val recipe = createRecipe(outputId = "ing-1", yieldUnitId = "unit-y", status = PreparationRecipeStatus.ARCHIVED)
+        val outputIng = createIngredient(id = "ing-1")
+        val yieldUnit = createUnitOption(id = "unit-y", ingId = "ing-1")
+        val components = listOf(
+            createComponent(recipeId = "rec-1", componentId = "ing-2", unitId = "unit-2")
+        )
+        val allComponentIngredients = mapOf("ing-2" to createIngredient(id = "ing-2"))
+        val allComponentUnitOptions = mapOf("ing-2" to listOf(createUnitOption(id = "unit-2", ingId = "ing-2")))
+
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = outputIng,
+            yieldUnitOption = yieldUnit,
+            components = components,
+            allComponentIngredients = allComponentIngredients,
+            allComponentUnitOptions = allComponentUnitOptions,
+            existingGraphEdges = emptyList()
+        )
+
+        assertThat(failures).isEmpty()
+    }
+
+    @Test
+    fun `restore archived to draft - deleted output rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", status = PreparationRecipeStatus.ARCHIVED)
+        val outputIng = createIngredient(id = "ing-1").copy(deletedAt = Instant.now())
+
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = outputIng,
+            yieldUnitOption = null,
+            components = emptyList(),
+            allComponentIngredients = emptyMap(),
+            allComponentUnitOptions = emptyMap(),
+            existingGraphEdges = emptyList()
+        )
+
+        assertThat(failures).contains(PreparationRecipeValidationFailure.OutputIngredientDeleted)
+    }
+
+    @Test
+    fun `restore archived to draft - cycle rejected`() {
+        val recipe = createRecipe(id = "rec-2", outputId = "ing-2", status = PreparationRecipeStatus.ARCHIVED)
+        val components = listOf(
+            createComponent(recipeId = "rec-2", componentId = "ing-1", unitId = "unit-y1")
+        )
+        
+        val existingEdges = listOf(
+            PreparationRecipeDependencyEdge("ing-1", "ing-2")
+        )
+
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-2"),
+            yieldUnitOption = null,
+            components = components,
+            allComponentIngredients = mapOf("ing-1" to createIngredient(id = "ing-1")),
+            allComponentUnitOptions = mapOf("ing-1" to listOf(createUnitOption(id = "unit-y1", ingId = "ing-1"))),
+            existingGraphEdges = existingEdges
+        )
+        assertThat(failures).contains(PreparationRecipeValidationFailure.RecipeWouldCreateCycle)
+    }
+
+    @Test
+    fun `activation validation - mismatched yield base quantity rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", yieldUnitId = "unit-y").copy(
+            standardYieldQuantity = BigDecimal("10.0"),
+            standardYieldQuantityBase = BigDecimal("5.0") // Should be 10.0 if factor is 1.0
+        )
+        val yieldUnit = createUnitOption(id = "unit-y", ingId = "ing-1", factor = BigDecimal.ONE)
+        
+        val failures = validator.validateActivation(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-1"),
+            components = listOf(createComponent(recipeId = "rec-1", componentId = "ing-2", unitId = "unit-2")),
+            allOutputUnitOptions = listOf(yieldUnit),
+            allComponentIngredients = mapOf("ing-2" to createIngredient(id = "ing-2")),
+            allComponentUnitOptions = mapOf("ing-2" to listOf(createUnitOption(id = "unit-2", ingId = "ing-2"))),
+            existingGraphEdges = emptyList()
+        )
+
+        assertThat(failures).contains(PreparationRecipeValidationFailure.YieldMustBePositive)
+    }
+
     private fun createRecipe(
         id: String = "rec-1",
         restId: String = "rest-1",
@@ -150,14 +238,15 @@ class PreparationRecipeValidatorTest {
     private fun createUnitOption(
         id: String,
         ingId: String,
-        name: String = "Unit"
+        name: String = "Unit",
+        factor: BigDecimal = BigDecimal.ONE
     ) = IngredientUnitOption(
         id = IngredientUnitOptionId(id),
         ingredientId = IngredientId(ingId),
         displayName = name,
         shortLabel = name,
         standardUnitId = null,
-        factorToBase = BigDecimal.ONE,
+        factorToBase = factor,
         isBase = false,
         isDefaultCount = false,
         isDefaultPurchase = false,

@@ -16,6 +16,7 @@ import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.domain.repository.CreatePreparationRecipeCommand
 import com.miara.cuentame.core.domain.repository.SavePreparationRecipeComponentCommand
 import com.miara.cuentame.core.domain.repository.UpdatePreparationRecipeCommand
+import com.miara.cuentame.core.domain.validation.PreparationRecipeGraphValidator
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationFailure
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidator
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
@@ -32,6 +33,7 @@ class RoomPreparationRecipeRepositoryTest {
     private lateinit var db: RestaurantInventoryDatabase
     private lateinit var repository: RoomPreparationRecipeRepository
     private lateinit var validator: PreparationRecipeValidator
+    private lateinit var graphValidator: PreparationRecipeGraphValidator
     private val restId = RestaurantId("rest-1")
     
     private var nextId = 0
@@ -47,13 +49,15 @@ class RoomPreparationRecipeRepositoryTest {
     fun setup() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java).build()
-        validator = PreparationRecipeValidator()
+        graphValidator = PreparationRecipeGraphValidator()
+        validator = PreparationRecipeValidator(graphValidator)
         repository = RoomPreparationRecipeRepository(
             db,
             db.preparationRecipeDao(),
             db.ingredientDao(),
             db.ingredientUnitOptionDao(),
             validator,
+            graphValidator,
             idGenerator,
             timeProvider
         )
@@ -274,11 +278,9 @@ class RoomPreparationRecipeRepositoryTest {
         repository.saveComponent(SavePreparationRecipeComponentCommand(recipeA, null, ingB, unitB, BigDecimal.ONE, 0, null))
         repository.activate(recipeA)
         
-        // B attempts to use A
-        repository.saveComponent(SavePreparationRecipeComponentCommand(recipeB, null, ingA, unitA, BigDecimal.ONE, 0, null))
-        
+        // B attempts to use A - should fail immediately during saveComponent
         try {
-            repository.activate(recipeB)
+            repository.saveComponent(SavePreparationRecipeComponentCommand(recipeB, null, ingA, unitA, BigDecimal.ONE, 0, null))
             assertThat(false).isTrue()
         } catch (e: RecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeWouldCreateCycle)

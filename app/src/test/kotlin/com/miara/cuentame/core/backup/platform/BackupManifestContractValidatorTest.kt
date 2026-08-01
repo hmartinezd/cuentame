@@ -539,6 +539,41 @@ class BackupManifestContractValidatorTest {
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 
+    @Test
+    fun `schema 2 manifest with non-empty recipe payload fails`() {
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 2)
+        val snapshot = createValidEmptySnapshot().copy(
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("r1", "rest-1", "i1", "R", "r", "1", "1", null, "DRAFT", null, 0, 0, null)
+            )
+        )
+        val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
+        assertThat(failure).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `schema 2 manifest with non-empty component payload fails`() {
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 2)
+        val snapshot = createValidEmptySnapshot().copy(
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto("c1", "r1", "i1", "o1", "1", "1", 0, null, 0, 0)
+            )
+        )
+        val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
+        assertThat(failure).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `schema 2 manifest with empty recipe arrays succeeds`() {
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 2)
+        val snapshot = createValidEmptySnapshot().copy(
+            preparationRecipes = emptyList(),
+            preparationRecipeComponents = emptyList()
+        )
+        val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
+        assertThat(failure).isNull()
+    }
+
     private fun createValidAttachment(
         attachmentId: String = "0123456789abcdef",
         displayName: String = "file.jpg",

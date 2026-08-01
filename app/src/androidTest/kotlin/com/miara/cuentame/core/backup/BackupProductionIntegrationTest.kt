@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.backup.model.BackupSnapshotDto
+import com.miara.cuentame.core.backup.model.RestaurantBackupDto
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
 import com.miara.cuentame.core.backup.platform.*
@@ -223,9 +225,9 @@ class BackupProductionIntegrationTest {
             createdAt = 100,
             updatedAt = 100
         ))
-        db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, 1100, "COMPLETED", "Notes", 100, 100, null))
-        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "COMPLETED", 1000, 1100, 1)))
-        db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", "5", "0", "Notes", 100, 100))
+        db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, null, "DRAFT", "Notes", 100, 100, null))
+        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "DRAFT", null, null, 1)))
+        db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", null, null, "Notes", 100, 100))
         db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
         db.inventoryMovementDao().insertAll(listOf(
             InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "op1", "pl1", null, 100),
@@ -241,6 +243,90 @@ class BackupProductionIntegrationTest {
         db.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity(
             "rc1", "r1", "i2", "o2", BigDecimal("5"), BigDecimal("5"), 0, "Comp notes", 100, 100
         ))
+    }
+
+    @Test
+    fun schema2_archive_restore_succeeds() = runBlocking {
+        // 1. Build schema 2 archive
+        val legacySnapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
+            restaurants = listOf(RestaurantBackupDto("r1", "Legacy", "USD", "en-US", 100, 100, null))
+        )
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(2)
+            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 2,
+            restaurantId = "r1",
+            restaurantName = "Legacy",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = tables,
+            attachments = emptyList(),
+            includedSections = listOf("attachments", "data", "preferences"),
+            checksumAlgorithm = "SHA-256"
+        )
+        
+        val bytes = buildArchive(manifest, legacySnapshot)
+        val backupUri = "content://backup/legacy.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+
+        // 2. Inspect
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(2)
+
+        // 3. Apply
+        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
+
+        // 4. Verify
+        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Legacy")
+        assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).isEmpty()
+    }
+
+    private fun buildArchive(
+        manifest: com.miara.cuentame.core.model.backup.BackupManifest,
+        snapshot: BackupSnapshotDto
+    ): ByteArray {
+        val bos = java.io.ByteArrayOutputStream()
+        val zos = java.util.zip.ZipOutputStream(bos)
+
+        fun add(name: String, content: ByteArray) {
+            val entry = java.util.zip.ZipEntry(name)
+            zos.putNextEntry(entry)
+            zos.write(content)
+            zos.closeEntry()
+        }
+
+        val manifestJson = codecs.writer.encodeToString<com.miara.cuentame.core.model.backup.BackupManifest>(manifest).toByteArray()
+        val snapshotJson = codecs.writer.encodeToString<BackupSnapshotDto>(snapshot).toByteArray()
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val prefsJson = codecs.writer.encodeToString<com.miara.cuentame.core.model.backup.BackupPreferencesDto>(prefs).toByteArray()
+
+        add("manifest.json", manifestJson)
+        add("data/database.json", snapshotJson)
+        add("preferences/settings.json", prefsJson)
+
+        val checksums = mapOf(
+            "manifest.json" to sha256(manifestJson),
+            "data/database.json" to sha256(snapshotJson),
+            "preferences/settings.json" to sha256(prefsJson)
+        )
+        val checksumsJson = codecs.writer.encodeToString<Map<String, String>>(checksums).toByteArray()
+        add("checksums.json", checksumsJson)
+
+        zos.close()
+        return bos.toByteArray()
+    }
+
+    private fun sha256(bytes: ByteArray): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        return digest.digest(bytes).joinToString("") { "%02x".format(it) }
     }
 
     private suspend fun verifyAllTables() {

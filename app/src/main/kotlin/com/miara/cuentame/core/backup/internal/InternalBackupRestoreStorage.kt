@@ -11,7 +11,7 @@ import javax.inject.Singleton
 class InternalBackupRestoreStorage @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val baseDir = File(context.filesDir, "backup_restore")
+    private val baseDir = File(context.filesDir, "backup_restore").apply { mkdirs() }
 
     /**
      * @deprecated Not used by Backup and Restore v1.

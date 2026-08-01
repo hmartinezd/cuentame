@@ -153,6 +153,10 @@ object BackupManifestContractValidator {
         if (manifest.databaseSchemaVersion >= 3) {
             actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
             actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+        } else if (manifest.databaseSchemaVersion == 2) {
+            if (snapshot.preparationRecipes.isNotEmpty() || snapshot.preparationRecipeComponents.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
         }
 
         for ((table, metadata) in manifest.tableMetadata) {

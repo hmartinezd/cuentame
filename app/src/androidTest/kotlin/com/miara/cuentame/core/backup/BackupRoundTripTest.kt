@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup
 
+import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
@@ -148,6 +149,47 @@ class BackupRoundTripTest {
         assertThat(restored.restaurants[0].name).isEqualTo("Legacy")
         assertThat(restored.preparationRecipes).isEmpty()
         assertThat(restored.preparationRecipeComponents).isEmpty()
+    }
+
+    @Test
+    fun schema3BackupRoundTrip_restoresOverPopulatedStateExactly() = runBlocking {
+        // 1. Seed state A
+        seedDatabaseWithRecipes()
+        val originalSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+
+        // 2. Capture backup A
+        val planResult = planner.createPlan(restaurant, snapshotSource.loadSnapshot(restId.value))
+        val plan = (planResult as BackupPlanningResult.Success).plan
+        val snapshotDto = plan.snapshotDto
+
+        // 3. Mutate live database into state B
+        database.withTransaction {
+            // Rename recipe
+            val draft = database.preparationRecipeDao().getById("r-draft")!!
+            database.preparationRecipeDao().update(
+                draft.copy(name = "Mutated Draft", normalizedName = "mutated draft")
+            )
+            // Change notes
+            val active = database.preparationRecipeDao().getById("r-active")!!
+            database.preparationRecipeDao().update(
+                active.copy(notes = "Mutated Notes")
+            )
+            // Delete components
+            database.restoreDao().deleteAllPreparationRecipeComponents()
+            // Add a different Draft recipe where valid
+            val newIng = "ing-new"
+            database.ingredientDao().insert(IngredientEntity(newIng, restId.value, "New", "new", null, "u1", null, null, null, null, true, 0, 0, null))
+            database.preparationRecipeDao().insert(PreparationRecipeEntity("r-new", restId.value, newIng, "New Recipe", "new recipe", BigDecimal.ONE, BigDecimal.ONE, null, "DRAFT", null, 100, 100, null))
+        }
+
+        // 4. Restore backup A
+        applier.replaceWithBackup(snapshotDto)
+
+        // 5. Verify database state matches original exactly
+        val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        assertThat(restoredSnapshot).isEqualTo(snapshotDto)
+        assertThat(restoredSnapshot).isEqualTo(originalSnapshot)
     }
 
     @Test
