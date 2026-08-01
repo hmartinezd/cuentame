@@ -26,7 +26,9 @@ import com.miara.cuentame.core.database.DatabaseSchema
         WasteEventEntity::class,
         InventoryMovementEntity::class,
         InventoryBalanceProjectionEntity::class,
-        IngredientCostProjectionEntity::class
+        IngredientCostProjectionEntity::class,
+        PreparationRecipeEntity::class,
+        PreparationRecipeComponentEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -46,6 +48,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun inventoryMovementDao(): InventoryMovementDao
     abstract fun inventoryProjectionDao(): InventoryProjectionDao
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
+    abstract fun preparationRecipeDao(): PreparationRecipeDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -67,6 +70,66 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 // 5. Recreate indexes
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_restaurantId` ON `ingredient_cost_projection` (`restaurantId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_ingredientId` ON `ingredient_cost_projection` (`ingredientId`)")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create preparation_recipes table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `preparation_recipes` (
+                        `id` TEXT NOT NULL, 
+                        `restaurantId` TEXT NOT NULL, 
+                        `outputIngredientId` TEXT NOT NULL, 
+                        `name` TEXT NOT NULL, 
+                        `normalizedName` TEXT NOT NULL, 
+                        `standardYieldQuantity` TEXT, 
+                        `standardYieldQuantityBase` TEXT, 
+                        `yieldUnitOptionId` TEXT, 
+                        `status` TEXT NOT NULL, 
+                        `notes` TEXT, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        `archivedAt` INTEGER, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`restaurantId`) REFERENCES `restaurants`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`outputIngredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`yieldUnitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                
+                // Create indices for preparation_recipes
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId` ON `preparation_recipes` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_outputIngredientId` ON `preparation_recipes` (`outputIngredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_yieldUnitOptionId` ON `preparation_recipes` (`yieldUnitOptionId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_outputIngredientId` ON `preparation_recipes` (`restaurantId`, `outputIngredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_status` ON `preparation_recipes` (`restaurantId`, `status`)")
+
+                // Create preparation_recipe_components table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `preparation_recipe_components` (
+                        `id` TEXT NOT NULL, 
+                        `recipeId` TEXT NOT NULL, 
+                        `componentIngredientId` TEXT NOT NULL, 
+                        `unitOptionId` TEXT NOT NULL, 
+                        `quantityEntered` TEXT NOT NULL, 
+                        `quantityBase` TEXT NOT NULL, 
+                        `sortOrder` INTEGER NOT NULL, 
+                        `notes` TEXT, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`recipeId`) REFERENCES `preparation_recipes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`componentIngredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                
+                // Create indices for preparation_recipe_components
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_recipeId` ON `preparation_recipe_components` (`recipeId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_componentIngredientId` ON `preparation_recipe_components` (`componentIngredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_unitOptionId` ON `preparation_recipe_components` (`unitOptionId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_preparation_recipe_components_recipeId_componentIngredientId` ON `preparation_recipe_components` (`recipeId`, `componentIngredientId`)")
             }
         }
     }

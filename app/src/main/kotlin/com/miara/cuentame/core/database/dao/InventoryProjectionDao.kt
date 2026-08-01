@@ -44,4 +44,7 @@ interface InventoryProjectionDao {
 
     @Query("DELETE FROM inventory_balance_projection WHERE ingredientId = :ingredientId")
     suspend fun deleteForIngredient(ingredientId: String)
+
+    @Query("SELECT * FROM inventory_balance_projection")
+    suspend fun getAll(): List<InventoryBalanceProjectionEntity>
 }

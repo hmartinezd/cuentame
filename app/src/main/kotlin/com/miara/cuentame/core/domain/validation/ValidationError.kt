@@ -30,6 +30,8 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object IngredientOwnershipMismatch : ValidationError("Ingredient does not belong to the current restaurant")
     data object InvalidBaseUnitOption : ValidationError("The supplied base unit option is invalid")
     data object AdditionalOptionCannotBeBase : ValidationError("Additional options cannot be marked as base")
+    data object IngredientIsRecipeOutput : ValidationError("Ingredient is the output of an active preparation recipe")
+    data object IngredientUsedByRecipe : ValidationError("Ingredient is used as a component by an active preparation recipe")
     
     // Suppliers
     data object SupplierNotFound : ValidationError("Supplier not found")

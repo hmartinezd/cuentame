@@ -5,10 +5,14 @@ import com.miara.cuentame.core.domain.repository.CompleteLocalSetupCommand
 import com.miara.cuentame.core.domain.repository.LocalSetupRepository
 import com.miara.cuentame.core.domain.repository.LocalSetupResult
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.service.StarterCatalogSeedResult
+import com.miara.cuentame.core.domain.service.StarterCatalogSeeder
+import com.miara.cuentame.core.model.catalog.StarterCatalogDefinition
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.core.model.onboarding.OnboardingDraft
+import com.miara.cuentame.core.model.restaurant.Restaurant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -18,7 +22,7 @@ class CompleteOnboardingUseCaseTest {
 
     private val preferencesFlow = MutableStateFlow(AppPreferences.DEFAULT)
     private var setupResult: LocalSetupResult = LocalSetupResult.Success
-    private var restaurantValue: com.miara.cuentame.core.model.restaurant.Restaurant? = null
+    private var restaurantValue: Restaurant? = null
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = preferencesFlow
@@ -43,16 +47,16 @@ class CompleteOnboardingUseCaseTest {
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
-        override fun observeRestaurant(): Flow<com.miara.cuentame.core.model.restaurant.Restaurant?> = MutableStateFlow(restaurantValue)
-        override suspend fun getRestaurant(): com.miara.cuentame.core.model.restaurant.Restaurant? = restaurantValue
-        override suspend fun save(restaurant: com.miara.cuentame.core.model.restaurant.Restaurant) {
+        override fun observeRestaurant(): Flow<Restaurant?> = MutableStateFlow(restaurantValue)
+        override suspend fun getRestaurant(): Restaurant? = restaurantValue
+        override suspend fun save(restaurant: Restaurant) {
             restaurantValue = restaurant
         }
     }
 
-    private val fakeStarterCatalogSeeder = object : com.miara.cuentame.core.domain.service.StarterCatalogSeeder {
-        override suspend fun seedNewRestaurant(restaurantId: String, catalog: com.miara.cuentame.core.model.catalog.StarterCatalogDefinition): com.miara.cuentame.core.domain.service.StarterCatalogSeedResult {
-            return com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
+    private val fakeStarterCatalogSeeder = object : StarterCatalogSeeder {
+        override suspend fun seedNewRestaurant(restaurantId: String, catalog: StarterCatalogDefinition): StarterCatalogSeedResult {
+            return StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
         }
     }
 
@@ -75,7 +79,7 @@ class CompleteOnboardingUseCaseTest {
     @Test
     fun `AlreadyCompleted uses Room locale as authoritative`() = runTest {
         // Existing restaurant is Spanish
-        restaurantValue = com.miara.cuentame.core.model.restaurant.Restaurant(
+        restaurantValue = Restaurant(
             id = com.miara.cuentame.core.common.ids.RestaurantId("id"),
             name = "Test",
             currencyCode = "USD",

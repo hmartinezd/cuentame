@@ -544,6 +544,8 @@
     <string name="error_waste_already_voided">Waste event is already voided</string>
     <string name="error_waste_immutable">Posted or voided waste event cannot be modified</string>
     <string name="error_ingredient_inactive">Selected ingredient is archived</string>
+    <string name="error_ingredient_is_recipe_output">This ingredient is the output of a recipe and cannot be archived.</string>
+    <string name="error_ingredient_used_by_recipe">This ingredient is used by another recipe and cannot be archived.</string>
     <string name="error_area_inactive">Selected area is archived</string>
     <string name="error_unit_inactive">Selected unit option is archived</string>
     <string name="error_reason_required">A valid waste reason is required</string>

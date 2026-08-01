@@ -19,7 +19,40 @@ data class BackupSnapshotDto(
     val wasteEvents: List<WasteEventBackupDto>,
     val inventoryMovements: List<InventoryMovementBackupDto>,
     val inventoryBalanceProjections: List<InventoryBalanceProjectionBackupDto>,
-    val ingredientCostProjections: List<IngredientCostProjectionBackupDto>
+    val ingredientCostProjections: List<IngredientCostProjectionBackupDto>,
+    val preparationRecipes: List<PreparationRecipeBackupDto> = emptyList(),
+    val preparationRecipeComponents: List<PreparationRecipeComponentBackupDto> = emptyList()
+)
+
+@Serializable
+data class PreparationRecipeBackupDto(
+    val id: String,
+    val restaurantId: String,
+    val outputIngredientId: String,
+    val name: String,
+    val normalizedName: String,
+    val standardYieldQuantity: String?,
+    val standardYieldQuantityBase: String?,
+    val yieldUnitOptionId: String?,
+    val status: String,
+    val notes: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val archivedAt: Long?
+)
+
+@Serializable
+data class PreparationRecipeComponentBackupDto(
+    val id: String,
+    val recipeId: String,
+    val componentIngredientId: String,
+    val unitOptionId: String,
+    val quantityEntered: String,
+    val quantityBase: String,
+    val sortOrder: Int,
+    val notes: String?,
+    val createdAt: Long,
+    val updatedAt: Long
 )
 
 @Serializable

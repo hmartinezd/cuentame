@@ -41,3 +41,9 @@ value class WasteEventId(val value: String)
 
 @JvmInline
 value class InventoryMovementId(val value: String)
+
+@JvmInline
+value class PreparationRecipeId(val value: String)
+
+@JvmInline
+value class PreparationRecipeComponentId(val value: String)

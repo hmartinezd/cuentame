@@ -38,6 +38,8 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.IngredientOwnershipMismatch -> R.string.error_generic
     ValidationError.InvalidBaseUnitOption -> R.string.error_generic
     ValidationError.AdditionalOptionCannotBeBase -> R.string.error_generic
+    ValidationError.IngredientIsRecipeOutput -> R.string.error_ingredient_is_recipe_output
+    ValidationError.IngredientUsedByRecipe -> R.string.error_ingredient_used_by_recipe
     
     ValidationError.SupplierNotFound -> R.string.error_supplier_not_found
     ValidationError.SupplierNameAlreadyExists -> R.string.error_supplier_exists

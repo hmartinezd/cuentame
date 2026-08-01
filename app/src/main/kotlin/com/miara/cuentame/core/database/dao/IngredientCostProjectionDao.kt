@@ -19,4 +19,7 @@ interface IngredientCostProjectionDao {
 
     @Query("DELETE FROM ingredient_cost_projection WHERE ingredientId = :ingredientId")
     suspend fun deleteForIngredient(ingredientId: String)
+
+    @Query("SELECT * FROM ingredient_cost_projection")
+    suspend fun getAll(): List<IngredientCostProjectionEntity>
 }

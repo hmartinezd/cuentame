@@ -41,6 +41,12 @@ interface IngredientUnitOptionDao {
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId AND isDefaultPurchase = 1 AND isActive = 1 AND deletedAt IS NULL LIMIT 1")
     suspend fun getDefaultPurchaseOption(ingredientId: String): IngredientUnitOptionEntity?
 
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId = :ingredientId")
+    suspend fun getByIngredient(ingredientId: String): List<IngredientUnitOptionEntity>
+
+    @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId IN (:ingredientIds)")
+    suspend fun getByIngredients(ingredientIds: List<String>): List<IngredientUnitOptionEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(option: IngredientUnitOptionEntity)
 

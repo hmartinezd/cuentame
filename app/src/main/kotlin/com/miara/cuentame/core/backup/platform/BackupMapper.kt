@@ -28,7 +28,9 @@ object BackupMapper {
             inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() }
                 .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }, { it.areaId })),
             ingredientCostProjections = snapshot.ingredientCostProjections.map { it.toDto() }
-                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }))
+                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId })),
+            preparationRecipes = snapshot.preparationRecipes.map { it.toDto() }.sortedBy { it.id },
+            preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id }
         )
     }
 
@@ -243,6 +245,35 @@ object BackupMapper {
         updatedAt = updatedAt
     )
 
+    internal fun PreparationRecipeEntity.toDto() = PreparationRecipeBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        outputIngredientId = outputIngredientId,
+        name = name,
+        normalizedName = normalizedName,
+        standardYieldQuantity = standardYieldQuantity?.toPlainString(),
+        standardYieldQuantityBase = standardYieldQuantityBase?.toPlainString(),
+        yieldUnitOptionId = yieldUnitOptionId,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        archivedAt = archivedAt
+    )
+
+    internal fun PreparationRecipeComponentEntity.toDto() = PreparationRecipeComponentBackupDto(
+        id = id,
+        recipeId = recipeId,
+        componentIngredientId = componentIngredientId,
+        unitOptionId = unitOptionId,
+        quantityEntered = quantityEntered.toPlainString(),
+        quantityBase = quantityBase.toPlainString(),
+        sortOrder = sortOrder,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
 
     fun RestaurantBackupDto.toEntity() = RestaurantEntity(
         id = id,
@@ -452,6 +483,35 @@ object BackupMapper {
         restaurantId = restaurantId,
         ingredientId = ingredientId,
         averageUnitCostBase = averageUnitCostBase,
+        updatedAt = updatedAt
+    )
+
+    fun PreparationRecipeBackupDto.toEntity() = PreparationRecipeEntity(
+        id = id,
+        restaurantId = restaurantId,
+        outputIngredientId = outputIngredientId,
+        name = name,
+        normalizedName = normalizedName,
+        standardYieldQuantity = standardYieldQuantity?.let { java.math.BigDecimal(it) },
+        standardYieldQuantityBase = standardYieldQuantityBase?.let { java.math.BigDecimal(it) },
+        yieldUnitOptionId = yieldUnitOptionId,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        archivedAt = archivedAt
+    )
+
+    fun PreparationRecipeComponentBackupDto.toEntity() = PreparationRecipeComponentEntity(
+        id = id,
+        recipeId = recipeId,
+        componentIngredientId = componentIngredientId,
+        unitOptionId = unitOptionId,
+        quantityEntered = java.math.BigDecimal(quantityEntered),
+        quantityBase = java.math.BigDecimal(quantityBase),
+        sortOrder = sortOrder,
+        notes = notes,
+        createdAt = createdAt,
         updatedAt = updatedAt
     )
 

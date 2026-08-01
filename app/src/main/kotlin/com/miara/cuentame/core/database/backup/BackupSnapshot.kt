@@ -18,5 +18,7 @@ data class BackupSnapshot(
     val wasteEvents: List<WasteEventEntity>,
     val inventoryMovements: List<InventoryMovementEntity>,
     val inventoryBalanceProjections: List<InventoryBalanceProjectionEntity>,
-    val ingredientCostProjections: List<IngredientCostProjectionEntity>
+    val ingredientCostProjections: List<IngredientCostProjectionEntity>,
+    val preparationRecipes: List<PreparationRecipeEntity>,
+    val preparationRecipeComponents: List<PreparationRecipeComponentEntity>
 )

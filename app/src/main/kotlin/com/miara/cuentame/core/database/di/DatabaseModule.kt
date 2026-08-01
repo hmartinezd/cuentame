@@ -12,6 +12,7 @@ import com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
 import com.miara.cuentame.core.database.dao.InventoryAreaDao
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
+import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.StockCountDao
@@ -40,7 +41,10 @@ object DatabaseModule {
             RestaurantInventoryDatabase::class.java,
             "restaurant_inventory.db"
         )
-        .addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2)
+        .addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3
+        )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -92,6 +96,9 @@ object DatabaseModule {
 
     @Provides
     fun provideIngredientCostProjectionDao(db: RestaurantInventoryDatabase): IngredientCostProjectionDao = db.ingredientCostProjectionDao()
+
+    @Provides
+    fun providePreparationRecipeDao(db: RestaurantInventoryDatabase): PreparationRecipeDao = db.preparationRecipeDao()
 
     @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.BackupDao = db.backupDao()

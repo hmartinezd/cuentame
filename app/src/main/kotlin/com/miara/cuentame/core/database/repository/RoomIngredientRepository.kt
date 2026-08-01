@@ -12,6 +12,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.IngredientCategoryDao
 import com.miara.cuentame.core.database.dao.IngredientDao
 import com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
+import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.UnitDao
 import com.miara.cuentame.core.database.mapper.toDomain
@@ -38,6 +39,7 @@ class RoomIngredientRepository @Inject constructor(
     private val unitDao: UnitDao,
     private val restaurantDao: RestaurantDao,
     private val categoryDao: IngredientCategoryDao,
+    private val recipeDao: PreparationRecipeDao,
     private val converter: StandardUnitConverter,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
@@ -101,9 +103,19 @@ class RoomIngredientRepository @Inject constructor(
     }
 
     override suspend fun archive(id: IngredientId, at: Instant) {
-        val existing = ingredientDao.getById(id.value) ?: throw ValidationError.IngredientNotFound
-        if (existing.deletedAt != null) return // Idempotent
-        ingredientDao.softArchive(id.value, at.toEpochMilli())
+        database.withTransaction {
+            val existing = ingredientDao.getById(id.value) ?: throw ValidationError.IngredientNotFound
+            if (existing.deletedAt != null) return@withTransaction // Idempotent
+
+            // Milestone 1 integrity: Check recipe usage
+            val outputRecipeCount = recipeDao.countActiveOrDraftRecipesForOutput(id.value)
+            if (outputRecipeCount > 0) throw ValidationError.IngredientIsRecipeOutput
+
+            val usageCount = recipeDao.getRecipesUsingIngredient(id.value).size
+            if (usageCount > 0) throw ValidationError.IngredientUsedByRecipe
+
+            ingredientDao.softArchive(id.value, at.toEpochMilli())
+        }
     }
 
     override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> {

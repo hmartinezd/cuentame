@@ -109,7 +109,59 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun createDatabaseDirectlyAtVersion2() = runBlocking {
+    @Throws(IOException::class)
+    fun migrate2To3_preservesData_andCreatesNewTables() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        // 1. Create version 2 database
+        var db = helper.createDatabase(TEST_DB, 2)
+
+        // Insert some data
+        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
+        db.execSQL("INSERT INTO units (id, name, symbol, dimension, factorToCanonical, isSystem, sortOrder) VALUES ('u1', 'Unit', 'u', 'Mass', '1.0', 1, 1)")
+        db.execSQL("INSERT INTO ingredients (id, restaurantId, name, normalizedName, baseUnitId, isActive, createdAt, updatedAt) VALUES ('ing-1', 'rest-1', 'Ing 1', 'ing 1', 'u1', 1, 100, 200)")
+        db.close()
+
+        // 2. Run migration 2 to 3
+        db = helper.runMigrationsAndValidate(TEST_DB, 3, true, RestaurantInventoryDatabase.MIGRATION_2_3)
+
+        // Verify existing data is preserved
+        val ingCursor = db.query("SELECT * FROM ingredients")
+        assertThat(ingCursor.count).isEqualTo(1)
+        ingCursor.close()
+
+        // Verify new tables exist and are empty
+        val recipeCursor = db.query("SELECT * FROM preparation_recipes")
+        assertThat(recipeCursor.count).isEqualTo(0)
+        recipeCursor.close()
+
+        val componentCursor = db.query("SELECT * FROM preparation_recipe_components")
+        assertThat(componentCursor.count).isEqualTo(0)
+        componentCursor.close()
+
+        // Test insertion into new tables to verify schema
+        db.execSQL("INSERT INTO preparation_recipes (id, restaurantId, outputIngredientId, name, normalizedName, status, createdAt, updatedAt) VALUES ('rec-1', 'rest-1', 'ing-1', 'Rec 1', 'rec 1', 'DRAFT', 1000, 1000)")
+        
+        val insertCursor = db.query("SELECT * FROM preparation_recipes WHERE id = 'rec-1'")
+        assertThat(insertCursor.count).isEqualTo(1)
+        insertCursor.close()
+        
+        db.close()
+
+        // 3. Reopen through Room
+        val roomDb = Room.databaseBuilder(
+            context,
+            RestaurantInventoryDatabase::class.java,
+            TEST_DB
+        ).addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2, RestaurantInventoryDatabase.MIGRATION_2_3)
+            .build()
+
+        assertThat(roomDb.preparationRecipeDao().getAllRecipesForRestaurant("rest-1")).hasSize(1)
+        roomDb.close()
+    }
+
+    @Test
+    fun createDatabaseDirectlyAtVersion3() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val roomDb = Room.databaseBuilder(
             context,
@@ -117,9 +169,7 @@ class RoomMigrationTest {
             TEST_DB
         ).build()
 
-        // Verify clean open and DAO query on new DB at version 2
-        val proj = roomDb.ingredientCostProjectionDao().getCost("non-existent")
-        assertThat(proj).isNull()
+        assertThat(roomDb.preparationRecipeDao().getAllRecipesForRestaurant("non-existent")).isEmpty()
         roomDb.close()
     }
 }

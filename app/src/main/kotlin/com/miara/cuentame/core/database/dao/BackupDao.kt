@@ -27,7 +27,9 @@ interface BackupDao {
             wasteEvents = getWasteEvents(restaurantId),
             inventoryMovements = getInventoryMovements(restaurantId),
             inventoryBalanceProjections = getInventoryBalanceProjections(restaurantId),
-            ingredientCostProjections = getIngredientCostProjections(restaurantId)
+            ingredientCostProjections = getIngredientCostProjections(restaurantId),
+            preparationRecipes = getPreparationRecipes(restaurantId),
+            preparationRecipeComponents = getPreparationRecipeComponents(restaurantId)
         )
     }
 
@@ -100,6 +102,17 @@ interface BackupDao {
     @Query("SELECT * FROM ingredient_cost_projection WHERE restaurantId = :restaurantId ORDER BY ingredientId ASC")
     suspend fun getIngredientCostProjections(restaurantId: String): List<IngredientCostProjectionEntity>
 
+    @Query("SELECT * FROM preparation_recipes WHERE restaurantId = :restaurantId ORDER BY id ASC")
+    suspend fun getPreparationRecipes(restaurantId: String): List<PreparationRecipeEntity>
+
+    @Query("""
+        SELECT prc.* FROM preparation_recipe_components prc
+        JOIN preparation_recipes pr ON prc.recipeId = pr.id
+        WHERE pr.restaurantId = :restaurantId
+        ORDER BY prc.id ASC
+    """)
+    suspend fun getPreparationRecipeComponents(restaurantId: String): List<PreparationRecipeComponentEntity>
+
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
         return BackupSnapshot(
@@ -118,7 +131,9 @@ interface BackupDao {
             wasteEvents = getAllWasteEvents(),
             inventoryMovements = getAllInventoryMovements(),
             inventoryBalanceProjections = getAllInventoryBalanceProjections(),
-            ingredientCostProjections = getAllIngredientCostProjections()
+            ingredientCostProjections = getAllIngredientCostProjections(),
+            preparationRecipes = getAllPreparationRecipes(),
+            preparationRecipeComponents = getAllPreparationRecipeComponents()
         )
     }
 
@@ -166,4 +181,10 @@ interface BackupDao {
 
     @Query("SELECT * FROM ingredient_cost_projection")
     suspend fun getAllIngredientCostProjections(): List<IngredientCostProjectionEntity>
+
+    @Query("SELECT * FROM preparation_recipes")
+    suspend fun getAllPreparationRecipes(): List<PreparationRecipeEntity>
+
+    @Query("SELECT * FROM preparation_recipe_components")
+    suspend fun getAllPreparationRecipeComponents(): List<PreparationRecipeComponentEntity>
 }

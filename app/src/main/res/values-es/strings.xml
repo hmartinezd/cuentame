@@ -544,6 +544,8 @@
     <string name="error_waste_already_voided">El evento de merma ya ha sido anulado</string>
     <string name="error_waste_immutable">Las mermas publicadas o anuladas no se pueden modificar</string>
     <string name="error_ingredient_inactive">El ingrediente seleccionado está archivado</string>
+    <string name="error_ingredient_is_recipe_output">Este ingrediente es el producto de una receta y no se puede archivar.</string>
+    <string name="error_ingredient_used_by_recipe">Este ingrediente se utiliza en otra receta y no se puede archivar.</string>
     <string name="error_area_inactive">El área seleccionada está archivada</string>
     <string name="error_unit_inactive">La unidad seleccionada está archivada</string>
     <string name="error_reason_required">Se requiere una razón de merma válida</string>
