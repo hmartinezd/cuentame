@@ -4,6 +4,7 @@ import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.ProductionBatchComponentEntity
 import com.miara.cuentame.core.database.entity.ProductionBatchEntity
 import com.miara.cuentame.core.domain.validation.ValidationError
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -192,7 +193,7 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
             if (movement.areaId != component.sourceAreaId) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-            if (movement.sourceOperationId != "production-post:${batch.id}:consume:${component.id}") throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceOperationId != InventoryMovementOperationIds.productionConsumption(batch.id, component.id)) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceLineId != component.id) throw ValidationError.MalformedProductionMovementHistory
             if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
 
@@ -229,7 +230,7 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
             if (movement.areaId != batch.outputAreaId) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-            if (movement.sourceOperationId != "production-post:${batch.id}:output") throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceOperationId != InventoryMovementOperationIds.productionOutput(batch.id)) throw ValidationError.MalformedProductionMovementHistory
             if (movement.sourceLineId != batch.id) throw ValidationError.MalformedProductionMovementHistory
             if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
 
@@ -267,7 +268,7 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
             if (reversal.areaId != original.areaId) throw ValidationError.MalformedProductionMovementHistory
             if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
             if (reversal.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-            if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.sourceOperationId != InventoryMovementOperationIds.reversal(original.id)) throw ValidationError.MalformedProductionMovementHistory
             if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedProductionMovementHistory
             if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedProductionMovementHistory
 

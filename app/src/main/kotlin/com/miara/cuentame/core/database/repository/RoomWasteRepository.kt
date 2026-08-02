@@ -27,6 +27,7 @@ import com.miara.cuentame.core.domain.repository.WasteSummary
 import com.miara.cuentame.core.domain.service.InventorySnapshotService
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.waste.WasteEvent
@@ -347,7 +348,7 @@ class RoomWasteRepository @Inject constructor(
                 sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
                 sourceDocumentId = existing.id,
                 sourceLineId = existing.id,
-                sourceOperationId = "waste-post:${existing.id}",
+                sourceOperationId = InventoryMovementOperationIds.wastePost(existing.id),
                 reversalOfMovementId = null,
                 createdAt = now
             )
@@ -421,7 +422,7 @@ class RoomWasteRepository @Inject constructor(
                 sourceDocumentType = SourceDocumentType.WASTE_EVENT.name,
                 sourceDocumentId = existing.id,
                 sourceLineId = original.sourceLineId,
-                sourceOperationId = "reversal:${original.id}",
+                sourceOperationId = InventoryMovementOperationIds.reversal(original.id),
                 reversalOfMovementId = original.id,
                 createdAt = now
             )

@@ -1,7 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.backup.model.BackupSnapshotDto
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -11,6 +11,11 @@ class FixtureParityTest {
     fun purchasePostOperationId_matchesContract() {
         val receiptId = "r1"
         val lineId = "l1"
+        
+        // 1. Call canonical factory
+        val expected = InventoryMovementOperationIds.purchasePost(receiptId, lineId)
+        
+        // 2. Build fixture
         val snapshot = BackupTestFixtures.addPostedPurchase(
             snapshot = BackupTestFixtures.createEmptySnapshotDto(),
             receiptId = receiptId,
@@ -26,36 +31,70 @@ class FixtureParityTest {
         )
         
         val move = snapshot.inventoryMovements.first()
-        assertThat(move.sourceOperationId).isEqualTo("purchase-post:$receiptId:$lineId")
+        
+        // 3. Assert fixture uses factory result
+        assertThat(move.sourceOperationId).isEqualTo(expected)
+        
+        // 4. Assert result remains the frozen literal
+        assertThat(expected).isEqualTo("purchase-post:r1:l1")
     }
 
     @Test
     fun wastePostOperationId_matchesContract() {
-        // Waste fixture currently doesn't exist in BackupTestFixtures, 
-        // but Instruction 17 requires proof of parity.
-        // I will add a waste helper to BackupTestFixtures first if it's missing, 
-        // or just assert the literal contract here.
         val eventId = "w1"
-        val expected = "waste-post:$eventId"
-        assertThat(expected).isEqualTo("waste-post:$eventId")
+        
+        val expected = InventoryMovementOperationIds.wastePost(eventId)
+        
+        val snapshot = BackupTestFixtures.addPostedWaste(
+            snapshot = BackupTestFixtures.createEmptySnapshotDto(),
+            eventId = eventId,
+            movementId = "m1",
+            ingredientId = "i1",
+            areaId = "a1",
+            optionId = "o1",
+            quantityBase = BigDecimal.ONE,
+            unitCostBase = BigDecimal.ONE,
+            effectiveAt = 1000L,
+            createdAt = 1000L
+        )
+        
+        val move = snapshot.inventoryMovements.first()
+        assertThat(move.sourceOperationId).isEqualTo(expected)
+        assertThat(expected).isEqualTo("waste-post:w1")
     }
 
     @Test
     fun productionPostOperationIds_matchContract() {
         val batchId = "pb1"
-        val componentId = "pbc1"
         
-        val consumeOp = "production-post:$batchId:consume:$componentId"
-        val outputOp = "production-post:$batchId:output"
+        val consumeOp = InventoryMovementOperationIds.productionConsumption(batchId, "pbc1")
+        val outputOp = InventoryMovementOperationIds.productionOutput(batchId)
         
-        assertThat(consumeOp).isEqualTo("production-post:$batchId:consume:$componentId")
-        assertThat(outputOp).isEqualTo("production-post:$batchId:output")
+        val snapshot = BackupTestFixtures.addPostedProduction(
+            snapshot = BackupTestFixtures.createEmptySnapshotDto(),
+            batchId = batchId,
+            outputMovementId = "m-out",
+            outputIngredientId = "i-out",
+            outputAreaId = "a-out",
+            outputOptionId = "o-out",
+            quantityBase = BigDecimal.ONE,
+            unitCostBase = BigDecimal.ONE,
+            effectiveAt = 1000L,
+            createdAt = 1000L
+        )
+        
+        val move = snapshot.inventoryMovements.first()
+        assertThat(move.sourceOperationId).isEqualTo(outputOp)
+        
+        assertThat(consumeOp).isEqualTo("production-post:pb1:consume:pbc1")
+        assertThat(outputOp).isEqualTo("production-post:pb1:output")
     }
 
     @Test
     fun reversalOperationId_matchesContract() {
         val originalId = "m1"
-        val expected = "reversal:$originalId"
-        assertThat(expected).isEqualTo("reversal:$originalId")
+        val expected = InventoryMovementOperationIds.reversal(originalId)
+        
+        assertThat(expected).isEqualTo("reversal:m1")
     }
 }

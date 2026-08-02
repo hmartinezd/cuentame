@@ -7,8 +7,6 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeComponentEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeEntity
-import com.miara.cuentame.core.database.entity.PurchaseLineEntity
-import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
@@ -44,6 +42,9 @@ class RoomProductionBatchRepositoryFailureTest {
 
     @Inject
     lateinit var repository: RoomProductionBatchRepository
+
+    @Inject
+    lateinit var purchaseRepository: RoomPurchaseRepository
 
     @Inject
     lateinit var failureBoundary: ConfigurableFailureBoundary
@@ -146,38 +147,16 @@ class RoomProductionBatchRepositoryFailureTest {
     }
 
     private suspend fun seedPostedPurchase() {
-        val receiptId = "p1"
-        val lineId = "pl1"
-        database.purchaseDao().insertReceipt(
-            PurchaseReceiptEntity(receiptId, restId.value, null, "INV1", 0, "POSTED", null, null, 0, 0, 0, null)
-        )
-        database.purchaseDao().insertLine(
-            PurchaseLineEntity(lineId, receiptId, componentIngredientId.value, areaId.value, TestSeeder.OPTION_ID, "10", "10", "100", "10", null, 0, 0)
-        )
-        database.inventoryMovementDao().insert(
-            InventoryMovementEntity(
-                id = "m-purchase",
-                restaurantId = restId.value,
-                ingredientId = componentIngredientId.value,
-                areaId = areaId.value,
-                movementType = InventoryMovementType.PURCHASE.name,
-                quantityBaseSigned = "10.00",
-                unitCostBaseSnapshot = "10.00",
-                totalValueSnapshot = "100.00",
-                effectiveAt = 0L,
-                sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-                sourceDocumentId = receiptId,
-                sourceOperationId = "purchase-post:$receiptId:$lineId",
-                sourceLineId = lineId,
-                reversalOfMovementId = null,
-                createdAt = 0L
-            )
-        )
-        database.ingredientCostProjectionDao().upsert(
-            com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity(restId.value, componentIngredientId.value, "10.00", 0L)
-        )
-        database.inventoryProjectionDao().upsert(
-            com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity(restId.value, componentIngredientId.value, areaId.value, "10.00", 0L)
+        TestSeeder.seedPostedPurchase(
+            db = database,
+            repo = purchaseRepository,
+            restaurantId = restId,
+            ingredientId = componentIngredientId,
+            areaId = areaId,
+            unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
+            quantityEntered = BigDecimal("10"),
+            unitCostBase = BigDecimal("10.00"),
+            effectiveAt = Instant.parse("2026-01-01T10:00:00Z")
         )
     }
 
@@ -193,6 +172,8 @@ class RoomProductionBatchRepositoryFailureTest {
         val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
         ))
+        
+        val snapshotBefore = captureProductionSnapshot(batchId)
         
         database.inventoryMovementDao().insert(
             InventoryMovementEntity(
@@ -218,6 +199,14 @@ class RoomProductionBatchRepositoryFailureTest {
             runBlocking { repository.post(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        // Except for the rogue movement we added, everything else must match
+        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
+        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
+        assertThat(snapshotAfter.movements.filter { it.id != "m-rogue" }).isEqualTo(snapshotBefore.movements)
+        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
+        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
     }
 
     @Test
@@ -227,14 +216,23 @@ class RoomProductionBatchRepositoryFailureTest {
         ))
         repository.post(batchId)
         
-        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
-        val move = moves.first()
+        val snapshotBefore = captureProductionSnapshot(batchId)
+        
+        val move = snapshotBefore.movements.first()
         corruptMovement(move.id, "quantityBaseSigned", "-999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.post(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
+        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
+        // Movements are different because of our corruption, but count shouldn't change
+        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
+        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
+        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
     }
 
     @Test
@@ -244,13 +242,21 @@ class RoomProductionBatchRepositoryFailureTest {
         ))
         repository.post(batchId)
         
-        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
-        corruptMovement(moves.first().id, "quantityBaseSigned", "-999")
+        val snapshotBefore = captureProductionSnapshot(batchId)
+        
+        corruptMovement(snapshotBefore.movements.first().id, "quantityBaseSigned", "-999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.void(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
+        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
+        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
+        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
+        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
     }
 
     @Test
@@ -261,14 +267,22 @@ class RoomProductionBatchRepositoryFailureTest {
         repository.post(batchId)
         repository.void(batchId)
 
-        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
-        val reversal = moves.find { it.movementType == InventoryMovementType.REVERSAL.name }!!
+        val snapshotBefore = captureProductionSnapshot(batchId)
+        
+        val reversal = snapshotBefore.movements.find { it.movementType == InventoryMovementType.REVERSAL.name }!!
         corruptMovement(reversal.id, "quantityBaseSigned", "999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.void(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
+        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
+        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
+        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
+        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
     }
 
     @Test
@@ -296,7 +310,7 @@ class RoomProductionBatchRepositoryFailureTest {
         
         failureBoundary.triggerOn(failurePoint)
         
-        assertThrows(RuntimeException::class.java) {
+        assertThrows(ForcedFailureException::class.java) {
             runBlocking { repository.void(batchId) }
         }
         

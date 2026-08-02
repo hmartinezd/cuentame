@@ -2,12 +2,25 @@ package com.miara.cuentame.core.database.repository
 
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.validation.ValidationError
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
 
 class InventoryMovementValidator {
     
     fun validateMovement(movement: InventoryMovementEntity) {
+        // Identity validation
+        if (movement.id.isBlank() ||
+            movement.restaurantId.isBlank() ||
+            movement.ingredientId.isBlank() ||
+            movement.areaId.isBlank() ||
+            movement.sourceDocumentId.isBlank() ||
+            movement.sourceOperationId.isBlank()
+        ) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+
         // Validate decimals
         try {
             BigDecimal(movement.quantityBaseSigned)
@@ -20,6 +33,13 @@ class InventoryMovementValidator {
         // Validate movement type
         try {
             InventoryMovementType.valueOf(movement.movementType)
+        } catch (e: Exception) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+
+        // Validate source document type
+        try {
+            SourceDocumentType.valueOf(movement.sourceDocumentType)
         } catch (e: Exception) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
@@ -67,7 +87,7 @@ class InventoryMovementValidator {
         if (reversal.sourceLineId != original.sourceLineId) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
-        if (reversal.sourceOperationId != "reversal:${original.id}") {
+        if (reversal.sourceOperationId != InventoryMovementOperationIds.reversal(original.id)) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 

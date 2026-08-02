@@ -170,7 +170,7 @@ class BackupProductionIntegrationTest {
         val journal = RestoreJournal(storage, codecs)
         val sessionId = "recovery-session"
         
-        // 3. Validate state before capture (Instruction 10)
+        // 3. Validate state before capture (Instruction 12)
         val backupDao = db.backupDao()
         val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
         val snapshotDto = snapshotSource.loadSnapshot("r1").dto
@@ -187,6 +187,10 @@ class BackupProductionIntegrationTest {
         // Assert exact manifest sets
         assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
         
+        // Validate manifest/snapshot contract
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotDto)).isNull()
+        
+        // Validate snapshot integrity
         BackupSnapshotIntegrityValidator.validate(snapshotDto, manifest).getOrThrow()
 
         // 4. Capture and persist rollback snapshot
@@ -211,9 +215,14 @@ class BackupProductionIntegrationTest {
         // 9. Verify data matches original state
         verifyAllTables()
 
-        // 10. Validate again after recovery (Instruction 10)
+        // 10. Validate again after recovery (Instruction 12)
         val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
         val postManifest = manifest.copy(tableMetadata = createTableMetadata(restoredSnapshot, 4))
+        
+        // Validate manifest/snapshot contract
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(postManifest, restoredSnapshot)).isNull()
+        
+        // Validate snapshot integrity
         BackupSnapshotIntegrityValidator.validate(restoredSnapshot, postManifest).getOrThrow()
         
         

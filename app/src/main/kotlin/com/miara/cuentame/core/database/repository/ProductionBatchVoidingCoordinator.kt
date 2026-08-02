@@ -14,6 +14,7 @@ import com.miara.cuentame.core.domain.validation.ProductionBatchValidationExcept
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -80,7 +81,7 @@ class ProductionBatchVoidingCoordinator @Inject constructor(
                     effectiveAt = voidedAt,
                     sourceDocumentType = SourceDocumentType.PRODUCTION_BATCH.name,
                     sourceDocumentId = batch.id,
-                    sourceOperationId = "reversal:${original.id}",
+                    sourceOperationId = InventoryMovementOperationIds.reversal(original.id),
                     sourceLineId = original.sourceLineId,
                     reversalOfMovementId = original.id,
                     createdAt = voidedAt

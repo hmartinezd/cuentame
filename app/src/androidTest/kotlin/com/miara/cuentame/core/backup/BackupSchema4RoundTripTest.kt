@@ -6,6 +6,7 @@ import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.RestoreDatabaseApplier
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.backup.model.RestaurantBackupDto
+import com.miara.cuentame.core.backup.platform.BackupManifestContractValidator
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
@@ -103,21 +104,18 @@ class BackupSchema4RoundTripTest {
 
         // Confirm the state passes BackupSnapshotIntegrityValidator
         val snapshotBefore = snapshotSource.loadSnapshot(restId.value).dto
-        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1,
-            createdAtUtc = Instant.now().toString(),
-            applicationId = "com.miara.cuentame",
-            appVersionName = "1.0.0",
-            appVersionCode = 1L,
-            databaseSchemaVersion = 4,
-            restaurantId = restId.value,
+        val manifest = createManifestForSnapshot(
+            snapshot = snapshotBefore,
+            schemaVersion = 4,
             restaurantName = "Test Restaurant",
             localeTag = "en-US",
-            currencyCode = "USD",
-            tableMetadata = emptyMap(),
-            attachments = emptyList(),
-            includedSections = emptyList()
+            currencyCode = "USD"
         )
+        
+        // Manifest count validation before capture
+        BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotBefore)
+        
+        // Snapshot integrity before capture
         val integrityResult = BackupSnapshotIntegrityValidator.validate(snapshotBefore, manifest)
         assertThat(integrityResult.isSuccess).isTrue()
 

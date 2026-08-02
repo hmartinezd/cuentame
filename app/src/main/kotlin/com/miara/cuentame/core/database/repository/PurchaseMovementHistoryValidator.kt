@@ -4,6 +4,7 @@ import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.domain.validation.ValidationError
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -92,7 +93,7 @@ class PurchaseMovementHistoryValidator {
         if (movement.areaId != line.areaId) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.sourceDocumentType != SourceDocumentType.PURCHASE_RECEIPT.name) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.sourceDocumentId != receipt.id) throw ValidationError.MalformedPurchaseMovementHistory
-        if (movement.sourceOperationId != "purchase-post:${receipt.id}:${line.id}") throw ValidationError.MalformedPurchaseMovementHistory
+        if (movement.sourceOperationId != InventoryMovementOperationIds.purchasePost(receipt.id, line.id)) throw ValidationError.MalformedPurchaseMovementHistory
         if (movement.reversalOfMovementId != null) throw ValidationError.MalformedPurchaseMovementHistory
         
         val qty = BigDecimal(movement.quantityBaseSigned)
@@ -125,7 +126,7 @@ class PurchaseMovementHistoryValidator {
         if (reversal.areaId != original.areaId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.sourceDocumentType != SourceDocumentType.PURCHASE_RECEIPT.name) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.sourceDocumentId != receipt.id) throw ValidationError.MalformedPurchaseMovementHistory
-        if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedPurchaseMovementHistory
+        if (reversal.sourceOperationId != InventoryMovementOperationIds.reversal(original.id)) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedPurchaseMovementHistory
         if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedPurchaseMovementHistory
         

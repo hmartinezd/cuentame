@@ -129,7 +129,7 @@ object BackupSnapshotIntegrityValidator {
         manifestRestaurantId: String,
     ): BackupSnapshotIntegrityException? {
         if (dto.restaurants.size != 1) {
-            return err(INVALID_RESTAURANT_COUNT, "Snapshot must contain exactly one restaurant; found ${dto.restaurants.size}")
+            return err(INVALID_RESTAURANT_COUNT, "Snapshot must contain exactly one restaurant")
         }
         val r = dto.restaurants[0]
         if (r.id != manifestRestaurantId) return err(RESTAURANT_ID_MISMATCH, "Snapshot restaurant ID does not match manifest")
@@ -1531,7 +1531,7 @@ object BackupSnapshotIntegrityValidator {
             if (move.areaId != component.sourceAreaId) return err(RELATIONSHIP_MISMATCH, "Production movement area mismatch")
             if (move.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Production movement document type mismatch")
             if (move.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Production movement document ID mismatch")
-            if (move.sourceOperationId != "production-post:${batch.id}:consume:${component.id}") return err(INVALID_MOVEMENT_GRAPH, "Production movement operation ID mismatch")
+            if (move.sourceOperationId != InventoryMovementOperationIds.productionConsumption(batch.id, component.id)) return err(INVALID_MOVEMENT_GRAPH, "Production movement operation identifier mismatch")
             
             val qty = BigDecimal(move.quantityBaseSigned)
             val expectedQty = BigDecimal(component.actualQuantityBase).negate()
@@ -1556,7 +1556,7 @@ object BackupSnapshotIntegrityValidator {
         if (outMove.areaId != batch.outputAreaId) return err(RELATIONSHIP_MISMATCH, "Production output area mismatch")
         if (outMove.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Production output document type mismatch")
         if (outMove.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Production output document ID mismatch")
-        if (outMove.sourceOperationId != "production-post:${batch.id}:output") return err(INVALID_MOVEMENT_GRAPH, "Production output operation ID mismatch")
+        if (outMove.sourceOperationId != InventoryMovementOperationIds.productionOutput(batch.id)) return err(INVALID_MOVEMENT_GRAPH, "Production movement operation identifier mismatch")
         if (outMove.sourceLineId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Production output source line mismatch")
 
         val outQty = BigDecimal(outMove.quantityBaseSigned)
@@ -1595,7 +1595,7 @@ object BackupSnapshotIntegrityValidator {
             if (reversal.areaId != original.areaId) return err(RELATIONSHIP_MISMATCH, "Reversal area mismatch")
             if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Reversal document type mismatch")
             if (reversal.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Reversal document ID mismatch")
-            if (reversal.sourceOperationId != "reversal:${original.id}") return err(INVALID_MOVEMENT_GRAPH, "Reversal operation ID mismatch")
+            if (reversal.sourceOperationId != InventoryMovementOperationIds.reversal(original.id)) return err(INVALID_MOVEMENT_GRAPH, "Production movement operation identifier mismatch")
             if (reversal.sourceLineId != original.sourceLineId) return err(INVALID_MOVEMENT_GRAPH, "Reversal source line mismatch")
             
             val revQtyResult = parseDecimal(reversal.quantityBaseSigned, "Invalid reversal quantity")

@@ -14,6 +14,7 @@ import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -87,7 +88,7 @@ class PurchasePostingCoordinator @Inject constructor(
                 effectiveAt = receipt.purchaseDate,
                 sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
                 sourceDocumentId = receipt.id,
-                sourceOperationId = "purchase-post:${receipt.id}:${lineEntity.id}",
+                sourceOperationId = InventoryMovementOperationIds.purchasePost(receipt.id, lineEntity.id),
                 sourceLineId = lineEntity.id,
                 reversalOfMovementId = null,
                 createdAt = timeProvider.now().toEpochMilli()

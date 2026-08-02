@@ -177,9 +177,37 @@ class RoomInventoryProjectionRebuilderFailureTest {
     }
 
     @Test
-    fun rebuild_invalidEnum_rollsBack() = runBlocking {
+    fun rebuild_reversal_before_original_effectiveAt_rollsBack() = runBlocking {
         seedValidProjections()
-        db.inventoryMovementDao().insert(createMovement("m1", "INVALID_TYPE", "10", "5", Instant.now()))
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(1), reversalOf = "m1"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_reversal_before_original_createdAt_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(createdAt = now.minusSeconds(1).toEpochMilli()))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_wrongSourceDocumentId_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(sourceDocumentId = "wrong"))
         
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { rebuilder.rebuildForIngredient(ingredientId) }

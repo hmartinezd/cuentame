@@ -41,8 +41,7 @@ class RoomInventorySnapshotServiceFailureTest {
         service = RoomInventorySnapshotService(
             db.inventoryMovementDao(),
             HistoricalInventoryCostCalculator(),
-            historyValidator,
-            inventoryValidator
+            historyValidator
         )
 
         runBlocking {
@@ -60,7 +59,32 @@ class RoomInventorySnapshotServiceFailureTest {
 
     @Test
     fun calculateAt_reversalWithoutTarget_throws() = runBlocking {
-        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = null))
+        // Manual construction to bypass createMovement's automatic opId fix
+        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "m0").copy(reversalOfMovementId = null))
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_reversal_identityMismatch_throws() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        // Area mismatch
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(areaId = "wrong_area"))
+
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_reversal_operationIdMismatch_throws() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        // Wrong operation ID
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(sourceOperationId = "wrong_op"))
+
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
         }

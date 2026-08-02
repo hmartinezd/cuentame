@@ -4,6 +4,7 @@ import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.WasteEventEntity
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -94,7 +95,7 @@ class WasteMovementHistoryValidator @Inject constructor(
         if (reversal.sourceLineId != event.id) {
             throw ValidationError.MalformedWasteMovementHistory
         }
-        if (reversal.sourceOperationId != "reversal:${original.id}") {
+        if (reversal.sourceOperationId != InventoryMovementOperationIds.reversal(original.id)) {
             throw ValidationError.MalformedWasteMovementHistory
         }
         if (reversal.effectiveAt != event.voidedAt) {
@@ -156,7 +157,7 @@ class WasteMovementHistoryValidator @Inject constructor(
         if (movement.sourceLineId != event.id) {
             throw ValidationError.MalformedWasteMovementHistory
         }
-        if (movement.sourceOperationId != "waste-post:${event.id}") {
+        if (movement.sourceOperationId != InventoryMovementOperationIds.wastePost(event.id)) {
             throw ValidationError.MalformedWasteMovementHistory
         }
 

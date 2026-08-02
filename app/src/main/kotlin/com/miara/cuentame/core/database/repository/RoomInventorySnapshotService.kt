@@ -21,8 +21,7 @@ import javax.inject.Inject
 class RoomInventorySnapshotService @Inject constructor(
     private val movementDao: InventoryMovementDao,
     private val costCalculator: HistoricalInventoryCostCalculator,
-    private val historyValidator: InventoryMovementHistoryValidator,
-    private val validator: InventoryMovementValidator
+    private val historyValidator: InventoryMovementHistoryValidator
 ) : InventorySnapshotService {
 
     override suspend fun calculateAt(

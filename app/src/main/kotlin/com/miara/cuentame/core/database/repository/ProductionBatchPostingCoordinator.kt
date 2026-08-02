@@ -17,6 +17,7 @@ import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailur
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -228,7 +229,7 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                     effectiveAt = batch.effectiveAt,
                     sourceDocumentType = SourceDocumentType.PRODUCTION_BATCH.name,
                     sourceDocumentId = batch.id,
-                    sourceOperationId = "production-post:${batch.id}:consume:${component.id}",
+                    sourceOperationId = InventoryMovementOperationIds.productionConsumption(batch.id, component.id),
                     sourceLineId = component.id,
                     reversalOfMovementId = null,
                     createdAt = postedAtMs
@@ -250,7 +251,7 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 effectiveAt = batch.effectiveAt,
                 sourceDocumentType = SourceDocumentType.PRODUCTION_BATCH.name,
                 sourceDocumentId = batch.id,
-                sourceOperationId = "production-post:${batch.id}:output",
+                sourceOperationId = InventoryMovementOperationIds.productionOutput(batch.id),
                 sourceLineId = batch.id,
                 reversalOfMovementId = null,
                 createdAt = postedAtMs

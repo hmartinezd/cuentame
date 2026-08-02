@@ -40,8 +40,7 @@ class RoomInventorySnapshotServiceTest {
         service = RoomInventorySnapshotService(
             db.inventoryMovementDao(),
             HistoricalInventoryCostCalculator(),
-            historyValidator,
-            inventoryValidator
+            historyValidator
         )
 
         runBlocking {
@@ -115,6 +114,38 @@ class RoomInventorySnapshotServiceTest {
         assertThat(snapshot.ingredientAverageCostBase).isNull()
     }
 
+    @Test
+    fun calculateAt_reversal_beforeEffectiveAt_doesNotCancel() = runBlocking {
+        val now = Instant.now()
+        val t0 = now.minusSeconds(300)
+        val t1 = now.minusSeconds(200) // snapshot at t1
+        val t2 = now.minusSeconds(100) // reversal at t2
+
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOf = "m1"))
+
+        val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t1)
+        assertThat(snapshot.hasEffectiveHistory).isTrue()
+        assertThat(snapshot.areaQuantityBase.compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertThat(snapshot.ingredientAverageCostBase?.compareTo(BigDecimal("5"))).isEqualTo(0)
+    }
+
+    @Test
+    fun calculateAt_reversal_afterEffectiveAt_cancels() = runBlocking {
+        val now = Instant.now()
+        val t0 = now.minusSeconds(300)
+        val t1 = now.minusSeconds(200)
+        val t2 = now.minusSeconds(100) // snapshot at t2
+
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t1, reversalOf = "m1"))
+
+        val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t2)
+        assertThat(snapshot.hasEffectiveHistory).isFalse()
+        assertThat(snapshot.areaQuantityBase.compareTo(BigDecimal.ZERO)).isEqualTo(0)
+        assertThat(snapshot.ingredientAverageCostBase).isNull()
+    }
+
     private fun createMovement(
         id: String,
         type: String,
@@ -134,7 +165,7 @@ class RoomInventorySnapshotServiceTest {
         effectiveAt = effectiveAt.toEpochMilli(),
         sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
         sourceDocumentId = "doc_1",
-        sourceOperationId = "op_$id",
+        sourceOperationId = if (type == "REVERSAL" && reversalOf != null) "reversal:$reversalOf" else "op_$id",
         sourceLineId = "line_1",
         reversalOfMovementId = reversalOf,
         createdAt = effectiveAt.toEpochMilli()
