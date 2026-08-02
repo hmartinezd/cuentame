@@ -8,6 +8,10 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
 
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
+import com.miara.cuentame.core.domain.service.SourceDocumentIdentity
+
 /**
  * Validates logical consistency, enum validity, document timestamps, movement graph semantics,
  * document lifecycle consistency, numeric semantics, bijection, and restaurant isolation.
@@ -20,6 +24,8 @@ import java.math.BigDecimal
  * (null = pass). The top-level [validate] function composes them with early exit.
  */
 object BackupSnapshotIntegrityValidator {
+
+    private val costCalculator = HistoricalInventoryCostCalculator()
 
     // ── public API ───────────────────────────────────────────────────────────────
 
@@ -158,19 +164,19 @@ object BackupSnapshotIntegrityValidator {
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
         if (balanceKeys.any { it.first.isBlank() || it.second.isBlank() || it.third.isBlank() }) {
-            return err(BLANK_PRIMARY_KEY, "Blank composite key field in inventory_balance_projections")
+            return err(BLANK_PRIMARY_KEY, "Blank composite key field in inventory_balance_projection")
         }
         if (balanceKeys.distinct().size != balanceKeys.size) {
-            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in inventory_balance_projections")
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in inventory_balance_projection")
         }
 
         // Cost projection composite keys
         val costKeys = dto.ingredientCostProjections.map { Pair(it.restaurantId, it.ingredientId) }
         if (costKeys.any { it.first.isBlank() || it.second.isBlank() }) {
-            return err(BLANK_PRIMARY_KEY, "Blank composite key field in ingredient_cost_projections")
+            return err(BLANK_PRIMARY_KEY, "Blank composite key field in ingredient_cost_projection")
         }
         if (costKeys.distinct().size != costKeys.size) {
-            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in ingredient_cost_projections")
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in ingredient_cost_projection")
         }
 
         return null
@@ -185,8 +191,8 @@ object BackupSnapshotIntegrityValidator {
         if (dto.stockCounts.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in stock_counts")
         if (dto.wasteEvents.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in waste_events")
         if (dto.inventoryMovements.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_movements")
-        if (dto.inventoryBalanceProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_balance_projections")
-        if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projections")
+        if (dto.inventoryBalanceProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_balance_projection")
+        if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projection")
         if (dto.preparationRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in preparation_recipes")
         if (dto.productionBatches.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in production_batches")
 
@@ -1005,7 +1011,7 @@ object BackupSnapshotIntegrityValidator {
         for (proj in dto.inventoryBalanceProjections) {
             val key = Pair(proj.ingredientId, proj.areaId)
             val expected = computedBalances.getOrDefault(key, BigDecimal.ZERO)
-            val actualResult = parseDecimal(proj.quantityBase, "Invalid numeric format in inventory_balance_projections.quantityBase")
+            val actualResult = parseDecimal(proj.quantityBase, "Invalid numeric format in inventory_balance_projection.quantityBase")
             val actual = when (actualResult) {
                 is BigDecimalResult.Err -> return err(actualResult.code, actualResult.msg)
                 is BigDecimalResult.Ok -> actualResult.value
@@ -1025,58 +1031,40 @@ object BackupSnapshotIntegrityValidator {
 
         val movementsByIngredient = dto.inventoryMovements
             .filter { it.id !in reversedOriginalIds && it.movementType != InventoryMovementType.REVERSAL.name }
-            .sortedWith(compareBy({ it.effectiveAt }, { it.createdAt }, { it.id }))
             .groupBy { it.ingredientId }
 
         val costProjByIng = dto.ingredientCostProjections.associateBy { it.ingredientId }
 
         for (ing in dto.ingredients) {
-            val moves = movementsByIngredient[ing.id] ?: emptyList()
-            var currentTotalQuantity = BigDecimal.ZERO
-            var currentAverageCost = BigDecimal.ZERO
-            var hasEstablishedCost = false
-
-            for (move in moves) {
-                val moveQty = BigDecimal(move.quantityBaseSigned)
-                val moveType = InventoryMovementType.valueOf(move.movementType)
-
-                when (moveType) {
-                    InventoryMovementType.PURCHASE,
-                    InventoryMovementType.OPENING_BALANCE,
-                    InventoryMovementType.PRODUCTION_OUTPUT -> {
-                        val incomingQuantity = moveQty
-                        val incomingUnitCost = move.unitCostBaseSnapshot?.let { BigDecimal(it) }
-
-                        if (incomingQuantity > BigDecimal.ZERO && incomingUnitCost != null) {
-                            currentAverageCost = if (currentTotalQuantity <= BigDecimal.ZERO) {
-                                incomingUnitCost
-                            } else {
-                                val currentTotalValue = currentTotalQuantity.multiply(currentAverageCost, java.math.MathContext.DECIMAL128)
-                                val purchaseTotalValue = incomingQuantity.multiply(incomingUnitCost, java.math.MathContext.DECIMAL128)
-                                val newTotalQuantity = currentTotalQuantity.add(incomingQuantity)
-                                currentTotalValue.add(purchaseTotalValue).divide(newTotalQuantity, java.math.MathContext.DECIMAL128)
-                            }
-                            hasEstablishedCost = true
-                        }
-                        currentTotalQuantity = currentTotalQuantity.add(incomingQuantity)
-                    }
-                    else -> {
-                        currentTotalQuantity = currentTotalQuantity.add(moveQty)
-                    }
-                }
+            val moves = (movementsByIngredient[ing.id] ?: emptyList()).map { move ->
+                HistoricalInventoryMovement(
+                    id = move.id,
+                    movementType = InventoryMovementType.valueOf(move.movementType),
+                    quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                    unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                    sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                    sourceDocumentId = move.sourceDocumentId,
+                    effectiveAt = move.effectiveAt,
+                    createdAt = move.createdAt
+                )
             }
 
+            val result = costCalculator.calculate(moves)
             val proj = costProjByIng[ing.id]
-            if (hasEstablishedCost) {
+
+            if (result.hasEstablishedCost) {
                 if (proj == null) return err(INVALID_COST_PROJECTION, "Missing cost projection for ingredient with established cost history")
                 if (proj.averageUnitCostBase == null) return err(INVALID_COST_PROJECTION, "Cost projection must have value when history exists")
                 val actual = BigDecimal(proj.averageUnitCostBase)
-                if (actual.compareTo(currentAverageCost) != 0) {
+                if (actual.compareTo(result.averageUnitCostBase!!) != 0) {
                     return err(INVALID_COST_PROJECTION, "Cost projection value mismatch")
                 }
             } else {
-                if (proj != null && proj.averageUnitCostBase != null && BigDecimal(proj.averageUnitCostBase).compareTo(BigDecimal.ZERO) != 0) {
-                    return err(INVALID_COST_PROJECTION, "Cost projection must be zero or null when no cost history exists")
+                if (proj != null) {
+                    // Contract: Row must be absent or averageUnitCostBase must be null
+                    if (proj.averageUnitCostBase != null) {
+                        return err(INVALID_COST_PROJECTION, "Cost projection must be null when no cost history exists")
+                    }
                 }
             }
         }
@@ -1276,6 +1264,14 @@ object BackupSnapshotIntegrityValidator {
     }
 
     private fun validateProductionBatches(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        val reversedOriginalIds = dto.inventoryMovements
+            .mapNotNull { it.reversalOfMovementId }
+            .toSet()
+
+        val movementsByIngredient = dto.inventoryMovements
+            .filter { it.id !in reversedOriginalIds && it.movementType != InventoryMovementType.REVERSAL.name }
+            .groupBy { it.ingredientId }
+
         for (batch in dto.productionBatches) {
             val status = try {
                 DocumentStatus.valueOf(batch.status)
@@ -1386,7 +1382,7 @@ object BackupSnapshotIntegrityValidator {
             var computedTotalCost = BigDecimal.ZERO
             for (comp in components) {
                 if (comp.productionBatchId != batch.id) return err(RELATIONSHIP_MISMATCH, "Component parent mismatch")
-                if (!seenIngredientsInBatch.add(comp.componentIngredientId)) return err(RELATIONSHIP_MISMATCH, "Duplicate component ingredient in batch")
+                if (!seenIngredientsInBatch.add(comp.componentIngredientId)) return err(DUPLICATE_PRODUCTION_COMPONENT, "Duplicate component ingredient in batch")
                 if (comp.sourceRecipeComponentIdSnapshot.isBlank()) return err(BLANK_PRIMARY_KEY, "Blank sourceRecipeComponentIdSnapshot")
 
                 // Timestamps
@@ -1441,11 +1437,7 @@ object BackupSnapshotIntegrityValidator {
                     return err(INVALID_NUMERIC_RANGE, "Component actual conversion mismatch")
                 }
 
-                if (status == DocumentStatus.DRAFT) {
-                    if (comp.unitCostBaseSnapshot != null || comp.totalCostSnapshot != null) {
-                        return err(INVALID_DOCUMENT_LIFECYCLE, "DRAFT component must not have cost snapshots")
-                    }
-                } else {
+                if (status != DocumentStatus.DRAFT) {
                     if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED component must have cost snapshots")
                     }
@@ -1453,6 +1445,31 @@ object BackupSnapshotIntegrityValidator {
                     val tCost = BigDecimal(comp.totalCostSnapshot)
                     if (uCost < BigDecimal.ZERO || tCost < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Component costs must be >= 0")
                     if (tCost.compareTo(aQtyBase.multiply(uCost)) != 0) return err(INVALID_NUMERIC_RANGE, "Component total cost mismatch")
+
+                    // Historical cost validation
+                    val moves = (movementsByIngredient[comp.componentIngredientId] ?: emptyList()).map { move ->
+                        HistoricalInventoryMovement(
+                            id = move.id,
+                            movementType = InventoryMovementType.valueOf(move.movementType),
+                            quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                            unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                            sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                            sourceDocumentId = move.sourceDocumentId,
+                            effectiveAt = move.effectiveAt,
+                            createdAt = move.createdAt
+                        )
+                    }
+                    val histResult = costCalculator.calculate(
+                        moves,
+                        excludedSourceDocument = SourceDocumentIdentity(SourceDocumentType.PRODUCTION_BATCH, batch.id)
+                    )
+                    if (!histResult.hasEstablishedCost) {
+                        return err(INVALID_PRODUCTION_COST_HISTORY, "Production component cost unavailable in history")
+                    }
+                    if (uCost.compareTo(histResult.averageUnitCostBase!!) != 0) {
+                        return err(INVALID_PRODUCTION_COST_HISTORY, "Production component cost does not match historical average")
+                    }
+
                     computedTotalCost = computedTotalCost.add(tCost)
                 }
             }
@@ -1462,7 +1479,6 @@ object BackupSnapshotIntegrityValidator {
                 if (totalSnapshot.compareTo(computedTotalCost) != 0) return err(INVALID_NUMERIC_RANGE, "Batch total cost does not match components sum")
                 
                 // Value conservation
-                // Sum(consumption values) + output value = 0
                 val consumptionValueSum = components.map { BigDecimal(it.totalCostSnapshot!!).negate() }
                     .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
                 if (consumptionValueSum.add(totalSnapshot).compareTo(BigDecimal.ZERO) != 0) {
@@ -1480,13 +1496,19 @@ object BackupSnapshotIntegrityValidator {
     ): BackupSnapshotIntegrityException? {
         val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
         val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
+        val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
 
         if (consumptionMoves.size != components.size) return err(INVALID_MOVEMENT_GRAPH, "Production movement count mismatch")
         if (outputMoves.size != 1) return err(INVALID_MOVEMENT_GRAPH, "Production output movement count mismatch")
 
+        val consumptionLineIds = consumptionMoves.mapNotNull { it.sourceLineId }
+        if (consumptionLineIds.size != consumptionMoves.size) return err(INVALID_MOVEMENT_GRAPH, "Production consumption missing sourceLineId")
+        if (consumptionLineIds.distinct().size != consumptionLineIds.size) return err(INVALID_MOVEMENT_GRAPH, "Duplicate production consumption sourceLineId")
+        if (consumptionLineIds.toSet() != components.map { it.id }.toSet()) return err(INVALID_MOVEMENT_GRAPH, "Production consumption sourceLineId set mismatch")
+
         val consumptionByLineId = consumptionMoves.associateBy { it.sourceLineId }
         for (component in components) {
-            val move = consumptionByLineId[component.id] ?: return err(INVALID_MOVEMENT_GRAPH, "Missing consumption movement for component")
+            val move = consumptionByLineId[component.id]!!
             
             if (move.restaurantId != batch.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Production movement restaurant mismatch")
             if (move.ingredientId != component.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Production movement ingredient mismatch")
@@ -1534,6 +1556,47 @@ object BackupSnapshotIntegrityValidator {
 
         if (outMove.effectiveAt != batch.effectiveAt) return err(INVALID_TIMESTAMP_ORDER, "Production output effectiveAt mismatch")
         if (outMove.reversalOfMovementId != null) return err(INVALID_REVERSAL, "Original production movement must not have reversal ID")
+
+        // Reversals
+        if (batch.status == DocumentStatus.VOIDED.name) {
+            val originalMoves = consumptionMoves + outMove
+            val reversalTargetIds = reversals.mapNotNull { it.reversalOfMovementId }
+            if (reversalTargetIds.size != reversals.size) return err(INVALID_REVERSAL, "Production reversal missing target ID")
+            if (reversalTargetIds.distinct().size != reversalTargetIds.size) return err(INVALID_REVERSAL, "Duplicate production reversal target")
+            if (reversalTargetIds.toSet() != originalMoves.map { it.id }.toSet()) return err(INVALID_REVERSAL, "Production reversal target set mismatch")
+
+            val reversalsByTargetId = reversals.associateBy { it.reversalOfMovementId }
+            for (original in originalMoves) {
+                val reversal = reversalsByTargetId[original.id]!!
+                if (reversal.movementType != InventoryMovementType.REVERSAL.name) return err(INVALID_REVERSAL, "Invalid reversal movement type")
+                if (reversal.restaurantId != original.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Reversal restaurant mismatch")
+                if (reversal.ingredientId != original.ingredientId) return err(RELATIONSHIP_MISMATCH, "Reversal ingredient mismatch")
+                if (reversal.areaId != original.areaId) return err(RELATIONSHIP_MISMATCH, "Reversal area mismatch")
+                if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Reversal document type mismatch")
+                if (reversal.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Reversal document ID mismatch")
+                if (reversal.sourceOperationId != "reversal:${original.id}") return err(INVALID_MOVEMENT_GRAPH, "Reversal operation ID mismatch")
+                if (reversal.sourceLineId != original.sourceLineId) return err(INVALID_MOVEMENT_GRAPH, "Reversal source line mismatch")
+                
+                val revQty = BigDecimal(reversal.quantityBaseSigned)
+                val origQty = BigDecimal(original.quantityBaseSigned)
+                if (revQty.compareTo(origQty.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal quantity mismatch")
+                
+                if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
+                    return err(INVALID_NUMERIC_RANGE, "Reversal unit cost mismatch")
+                }
+                
+                val revTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
+                val origTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
+                if (revTotal == null && origTotal != null) return err(INVALID_NUMERIC_RANGE, "Reversal total value nullability mismatch")
+                if (revTotal != null && origTotal == null) return err(INVALID_NUMERIC_RANGE, "Reversal total value nullability mismatch")
+                if (revTotal != null && origTotal != null) {
+                    if (revTotal.compareTo(origTotal.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal total value mismatch")
+                }
+                
+                if (reversal.effectiveAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal effectiveAt mismatch")
+                if (reversal.createdAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal createdAt mismatch")
+            }
+        }
 
         return null
     }

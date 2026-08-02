@@ -13,7 +13,7 @@ import com.miara.cuentame.core.domain.service.CountComparisonCalculator
 import com.miara.cuentame.core.domain.service.IngredientUnitConverter
 import com.miara.cuentame.core.domain.service.InventoryBalanceCalculator
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
-import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.domain.service.InventoryMovementService
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.service.InventorySnapshotService
@@ -63,7 +63,7 @@ object CommonModule {
 
     @Provides
     @Singleton
-    fun provideWeightedAverageCostCalculator(): WeightedAverageCostCalculator = WeightedAverageCostCalculator()
+    fun provideHistoricalInventoryCostCalculator(): HistoricalInventoryCostCalculator = HistoricalInventoryCostCalculator()
 
     @Provides
     @Singleton

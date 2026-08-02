@@ -25,12 +25,16 @@ The `batchMultiplier` scales recipe quantities to expected batch quantities.
 ## Historical Costing and Conservation
 Posting calculates costs based on the batch's `effectiveAt` time using historical movement history.
 - **Cost-bearing Inflows**: `PURCHASE`, `OPENING_BALANCE`, and `PRODUCTION_OUTPUT` are the only movements that establish or change an ingredient's weighted average cost.
-- **Nested Preparations**: A prepared ingredient produced by one batch establishes a historical cost that can be consumed by a subsequent batch.
+- **Unavailable Cost**: If no cost-bearing history exists for an ingredient, its cost is represented as `null` (row absent or `null` in DB), never a numeric zero.
+- **Movement Exclusion**: To ensure internal consistency, a batch's own output movement is excluded from the historical cost calculation of its own components, even if they share the same `effectiveAt` timestamp.
+- **Nested Preparations**: A prepared ingredient produced by one batch establishes a historical cost that can be consumed by a subsequent batch. Canonical ordering (`effectiveAt`, `createdAt`, `id`) ensures deterministic results.
+- **Precision**: All cost calculations use `MathContext.DECIMAL128` to prevent drift and ensure conservation.
 - **Cost Conservation**: For every posted batch, the sum of consumption movement total values plus the output movement total value equals zero (numerically equivalent via `BigDecimal`).
 
 ## Transaction and Idempotency
 - **Atomic Posting**: Posting is performed in a single Room transaction that validates the draft, canonicalizes quantities, calculates costs, persists snapshots, inserts movements, and updates projections.
-- **Failure Boundaries**: Integrated failure points ensure the database rolls back to the `DRAFT` state if any step of the posting or voiding process fails.
+- **Failure Boundaries**: Integrated failure points ensure the database rolls back to the `DRAFT` state (on post) or `POSTED` state (on void) if any step fails.
+- **Runtime Integrity**: Projections and snapshots are guarded by strict movement-history validation. Any corruption in movements or reversals results in a typed `MovementHistoryConflict` failure.
 - **Idempotency**: Reposting a `POSTED` batch or revoiding a `VOIDED` batch performs a full integrity check of existing movements/reversals and returns success if they match the document state exactly.
 
 ## Backup and Restore (Format v1)
@@ -39,7 +43,10 @@ The Backup Format v1 supports Database Schemas 2, 3, and 4.
 - **Schema 3**: Includes preparation recipes but no production batches.
 - **Schema 4**: Includes preparation recipes and production batches.
 - **Payload Boundaries**: Manifest metadata and DTO payloads are strictly enforced by schema. For example, a Schema 3 backup must not contain production records.
-- **Integrity Validation**: Backups verify production numeric fields, foreign keys, lifecycle timestamps, and exact movement coverage. Balance and cost projections are reconstructed from effective movement history to ensure correctness.
+- **Integrity Validation**: Backups verify production numeric fields, foreign keys, lifecycle timestamps, and exact movement coverage. 
+- **Deep Historical Validation**: Beyond internal consistency, Backups validate that stored production component costs match the historical average cost reconstructed from the movement graph up to that point.
+- **Exact Reversal Verification**: For `VOIDED` batches, every reversal movement is validated for exact field-level identity and negation against the original production movement.
+- **Projection Reconstruction**: Balance and cost projections are reconstructed from effective movement history using the shared `HistoricalInventoryCostCalculator` to ensure total consistency.
 
 ## Implementation Status
-Production Batches domain, historical costing, posting, voiding and Backup/Restore are complete and verified. Production UI is deferred.
+Production Batches domain, historical costing, posting, voiding and Backup/Restore are complete, internally consistent and verified. The foundation is ready for Production UI.

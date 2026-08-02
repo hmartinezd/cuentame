@@ -46,9 +46,14 @@ class Migration3To4Test {
         db.execSQL("INSERT INTO stock_counts (id, restaurantId, name, startedAt, effectiveAt, status, createdAt, updatedAt) VALUES ('sc-1', 'rest-1', 'Count 1', 1000, 1000, 'DRAFT', 100, 200)")
         db.execSQL("INSERT INTO waste_events (id, restaurantId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, reason, effectiveAt, status, createdAt, updatedAt) VALUES ('w-1', 'rest-1', 'ing-1', 'area-1', 'opt-1', '1.0', '1.0', 'EXPIRED', 1000, 'DRAFT', 100, 200)")
         db.execSQL("INSERT INTO inventory_movements (id, restaurantId, ingredientId, areaId, movementType, quantityBaseSigned, effectiveAt, sourceDocumentType, sourceDocumentId, sourceOperationId, createdAt) VALUES ('move-1', 'rest-1', 'ing-1', 'area-1', 'PURCHASE', '1.0', 1000, 'PURCHASE_RECEIPT', 'pr-1', 'op-1', 100)")
-        db.execSQL("INSERT INTO inventory_balance_projections (restaurantId, ingredientId, areaId, quantityBase, updatedAt) VALUES ('rest-1', 'ing-1', 'area-1', '1.0', 1000)")
+        db.execSQL("INSERT INTO inventory_balance_projection (restaurantId, ingredientId, areaId, quantityBase, updatedAt) VALUES ('rest-1', 'ing-1', 'area-1', '1.0', 1000)")
         db.execSQL("INSERT INTO ingredient_cost_projection (restaurantId, ingredientId, averageUnitCostBase, updatedAt) VALUES ('rest-1', 'ing-1', '10.0', 1000)")
-        db.execSQL("INSERT INTO preparation_recipes (id, restaurantId, outputIngredientId, name, normalizedName, status, createdAt, updatedAt) VALUES ('rec-1', 'rest-1', 'ing-1', 'Recipe 1', 'recipe 1', 'ACTIVE', 100, 200)")
+        
+        // Valid version-3 recipe graph: output != component
+        db.execSQL("INSERT INTO ingredients (id, restaurantId, name, normalizedName, baseUnitId, isActive, createdAt, updatedAt) VALUES ('ing-output', 'rest-1', 'Output', 'output', 'u1', 1, 100, 200)")
+        db.execSQL("INSERT INTO ingredient_unit_options (id, ingredientId, displayName, shortLabel, factorToBase, isBase, isDefaultCount, isDefaultPurchase, isActive, createdAt, updatedAt) VALUES ('opt-yield', 'ing-output', 'Yield Opt', 'Y1', '1.0', 1, 1, 1, 1, 100, 200)")
+        
+        db.execSQL("INSERT INTO preparation_recipes (id, restaurantId, outputIngredientId, name, normalizedName, yieldUnitOptionId, standardYieldQuantity, standardYieldQuantityBase, status, createdAt, updatedAt) VALUES ('rec-1', 'rest-1', 'ing-output', 'Recipe 1', 'recipe 1', 'opt-yield', '10.0', '10.0', 'ACTIVE', 100, 200)")
         db.execSQL("INSERT INTO preparation_recipe_components (id, recipeId, componentIngredientId, unitOptionId, quantityEntered, quantityBase, sortOrder, createdAt, updatedAt) VALUES ('comp-1', 'rec-1', 'ing-1', 'opt-1', '1.0', '1.0', 0, 100, 200)")
 
         db.close()
@@ -60,12 +65,26 @@ class Migration3To4Test {
         val tablesToVerify = listOf(
             "restaurants", "inventory_areas", "ingredient_categories", "ingredients", 
             "ingredient_unit_options", "suppliers", "purchase_receipts", "purchase_lines", 
-            "stock_counts", "waste_events", "inventory_movements", "inventory_balance_projections",
+            "stock_counts", "waste_events", "inventory_movements", "inventory_balance_projection",
             "ingredient_cost_projection", "preparation_recipes", "preparation_recipe_components"
         )
         for (table in tablesToVerify) {
             val cursor = db.query("SELECT * FROM $table")
             assertThat(cursor.count).isAtLeast(1)
+            
+            if (table == "inventory_balance_projection") {
+                cursor.moveToFirst()
+                assertThat(cursor.getString(cursor.getColumnIndexOrThrow("quantityBase"))).isEqualTo("1.0")
+            }
+            if (table == "ingredient_cost_projection") {
+                cursor.moveToFirst()
+                assertThat(cursor.getString(cursor.getColumnIndexOrThrow("averageUnitCostBase"))).isEqualTo("10.0")
+            }
+            if (table == "preparation_recipes") {
+                cursor.moveToFirst()
+                assertThat(cursor.getString(cursor.getColumnIndexOrThrow("outputIngredientId"))).isEqualTo("ing-output")
+            }
+            
             cursor.close()
         }
 

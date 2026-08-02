@@ -72,48 +72,61 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         batch: ProductionBatchEntity,
         components: List<ProductionBatchComponentEntity>
     ) {
-        if (batch.totalComponentCostSnapshot == null || batch.outputUnitCostBaseSnapshot == null) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
+        try {
+            val batchTotalCost = parseRequiredDecimal(batch.totalComponentCostSnapshot)
+            val batchUnitCost = parseRequiredDecimal(batch.outputUnitCostBaseSnapshot)
+            val batchActualOutputBase = parseRequiredDecimal(batch.actualOutputQuantityBase)
 
-        var computedTotalCost = BigDecimal.ZERO
-        components.forEach { comp ->
-            if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
+            if (batchActualOutputBase <= BigDecimal.ZERO) throw ValidationError.MalformedProductionMovementHistory
+            if (batchTotalCost < BigDecimal.ZERO) throw ValidationError.MalformedProductionMovementHistory
+            if (batchUnitCost < BigDecimal.ZERO) throw ValidationError.MalformedProductionMovementHistory
+
+            var computedTotalCost = BigDecimal.ZERO
+            components.forEach { comp ->
+                val uCost = parseRequiredDecimal(comp.unitCostBaseSnapshot)
+                val tCost = parseRequiredDecimal(comp.totalCostSnapshot)
+                val qty = parseRequiredDecimal(comp.actualQuantityBase)
+                
+                if (uCost < BigDecimal.ZERO || tCost < BigDecimal.ZERO || qty <= BigDecimal.ZERO) {
+                    throw ValidationError.MalformedProductionMovementHistory
+                }
+                
+                if (tCost.compareTo(uCost.multiply(qty, MathContext.DECIMAL128)) != 0) {
+                    throw ValidationError.MalformedProductionMovementHistory
+                }
+                computedTotalCost = computedTotalCost.add(tCost)
+            }
+
+            if (computedTotalCost.compareTo(batchTotalCost) != 0) {
                 throw ValidationError.MalformedProductionMovementHistory
             }
-            val uCost = BigDecimal(comp.unitCostBaseSnapshot)
-            val tCost = BigDecimal(comp.totalCostSnapshot)
-            val qty = BigDecimal(comp.actualQuantityBase)
-            if (tCost.compareTo(uCost.multiply(qty)) != 0) {
+
+            val expectedOutputUnitCost = computedTotalCost.divide(
+                batchActualOutputBase,
+                MathContext.DECIMAL128
+            )
+            if (expectedOutputUnitCost.compareTo(batchUnitCost) != 0) {
                 throw ValidationError.MalformedProductionMovementHistory
             }
-            computedTotalCost = computedTotalCost.add(tCost)
-        }
-
-        if (computedTotalCost.compareTo(BigDecimal(batch.totalComponentCostSnapshot)) != 0) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        val expectedOutputUnitCost = computedTotalCost.divide(
-            BigDecimal(batch.actualOutputQuantityBase),
-            MathContext.DECIMAL128
-        )
-        if (expectedOutputUnitCost.compareTo(BigDecimal(batch.outputUnitCostBaseSnapshot)) != 0) {
+        } catch (_: Exception) {
             throw ValidationError.MalformedProductionMovementHistory
         }
     }
 
     private fun validateValueConservation(movements: List<InventoryMovementEntity>) {
-        val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
-        val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
-        
-        val consumptionSum = consumptionMoves.mapNotNull { it.totalValueSnapshot?.let { v -> BigDecimal(v) } }
-            .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
-        
-        val outputValue = outputMoves.mapNotNull { it.totalValueSnapshot?.let { v -> BigDecimal(v) } }
-            .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
-        
-        if (consumptionSum.add(outputValue).compareTo(BigDecimal.ZERO) != 0) {
+        try {
+            val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
+            val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
+            
+            val consumptionSum = consumptionMoves.map { parseRequiredDecimal(it.totalValueSnapshot) }
+                .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
+            
+            val outputValue = parseRequiredDecimal(outputMoves.first().totalValueSnapshot)
+            
+            if (consumptionSum.add(outputValue).compareTo(BigDecimal.ZERO) != 0) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+        } catch (_: Exception) {
             throw ValidationError.MalformedProductionMovementHistory
         }
     }
@@ -172,60 +185,72 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         component: ProductionBatchComponentEntity,
         movement: InventoryMovementEntity
     ) {
-        if (movement.movementType != InventoryMovementType.PRODUCTION_CONSUMPTION.name) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.restaurantId != batch.restaurantId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.ingredientId != component.componentIngredientId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.areaId != component.sourceAreaId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceOperationId != "production-post:${batch.id}:consume:${component.id}") throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceLineId != component.id) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
+        try {
+            if (movement.movementType != InventoryMovementType.PRODUCTION_CONSUMPTION.name) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.restaurantId != batch.restaurantId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.ingredientId != component.componentIngredientId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.areaId != component.sourceAreaId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceOperationId != "production-post:${batch.id}:consume:${component.id}") throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceLineId != component.id) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
 
-        val qty = BigDecimal(movement.quantityBaseSigned)
-        if (qty >= BigDecimal.ZERO || qty.compareTo(BigDecimal(component.actualQuantityBase).negate()) != 0) {
+            val qty = parseRequiredDecimal(movement.quantityBaseSigned)
+            val componentQty = parseRequiredDecimal(component.actualQuantityBase)
+            if (qty >= BigDecimal.ZERO || qty.compareTo(componentQty.negate()) != 0) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            if (!isNumericallyEquivalent(movement.unitCostBaseSnapshot, component.unitCostBaseSnapshot)) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            val totalValue = parseRequiredDecimal(movement.totalValueSnapshot)
+            val componentTotalCost = parseRequiredDecimal(component.totalCostSnapshot)
+            if (totalValue.compareTo(componentTotalCost.negate()) != 0) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            if (movement.effectiveAt != batch.effectiveAt) throw ValidationError.MalformedProductionMovementHistory
+        } catch (_: Exception) {
             throw ValidationError.MalformedProductionMovementHistory
         }
-
-        if (!isNumericallyEquivalent(movement.unitCostBaseSnapshot, component.unitCostBaseSnapshot)) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        if (!isNumericallyEquivalent(movement.totalValueSnapshot, component.totalCostSnapshot?.let { BigDecimal(it).negate().toPlainString() })) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        if (movement.effectiveAt != batch.effectiveAt) throw ValidationError.MalformedProductionMovementHistory
     }
 
     private fun validateOutputMovementMatchesBatch(
         batch: ProductionBatchEntity,
         movement: InventoryMovementEntity
     ) {
-        if (movement.movementType != InventoryMovementType.PRODUCTION_OUTPUT.name) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.restaurantId != batch.restaurantId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.ingredientId != batch.outputIngredientId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.areaId != batch.outputAreaId) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceOperationId != "production-post:${batch.id}:output") throw ValidationError.MalformedProductionMovementHistory
-        if (movement.sourceLineId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-        if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
+        try {
+            if (movement.movementType != InventoryMovementType.PRODUCTION_OUTPUT.name) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.restaurantId != batch.restaurantId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.ingredientId != batch.outputIngredientId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.areaId != batch.outputAreaId) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceOperationId != "production-post:${batch.id}:output") throw ValidationError.MalformedProductionMovementHistory
+            if (movement.sourceLineId != batch.id) throw ValidationError.MalformedProductionMovementHistory
+            if (movement.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
 
-        val qty = BigDecimal(movement.quantityBaseSigned)
-        if (qty <= BigDecimal.ZERO || qty.compareTo(BigDecimal(batch.actualOutputQuantityBase)) != 0) {
+            val qty = parseRequiredDecimal(movement.quantityBaseSigned)
+            val batchQty = parseRequiredDecimal(batch.actualOutputQuantityBase)
+            if (qty <= BigDecimal.ZERO || qty.compareTo(batchQty) != 0) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            if (!isNumericallyEquivalent(movement.unitCostBaseSnapshot, batch.outputUnitCostBaseSnapshot)) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            if (!isNumericallyEquivalent(movement.totalValueSnapshot, batch.totalComponentCostSnapshot)) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            if (movement.effectiveAt != batch.effectiveAt) throw ValidationError.MalformedProductionMovementHistory
+        } catch (_: Exception) {
             throw ValidationError.MalformedProductionMovementHistory
         }
-
-        if (!isNumericallyEquivalent(movement.unitCostBaseSnapshot, batch.outputUnitCostBaseSnapshot)) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        if (!isNumericallyEquivalent(movement.totalValueSnapshot, batch.totalComponentCostSnapshot)) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        if (movement.effectiveAt != batch.effectiveAt) throw ValidationError.MalformedProductionMovementHistory
     }
 
     private fun validateReversalMatchesOriginal(
@@ -233,40 +258,54 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         original: InventoryMovementEntity,
         reversal: InventoryMovementEntity
     ) {
-        if (reversal.movementType != InventoryMovementType.REVERSAL.name) throw ValidationError.MalformedProductionMovementHistory
-        if (original.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
+        try {
+            if (reversal.movementType != InventoryMovementType.REVERSAL.name) throw ValidationError.MalformedProductionMovementHistory
+            if (original.reversalOfMovementId != null) throw ValidationError.MalformedProductionMovementHistory
 
-        if (reversal.restaurantId != original.restaurantId) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.ingredientId != original.ingredientId) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.areaId != original.areaId) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedProductionMovementHistory
-        if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.restaurantId != original.restaurantId) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.ingredientId != original.ingredientId) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.areaId != original.areaId) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.sourceDocumentId != batch.id) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.sourceOperationId != "reversal:${original.id}") throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.sourceLineId != original.sourceLineId) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.reversalOfMovementId != original.id) throw ValidationError.MalformedProductionMovementHistory
 
-        if (BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
-            throw ValidationError.MalformedProductionMovementHistory
-        }
-
-        val originalTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
-        val reversalTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
-
-        if (originalTotal == null && reversalTotal != null) throw ValidationError.MalformedProductionMovementHistory
-        if (originalTotal != null && reversalTotal == null) throw ValidationError.MalformedProductionMovementHistory
-        if (originalTotal != null && reversalTotal != null) {
-            if (reversalTotal.compareTo(originalTotal.negate()) != 0) {
+            val revQty = parseRequiredDecimal(reversal.quantityBaseSigned)
+            val origQty = parseRequiredDecimal(original.quantityBaseSigned)
+            if (revQty.compareTo(origQty.negate()) != 0) {
                 throw ValidationError.MalformedProductionMovementHistory
             }
-        }
 
-        if (reversal.effectiveAt != batch.voidedAt) throw ValidationError.MalformedProductionMovementHistory
-        // Reversal createdAt should be when the void happened
-        if (reversal.createdAt != batch.voidedAt) throw ValidationError.MalformedProductionMovementHistory
+            if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+
+            val originalTotal = original.totalValueSnapshot?.let { parseRequiredDecimal(it) }
+            val reversalTotal = reversal.totalValueSnapshot?.let { parseRequiredDecimal(it) }
+
+            if (originalTotal == null && reversalTotal != null) throw ValidationError.MalformedProductionMovementHistory
+            if (originalTotal != null && reversalTotal == null) throw ValidationError.MalformedProductionMovementHistory
+            if (originalTotal != null && reversalTotal != null) {
+                if (reversalTotal.compareTo(originalTotal.negate()) != 0) {
+                    throw ValidationError.MalformedProductionMovementHistory
+                }
+            }
+
+            if (reversal.effectiveAt != batch.voidedAt) throw ValidationError.MalformedProductionMovementHistory
+            if (reversal.createdAt != batch.voidedAt) throw ValidationError.MalformedProductionMovementHistory
+        } catch (_: Exception) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
+    }
+
+    private fun parseRequiredDecimal(value: String?): BigDecimal {
+        if (value == null) throw ValidationError.MalformedProductionMovementHistory
+        return try {
+            BigDecimal(value)
+        } catch (_: Exception) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
     }
 
     private fun isNumericallyEquivalent(a: String?, b: String?): Boolean {

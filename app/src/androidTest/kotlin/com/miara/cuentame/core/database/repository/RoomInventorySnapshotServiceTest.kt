@@ -10,7 +10,7 @@ import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
-import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -36,7 +36,7 @@ class RoomInventorySnapshotServiceTest {
             .build()
         service = RoomInventorySnapshotService(
             db.inventoryMovementDao(),
-            WeightedAverageCostCalculator(),
+            HistoricalInventoryCostCalculator(),
             InventoryMovementValidator()
         )
 

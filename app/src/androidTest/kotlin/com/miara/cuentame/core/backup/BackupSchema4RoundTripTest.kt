@@ -124,14 +124,17 @@ class BackupSchema4RoundTripTest {
         // 4. Capture backup plan
         val restaurant = Restaurant(restId, "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val planResult = planner.createPlan(restaurant, BackupSnapshotResult(snapshotBefore, emptyList()))
+        
+        assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (planResult as BackupPlanningResult.Success).plan
 
         // 5. Mutate database
         // Rename a recipe
         database.preparationRecipeDao().update(database.preparationRecipeDao().getById("r-1")!!.copy(name = "Renamed Recipe"))
         // Create another valid Draft batch
+        // Ensure the time is not in the future relative to the repository's time provider if it uses now()
         repository.createDraft(CreateProductionBatchDraftCommand(
-            restId, recipeId, BigDecimal.ONE, areaId, null, null, effectiveAt.plusSeconds(3600), "Another Draft"
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, effectiveAt.plusSeconds(60), "Another Draft"
         ))
         
         // 6. Restore backup

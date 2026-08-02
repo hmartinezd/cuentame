@@ -261,8 +261,8 @@ class DefaultBackupArchiveValidator @Inject constructor(
             "stock_count_lines" to TableMetadata(dbDto.stockCountLines.size, false),
             "waste_events" to TableMetadata(dbDto.wasteEvents.size, false),
             "inventory_movements" to TableMetadata(dbDto.inventoryMovements.size, false),
-            "inventory_balance_projections" to TableMetadata(dbDto.inventoryBalanceProjections.size, true),
-            "ingredient_cost_projections" to TableMetadata(dbDto.ingredientCostProjections.size, true)
+            "inventory_balance_projection" to TableMetadata(dbDto.inventoryBalanceProjections.size, true),
+            "ingredient_cost_projection" to TableMetadata(dbDto.ingredientCostProjections.size, true)
         )
         if (schemaVersion >= 3) {
             tables["preparation_recipes"] = TableMetadata(dbDto.preparationRecipes.size, false)

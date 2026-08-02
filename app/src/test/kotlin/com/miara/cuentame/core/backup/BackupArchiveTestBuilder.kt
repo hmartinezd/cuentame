@@ -287,7 +287,7 @@ class BackupArchiveTestBuilder(
         "stock_count_lines" to TableMetadata(0, false),
         "waste_events" to TableMetadata(0, false),
         "inventory_movements" to TableMetadata(0, false),
-        "inventory_balance_projections" to TableMetadata(0, true),
-        "ingredient_cost_projections" to TableMetadata(0, true)
+        "inventory_balance_projection" to TableMetadata(0, true),
+        "ingredient_cost_projection" to TableMetadata(0, true)
     ).entries.sortedBy { it.key }.associate { it.key to it.value }
 }

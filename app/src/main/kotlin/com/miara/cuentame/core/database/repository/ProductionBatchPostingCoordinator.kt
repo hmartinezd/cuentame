@@ -69,7 +69,11 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.BatchNotDraft))
             }
 
-            historyValidator.validateDraftHistory(batch, existingMovements)
+            try {
+                historyValidator.validateDraftHistory(batch, existingMovements)
+            } catch (_: ValidationError.MalformedProductionMovementHistory) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MovementHistoryConflict))
+            }
 
             if (components.isEmpty()) {
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.RecipeHasNoComponents))

@@ -34,6 +34,10 @@ import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
 
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.database.repository.RoomInventoryProjectionRebuilder
+import com.miara.cuentame.core.common.ids.IngredientId
+
 @RunWith(AndroidJUnit4::class)
 class BackupProductionIntegrationTest {
 
@@ -274,10 +278,15 @@ class BackupProductionIntegrationTest {
             InventoryMovementEntity("m3", "r1", "i2", "a1", "PRODUCTION_CONSUMPTION", "-5", "10", "-50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:consume:pbc1", "pbc1", null, 2500),
             InventoryMovementEntity("m4", "r1", "i1", "a1", "PRODUCTION_OUTPUT", "10", "5", "50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:output", "pb1", null, 2500)
         ))
-        // Projections for i2 and i1 after production
-        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i2", "a1", "-5", 2500))
-        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "28", 2500)) // 18 + 10
-        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3.714285714", 2500)) // WAC calculation
+
+        // Use rebuilder for projections
+        val rebuilder = RoomInventoryProjectionRebuilder(
+            db, db.ingredientDao(), db.inventoryMovementDao(),
+            db.inventoryProjectionDao(), db.ingredientCostProjectionDao(),
+            HistoricalInventoryCostCalculator(), timeProvider
+        )
+        rebuilder.rebuildForIngredient(IngredientId("i1"))
+        rebuilder.rebuildForIngredient(IngredientId("i2"))
     }
 
     @Test
@@ -378,9 +387,43 @@ class BackupProductionIntegrationTest {
         assertThat(db.stockCountDao().getAreaById("sca1")?.stockCountId).isEqualTo("sc1")
         assertThat(db.stockCountDao().getLineById("scl1")?.quantityEntered).isEqualTo("5")
         assertThat(db.wasteDao().getById("w1")?.reason).isEqualTo("SPOILED")
-        assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(2)
+        
+        val movements = db.inventoryMovementDao().getAll()
+        assertThat(movements).hasSize(4)
+        
+        // m3 PRODUCTION_CONSUMPTION
+        val m3 = movements.find { it.id == "m3" }!!
+        assertThat(m3.movementType).isEqualTo("PRODUCTION_CONSUMPTION")
+        assertThat(m3.ingredientId).isEqualTo("i2")
+        assertThat(m3.areaId).isEqualTo("a1")
+        assertThat(BigDecimal(m3.quantityBaseSigned)).isEqualTo(BigDecimal("-5"))
+        assertThat(BigDecimal(m3.unitCostBaseSnapshot!!)).isEqualTo(BigDecimal("10"))
+        assertThat(BigDecimal(m3.totalValueSnapshot!!)).isEqualTo(BigDecimal("-50"))
+        assertThat(m3.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
+        assertThat(m3.sourceDocumentId).isEqualTo("pb1")
+        assertThat(m3.sourceLineId).isEqualTo("pbc1")
+        assertThat(m3.sourceOperationId).isEqualTo("production-post:pb1:consume:pbc1")
+        assertThat(m3.reversalOfMovementId).isNull()
+
+        // m4 PRODUCTION_OUTPUT
+        val m4 = movements.find { it.id == "m4" }!!
+        assertThat(m4.movementType).isEqualTo("PRODUCTION_OUTPUT")
+        assertThat(m4.ingredientId).isEqualTo("i1")
+        assertThat(m4.areaId).isEqualTo("a1")
+        assertThat(BigDecimal(m4.quantityBaseSigned)).isEqualTo(BigDecimal("10"))
+        assertThat(BigDecimal(m4.unitCostBaseSnapshot!!)).isEqualTo(BigDecimal("5"))
+        assertThat(BigDecimal(m4.totalValueSnapshot!!)).isEqualTo(BigDecimal("50"))
+        assertThat(m4.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
+        assertThat(m4.sourceDocumentId).isEqualTo("pb1")
+        assertThat(m4.sourceLineId).isEqualTo("pb1")
+        assertThat(m4.sourceOperationId).isEqualTo("production-post:pb1:output")
+        assertThat(m4.reversalOfMovementId).isNull()
+
         assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("28")
-        assertThat(db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase).isEqualTo("3.714285714")
+        
+        // Canonical DECIMAL128 result: 3.714285714285714285714285714285714
+        val costI1 = db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase
+        assertThat(BigDecimal(costI1!!)).isEqualTo(BigDecimal("3.714285714285714285714285714285714"))
         
         val recipe = db.preparationRecipeDao().getById("r1")!!
         assertThat(recipe.name).isEqualTo("Recipe 1")

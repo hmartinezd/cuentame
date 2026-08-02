@@ -146,8 +146,8 @@ object BackupManifestContractValidator {
             "stock_count_lines" to snapshot.stockCountLines.size,
             "waste_events" to snapshot.wasteEvents.size,
             "inventory_movements" to snapshot.inventoryMovements.size,
-            "inventory_balance_projections" to snapshot.inventoryBalanceProjections.size,
-            "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
+            "inventory_balance_projection" to snapshot.inventoryBalanceProjections.size,
+            "ingredient_cost_projection" to snapshot.ingredientCostProjections.size
         )
 
         if (manifest.databaseSchemaVersion == 4) {

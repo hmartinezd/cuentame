@@ -11,29 +11,15 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
 import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
-import com.miara.cuentame.core.database.mapper.toDomain
-import com.miara.cuentame.core.domain.service.WeightedAverageCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
 import javax.inject.Inject
 
 /**
  * Rebuilds inventory projections (balance and cost) from historical movements.
- * 
- * Cost rebuilding algorithm:
- * 1. Initialize current total quantity and average cost to zero.
- * 2. Process movements in chronological order (effectiveAt, then createdAt, then id).
- * 3. Update area balances by adding signed quantity.
- * 4. If movement is PURCHASE, OPENING_BALANCE, or PRODUCTION_OUTPUT:
- *    a. If quantity > 0 and unit cost is present:
- *       Update average cost using the weighted average formula.
- *       Add quantity to current total quantity.
- *    b. If quantity <= 0:
- *       Subtract quantity from current total quantity (outflow at current average cost).
- * 5. If movement is WASTE, COUNT_ADJUSTMENT, MANUAL_ADJUSTMENT, or PRODUCTION_CONSUMPTION:
- *    Add signed quantity to current total quantity.
- * 6. If movement is REVERSAL:
- *    Treat as an opposite movement of the original type.
  */
 class RoomInventoryProjectionRebuilder @Inject constructor(
     private val database: RestaurantInventoryDatabase,
@@ -41,7 +27,7 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
     private val movementDao: InventoryMovementDao,
     private val projectionDao: InventoryProjectionDao,
     private val costProjectionDao: IngredientCostProjectionDao,
-    private val costCalculator: WeightedAverageCostCalculator,
+    private val costCalculator: HistoricalInventoryCostCalculator,
     private val timeProvider: TimeProvider
 ) {
     suspend fun rebuildForIngredient(ingredientId: IngredientId) {
@@ -49,66 +35,45 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
             val ingredient = ingredientDao.getById(ingredientId.value) ?: return@withTransaction
             val restaurantId = RestaurantId(ingredient.restaurantId)
             
-            val allMovements = movementDao.getByIngredient(ingredientId.value).map { it.toDomain() }
+            val allMovements = movementDao.getByIngredient(ingredientId.value)
             
-            // Reversal logic: Identify which movements are reversed
+            // Reversal logic
             val reversedMovementIds = allMovements
-                .mapNotNull { it.reversalOfMovementId?.value }
+                .mapNotNull { it.reversalOfMovementId }
                 .toSet()
             
-            // Filter out reversals themselves and the movements they reverse
             val effectiveMovements = allMovements.filter { movement ->
-                movement.movementType != InventoryMovementType.REVERSAL && 
-                !reversedMovementIds.contains(movement.id.value)
+                movement.movementType != InventoryMovementType.REVERSAL.name && 
+                !reversedMovementIds.contains(movement.id)
             }
             
             // Rebuild balance by area
             projectionDao.deleteForIngredient(ingredientId.value)
             val areaBalances = mutableMapOf<String, BigDecimal>()
             
-            // Rebuild average cost
-            costProjectionDao.deleteForIngredient(ingredientId.value)
-            var currentTotalQuantity = BigDecimal.ZERO
-            var currentAverageCost = BigDecimal.ZERO
-            
-            val updatedAt = timeProvider.now().toEpochMilli()
-            
+            val historicalMoves = effectiveMovements.map { move ->
+                HistoricalInventoryMovement(
+                    id = move.id,
+                    movementType = InventoryMovementType.valueOf(move.movementType),
+                    quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                    unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                    sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                    sourceDocumentId = move.sourceDocumentId,
+                    effectiveAt = move.effectiveAt,
+                    createdAt = move.createdAt
+                )
+            }
+
+            val costResult = costCalculator.calculate(historicalMoves)
+
             effectiveMovements.forEach { movement ->
-                // Balance update
-                val areaId = movement.areaId.value
+                val areaId = movement.areaId
                 val currentAreaBalance = areaBalances.getOrDefault(areaId, BigDecimal.ZERO)
-                areaBalances[areaId] = currentAreaBalance.add(movement.quantityBaseSigned)
-                
-                // Cost update logic
-                when (movement.movementType) {
-                    InventoryMovementType.PURCHASE, 
-                    InventoryMovementType.OPENING_BALANCE,
-                    InventoryMovementType.PRODUCTION_OUTPUT -> {
-                        val incomingQuantity = movement.quantityBaseSigned
-                        val incomingUnitCost = movement.unitCostBaseSnapshot
-                        
-                        if (incomingQuantity > BigDecimal.ZERO && incomingUnitCost != null) {
-                            currentAverageCost = costCalculator.calculate(
-                                currentQuantity = currentTotalQuantity,
-                                currentAverageCost = currentAverageCost,
-                                purchaseQuantity = incomingQuantity,
-                                purchaseUnitCost = incomingUnitCost
-                            )
-                        }
-                        currentTotalQuantity = currentTotalQuantity.add(incomingQuantity)
-                    }
-                    else -> {
-                        // WASTE, ADJUSTMENTS, PRODUCTION_CONSUMPTION, etc.
-                        currentTotalQuantity = currentTotalQuantity.add(movement.quantityBaseSigned)
-                    }
-                }
-                
-                // Handle quantity becoming zero or negative
-                if (currentTotalQuantity <= BigDecimal.ZERO) {
-                    // Cost is maintained until the next positive purchase resets it.
-                }
+                areaBalances[areaId] = currentAreaBalance.add(BigDecimal(movement.quantityBaseSigned))
             }
             
+            val updatedAt = timeProvider.now().toEpochMilli()
+
             // Persist balances
             areaBalances.forEach { (areaId, quantity) ->
                 projectionDao.upsert(
@@ -122,15 +87,18 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
                 )
             }
             
-            // Persist cost
-            costProjectionDao.upsert(
-                IngredientCostProjectionEntity(
-                    restaurantId = restaurantId.value,
-                    ingredientId = ingredientId.value,
-                    averageUnitCostBase = currentAverageCost.toPlainString(),
-                    updatedAt = updatedAt
+            // Persist cost - Delete if no established cost
+            costProjectionDao.deleteForIngredient(ingredientId.value)
+            if (costResult.hasEstablishedCost) {
+                costProjectionDao.upsert(
+                    IngredientCostProjectionEntity(
+                        restaurantId = restaurantId.value,
+                        ingredientId = ingredientId.value,
+                        averageUnitCostBase = costResult.averageUnitCostBase?.toPlainString(),
+                        updatedAt = updatedAt
+                    )
                 )
-            )
+            }
         }
     }
 }
