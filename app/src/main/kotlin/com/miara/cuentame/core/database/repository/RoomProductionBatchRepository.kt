@@ -402,7 +402,7 @@ class RoomProductionBatchRepository @Inject constructor(
         val batch = getBatch(batchId)
             ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.BatchNotFound))
 
-        val blockers = mutableListOf<PostingBlocker>()
+        val blockers = mutableSetOf<PostingBlocker>()
         
         val recipe = recipeDao.getById(batch.recipeId.value)
         if (recipe?.status != PreparationRecipeStatus.ACTIVE.name) {
@@ -413,6 +413,39 @@ class RoomProductionBatchRepository @Inject constructor(
             blockers.add(PostingBlocker.FUTURE_EFFECTIVE_TIME)
         }
 
+        // Output validation
+        val outputIng = ingredientDao.getById(batch.outputIngredientId.value)
+        if (outputIng == null || !outputIng.isActive || outputIng.deletedAt != null || outputIng.restaurantId != batch.restaurantId.value) {
+            blockers.add(PostingBlocker.OUTPUT_REFERENCE_INVALID)
+        }
+
+        val outputArea = areaDao.getById(batch.outputAreaId.value)
+        if (outputArea == null || !outputArea.isActive || outputArea.deletedAt != null || outputArea.restaurantId != batch.restaurantId.value) {
+            blockers.add(PostingBlocker.OUTPUT_AREA_INVALID)
+        }
+
+        val outputOption = unitOptionDao.getById(batch.outputUnitOptionId.value)
+        if (outputOption == null || !outputOption.isActive || outputOption.deletedAt != null || outputOption.ingredientId != batch.outputIngredientId.value) {
+            blockers.add(PostingBlocker.OUTPUT_UNIT_INVALID)
+        } else if (outputOption.factorToBase <= BigDecimal.ZERO) {
+            blockers.add(PostingBlocker.OUTPUT_UNIT_INVALID)
+        }
+
+        if (batch.actualOutputQuantityEntered <= BigDecimal.ZERO) {
+            blockers.add(PostingBlocker.OUTPUT_REFERENCE_INVALID) // or another specific blocker
+        }
+
+        val canonicalActualOutputBase = if (outputOption != null) {
+            batch.actualOutputQuantityEntered.multiply(outputOption.factorToBase)
+        } else {
+            // If option is missing, we can't reliably calculate base quantity from entered
+            BigDecimal.ZERO
+        }
+
+        if (canonicalActualOutputBase <= BigDecimal.ZERO) {
+            blockers.add(PostingBlocker.OUTPUT_REFERENCE_INVALID)
+        }
+
         var totalComponentCost = BigDecimal.ZERO
         var costUnavailable = false
 
@@ -420,13 +453,34 @@ class RoomProductionBatchRepository @Inject constructor(
             val sourceAreaId = component.sourceAreaId
             if (sourceAreaId == null) {
                 blockers.add(PostingBlocker.MISSING_COMPONENT_AREA)
+                blockers.add(PostingBlocker.COMPONENT_AREA_INVALID)
+            } else {
+                val area = areaDao.getById(sourceAreaId.value)
+                if (area == null || !area.isActive || area.deletedAt != null || area.restaurantId != batch.restaurantId.value) {
+                    blockers.add(PostingBlocker.COMPONENT_AREA_INVALID)
+                }
+            }
+
+            val compIng = ingredientDao.getById(component.componentIngredientId.value)
+            if (compIng == null || !compIng.isActive || compIng.deletedAt != null || compIng.restaurantId != batch.restaurantId.value) {
+                blockers.add(PostingBlocker.COMPONENT_REFERENCE_INVALID)
             }
 
             val unitOption = unitOptionDao.getById(component.unitOptionId.value)
+            if (unitOption == null || !unitOption.isActive || unitOption.deletedAt != null || unitOption.ingredientId != component.componentIngredientId.value) {
+                blockers.add(PostingBlocker.COMPONENT_UNIT_INVALID)
+            } else if (unitOption.factorToBase <= BigDecimal.ZERO) {
+                blockers.add(PostingBlocker.COMPONENT_UNIT_INVALID)
+            }
+
+            if (component.actualQuantityEntered <= BigDecimal.ZERO) {
+                blockers.add(PostingBlocker.COMPONENT_QUANTITY_INVALID)
+            }
+
             val canonicalActualQuantityBase = if (unitOption != null) {
                 component.actualQuantityEntered.multiply(unitOption.factorToBase)
             } else {
-                component.actualQuantityBase
+                BigDecimal.ZERO
             }
 
             val snapshot = if (sourceAreaId != null) {
@@ -477,13 +531,6 @@ class RoomProductionBatchRepository @Inject constructor(
             blockers.add(PostingBlocker.COMPONENT_COST_UNAVAILABLE)
         }
 
-        val outputOption = unitOptionDao.getById(batch.outputUnitOptionId.value)
-        val canonicalActualOutputBase = if (outputOption != null) {
-            batch.actualOutputQuantityEntered.multiply(outputOption.factorToBase)
-        } else {
-            batch.actualOutputQuantityBase
-        }
-
         val yieldVariancePercent = if (batch.expectedOutputQuantityBase.compareTo(BigDecimal.ZERO) > 0) {
             val diff = canonicalActualOutputBase.subtract(batch.expectedOutputQuantityBase)
             diff.divide(batch.expectedOutputQuantityBase, java.math.MathContext.DECIMAL128).multiply(BigDecimal("100"))
@@ -501,7 +548,7 @@ class RoomProductionBatchRepository @Inject constructor(
             actualOutputQuantityBase = canonicalActualOutputBase,
             outputUnitCostBase = outputUnitCostBase,
             yieldVariancePercent = yieldVariancePercent,
-            blockers = blockers
+            blockers = blockers.toList()
         )
     }
 

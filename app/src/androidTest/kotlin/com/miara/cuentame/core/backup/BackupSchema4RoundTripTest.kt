@@ -13,11 +13,14 @@ import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
+import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
+import com.miara.cuentame.test.PostedPurchaseFixture
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -52,6 +55,9 @@ class BackupSchema4RoundTripTest {
     lateinit var repository: ProductionBatchRepository
 
     @Inject
+    lateinit var purchaseRepository: PurchaseRepository
+
+    @Inject
     lateinit var testStateManager: TestStateManager
 
     private val restId = RestaurantId("rest-1")
@@ -68,41 +74,64 @@ class BackupSchema4RoundTripTest {
         seedBaseData()
         
         // 2. Establish component quantity and cost through a real purchase
-        val now = Instant.now()
+        val scenarioTime = Instant.parse("2026-01-01T10:00:00Z")
         val compIngId = IngredientId("ing-comp")
-        database.inventoryMovementDao().insert(InventoryMovementEntity(
-            id = "move-1", restaurantId = restId.value, ingredientId = compIngId.value, areaId = "a1",
-            movementType = InventoryMovementType.PURCHASE.name, quantityBaseSigned = "10.0", unitCostBaseSnapshot = "10.0",
-            totalValueSnapshot = "100.0", effectiveAt = now.minusSeconds(100).toEpochMilli(),
-            sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name, sourceDocumentId = "p1",
-            sourceOperationId = "op1", sourceLineId = "l1", reversalOfMovementId = null, createdAt = now.minusSeconds(100).toEpochMilli()
-        ))
-        database.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(
-            restaurantId = restId.value, ingredientId = compIngId.value, averageUnitCostBase = "10.0", updatedAt = now.toEpochMilli()
-        ))
-        database.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(
-            restaurantId = restId.value, ingredientId = compIngId.value, areaId = "a1", quantityBase = "10.0", updatedAt = now.toEpochMilli()
-        ))
+        val areaId = InventoryAreaId("a1")
+        val optId = IngredientUnitOptionId("opt-2")
+
+        TestSeeder.seedPostedPurchase(
+            db = database,
+            repo = purchaseRepository,
+            restaurantId = restId,
+            ingredientId = compIngId,
+            areaId = areaId,
+            unitOptionId = optId,
+            quantityEntered = BigDecimal("10"),
+            unitCostBase = BigDecimal("10.00"),
+            effectiveAt = scenarioTime
+        )
 
         // 3. Create Production Draft and Post
         val recipeId = PreparationRecipeId("r-1")
+        val effectiveAt = scenarioTime.plusSeconds(3600)
         val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
             restaurantId = restId, recipeId = recipeId, batchMultiplier = BigDecimal("2"),
-            outputAreaId = InventoryAreaId("a1"), actualOutputQuantityEntered = null,
-            outputUnitOptionId = null, effectiveAt = now, notes = "Initial Notes"
+            outputAreaId = areaId, actualOutputQuantityEntered = null,
+            outputUnitOptionId = null, effectiveAt = effectiveAt, notes = "Initial Notes"
         ))
         repository.post(batchId)
 
-        // 4. Capture backup
-        val restaurant = Restaurant(restId, "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        // Confirm the state passes BackupSnapshotIntegrityValidator
         val snapshotBefore = snapshotSource.loadSnapshot(restId.value).dto
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = Instant.now().toString(),
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0.0",
+            appVersionCode = 1L,
+            databaseSchemaVersion = 4,
+            restaurantId = restId.value,
+            restaurantName = "Test Restaurant",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = emptyList()
+        )
+        val integrityResult = BackupSnapshotIntegrityValidator.validate(snapshotBefore, manifest)
+        assertThat(integrityResult.isSuccess).isTrue()
+
+        // 4. Capture backup plan
+        val restaurant = Restaurant(restId, "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val planResult = planner.createPlan(restaurant, BackupSnapshotResult(snapshotBefore, emptyList()))
         val plan = (planResult as BackupPlanningResult.Success).plan
 
         // 5. Mutate database
+        // Rename a recipe
         database.preparationRecipeDao().update(database.preparationRecipeDao().getById("r-1")!!.copy(name = "Renamed Recipe"))
+        // Create another valid Draft batch
         repository.createDraft(CreateProductionBatchDraftCommand(
-            restId, recipeId, BigDecimal.ONE, InventoryAreaId("a1"), null, null, now.plusSeconds(100), "Another Draft"
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, effectiveAt.plusSeconds(3600), "Another Draft"
         ))
         
         // 6. Restore backup

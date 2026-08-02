@@ -3,8 +3,13 @@ package com.miara.cuentame.test
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
+import com.miara.cuentame.core.domain.repository.PurchaseRepository
+import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
+import java.time.Instant
 
 object TestSeeder {
     const val RESTAURANT_ID = "restaurant-test-1"
@@ -43,14 +48,64 @@ object TestSeeder {
         )
     }
 
-    suspend fun seedPostedPurchase(db: RestaurantInventoryDatabase, receiptId: String, amount: String) {
-        val now = System.currentTimeMillis()
-        db.purchaseDao().insertReceipt(
-            PurchaseReceiptEntity(receiptId, RESTAURANT_ID, null, "INV-1", now, DocumentStatus.POSTED.name, null, null, now, now, now, null)
+    suspend fun seedPostedPurchase(
+        db: RestaurantInventoryDatabase,
+        repo: PurchaseRepository,
+        restaurantId: RestaurantId,
+        ingredientId: IngredientId,
+        areaId: InventoryAreaId,
+        unitOptionId: IngredientUnitOptionId,
+        quantityEntered: BigDecimal,
+        unitCostBase: BigDecimal,
+        effectiveAt: Instant
+    ): PostedPurchaseFixture {
+        val receiptId = repo.createDraft(
+            CreatePurchaseDraftCommand(
+                restaurantId = restaurantId,
+                supplierId = null,
+                invoiceNumber = "FIXTURE-INV",
+                purchaseDate = effectiveAt,
+                notes = "Fixture seeded purchase"
+            )
         )
-        db.purchaseDao().insertLine(
-            PurchaseLineEntity("line-$receiptId", receiptId, ING_ID, AREA_ID, OPTION_ID, "1", "1", amount, amount, null, now, now)
+
+        val totalAmount = quantityEntered.multiply(unitCostBase)
+        val lineId = repo.saveLine(
+            SavePurchaseLineCommand(
+                receiptId = receiptId,
+                lineId = null,
+                ingredientId = ingredientId,
+                areaId = areaId,
+                ingredientUnitOptionId = unitOptionId,
+                quantityEntered = quantityEntered,
+                lineTotal = totalAmount,
+                notes = null
+            )
         )
-        // Note: For real repository tests, we call repo.post(). This seeder is for UI tests that need data.
+
+        repo.post(receiptId)
+
+        val movement = db.inventoryMovementDao().getBySourceDocument(
+            SourceDocumentType.PURCHASE_RECEIPT.name,
+            receiptId.value
+        ).first { it.sourceLineId == lineId.value }
+
+        return PostedPurchaseFixture(
+            receiptId = receiptId,
+            lineId = lineId,
+            movementId = InventoryMovementId(movement.id),
+            ingredientId = ingredientId,
+            areaId = areaId,
+            optionId = unitOptionId
+        )
     }
 }
+
+data class PostedPurchaseFixture(
+    val receiptId: PurchaseReceiptId,
+    val lineId: PurchaseLineId,
+    val movementId: InventoryMovementId,
+    val ingredientId: IngredientId,
+    val areaId: InventoryAreaId,
+    val optionId: IngredientUnitOptionId
+)

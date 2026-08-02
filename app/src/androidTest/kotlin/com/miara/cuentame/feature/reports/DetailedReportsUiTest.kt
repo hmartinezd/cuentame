@@ -4,7 +4,9 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -31,6 +33,9 @@ class DetailedReportsUiTest {
     @Inject
     lateinit var database: RestaurantInventoryDatabase
 
+    @Inject
+    lateinit var purchaseRepository: PurchaseRepository
+
     @Before
     fun setup() {
         hiltRule.inject()
@@ -50,7 +55,17 @@ class DetailedReportsUiTest {
     fun reports_display_seeded_values() {
         runBlocking {
             testStateManager.seedBaseline()
-            TestSeeder.seedPostedPurchase(database, "p1", "123.45")
+            TestSeeder.seedPostedPurchase(
+                db = database,
+                repo = purchaseRepository,
+                restaurantId = RestaurantId(TestSeeder.RESTAURANT_ID),
+                ingredientId = IngredientId(TestSeeder.ING_ID),
+                areaId = InventoryAreaId(TestSeeder.AREA_ID),
+                unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
+                quantityEntered = java.math.BigDecimal.ONE,
+                unitCostBase = java.math.BigDecimal("123.45"),
+                effectiveAt = java.time.Instant.now()
+            )
         }
         
         val scenario = ActivityScenario.launch(MainActivity::class.java)

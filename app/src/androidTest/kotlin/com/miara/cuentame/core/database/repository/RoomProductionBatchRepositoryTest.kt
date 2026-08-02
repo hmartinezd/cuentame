@@ -279,6 +279,104 @@ class RoomProductionBatchRepositoryTest {
         assertThat(components).isEmpty()
     }
 
+    @Test
+    fun updateDraft_multiplierChange_withDifferentOutputUnit_convertsCorrectly() = runBlocking {
+        // Recipe yield: 1 Container (2 base units)
+        // Multiplier: 1 -> 3
+        // Expected base: 6
+        
+        // 1. Same option
+        val batchId1 = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
+        ))
+        repository.updateDraft(UpdateProductionBatchDraftCommand(batchId1, BigDecimal("3"), null, null, null, null, null))
+        val batch1 = repository.getBatch(batchId1)!!
+        assertBigDecimalEquivalent(batch1.expectedOutputQuantityEntered, "3") // 1 * 3
+        assertBigDecimalEquivalent(batch1.actualOutputQuantityEntered, "3")
+        assertBigDecimalEquivalent(batch1.actualOutputQuantityBase, "6") // 3 * 2
+
+        // 2. Different option (Base unit)
+        // Seed base unit option for output ingredient
+        database.ingredientUnitOptionDao().insert(
+            com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(
+                id = "output-base-opt", ingredientId = outputIngredientId.value, displayName = "Lb", shortLabel = "lb",
+                standardUnitId = null, factorToBase = BigDecimal.ONE, isBase = true, isDefaultCount = false,
+                isDefaultPurchase = false, isActive = true, createdAt = 0L, updatedAt = 0L, deletedAt = null
+            )
+        )
+        
+        val batchId2 = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, IngredientUnitOptionId("output-base-opt"), Instant.now(), null
+        ))
+        // Expected base = 2. Option factor = 1. So expected entered = 2.
+        val initial2 = repository.getBatch(batchId2)!!
+        assertBigDecimalEquivalent(initial2.actualOutputQuantityEntered, "2") 
+        
+        repository.updateDraft(UpdateProductionBatchDraftCommand(batchId2, BigDecimal("3"), null, null, null, null, null))
+        val batch2 = repository.getBatch(batchId2)!!
+        assertBigDecimalEquivalent(batch2.expectedOutputQuantityBase, "6")
+        assertBigDecimalEquivalent(batch2.actualOutputQuantityEntered, "6") // 6 / 1
+
+        // 3. Different option (Another package - 4 base units)
+        database.ingredientUnitOptionDao().insert(
+            com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity(
+                id = "output-pkg-4", ingredientId = outputIngredientId.value, displayName = "Case", shortLabel = "cs",
+                standardUnitId = null, factorToBase = BigDecimal("4"), isBase = false, isDefaultCount = false,
+                isDefaultPurchase = false, isActive = true, createdAt = 0L, updatedAt = 0L, deletedAt = null
+            )
+        )
+        val batchId3 = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, IngredientUnitOptionId("output-pkg-4"), Instant.now(), null
+        ))
+        // Expected base = 2. Option factor = 4. So expected entered = 0.5.
+        
+        repository.updateDraft(UpdateProductionBatchDraftCommand(batchId3, BigDecimal("4"), null, null, null, null, null))
+        // Expected base = 2 * 4 = 8. Option factor = 4. Expected entered = 2.
+        val batch3 = repository.getBatch(batchId3)!!
+        assertBigDecimalEquivalent(batch3.expectedOutputQuantityBase, "8")
+        assertBigDecimalEquivalent(batch3.actualOutputQuantityEntered, "2") // 8 / 4
+    }
+
+    @Test
+    fun updateDraft_multiplierChange_preservesManualOverrides() = runBlocking {
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
+        ))
+        
+        // Manual output override
+        repository.updateDraft(UpdateProductionBatchDraftCommand(
+            batchId = batchId, batchMultiplier = null, outputAreaId = null,
+            actualOutputQuantityEntered = BigDecimal("10"), outputUnitOptionId = null,
+            effectiveAt = null, notes = null
+        ))
+        
+        // Manual component override
+        val compId = repository.getBatch(batchId)!!.components[0].id
+        repository.updateComponent(UpdateProductionBatchComponentCommand(
+            batchId, compId, null, BigDecimal("1.5"), null, null
+        ))
+        
+        // Change multiplier
+        repository.updateDraft(UpdateProductionBatchDraftCommand(
+            batchId = batchId, batchMultiplier = BigDecimal("2"), outputAreaId = null,
+            actualOutputQuantityEntered = null, outputUnitOptionId = null,
+            effectiveAt = null, notes = null
+        ))
+        
+        val updated = repository.getBatch(batchId)!!
+        // Expected output should scale: 2 (base per recipe) * 2 (multiplier) = 4
+        assertBigDecimalEquivalent(updated.expectedOutputQuantityBase, "4")
+        // Actual output should remain 10 entered (20 base)
+        assertBigDecimalEquivalent(updated.actualOutputQuantityEntered, "10")
+        assertBigDecimalEquivalent(updated.actualOutputQuantityBase, "20")
+        
+        val comp = updated.components[0]
+        // Expected component should scale: 0.5 (per recipe) * 2 = 1.0
+        assertBigDecimalEquivalent(comp.expectedQuantityBase, "1.0")
+        // Actual component should remain 1.5
+        assertBigDecimalEquivalent(comp.actualQuantityEntered, "1.5")
+    }
+
     private fun assertBigDecimalEquivalent(actual: BigDecimal, expected: String) {
         assertThat(actual.compareTo(BigDecimal(expected))).isEqualTo(0)
     }

@@ -243,6 +243,41 @@ class BackupProductionIntegrationTest {
         db.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity(
             "rc1", "r1", "i2", "o2", BigDecimal("5"), BigDecimal("5"), 0, "Comp notes", 100, 100
         ))
+
+        // Production batches
+        db.productionBatchDao().insert(ProductionBatchEntity(
+            id = "pb1", restaurantId = "r1", recipeId = "r1", recipeNameSnapshot = "Recipe 1",
+            outputIngredientId = "i1", batchMultiplier = "1.0",
+            recipeStandardYieldQuantitySnapshot = "10.0", recipeStandardYieldBaseSnapshot = "10.0",
+            recipeYieldUnitOptionIdSnapshot = "o1", expectedOutputQuantityEntered = "10.0",
+            expectedOutputQuantityBase = "10.0", actualOutputQuantityEntered = "10.0",
+            actualOutputQuantityBase = "10.0", outputUnitOptionId = "o1",
+            outputAreaId = "a1", hasManualOutputQuantityOverride = false,
+            totalComponentCostSnapshot = "50.0", outputUnitCostBaseSnapshot = "5.0",
+            effectiveAt = 2000, status = "POSTED", notes = "Batch 1",
+            createdAt = 1500, updatedAt = 2500, postedAt = 2500, voidedAt = null
+        ))
+        db.productionBatchDao().insertComponents(listOf(
+            ProductionBatchComponentEntity(
+                id = "pbc1", productionBatchId = "pb1", sourceRecipeComponentIdSnapshot = "rc1",
+                componentIngredientId = "i2", recipeQuantityEnteredSnapshot = "5.0",
+                recipeQuantityBaseSnapshot = "5.0", recipeUnitOptionIdSnapshot = "o2",
+                expectedQuantityEntered = "5.0", expectedQuantityBase = "5.0",
+                actualQuantityEntered = "5.0", actualQuantityBase = "5.0",
+                unitOptionId = "o2", hasManualQuantityOverride = false,
+                sourceAreaId = "a1", unitCostBaseSnapshot = "10.0",
+                totalCostSnapshot = "50.0", sortOrder = 0, notes = null,
+                createdAt = 1500, updatedAt = 2500
+            )
+        ))
+        db.inventoryMovementDao().insertAll(listOf(
+            InventoryMovementEntity("m3", "r1", "i2", "a1", "PRODUCTION_CONSUMPTION", "-5", "10", "-50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:consume:pbc1", "pbc1", null, 2500),
+            InventoryMovementEntity("m4", "r1", "i1", "a1", "PRODUCTION_OUTPUT", "10", "5", "50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:output", "pb1", null, 2500)
+        ))
+        // Projections for i2 and i1 after production
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i2", "a1", "-5", 2500))
+        db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "28", 2500)) // 18 + 10
+        db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3.714285714", 2500)) // WAC calculation
     }
 
     @Test
@@ -344,8 +379,8 @@ class BackupProductionIntegrationTest {
         assertThat(db.stockCountDao().getLineById("scl1")?.quantityEntered).isEqualTo("5")
         assertThat(db.wasteDao().getById("w1")?.reason).isEqualTo("SPOILED")
         assertThat(db.inventoryMovementDao().getAll().size).isEqualTo(2)
-        assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("18")
-        assertThat(db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase).isEqualTo("3")
+        assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("28")
+        assertThat(db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase).isEqualTo("3.714285714")
         
         val recipe = db.preparationRecipeDao().getById("r1")!!
         assertThat(recipe.name).isEqualTo("Recipe 1")
@@ -354,6 +389,13 @@ class BackupProductionIntegrationTest {
         assertThat(components).hasSize(1)
         assertThat(components[0].id).isEqualTo("rc1")
         assertThat(components[0].notes).isEqualTo("Comp notes")
+
+        val batch = db.productionBatchDao().getById("pb1")!!
+        assertThat(batch.notes).isEqualTo("Batch 1")
+        assertThat(batch.status).isEqualTo("POSTED")
+        val batchComponents = db.productionBatchDao().getComponents("pb1")
+        assertThat(batchComponents).hasSize(1)
+        assertThat(batchComponents[0].id).isEqualTo("pbc1")
     }
 
 

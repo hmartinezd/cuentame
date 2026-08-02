@@ -12,8 +12,9 @@ import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.ProductionBatchDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.InventorySnapshotService
-import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
@@ -56,7 +57,11 @@ class ProductionBatchPostingCoordinator @Inject constructor(
             val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batch.id)
 
             if (batch.status == DocumentStatus.POSTED.name) {
-                historyValidator.validatePostedHistory(batch, components, existingMovements)
+                try {
+                    historyValidator.validatePostedHistory(batch, components, existingMovements)
+                } catch (_: ValidationError.MalformedProductionMovementHistory) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MovementHistoryConflict))
+                }
                 return@withTransaction
             }
 
@@ -192,17 +197,15 @@ class ProductionBatchPostingCoordinator @Inject constructor(
 
             val outputUnitCostBase = totalComponentCost.divide(actualOutputQuantityBase, MathContext.DECIMAL128)
 
-            val updatedBatch = batch.copy(
+            val snapshotBatch = batch.copy(
                 actualOutputQuantityBase = actualOutputQuantityBase.toPlainString(),
                 totalComponentCostSnapshot = totalComponentCost.toPlainString(),
                 outputUnitCostBaseSnapshot = outputUnitCostBase.toPlainString(),
-                status = DocumentStatus.POSTED.name,
-                postedAt = postedAtMs,
                 updatedAt = postedAtMs
             )
 
             // Persist snapshots
-            batchDao.update(updatedBatch)
+            batchDao.update(snapshotBatch)
             updatedComponents.forEach { batchDao.updateComponent(it) }
 
             failureBoundary.trigger(IntegrationFailurePoints.PRODUCTION_POST_AFTER_SNAPSHOTS)
@@ -237,9 +240,9 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 ingredientId = batch.outputIngredientId,
                 areaId = batch.outputAreaId,
                 movementType = InventoryMovementType.PRODUCTION_OUTPUT.name,
-                quantityBaseSigned = updatedBatch.actualOutputQuantityBase,
-                unitCostBaseSnapshot = updatedBatch.outputUnitCostBaseSnapshot,
-                totalValueSnapshot = updatedBatch.totalComponentCostSnapshot,
+                quantityBaseSigned = snapshotBatch.actualOutputQuantityBase,
+                unitCostBaseSnapshot = snapshotBatch.outputUnitCostBaseSnapshot,
+                totalValueSnapshot = snapshotBatch.totalComponentCostSnapshot,
                 effectiveAt = batch.effectiveAt,
                 sourceDocumentType = SourceDocumentType.PRODUCTION_BATCH.name,
                 sourceDocumentId = batch.id,
@@ -259,6 +262,13 @@ class ProductionBatchPostingCoordinator @Inject constructor(
             }
 
             failureBoundary.trigger(IntegrationFailurePoints.PRODUCTION_POST_AFTER_PROJECTIONS)
+
+            // Mark batch POSTED
+            batchDao.update(snapshotBatch.copy(
+                status = DocumentStatus.POSTED.name,
+                postedAt = postedAtMs,
+                updatedAt = postedAtMs
+            ))
 
             failureBoundary.trigger(IntegrationFailurePoints.PRODUCTION_POST_AFTER_MARK_POSTED)
         }

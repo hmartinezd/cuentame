@@ -7,6 +7,7 @@ import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
+import java.math.MathContext
 import javax.inject.Inject
 
 class ProductionBatchMovementHistoryValidator @Inject constructor() {
@@ -46,6 +47,8 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         val componentIds = components.map { it.id }.toSet()
         if (consumptionLineIds.toSet() != componentIds) throw ValidationError.MalformedProductionMovementHistory
 
+        validateSnapshots(batch, components)
+
         val consumptionByLineId = consumptionMoves.associateBy { it.sourceLineId }
         components.forEach { component ->
             val movement = consumptionByLineId[component.id]!!
@@ -56,8 +59,61 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         if (outputMove.sourceLineId != batch.id) throw ValidationError.MalformedProductionMovementHistory
         validateOutputMovementMatchesBatch(batch, outputMove)
 
+        // Value conservation
+        validateValueConservation(movements)
+
         // Ensure no reversals exist in POSTED state
         if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
+    }
+
+    private fun validateSnapshots(
+        batch: ProductionBatchEntity,
+        components: List<ProductionBatchComponentEntity>
+    ) {
+        if (batch.totalComponentCostSnapshot == null || batch.outputUnitCostBaseSnapshot == null) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
+
+        var computedTotalCost = BigDecimal.ZERO
+        components.forEach { comp ->
+            if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+            val uCost = BigDecimal(comp.unitCostBaseSnapshot)
+            val tCost = BigDecimal(comp.totalCostSnapshot)
+            val qty = BigDecimal(comp.actualQuantityBase)
+            if (tCost.compareTo(uCost.multiply(qty)) != 0) {
+                throw ValidationError.MalformedProductionMovementHistory
+            }
+            computedTotalCost = computedTotalCost.add(tCost)
+        }
+
+        if (computedTotalCost.compareTo(BigDecimal(batch.totalComponentCostSnapshot)) != 0) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
+
+        val expectedOutputUnitCost = computedTotalCost.divide(
+            BigDecimal(batch.actualOutputQuantityBase),
+            MathContext.DECIMAL128
+        )
+        if (expectedOutputUnitCost.compareTo(BigDecimal(batch.outputUnitCostBaseSnapshot)) != 0) {
+            throw ValidationError.MalformedProductionMovementHistory
+        }
+    }
+
+    private fun validateValueConservation(movements: List<InventoryMovementEntity>) {
+        val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
+        val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
+        
+        val consumptionSum = consumptionMoves.mapNotNull { it.totalValueSnapshot?.let { v -> BigDecimal(v) } }
+            .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
+        
+        val outputValue = outputMoves.mapNotNull { it.totalValueSnapshot?.let { v -> BigDecimal(v) } }
+            .fold(BigDecimal.ZERO) { acc, d -> acc.add(d) }
+        
+        if (consumptionSum.add(outputValue).compareTo(BigDecimal.ZERO) != 0) {
             throw ValidationError.MalformedProductionMovementHistory
         }
     }
@@ -90,6 +146,8 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
 
         val reversalsByOriginalId = reversals.associateBy { it.reversalOfMovementId }
 
+        validateSnapshots(batch, components)
+
         originalMoves.forEach { original ->
             val reversal = reversalsByOriginalId[original.id]!!
             validateReversalMatchesOriginal(batch, original, reversal)
@@ -105,6 +163,8 @@ class ProductionBatchMovementHistoryValidator @Inject constructor() {
         val outputMove = originalMoves.find { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
             ?: throw ValidationError.MalformedProductionMovementHistory
         validateOutputMovementMatchesBatch(batch, outputMove)
+
+        validateValueConservation(originalMoves)
     }
 
     private fun validateConsumptionMovementMatchesComponent(

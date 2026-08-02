@@ -4,11 +4,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeComponentEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeEntity
 import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
+import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
@@ -17,6 +17,7 @@ import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
+import com.miara.cuentame.test.PostedPurchaseFixture
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -41,6 +42,9 @@ class ProductionBatchPostingTest {
 
     @Inject
     lateinit var repository: RoomProductionBatchRepository
+
+    @Inject
+    lateinit var purchaseRepository: PurchaseRepository
 
     @Inject
     lateinit var testStateManager: TestStateManager
@@ -135,34 +139,16 @@ class ProductionBatchPostingTest {
     }
 
     private suspend fun seedCost() {
-        val now = Instant.now().toEpochMilli()
-        database.inventoryMovementDao().insert(
-            InventoryMovementEntity(
-                id = "move-seed-1",
-                restaurantId = restId.value,
-                ingredientId = componentIngredientId.value,
-                areaId = areaId.value,
-                movementType = InventoryMovementType.PURCHASE.name,
-                quantityBaseSigned = "10.00",
-                unitCostBaseSnapshot = "10.00",
-                totalValueSnapshot = "100.00",
-                effectiveAt = now - 10000,
-                sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-                sourceDocumentId = "receipt-seed-1",
-                sourceOperationId = "seed-op-1",
-                sourceLineId = "line-seed-1",
-                reversalOfMovementId = null,
-                createdAt = now - 10000
-            )
-        )
-        // Also seed projection so it exists for other queries if any
-        database.ingredientCostProjectionDao().upsert(
-            IngredientCostProjectionEntity(
-                restaurantId = restId.value,
-                ingredientId = componentIngredientId.value,
-                averageUnitCostBase = "10.00",
-                updatedAt = now - 10000
-            )
+        TestSeeder.seedPostedPurchase(
+            db = database,
+            repo = purchaseRepository,
+            restaurantId = restId,
+            ingredientId = componentIngredientId,
+            areaId = areaId,
+            unitOptionId = optionId,
+            quantityEntered = BigDecimal("10"),
+            unitCostBase = BigDecimal("10.00"),
+            effectiveAt = Instant.parse("2026-01-01T10:00:00Z")
         )
     }
 
@@ -209,7 +195,7 @@ class ProductionBatchPostingTest {
 
         // Verify projections
         val compProj = database.inventoryProjectionDao().getBalance(componentIngredientId.value, areaId.value)
-        assertBigDecimalEquivalent(compProj?.quantityBase ?: "0", "-1")
+        assertBigDecimalEquivalent(compProj?.quantityBase ?: "0", "9")
 
         val outProj = database.inventoryProjectionDao().getBalance(outputIngredientId.value, areaId.value)
         assertBigDecimalEquivalent(outProj?.quantityBase ?: "0", "4")
@@ -237,11 +223,16 @@ class ProductionBatchPostingTest {
     @Test
     fun nestedProduction_calculatesCostCorrectly() = runBlocking {
         // Raw -> Intermediate -> Final
-        // Raw: $10/lb, 10 lb available
-        // Intermediate Recipe: Consumes 2 lb Raw -> Produces 1 unit (2 lb base) Intermediate
-        // Intermediate Production: Output cost = 2 * $10 = $20 total = $10/lb
-        // Final Recipe: Consumes 0.5 unit (1 lb base) Intermediate -> Produces 1 unit Final
-        // Final Production: Output cost = 1 * $10 = $10 total
+        // T0: Raw Purchase establishes cost: $10/lb
+        // T1: Intermediate Production: 
+        //   Consumes 0.5 lb Raw -> Total component cost $5.00
+        //   Produces 1 unit (2 lb base) -> Output unit cost $2.50/lb
+        // T2: Final Production:
+        //   Consumes 0.5 unit (1 lb base) Intermediate -> Total component cost $2.50
+        //   Produces 1 unit (1 lb base) Final -> Output unit cost $2.50/lb
+
+        val t1 = Instant.parse("2026-01-01T11:00:00Z")
+        val t2 = Instant.parse("2026-01-01T12:00:00Z")
 
         val rawIngId = componentIngredientId
         val intermediateIngId = outputIngredientId // Already seeded container=2lb
@@ -287,30 +278,20 @@ class ProductionBatchPostingTest {
 
         // 1. Post Intermediate Production
         val intBatchId = repository.createDraft(CreateProductionBatchDraftCommand(
-            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, t1, null
         ))
         repository.post(intBatchId)
 
         val intBatch = repository.getBatch(intBatchId)!!
-        assertBigDecimalEquivalent(intBatch.outputUnitCostBaseSnapshot ?: BigDecimal.ZERO, "5.00") // 0.5lb Raw @ $10 = $5. Output is 2lb. $5/2lb = $2.5/lb. 
-        // Wait, Raw = $10/lb. Comp consumes 0.5lb Raw = $5. Output is 2lb base. Unit cost = $5 / 2 = $2.5/lb.
-        // My manual calculation in the test comment was different, let's stick to the numbers.
-        // Recipe comp: 0.5 lb Raw. 1x multiplier = 0.5 lb Raw. $10/lb -> $5 cost.
-        // Recipe yield: 1 container = 2 lb.
-        // Output Unit Cost = $5 / 2 lb = $2.5/lb.
+        assertBigDecimalEquivalent(intBatch.outputUnitCostBaseSnapshot ?: BigDecimal.ZERO, "2.50")
 
         // 2. Post Final Production
         val finalBatchId = repository.createDraft(CreateProductionBatchDraftCommand(
-            restId, finalRecipeId, BigDecimal.ONE, areaId, null, null, Instant.now().plusSeconds(60), null
+            restId, finalRecipeId, BigDecimal.ONE, areaId, null, null, t2, null
         ))
         repository.post(finalBatchId)
 
         val finalBatch = repository.getBatch(finalBatchId)!!
-        // Final consumes 0.5 container Intermediate = 1 lb base.
-        // Intermediate cost = $2.5/lb.
-        // Component cost = 1 lb * $2.5/lb = $2.5.
-        // Final yield = 1 each = 1 lb.
-        // Final Unit Cost = $2.5 / 1 lb = $2.5/lb.
         assertBigDecimalEquivalent(finalBatch.outputUnitCostBaseSnapshot ?: BigDecimal.ZERO, "2.50")
     }
 

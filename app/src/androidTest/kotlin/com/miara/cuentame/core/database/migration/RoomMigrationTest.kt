@@ -168,10 +168,48 @@ class RoomMigrationTest {
             context,
             RestaurantInventoryDatabase::class.java,
             TEST_DB
-        ).addMigrations(RestaurantInventoryDatabase.MIGRATION_1_2, RestaurantInventoryDatabase.MIGRATION_2_3)
-            .build()
+        ).addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4
+        ).build()
 
         assertThat(roomDb.ingredientDao().getActiveIngredients("rest-1")).hasSize(1)
+        roomDb.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate3To4_createsProductionTables() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        // 1. Create version 3 database
+        var db = helper.createDatabase(TEST_DB, 3)
+        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
+        db.close()
+
+        // 2. Run migration 3 to 4
+        db = helper.runMigrationsAndValidate(TEST_DB, 4, true, RestaurantInventoryDatabase.MIGRATION_3_4)
+        
+        // Verify new tables exist
+        val batchCursor = db.query("SELECT * FROM production_batches")
+        assertThat(batchCursor.count).isEqualTo(0)
+        batchCursor.close()
+        
+        db.close()
+
+        // 3. Reopen through Room
+        val roomDb = Room.databaseBuilder(
+            context,
+            RestaurantInventoryDatabase::class.java,
+            TEST_DB
+        ).addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4
+        ).build()
+
+        assertThat(roomDb.productionBatchDao().getById("non-existent")).isNull()
         roomDb.close()
     }
 

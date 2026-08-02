@@ -10,8 +10,9 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.ProductionBatchDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
-import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
@@ -46,7 +47,11 @@ class ProductionBatchVoidingCoordinator @Inject constructor(
             val existingMovements = movementDao.getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batch.id)
 
             if (batch.status == DocumentStatus.VOIDED.name) {
-                historyValidator.validateVoidedHistory(batch, components, existingMovements)
+                try {
+                    historyValidator.validateVoidedHistory(batch, components, existingMovements)
+                } catch (_: ValidationError.MalformedProductionMovementHistory) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MovementHistoryConflict))
+                }
                 return@withTransaction
             }
 
@@ -54,7 +59,11 @@ class ProductionBatchVoidingCoordinator @Inject constructor(
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MovementHistoryConflict))
             }
 
-            historyValidator.validatePostedHistory(batch, components, existingMovements)
+            try {
+                historyValidator.validatePostedHistory(batch, components, existingMovements)
+            } catch (_: ValidationError.MalformedProductionMovementHistory) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MovementHistoryConflict))
+            }
 
             val voidedAt = timeProvider.now().toEpochMilli()
 
