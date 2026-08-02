@@ -10,6 +10,7 @@ import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftComma
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -125,6 +126,21 @@ class ProductionFailureBoundaryTest {
         testPostFailure(IntegrationFailurePoints.PRODUCTION_POST_AFTER_MARK_POSTED)
     }
 
+    @Test
+    fun void_failsAfterReversals_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_REVERSALS)
+    }
+
+    @Test
+    fun void_failsAfterProjections_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_PROJECTIONS)
+    }
+
+    @Test
+    fun void_failsAfterMarkVoided_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_MARK_VOIDED)
+    }
+
     private suspend fun testPostFailure(point: String) {
         val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.parse("2026-01-01T12:00:00Z"), null
@@ -153,6 +169,48 @@ class ProductionFailureBoundaryTest {
         val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
         assertThat(movements).isEmpty()
 
+        val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+
+        assertThat(afterCompBalance).isEqualTo(beforeCompBalance)
+        assertThat(afterCompCost).isEqualTo(beforeCompCost)
+        assertThat(afterOutBalance).isEqualTo(beforeOutBalance)
+        assertThat(afterOutCost).isEqualTo(beforeOutCost)
+    }
+
+    private suspend fun testVoidFailure(point: String) {
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.parse("2026-01-01T12:00:00Z"), null
+        ))
+        repository.post(batchId)
+        
+        // Capture Posted state
+        val beforeBatch = repository.getBatch(batchId)!!
+        val beforeComponents = beforeBatch.components
+        val beforeMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
+        val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val beforeOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+
+        (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
+
+        try {
+            repository.void(batchId)
+        } catch (_: ForcedFailureException) {
+            // Expected
+        }
+
+        val afterBatch = repository.getBatch(batchId)!!
+        assertThat(afterBatch).isEqualTo(beforeBatch)
+        assertThat(afterBatch.components).isEqualTo(beforeComponents)
+        
+        val afterMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
+        assertThat(afterMovements).isEqualTo(beforeMovements)
+        assertThat(afterMovements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
+        
         val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
         val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
         val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)

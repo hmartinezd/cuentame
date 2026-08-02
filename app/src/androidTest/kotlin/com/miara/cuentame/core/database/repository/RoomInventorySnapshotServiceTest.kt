@@ -11,6 +11,7 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -165,7 +166,11 @@ class RoomInventorySnapshotServiceTest {
         effectiveAt = effectiveAt.toEpochMilli(),
         sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
         sourceDocumentId = "doc_1",
-        sourceOperationId = if (type == "REVERSAL" && reversalOf != null) "reversal:$reversalOf" else "op_$id",
+        sourceOperationId = when {
+            type == "REVERSAL" && reversalOf != null -> InventoryMovementOperationIds.reversal(reversalOf)
+            type == "PURCHASE" -> InventoryMovementOperationIds.purchasePost("doc_1", "line_1")
+            else -> "op_$id"
+        },
         sourceLineId = "line_1",
         reversalOfMovementId = reversalOf,
         createdAt = effectiveAt.toEpochMilli()

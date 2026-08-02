@@ -17,6 +17,7 @@ import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
 import com.miara.cuentame.core.domain.usecase.locale.LocaleReconciliationResult
 import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import kotlinx.serialization.encodeToString
 import io.mockk.coEvery
 import io.mockk.every
@@ -292,9 +293,9 @@ class BackupProductionIntegrationTest {
         db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
         
         db.inventoryMovementDao().insertAll(listOf(
-            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "purchase-post:p1:pl1", "pl1", null, 1000),
-            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", "waste-post:w1", "w1", null, 1200),
-            InventoryMovementEntity("m5", "r1", "i2", "a1", "PURCHASE", "10", "10", "100", 1300, "PURCHASE_RECEIPT", "p2", "purchase-post:p2:pl2", "pl2", null, 1300)
+            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", InventoryMovementOperationIds.purchasePost("p1", "pl1"), "pl1", null, 1000),
+            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", InventoryMovementOperationIds.wastePost("w1"), "w1", null, 1200),
+            InventoryMovementEntity("m5", "r1", "i2", "a1", "PURCHASE", "10", "10", "100", 1300, "PURCHASE_RECEIPT", "p2", InventoryMovementOperationIds.purchasePost("p2", "pl2"), "pl2", null, 1300)
         ))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "18", 1200))
         db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3", 1200))
@@ -334,8 +335,8 @@ class BackupProductionIntegrationTest {
             )
         ))
         db.inventoryMovementDao().insertAll(listOf(
-            InventoryMovementEntity("m3", "r1", "i2", "a1", "PRODUCTION_CONSUMPTION", "-5", "10", "-50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:consume:pbc1", "pbc1", null, 2500),
-            InventoryMovementEntity("m4", "r1", "i1", "a1", "PRODUCTION_OUTPUT", "10", "5", "50", 2000, "PRODUCTION_BATCH", "pb1", "production-post:pb1:output", "pb1", null, 2500)
+            InventoryMovementEntity("m3", "r1", "i2", "a1", "PRODUCTION_CONSUMPTION", "-5", "10", "-50", 2000, "PRODUCTION_BATCH", "pb1", InventoryMovementOperationIds.productionConsumption("pb1", "pbc1"), "pbc1", null, 2500),
+            InventoryMovementEntity("m4", "r1", "i1", "a1", "PRODUCTION_OUTPUT", "10", "5", "50", 2000, "PRODUCTION_BATCH", "pb1", InventoryMovementOperationIds.productionOutput("pb1"), "pb1", null, 2500)
         ))
 
         // Use rebuilder for projections
@@ -625,7 +626,7 @@ class BackupProductionIntegrationTest {
         assertThat(m3.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
         assertThat(m3.sourceDocumentId).isEqualTo("pb1")
         assertThat(m3.sourceLineId).isEqualTo("pbc1")
-        assertThat(m3.sourceOperationId).isEqualTo("production-post:pb1:consume:pbc1")
+        assertThat(m3.sourceOperationId).isEqualTo(InventoryMovementOperationIds.productionConsumption("pb1", "pbc1"))
         assertThat(m3.reversalOfMovementId).isNull()
         assertThat(m3.effectiveAt).isEqualTo(2000)
         assertThat(m3.createdAt).isEqualTo(2500)
@@ -641,7 +642,7 @@ class BackupProductionIntegrationTest {
         assertThat(m4.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
         assertThat(m4.sourceDocumentId).isEqualTo("pb1")
         assertThat(m4.sourceLineId).isEqualTo("pb1")
-        assertThat(m4.sourceOperationId).isEqualTo("production-post:pb1:output")
+        assertThat(m4.sourceOperationId).isEqualTo(InventoryMovementOperationIds.productionOutput("pb1"))
         assertThat(m4.reversalOfMovementId).isNull()
         assertThat(m4.effectiveAt).isEqualTo(2000)
         assertThat(m4.createdAt).isEqualTo(2500)

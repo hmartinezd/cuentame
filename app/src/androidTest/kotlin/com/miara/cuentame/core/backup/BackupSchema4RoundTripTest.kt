@@ -113,7 +113,9 @@ class BackupSchema4RoundTripTest {
         )
         
         // Manifest count validation before capture
-        BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotBefore)
+        assertThat(
+            BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotBefore)
+        ).isNull()
         
         // Snapshot integrity before capture
         val integrityResult = BackupSnapshotIntegrityValidator.validate(snapshotBefore, manifest)
@@ -140,6 +142,20 @@ class BackupSchema4RoundTripTest {
 
         // 7. Verify exact equality
         val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        
+        // Validate manifest consistency after restore
+        val postManifest = createManifestForSnapshot(
+            snapshot = restoredSnapshot,
+            schemaVersion = 4,
+            restaurantName = "Test Restaurant",
+            localeTag = "en-US",
+            currencyCode = "USD"
+        )
+        
+        assertThat(postManifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(postManifest, restoredSnapshot)).isNull()
+        assertThat(BackupSnapshotIntegrityValidator.validate(restoredSnapshot, postManifest).isSuccess).isTrue()
+
         assertThat(restoredSnapshot).isEqualTo(snapshotBefore)
         
         // Verify mutation records are gone

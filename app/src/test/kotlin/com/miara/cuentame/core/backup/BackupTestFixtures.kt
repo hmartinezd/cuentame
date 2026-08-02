@@ -224,4 +224,92 @@ object BackupTestFixtures {
             inventoryMovements = snapshot.inventoryMovements + movement
         )
     }
+
+    fun addProductionConsumption(
+        snapshot: BackupSnapshotDto,
+        batchId: String,
+        componentId: String,
+        movementId: String,
+        ingredientId: String,
+        areaId: String,
+        quantityBase: BigDecimal,
+        unitCostBase: BigDecimal,
+        effectiveAt: Long,
+        createdAt: Long
+    ): BackupSnapshotDto {
+        val restaurantId = snapshot.restaurants.firstOrNull()?.id ?: "r1"
+        val totalValue = quantityBase.multiply(unitCostBase, java.math.MathContext.DECIMAL128)
+
+        val component = ProductionBatchComponentBackupDto(
+            id = componentId,
+            productionBatchId = batchId,
+            sourceRecipeComponentIdSnapshot = "rc1",
+            componentIngredientId = ingredientId,
+            recipeQuantityEnteredSnapshot = quantityBase.toPlainString(),
+            recipeQuantityBaseSnapshot = quantityBase.toPlainString(),
+            recipeUnitOptionIdSnapshot = "opt1",
+            expectedQuantityEntered = quantityBase.toPlainString(),
+            expectedQuantityBase = quantityBase.toPlainString(),
+            actualQuantityEntered = quantityBase.toPlainString(),
+            actualQuantityBase = quantityBase.toPlainString(),
+            unitOptionId = "opt1",
+            hasManualQuantityOverride = false,
+            sourceAreaId = areaId,
+            unitCostBaseSnapshot = unitCostBase.toPlainString(),
+            totalCostSnapshot = totalValue.toPlainString(),
+            sortOrder = 0,
+            notes = null,
+            createdAt = createdAt,
+            updatedAt = createdAt
+        )
+
+        val movement = InventoryMovementBackupDto(
+            id = movementId,
+            restaurantId = restaurantId,
+            ingredientId = ingredientId,
+            areaId = areaId,
+            movementType = "PRODUCTION_CONSUMPTION",
+            quantityBaseSigned = quantityBase.negate().toPlainString(),
+            unitCostBaseSnapshot = unitCostBase.toPlainString(),
+            totalValueSnapshot = totalValue.negate().toPlainString(),
+            effectiveAt = effectiveAt,
+            sourceDocumentType = "PRODUCTION_BATCH",
+            sourceDocumentId = batchId,
+            sourceOperationId = InventoryMovementOperationIds.productionConsumption(batchId, componentId),
+            sourceLineId = componentId,
+            reversalOfMovementId = null,
+            createdAt = createdAt
+        )
+
+        return snapshot.copy(
+            productionBatchComponents = snapshot.productionBatchComponents + component,
+            inventoryMovements = snapshot.inventoryMovements + movement
+        )
+    }
+
+    fun addReversal(
+        snapshot: BackupSnapshotDto,
+        originalMovementId: String,
+        reversalMovementId: String,
+        effectiveAt: Long,
+        createdAt: Long
+    ): BackupSnapshotDto {
+        val original = snapshot.inventoryMovements.find { it.id == originalMovementId }
+            ?: throw IllegalArgumentException("Original movement not found")
+        
+        val reversal = original.copy(
+            id = reversalMovementId,
+            movementType = "REVERSAL",
+            quantityBaseSigned = BigDecimal(original.quantityBaseSigned).negate().toPlainString(),
+            totalValueSnapshot = original.totalValueSnapshot?.let { BigDecimal(it).negate().toPlainString() },
+            effectiveAt = effectiveAt,
+            sourceOperationId = InventoryMovementOperationIds.reversal(originalMovementId),
+            reversalOfMovementId = originalMovementId,
+            createdAt = createdAt
+        )
+
+        return snapshot.copy(
+            inventoryMovements = snapshot.inventoryMovements + reversal
+        )
+    }
 }

@@ -13,6 +13,7 @@ import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
 import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.domain.validation.ValidationError
 import io.mockk.every
@@ -88,26 +89,29 @@ class RoomInventoryProjectionRebuilderFailureTest {
     }
 
     @Test
-    fun rebuild_reversalMissingTarget_rollsBack() = runBlocking {
+    fun insertReversal_withMissingTarget_isRejectedByDatabase() = runBlocking {
         seedValidProjections()
-        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "missing"))
-        
-        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        // reversalOfMovementId has a foreign key to inventory_movements.id
+        assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+            runBlocking {
+                db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "missing"))
+            }
         }
         verifyProjectionsUnchanged()
     }
 
     @Test
-    fun rebuild_duplicateReversalTarget_rollsBack() = runBlocking {
+    fun insertSecondReversal_forSameOriginal_isRejectedByDatabase() = runBlocking {
         seedValidProjections()
         val now = Instant.now()
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
         db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
-        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
         
-        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        // reversalOfMovementId has a UNIQUE index
+        assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+            runBlocking {
+                db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+            }
         }
         verifyProjectionsUnchanged()
     }
@@ -141,7 +145,8 @@ class RoomInventoryProjectionRebuilderFailureTest {
     @Test
     fun rebuild_wrongReversalArea_rollsBack() = runBlocking {
         seedValidProjections()
-        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area_2", restaurantId.value, "Area 2", "area 2", 1, true, 0, 0, null))
+        // Area 2 exists in same restaurant
+        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area_2", restaurantId.value, "Area 2", "area_2", 1, true, 0, 0, null))
         val now = Instant.now()
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
         db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(areaId = "area_2"))
@@ -215,6 +220,125 @@ class RoomInventoryProjectionRebuilderFailureTest {
         verifyProjectionsUnchanged()
     }
 
+    @Test
+    fun rebuild_reversal_withNullTarget_rollsBack() = runBlocking {
+        seedValidProjections()
+        // Type REVERSAL but reversalOfMovementId is null.
+        // This is database-representable because reversalOfMovementId is nullable.
+        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "m0").copy(reversalOfMovementId = null))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_reversalTargetingAnotherReversal_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
+        // m3 targets m2 (which is a REVERSAL)
+        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "10", "5", now, reversalOf = "m2"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_reversal_withWrongTotalValue_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        // Correct is -50
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(totalValueSnapshot = "-49"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_wrongSourceDocumentType_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(sourceDocumentType = "WASTE_EVENT"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_wrongSourceLineId_rollsBack() = runBlocking {
+        seedValidProjections()
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1").copy(sourceLineId = "wrong"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_blankSourceOperationId_rollsBack() = runBlocking {
+        seedValidProjections()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", Instant.now()).copy(sourceOperationId = " "))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_invalidSourceDocumentType_rollsBack() = runBlocking {
+        seedValidProjections()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", Instant.now()).copy(sourceDocumentType = "INVALID"))
+        
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
+        }
+        verifyProjectionsUnchanged()
+    }
+
+    @Test
+    fun rebuild_positiveReversal_clearsProjections() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+        
+        rebuilder.rebuildForIngredient(ingredientId)
+        
+        val balance = db.inventoryProjectionDao().getBalance(ingredientId.value, areaId)
+        assertThat(balance).isNull()
+        val cost = db.ingredientCostProjectionDao().getCost(ingredientId.value)
+        assertThat(cost?.averageUnitCostBase).isNull()
+    }
+
+    @Test
+    fun rebuild_partialReversal_preservesRemainingHistory() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(200)))
+        db.inventoryMovementDao().insert(createMovement("m2", "PURCHASE", "10", "15", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "15", now, reversalOf = "m2"))
+        
+        rebuilder.rebuildForIngredient(ingredientId)
+        
+        val balance = db.inventoryProjectionDao().getBalance(ingredientId.value, areaId)
+        assertThat(balance?.quantityBase).isEqualTo("10") // Exact string equality depends on DB format
+        val cost = db.ingredientCostProjectionDao().getCost(ingredientId.value)
+        assertThat(BigDecimal(cost?.averageUnitCostBase!!).compareTo(BigDecimal("5"))).isEqualTo(0)
+    }
+
     private fun createMovement(
         id: String,
         type: String,
@@ -223,7 +347,11 @@ class RoomInventoryProjectionRebuilderFailureTest {
         effectiveAt: Instant,
         reversalOf: String? = null
     ): InventoryMovementEntity {
-        val opId = if (type == "REVERSAL" && reversalOf != null) "reversal:$reversalOf" else "op_$id"
+        val opId = when {
+            type == "REVERSAL" && reversalOf != null -> InventoryMovementOperationIds.reversal(reversalOf)
+            type == "PURCHASE" -> InventoryMovementOperationIds.purchasePost("doc_1", "line_1")
+            else -> "op_$id"
+        }
         return InventoryMovementEntity(
             id = id,
             restaurantId = restaurantId.value,

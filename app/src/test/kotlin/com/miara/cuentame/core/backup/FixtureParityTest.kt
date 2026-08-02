@@ -12,10 +12,8 @@ class FixtureParityTest {
         val receiptId = "r1"
         val lineId = "l1"
         
-        // 1. Call canonical factory
         val expected = InventoryMovementOperationIds.purchasePost(receiptId, lineId)
         
-        // 2. Build fixture
         val snapshot = BackupTestFixtures.addPostedPurchase(
             snapshot = BackupTestFixtures.createEmptySnapshotDto(),
             receiptId = receiptId,
@@ -31,11 +29,7 @@ class FixtureParityTest {
         )
         
         val move = snapshot.inventoryMovements.first()
-        
-        // 3. Assert fixture uses factory result
         assertThat(move.sourceOperationId).isEqualTo(expected)
-        
-        // 4. Assert result remains the frozen literal
         assertThat(expected).isEqualTo("purchase-post:r1:l1")
     }
 
@@ -64,11 +58,9 @@ class FixtureParityTest {
     }
 
     @Test
-    fun productionPostOperationIds_matchContract() {
+    fun productionOutputOperationId_matchesContract() {
         val batchId = "pb1"
-        
-        val consumeOp = InventoryMovementOperationIds.productionConsumption(batchId, "pbc1")
-        val outputOp = InventoryMovementOperationIds.productionOutput(batchId)
+        val expected = InventoryMovementOperationIds.productionOutput(batchId)
         
         val snapshot = BackupTestFixtures.addPostedProduction(
             snapshot = BackupTestFixtures.createEmptySnapshotDto(),
@@ -84,10 +76,32 @@ class FixtureParityTest {
         )
         
         val move = snapshot.inventoryMovements.first()
-        assertThat(move.sourceOperationId).isEqualTo(outputOp)
+        assertThat(move.sourceOperationId).isEqualTo(expected)
+        assertThat(expected).isEqualTo("production-post:pb1:output")
+    }
+
+    @Test
+    fun productionConsumptionOperationId_matchesContract() {
+        val batchId = "pb1"
+        val componentId = "pbc1"
+        val expected = InventoryMovementOperationIds.productionConsumption(batchId, componentId)
         
-        assertThat(consumeOp).isEqualTo("production-post:pb1:consume:pbc1")
-        assertThat(outputOp).isEqualTo("production-post:pb1:output")
+        val snapshot = BackupTestFixtures.addProductionConsumption(
+            snapshot = BackupTestFixtures.createEmptySnapshotDto(),
+            batchId = batchId,
+            componentId = componentId,
+            movementId = "m-consume",
+            ingredientId = "i-comp",
+            areaId = "a-comp",
+            quantityBase = BigDecimal.ONE,
+            unitCostBase = BigDecimal.ONE,
+            effectiveAt = 1000L,
+            createdAt = 1000L
+        )
+        
+        val move = snapshot.inventoryMovements.first()
+        assertThat(move.sourceOperationId).isEqualTo(expected)
+        assertThat(expected).isEqualTo("production-post:pb1:consume:pbc1")
     }
 
     @Test
@@ -95,6 +109,30 @@ class FixtureParityTest {
         val originalId = "m1"
         val expected = InventoryMovementOperationIds.reversal(originalId)
         
+        val snapshot = BackupTestFixtures.addPostedPurchase(
+            snapshot = BackupTestFixtures.createEmptySnapshotDto(),
+            receiptId = "r1",
+            lineId = "l1",
+            movementId = originalId,
+            ingredientId = "i1",
+            areaId = "a1",
+            optionId = "o1",
+            quantityBase = BigDecimal.ONE,
+            unitCostBase = BigDecimal.ONE,
+            effectiveAt = 1000L,
+            createdAt = 1000L
+        )
+        
+        val snapshotWithReversal = BackupTestFixtures.addReversal(
+            snapshot = snapshot,
+            originalMovementId = originalId,
+            reversalMovementId = "m2",
+            effectiveAt = 2000L,
+            createdAt = 2000L
+        )
+        
+        val reversalMove = snapshotWithReversal.inventoryMovements.last()
+        assertThat(reversalMove.sourceOperationId).isEqualTo(expected)
         assertThat(expected).isEqualTo("reversal:m1")
     }
 }

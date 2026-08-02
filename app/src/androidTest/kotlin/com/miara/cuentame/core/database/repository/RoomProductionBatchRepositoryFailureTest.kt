@@ -173,8 +173,6 @@ class RoomProductionBatchRepositoryFailureTest {
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
         ))
         
-        val snapshotBefore = captureProductionSnapshot(batchId)
-        
         database.inventoryMovementDao().insert(
             InventoryMovementEntity(
                 id = "m-rogue",
@@ -195,16 +193,18 @@ class RoomProductionBatchRepositoryFailureTest {
             )
         )
 
+        // Capture beforeCall including rogue movement
+        val snapshotBefore = captureProductionSnapshot(batchId)
+
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.post(batchId) }
         }
-        assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        assertThat(exception.failures).containsExactly(ProductionBatchValidationFailure.MovementHistoryConflict)
         
         val snapshotAfter = captureProductionSnapshot(batchId)
-        // Except for the rogue movement we added, everything else must match
         assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
         assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
-        assertThat(snapshotAfter.movements.filter { it.id != "m-rogue" }).isEqualTo(snapshotBefore.movements)
+        assertThat(snapshotAfter.movements).isEqualTo(snapshotBefore.movements)
         assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
         assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
     }
@@ -216,23 +216,20 @@ class RoomProductionBatchRepositoryFailureTest {
         ))
         repository.post(batchId)
         
-        val snapshotBefore = captureProductionSnapshot(batchId)
-        
-        val move = snapshotBefore.movements.first()
+        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        val move = moves.first()
         corruptMovement(move.id, "quantityBaseSigned", "-999")
+
+        // Capture corruptedBeforeCall
+        val snapshotBefore = captureProductionSnapshot(batchId)
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.post(batchId) }
         }
-        assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        assertThat(exception.failures).containsExactly(ProductionBatchValidationFailure.MovementHistoryConflict)
         
         val snapshotAfter = captureProductionSnapshot(batchId)
-        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
-        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
-        // Movements are different because of our corruption, but count shouldn't change
-        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
-        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
-        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
+        assertSnapshotsEqual(snapshotBefore, snapshotAfter)
     }
 
     @Test
@@ -242,21 +239,23 @@ class RoomProductionBatchRepositoryFailureTest {
         ))
         repository.post(batchId)
         
+        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        corruptMovement(moves.first().id, "quantityBaseSigned", "-999")
+
+        // Capture corruptedBeforeCall
         val snapshotBefore = captureProductionSnapshot(batchId)
-        
-        corruptMovement(snapshotBefore.movements.first().id, "quantityBaseSigned", "-999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.void(batchId) }
         }
-        assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        assertThat(exception.failures).containsExactly(ProductionBatchValidationFailure.MovementHistoryConflict)
         
         val snapshotAfter = captureProductionSnapshot(batchId)
-        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
-        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
-        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
-        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
-        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
+        assertSnapshotsEqual(snapshotBefore, snapshotAfter)
+        
+        val batch = repository.getBatch(batchId)!!
+        assertThat(batch.status.name).isEqualTo("POSTED")
+        assertThat(batch.voidedAt).isNull()
     }
 
     @Test
@@ -267,62 +266,20 @@ class RoomProductionBatchRepositoryFailureTest {
         repository.post(batchId)
         repository.void(batchId)
 
-        val snapshotBefore = captureProductionSnapshot(batchId)
-        
-        val reversal = snapshotBefore.movements.find { it.movementType == InventoryMovementType.REVERSAL.name }!!
+        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        val reversal = moves.find { it.movementType == InventoryMovementType.REVERSAL.name }!!
         corruptMovement(reversal.id, "quantityBaseSigned", "999")
+
+        // Capture corruptedBeforeCall
+        val snapshotBefore = captureProductionSnapshot(batchId)
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.void(batchId) }
         }
-        assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+        assertThat(exception.failures).containsExactly(ProductionBatchValidationFailure.MovementHistoryConflict)
         
         val snapshotAfter = captureProductionSnapshot(batchId)
-        assertThat(snapshotAfter.batch).isEqualTo(snapshotBefore.batch)
-        assertThat(snapshotAfter.components).isEqualTo(snapshotBefore.components)
-        assertThat(snapshotAfter.movements).hasSize(snapshotBefore.movements.size)
-        assertThat(snapshotAfter.balanceProjections).isEqualTo(snapshotBefore.balanceProjections)
-        assertThat(snapshotAfter.costProjections).isEqualTo(snapshotBefore.costProjections)
-    }
-
-    @Test
-    fun void_failsAfterReversals_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_REVERSALS)
-    }
-
-    @Test
-    fun void_failsAfterProjections_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_PROJECTIONS)
-    }
-
-    @Test
-    fun void_failsAfterMarkVoided_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_MARK_VOIDED)
-    }
-
-    private suspend fun testVoidFailure(failurePoint: String) {
-        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
-            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
-        ))
-        repository.post(batchId)
-        
-        val snapshot = captureProductionSnapshot(batchId)
-        
-        failureBoundary.triggerOn(failurePoint)
-        
-        assertThrows(ForcedFailureException::class.java) {
-            runBlocking { repository.void(batchId) }
-        }
-        
-        val finalSnapshot = captureProductionSnapshot(batchId)
-        assertSnapshotsEqual(snapshot, finalSnapshot)
-        
-        val batch = repository.getBatch(batchId)!!
-        assertThat(batch.status.name).isEqualTo("POSTED")
-        assertThat(batch.voidedAt).isNull()
-        
-        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
-        assertThat(moves.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
+        assertSnapshotsEqual(snapshotBefore, snapshotAfter)
     }
 
     private data class ProductionSnapshot(

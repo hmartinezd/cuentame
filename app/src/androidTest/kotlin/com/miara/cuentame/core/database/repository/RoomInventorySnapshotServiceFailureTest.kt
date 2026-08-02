@@ -10,6 +10,7 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.domain.validation.ValidationError
 import kotlinx.coroutines.runBlocking
@@ -91,14 +92,29 @@ class RoomInventorySnapshotServiceFailureTest {
     }
 
     @Test
-    fun calculateAt_duplicateReversalTarget_throws() = runBlocking {
+    fun calculateAt_reversal_targetingAnotherReversal_throws() = runBlocking {
         val now = Instant.now()
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
         db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
-        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+        // m3 targets m2 (which is a REVERSAL)
+        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "10", "5", now, reversalOf = "m2"))
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_duplicateReversalTarget_isRejectedByDatabase() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
+        
+        // UNIQUE index on reversalOfMovementId
+        assertThrows(android.database.sqlite.SQLiteConstraintException::class.java) {
+            runBlocking {
+                db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+            }
         }
     }
 
@@ -146,9 +162,10 @@ class RoomInventorySnapshotServiceFailureTest {
         // Ing 1 is valid
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
         
-        // Ing 2 is malformed
+        // Ing 2 has valid physical graph but semantic mismatch (wrong operation ID)
         db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity("ing_2", restaurantId.value, "Ing 2", "ing 2", null, "mass_lb", null, null, null, null, true, 0, 0, null))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "missing").copy(ingredientId = "ing_2"))
+        db.inventoryMovementDao().insert(createMovement("m2", "PURCHASE", "10", "5", now.minusSeconds(100)).copy(ingredientId = "ing_2"))
+        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m2").copy(ingredientId = "ing_2", sourceOperationId = "wrong_op"))
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAreaBalancesAt(restaurantId, areaId, Instant.now()) }
@@ -163,7 +180,11 @@ class RoomInventorySnapshotServiceFailureTest {
         effectiveAt: Instant,
         reversalOf: String? = null
     ): InventoryMovementEntity {
-        val opId = if (type == "REVERSAL" && reversalOf != null) "reversal:$reversalOf" else "op_$id"
+        val opId = when {
+            type == "REVERSAL" && reversalOf != null -> InventoryMovementOperationIds.reversal(reversalOf)
+            type == "PURCHASE" -> InventoryMovementOperationIds.purchasePost("doc_1", "line_1")
+            else -> "op_$id"
+        }
         return InventoryMovementEntity(
             id = id,
             restaurantId = restaurantId.value,
