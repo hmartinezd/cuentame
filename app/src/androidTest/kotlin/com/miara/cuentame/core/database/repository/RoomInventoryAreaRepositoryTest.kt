@@ -33,13 +33,67 @@ class RoomInventoryAreaRepositoryTest {
         
         runBlocking {
             db.restaurantDao().insert(RestaurantEntity("rest_1", "Test", "USD", "en-US", 0, 0, null))
+            @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
         }
     }
+}
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
 
     @After
     fun tearDown() {
         db.close()
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
     }
+}
 
     @Test
     fun archiveFinalArea_throwsError() = runBlocking {
@@ -51,8 +105,44 @@ class RoomInventoryAreaRepositoryTest {
             assertThat(true).isFalse()
         } catch (e: ValidationError.FinalAreaCannotBeArchived) {
             assertThat(e).isNotNull()
+            @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
         }
     }
+}
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
 
     @Test
     fun archiveFinalArea_scopedByRestaurant() = runBlocking {
@@ -73,8 +163,44 @@ class RoomInventoryAreaRepositoryTest {
             assertThat(true).isFalse()
         } catch (e: ValidationError.FinalAreaCannotBeArchived) {
             assertThat(e).isNotNull()
+            @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
         }
     }
+}
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
 
     @Test
     fun reorder_updatesSortOrderContiguously() = runBlocking {
@@ -88,7 +214,25 @@ class RoomInventoryAreaRepositoryTest {
         
         assertThat(a1?.sortOrder).isEqualTo(1)
         assertThat(a2?.sortOrder).isEqualTo(0)
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
     }
+}
 
     @Test
     fun reorder_subset_throwsError() = runBlocking {
@@ -100,8 +244,44 @@ class RoomInventoryAreaRepositoryTest {
             assertThat(true).isFalse()
         } catch (e: ValidationError.InvalidSetupState) {
             assertThat(e).isNotNull()
+            @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
         }
     }
+}
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
 
     @Test
     fun reorder_otherRestaurant_throwsError() = runBlocking {
@@ -114,6 +294,60 @@ class RoomInventoryAreaRepositoryTest {
             repository.reorder(listOf(InventoryAreaId("a1"), InventoryAreaId("a2")))
             assertThat(true).isFalse()
         } catch (e: ValidationError.InvalidSetupState) {
+            assertThat(e).isNotNull()
+            @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
+        @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
+            assertThat(e).isNotNull()
+        }
+    }
+}
+    @Test
+    fun archiveArea_failsIfUsedByProductionDraft() = runBlocking {
+        // rest_1 has two areas
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a1", "rest_1", "A", "a", 0, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(InventoryAreaEntity("a2", "rest_1", "B", "b", 1, true, 0, 0, null))
+        
+        // Create a draft batch using a1
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", "rest_1", "r1", "R", "i1", "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(InventoryAreaId("a1"), Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: ValidationError.AreaUsedByProductionDraft) {
             assertThat(e).isNotNull()
         }
     }

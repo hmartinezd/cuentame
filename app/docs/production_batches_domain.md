@@ -2,49 +2,44 @@
 
 Production Batches record the actual preparation work where ingredients are transformed into a prepared output based on an active recipe.
 
+## Database Schema 4
+The Production Batch domain is implemented in Room Database Schema version 4, which introduces the `production_batches` and `production_batch_components` tables.
+
 ## Lifecycle
-- **DRAFT**: Editable. No inventory movements created.
-- **POSTED**: Immutable. Creates consumption movements for components and an output movement for the prepared ingredient. Calculates production cost.
-- **VOIDED**: Immutable. Creates reversal movements for all original production movements. Restores previous inventory state.
+- **DRAFT**: Editable state. Does not create inventory effects. Referenced ingredients and areas are protected from archiving.
+- **POSTED**: Immutable state. Marks the preparation as completed. Triggers cost calculation and inventory movements.
+- **VOIDED**: Immutable state. Reverses all inventory effects of a previously posted batch.
 
-## Recipe Snapshots
-When a Production Batch is created, it captures a snapshot of the recipe at that moment:
-- Recipe name
-- Standard yield and unit
-- Multiplier
-- Component quantities and units
+## Recipe Snapshots and Conversions
+When a Production Batch is created from an active recipe, it captures historical snapshots of recipe quantities and units.
+- **Recipe Yield Option**: The unit in which the recipe's standard yield is expressed.
+- **Selected Output Option**: The unit in which the specific batch's actual output is expressed. These may differ.
+- **Canonical Quantities**: Both preview and posting calculate quantities from entered values using the currently selected unit option's factor to base, ensuring internal consistency even if stored base values are stale.
 
-Changes to the original recipe after a batch is created do not affect the batch.
+## Multiplier and Recalculation
+The `batchMultiplier` scales recipe quantities to expected batch quantities.
+- Changing the multiplier recalculates `expectedOutputQuantityBase` and `expectedQuantityBase` for all components.
+- **Actual Output Recalculation**: When there is no manual output override, actual output is recalculated using the *selected batch output unit*, not just by copying recipe units.
+- **Component Recalculation**: Non-overridden component actual quantities are reset to the new expected quantities when the multiplier changes.
 
-## Batch Multiplier
-The multiplier scales the expected output and component quantities.
-- Actual output quantity can be overridden manually.
-- Component actual quantities are reset to newly calculated expected quantities only if they have never been manually overridden.
+## Historical Costing and Conservation
+Posting calculates costs based on the batch's `effectiveAt` time using historical movement history.
+- **Cost-bearing Inflows**: `PURCHASE`, `OPENING_BALANCE`, and `PRODUCTION_OUTPUT` are the only movements that establish or change an ingredient's weighted average cost.
+- **Nested Preparations**: A prepared ingredient produced by one batch establishes a historical cost that can be consumed by a subsequent batch.
+- **Cost Conservation**: For every posted batch, the sum of consumption movement total values plus the output movement total value equals zero (numerically equivalent via `BigDecimal`).
 
-## Production Cost Calculation
-Posting a batch triggers a cost calculation:
-1. Obtain the weighted average cost of each component at the batch's effective time using `InventorySnapshotService`.
-2. `componentTotalCost = actualQuantityBase × componentAverageUnitCostBase`
-3. `totalProductionCost = sum(componentTotalCost)`
-4. `outputUnitCostBase = totalProductionCost ÷ actualOutputQuantityBase`
+## Transaction and Idempotency
+- **Atomic Posting**: Posting is performed in a single Room transaction that validates the draft, canonicalizes quantities, calculates costs, persists snapshots, inserts movements, and updates projections.
+- **Failure Boundaries**: Integrated failure points ensure the database rolls back to the `DRAFT` state if any step of the posting or voiding process fails.
+- **Idempotency**: Reposting a `POSTED` batch or revoiding a `VOIDED` batch performs a full integrity check of existing movements/reversals and returns success if they match the document state exactly.
 
-This ensures that yield loss (lower actual output) increases the unit cost of the prepared ingredient.
+## Backup and Restore (Format v1)
+The Backup Format v1 supports Database Schemas 2, 3, and 4.
+- **Schema 2**: Legacy set, no recipe or production data.
+- **Schema 3**: Includes preparation recipes but no production batches.
+- **Schema 4**: Includes preparation recipes and production batches.
+- **Payload Boundaries**: Manifest metadata and DTO payloads are strictly enforced by schema. For example, a Schema 3 backup must not contain production records.
+- **Integrity Validation**: Backups verify production numeric fields, foreign keys, lifecycle timestamps, and exact movement coverage. Balance and cost projections are reconstructed from effective movement history to ensure correctness.
 
-## Inventory Movements
-Posting a batch creates:
-- `PRODUCTION_CONSUMPTION`: One per component, reducing inventory at current average cost.
-- `PRODUCTION_OUTPUT`: One for the output ingredient, increasing inventory and establishing/updating its weighted average cost.
-
-## Nested Preparations
-A production batch can consume ingredients that were themselves produced by another batch. The system uses the current weighted average cost of the consumed prepared ingredient, ensuring costs flow through the dependency graph without recursive explosion during posting.
-
-## Posting Idempotency
-- Posting a batch that is already `POSTED` validates its movement history and returns success.
-- Voiding a batch that is already `VOIDED` validates its reversal history and returns success.
-
-## Backup Schema 4
-New backups (Schema 4) include full production batch and component data. Restoration supports Schema 2 (no recipes/production), Schema 3 (recipes but no production), and Schema 4.
-
-## UI Implementation Status
-Production batch domain, persistence, and posting are implemented.
-Production management UI is not implemented yet.
+## Implementation Status
+Production Batches domain, historical costing, posting, voiding and Backup/Restore are complete and verified. Production UI is deferred.

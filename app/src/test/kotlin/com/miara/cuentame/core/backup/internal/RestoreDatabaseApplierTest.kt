@@ -33,6 +33,8 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertIngredientUnitOptions(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipes(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipeComponents(any()) } just Runs
+        coEvery { restoreDao.insertProductionBatches(any()) } just Runs
+        coEvery { restoreDao.insertProductionBatchComponents(any()) } just Runs
         coEvery { restoreDao.insertPurchaseReceipts(any()) } just Runs
         coEvery { restoreDao.insertPurchaseLines(any()) } just Runs
         coEvery { restoreDao.insertStockCounts(any()) } just Runs
@@ -71,6 +73,8 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertIngredientUnitOptions(any())
             restoreDao.insertPreparationRecipes(any())
             restoreDao.insertPreparationRecipeComponents(any())
+            restoreDao.insertProductionBatches(any())
+            restoreDao.insertProductionBatchComponents(any())
             restoreDao.insertPurchaseReceipts(any())
             restoreDao.insertPurchaseLines(any())
             restoreDao.insertStockCounts(any())
@@ -112,7 +116,9 @@ class RestoreDatabaseApplierTest {
         inventoryBalanceProjections = emptyList(),
         ingredientCostProjections = emptyList(),
         preparationRecipes = emptyList(),
-        preparationRecipeComponents = emptyList()
+        preparationRecipeComponents = emptyList(),
+        productionBatches = emptyList(),
+        productionBatchComponents = emptyList()
     )
 
     private fun createMinimalSnapshot() = BackupSnapshotDto(
@@ -133,6 +139,8 @@ class RestoreDatabaseApplierTest {
         inventoryBalanceProjections = emptyList(),
         ingredientCostProjections = emptyList(),
         preparationRecipes = emptyList(),
-        preparationRecipeComponents = emptyList()
+        preparationRecipeComponents = emptyList(),
+        productionBatches = emptyList(),
+        productionBatchComponents = emptyList()
     )
 }

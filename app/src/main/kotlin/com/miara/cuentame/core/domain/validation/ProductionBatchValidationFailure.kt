@@ -18,6 +18,11 @@ sealed interface ProductionBatchValidationFailure {
     data object BatchNotFound : ProductionBatchValidationFailure
     data object BatchNotDraft : ProductionBatchValidationFailure
     data object ComponentNotFound : ProductionBatchValidationFailure
+    data object ComponentIngredientNotFound : ProductionBatchValidationFailure
+    data object ComponentIngredientInactive : ProductionBatchValidationFailure
+    data object ComponentIngredientRestaurantMismatch : ProductionBatchValidationFailure
+    data object ComponentQuantityMustBePositive : ProductionBatchValidationFailure
+    data object InvalidUnitFactor : ProductionBatchValidationFailure
     data object SourceAreaNotFound : ProductionBatchValidationFailure
     data object SourceAreaInactive : ProductionBatchValidationFailure
     data object SourceAreaRestaurantMismatch : ProductionBatchValidationFailure

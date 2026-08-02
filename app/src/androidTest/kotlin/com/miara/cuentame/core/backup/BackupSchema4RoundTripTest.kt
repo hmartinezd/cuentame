@@ -11,7 +11,13 @@ import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
+import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -43,7 +49,10 @@ class BackupSchema4RoundTripTest {
     lateinit var database: RestaurantInventoryDatabase
 
     @Inject
-    lateinit var appVersionProvider: AppVersionProvider
+    lateinit var repository: ProductionBatchRepository
+
+    @Inject
+    lateinit var testStateManager: TestStateManager
 
     private val restId = RestaurantId("rest-1")
 
@@ -53,109 +62,80 @@ class BackupSchema4RoundTripTest {
     }
 
     @Test
-    fun schema4BackupRoundTrip_preservesAllProductionData() = runBlocking {
-        // 1. Seed database with Production Batches
-        seedDatabaseWithProduction()
+    fun schema4BackupRoundTrip_realPostingAndMutation_preservesAllProductionData() = runBlocking {
+        // 1. Seed base data
+        testStateManager.resetAll()
+        seedBaseData()
+        
+        // 2. Establish component quantity and cost through a real purchase
+        val now = Instant.now()
+        val compIngId = IngredientId("ing-comp")
+        database.inventoryMovementDao().insert(InventoryMovementEntity(
+            id = "move-1", restaurantId = restId.value, ingredientId = compIngId.value, areaId = "a1",
+            movementType = InventoryMovementType.PURCHASE.name, quantityBaseSigned = "10.0", unitCostBaseSnapshot = "10.0",
+            totalValueSnapshot = "100.0", effectiveAt = now.minusSeconds(100).toEpochMilli(),
+            sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name, sourceDocumentId = "p1",
+            sourceOperationId = "op1", sourceLineId = "l1", reversalOfMovementId = null, createdAt = now.minusSeconds(100).toEpochMilli()
+        ))
+        database.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(
+            restaurantId = restId.value, ingredientId = compIngId.value, averageUnitCostBase = "10.0", updatedAt = now.toEpochMilli()
+        ))
+        database.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(
+            restaurantId = restId.value, ingredientId = compIngId.value, areaId = "a1", quantityBase = "10.0", updatedAt = now.toEpochMilli()
+        ))
 
-        // 2. Create backup plan
-        val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
-        val snapshotResult = snapshotSource.loadSnapshot(restId.value)
-        
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(4)
-        
-        val planResult = planner.createPlan(restaurant, snapshotResult)
-        assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
+        // 3. Create Production Draft and Post
+        val recipeId = PreparationRecipeId("r-1")
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restaurantId = restId, recipeId = recipeId, batchMultiplier = BigDecimal("2"),
+            outputAreaId = InventoryAreaId("a1"), actualOutputQuantityEntered = null,
+            outputUnitOptionId = null, effectiveAt = now, notes = "Initial Notes"
+        ))
+        repository.post(batchId)
+
+        // 4. Capture backup
+        val restaurant = Restaurant(restId, "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        val snapshotBefore = snapshotSource.loadSnapshot(restId.value).dto
+        val planResult = planner.createPlan(restaurant, BackupSnapshotResult(snapshotBefore, emptyList()))
         val plan = (planResult as BackupPlanningResult.Success).plan
+
+        // 5. Mutate database
+        database.preparationRecipeDao().update(database.preparationRecipeDao().getById("r-1")!!.copy(name = "Renamed Recipe"))
+        repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, InventoryAreaId("a1"), null, null, now.plusSeconds(100), "Another Draft"
+        ))
         
-        // 3. Clear and Restore
-        val snapshotDto = plan.snapshotDto
-        applier.replaceWithBackup(snapshotDto)
-        
-        // 4. Verify equality
+        // 6. Restore backup
+        applier.replaceWithBackup(plan.snapshotDto)
+
+        // 7. Verify exact equality
         val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        assertThat(restoredSnapshot).isEqualTo(snapshotBefore)
         
+        // Verify mutation records are gone
+        assertThat(restoredSnapshot.preparationRecipes[0].name).isEqualTo("Recipe")
         assertThat(restoredSnapshot.productionBatches).hasSize(1)
-        assertThat(restoredSnapshot.productionBatchComponents).hasSize(1)
-        assertThat(restoredSnapshot).isEqualTo(snapshotDto)
-        
-        // Verify specific fields
-        val batch = restoredSnapshot.productionBatches[0]
-        assertThat(batch.status).isEqualTo(DocumentStatus.POSTED.name)
-        assertThat(batch.totalComponentCostSnapshot).isEqualTo("10.00")
-        
-        val component = restoredSnapshot.productionBatchComponents[0]
-        assertThat(component.unitCostBaseSnapshot).isEqualTo("10.00")
+        assertThat(restoredSnapshot.productionBatches[0].notes).isEqualTo("Initial Notes")
     }
 
-    private suspend fun seedDatabaseWithProduction() {
-        database.restaurantDao().insert(RestaurantEntity(restId.value, "Test", "USD", "en-US", 0, 0, null))
+    private suspend fun seedBaseData() {
+        database.restaurantDao().insert(RestaurantEntity(restId.value, "Test Restaurant", "USD", "en-US", 0, 0, null))
         database.inventoryAreaDao().upsert(InventoryAreaEntity("a1", restId.value, "Area", "area", 0, true, 0, 0, null))
         database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
         
-        val ing1 = "ing-1"
-        val ing2 = "ing-2"
-        database.ingredientDao().insert(IngredientEntity(ing1, restId.value, "Output", "output", null, "u1", "a1", null, null, null, true, 100, 100, null))
-        database.ingredientDao().insert(IngredientEntity(ing2, restId.value, "Comp", "comp", null, "u1", "a1", null, null, null, true, 100, 100, null))
+        val ingOutput = "ing-output"
+        val ingComp = "ing-comp"
+        database.ingredientDao().insert(IngredientEntity(ingOutput, restId.value, "Output", "output", null, "u1", "a1", null, null, null, true, 100, 100, null))
+        database.ingredientDao().insert(IngredientEntity(ingComp, restId.value, "Comp", "comp", null, "u1", "a1", null, null, null, true, 100, 100, null))
         
         val opt1 = "opt-1"
-        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt1, ing1, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
+        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt1, ingOutput, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
         val opt2 = "opt-2"
-        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt2, ing2, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
+        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt2, ingComp, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
 
         // Recipe
-        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-1", restId.value, ing1, "Recipe", "recipe", BigDecimal.ONE, BigDecimal.ONE, opt1, "ACTIVE", null, 100, 100, null))
-        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-1", "r-1", ing2, opt2, BigDecimal("0.5"), BigDecimal("0.5"), 0, null, 100, 100))
-
-        // Production Batch
-        database.productionBatchDao().insert(ProductionBatchEntity(
-            id = "batch-1",
-            restaurantId = restId.value,
-            recipeId = "r-1",
-            recipeNameSnapshot = "Recipe",
-            outputIngredientId = ing1,
-            batchMultiplier = "2.0",
-            recipeStandardYieldQuantitySnapshot = "1.0",
-            recipeStandardYieldBaseSnapshot = "1.0",
-            recipeYieldUnitOptionIdSnapshot = opt1,
-            expectedOutputQuantityEntered = "2.0",
-            expectedOutputQuantityBase = "2.0",
-            actualOutputQuantityEntered = "2.0",
-            actualOutputQuantityBase = "2.0",
-            outputUnitOptionId = opt1,
-            outputAreaId = "a1",
-            hasManualOutputQuantityOverride = false,
-            totalComponentCostSnapshot = "10.00",
-            outputUnitCostBaseSnapshot = "5.00",
-            effectiveAt = 1000L,
-            status = DocumentStatus.POSTED.name,
-            notes = "Test Batch",
-            createdAt = 1000L,
-            updatedAt = 1000L,
-            postedAt = 1000L,
-            voidedAt = null
-        ))
-        database.productionBatchDao().insertComponents(listOf(ProductionBatchComponentEntity(
-            id = "bc-1",
-            productionBatchId = "batch-1",
-            sourceRecipeComponentIdSnapshot = "c-1",
-            componentIngredientId = ing2,
-            recipeQuantityEnteredSnapshot = "0.5",
-            recipeQuantityBaseSnapshot = "0.5",
-            recipeUnitOptionIdSnapshot = opt2,
-            expectedQuantityEntered = "1.0",
-            expectedQuantityBase = "1.0",
-            actualQuantityEntered = "1.0",
-            actualQuantityBase = "1.0",
-            unitOptionId = opt2,
-            hasManualQuantityOverride = false,
-            sourceAreaId = "a1",
-            unitCostBaseSnapshot = "10.00",
-            totalCostSnapshot = "10.00",
-            sortOrder = 0,
-            notes = null,
-            createdAt = 1000L,
-            updatedAt = 1000L
-        )))
+        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-1", restId.value, ingOutput, "Recipe", "recipe", BigDecimal.ONE, BigDecimal.ONE, opt1, "ACTIVE", null, 100, 100, null))
+        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-1", "r-1", ingComp, opt2, BigDecimal("0.5"), BigDecimal("0.5"), 0, null, 100, 100))
     }
 
     @Test

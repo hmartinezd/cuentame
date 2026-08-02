@@ -98,6 +98,9 @@ interface InventoryMovementDao {
     @Query("DELETE FROM inventory_movements WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("DELETE FROM inventory_movements")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM inventory_movements")
     suspend fun getAll(): List<InventoryMovementEntity>
 

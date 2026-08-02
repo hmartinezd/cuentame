@@ -55,6 +55,18 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
+    fun `schema 2 manifest with schema 4 metadata fails`() {
+        val manifest = createValidBaseManifest().copy(
+            databaseSchemaVersion = 2,
+            tableMetadata = createValidBaseManifest().tableMetadata.toMutableMap().apply {
+                put("production_batches", TableMetadata(0, false))
+            }
+        )
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
     fun `schema 3 manifest missing recipe metadata fails`() {
         val manifest = createValidBaseManifest().copy(
             databaseSchemaVersion = 3,
@@ -67,10 +79,23 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `valid schema 3 manifest structure succeeds`() {
+    fun `schema 3 manifest with schema 4 metadata fails`() {
         val tables = BackupFormatV1Contract.expectedTablesForSchema(3).associateWith { TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
         val manifest = createValidBaseManifest().copy(
             databaseSchemaVersion = 3,
+            tableMetadata = tables.toMutableMap().apply {
+                put("production_batches", TableMetadata(0, false))
+            }
+        )
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `valid schema 4 manifest structure succeeds`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(4).associateWith { TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val manifest = createValidBaseManifest().copy(
+            databaseSchemaVersion = 4,
             tableMetadata = tables
         )
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
@@ -545,6 +570,31 @@ class BackupManifestContractValidatorTest {
         val snapshot = createValidEmptySnapshot().copy(
             preparationRecipes = listOf(
                 PreparationRecipeBackupDto("r1", "rest-1", "i1", "R", "r", "1", "1", null, "DRAFT", null, 0, 0, null)
+            )
+        )
+        val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
+        assertThat(failure).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `schema 2 manifest with non-empty production payload fails`() {
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 2)
+        val snapshot = createValidEmptySnapshot().copy(
+            productionBatches = listOf(
+                ProductionBatchBackupDto("b1", "rest-1", "r1", "R", "i1", "1", "1", "1", "o1", "1", "1", "1", "1", "o1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null)
+            )
+        )
+        val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
+        assertThat(failure).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun `schema 3 manifest with non-empty production payload fails`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(3).associateWith { TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 3, tableMetadata = tables)
+        val snapshot = createValidEmptySnapshot().copy(
+            productionBatches = listOf(
+                ProductionBatchBackupDto("b1", "rest-1", "r1", "R", "i1", "1", "1", "1", "o1", "1", "1", "1", "1", "o1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null)
             )
         )
         val failure = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)

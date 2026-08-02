@@ -7,8 +7,9 @@ import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
+import javax.inject.Inject
 
-class ProductionBatchMovementHistoryValidator {
+class ProductionBatchMovementHistoryValidator @Inject constructor() {
 
     fun validateDraftHistory(
         batch: ProductionBatchEntity,
@@ -38,13 +39,21 @@ class ProductionBatchMovementHistoryValidator {
         if (outputMoves.size != 1) throw ValidationError.MalformedProductionMovementHistory
         if (movements.size != (consumptionMoves.size + outputMoves.size)) throw ValidationError.MalformedProductionMovementHistory
 
+        val consumptionLineIds = consumptionMoves.mapNotNull { it.sourceLineId }
+        if (consumptionLineIds.size != consumptionMoves.size) throw ValidationError.MalformedProductionMovementHistory
+        if (consumptionLineIds.distinct().size != consumptionLineIds.size) throw ValidationError.MalformedProductionMovementHistory
+        
+        val componentIds = components.map { it.id }.toSet()
+        if (consumptionLineIds.toSet() != componentIds) throw ValidationError.MalformedProductionMovementHistory
+
         val consumptionByLineId = consumptionMoves.associateBy { it.sourceLineId }
         components.forEach { component ->
-            val movement = consumptionByLineId[component.id] ?: throw ValidationError.MalformedProductionMovementHistory
+            val movement = consumptionByLineId[component.id]!!
             validateConsumptionMovementMatchesComponent(batch, component, movement)
         }
 
         val outputMove = outputMoves.first()
+        if (outputMove.sourceLineId != batch.id) throw ValidationError.MalformedProductionMovementHistory
         validateOutputMovementMatchesBatch(batch, outputMove)
 
         // Ensure no reversals exist in POSTED state
@@ -72,10 +81,17 @@ class ProductionBatchMovementHistoryValidator {
         if (reversals.size != originalMoves.size) throw ValidationError.MalformedProductionMovementHistory
         if (movements.size != (originalMoves.size + reversals.size)) throw ValidationError.MalformedProductionMovementHistory
 
+        val reversalTargetIds = reversals.mapNotNull { it.reversalOfMovementId }
+        if (reversalTargetIds.size != reversals.size) throw ValidationError.MalformedProductionMovementHistory
+        if (reversalTargetIds.distinct().size != reversalTargetIds.size) throw ValidationError.MalformedProductionMovementHistory
+        
+        val originalMoveIds = originalMoves.map { it.id }.toSet()
+        if (reversalTargetIds.toSet() != originalMoveIds) throw ValidationError.MalformedProductionMovementHistory
+
         val reversalsByOriginalId = reversals.associateBy { it.reversalOfMovementId }
 
         originalMoves.forEach { original ->
-            val reversal = reversalsByOriginalId[original.id] ?: throw ValidationError.MalformedProductionMovementHistory
+            val reversal = reversalsByOriginalId[original.id]!!
             validateReversalMatchesOriginal(batch, original, reversal)
         }
 

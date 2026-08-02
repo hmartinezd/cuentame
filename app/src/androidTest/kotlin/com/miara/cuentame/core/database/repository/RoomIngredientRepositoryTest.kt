@@ -140,4 +140,26 @@ class RoomIngredientRepositoryTest {
             assertThat(e).isEqualTo(com.miara.cuentame.core.domain.validation.ValidationError.IngredientIsRecipeOutput)
         }
     }
+
+    @Test
+    fun archiveIngredient_failsIfUsedByProductionDraft() = runBlocking {
+        val unitId = UnitId("u1")
+        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity(unitId.value, "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+
+        val ingId = IngredientId("i1")
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", null, null, null, null, true, 0, 0, null))
+        db.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity("opt1", "i1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
+
+        // Create a draft batch
+        db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
+            "b1", restId.value, "r1", "R", ingId.value, "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
+        ))
+
+        try {
+            repository.archive(ingId, Instant.now())
+            assertThat(false).isTrue()
+        } catch (e: com.miara.cuentame.core.domain.validation.ValidationError) {
+            assertThat(e).isEqualTo(com.miara.cuentame.core.domain.validation.ValidationError.IngredientUsedByProductionDraft)
+        }
+    }
 }

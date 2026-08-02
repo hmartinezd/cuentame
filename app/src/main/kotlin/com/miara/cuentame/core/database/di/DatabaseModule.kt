@@ -13,6 +13,9 @@ import com.miara.cuentame.core.database.dao.InventoryAreaDao
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.dao.PreparationRecipeDao
+import com.miara.cuentame.core.database.dao.ProductionBatchDao
+import com.miara.cuentame.core.database.dao.BackupDao
+import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.StockCountDao
@@ -102,13 +105,13 @@ object DatabaseModule {
     fun providePreparationRecipeDao(db: RestaurantInventoryDatabase): PreparationRecipeDao = db.preparationRecipeDao()
 
     @Provides
-    fun provideProductionBatchDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.ProductionBatchDao = db.productionBatchDao()
+    fun provideProductionBatchDao(db: RestaurantInventoryDatabase): ProductionBatchDao = db.productionBatchDao()
 
     @Provides
-    fun provideBackupDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.BackupDao = db.backupDao()
+    fun provideBackupDao(db: RestaurantInventoryDatabase): BackupDao = db.backupDao()
 
     @Provides
-    fun provideRestoreDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.RestoreDao = db.restoreDao()
+    fun provideRestoreDao(db: RestaurantInventoryDatabase): RestoreDao = db.restoreDao()
 
     @Provides
     fun provideDetailedReportsRepository(

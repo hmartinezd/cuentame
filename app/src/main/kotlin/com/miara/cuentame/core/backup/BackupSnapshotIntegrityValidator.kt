@@ -409,6 +409,55 @@ object BackupSnapshotIntegrityValidator {
             // totalValueSnapshot sign follows the movement direction; no range restriction here
         }
 
+        // Production batches
+        for (batch in dto.productionBatches) {
+            val fields = listOf(
+                batch.batchMultiplier to "batchMultiplier",
+                batch.recipeStandardYieldQuantitySnapshot to "recipeStandardYieldQuantitySnapshot",
+                batch.recipeStandardYieldBaseSnapshot to "recipeStandardYieldBaseSnapshot",
+                batch.expectedOutputQuantityEntered to "expectedOutputQuantityEntered",
+                batch.expectedOutputQuantityBase to "expectedOutputQuantityBase",
+                batch.actualOutputQuantityEntered to "actualOutputQuantityEntered",
+                batch.actualOutputQuantityBase to "actualOutputQuantityBase"
+            )
+            for ((value, field) in fields) {
+                val r = parseDecimal(value, "Invalid numeric format in production_batches.$field")
+                if (r is BigDecimalResult.Err) return err(r.code, r.msg)
+            }
+            val costFields = listOf(
+                batch.totalComponentCostSnapshot to "totalComponentCostSnapshot",
+                batch.outputUnitCostBaseSnapshot to "outputUnitCostBaseSnapshot"
+            )
+            for ((value, field) in costFields) {
+                val r = parseNullableDecimal(value, "Invalid numeric format in production_batches.$field")
+                if (r is NullableDecimalResult.Err) return err(r.code, r.msg)
+            }
+        }
+
+        // Production batch components
+        for (comp in dto.productionBatchComponents) {
+            val fields = listOf(
+                comp.recipeQuantityEnteredSnapshot to "recipeQuantityEnteredSnapshot",
+                comp.recipeQuantityBaseSnapshot to "recipeQuantityBaseSnapshot",
+                comp.expectedQuantityEntered to "expectedQuantityEntered",
+                comp.expectedQuantityBase to "expectedQuantityBase",
+                comp.actualQuantityEntered to "actualQuantityEntered",
+                comp.actualQuantityBase to "actualQuantityBase"
+            )
+            for ((value, field) in fields) {
+                val r = parseDecimal(value, "Invalid numeric format in production_batch_components.$field")
+                if (r is BigDecimalResult.Err) return err(r.code, r.msg)
+            }
+            val costFields = listOf(
+                comp.unitCostBaseSnapshot to "unitCostBaseSnapshot",
+                comp.totalCostSnapshot to "totalCostSnapshot"
+            )
+            for ((value, field) in costFields) {
+                val r = parseNullableDecimal(value, "Invalid numeric format in production_batch_components.$field")
+                if (r is NullableDecimalResult.Err) return err(r.code, r.msg)
+            }
+        }
+
         return null
     }
 
@@ -917,17 +966,22 @@ object BackupSnapshotIntegrityValidator {
     }
 
     private fun validateBalanceProjections(dto: BackupSnapshotDto): BackupSnapshotIntegrityException? {
+        val reversedOriginalIds = dto.inventoryMovements
+            .mapNotNull { it.reversalOfMovementId }
+            .toSet()
+
+        val effectiveMovements = dto.inventoryMovements.filter {
+            it.movementType != InventoryMovementType.REVERSAL.name &&
+            it.id !in reversedOriginalIds
+        }
+
         val computedBalances = mutableMapOf<Pair<String, String>, BigDecimal>()
         val keysWithMovements = mutableSetOf<Pair<String, String>>()
 
-        for (move in dto.inventoryMovements) {
+        for (move in effectiveMovements) {
             val key = Pair(move.ingredientId, move.areaId)
             keysWithMovements.add(key)
-            val qr = parseDecimal(move.quantityBaseSigned, "Invalid numeric format in inventory_movements.quantityBaseSigned")
-            val q = when (qr) {
-                is BigDecimalResult.Err -> return err(qr.code, qr.msg)
-                is BigDecimalResult.Ok -> qr.value
-            }
+            val q = BigDecimal(move.quantityBaseSigned)
             computedBalances[key] = computedBalances.getOrDefault(key, BigDecimal.ZERO).add(q)
         }
 
@@ -959,28 +1013,68 @@ object BackupSnapshotIntegrityValidator {
     }
 
     private fun validateCostProjections(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
-        for (proj in dto.ingredientCostProjections) {
-            // FK to ingredient
-            if (!ctx.ingById.containsKey(proj.ingredientId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: ingredient_cost_projection to ingredient")
-            }
-            // Restaurant isolation
-            if (proj.restaurantId != ctx.restaurantId) {
-                return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projections")
-            }
-            // Optional averageUnitCostBase
-            if (proj.averageUnitCostBase != null) {
-                val r = parseDecimal(proj.averageUnitCostBase, "Invalid numeric format in ingredient_cost_projections.averageUnitCostBase")
-                when (r) {
-                    is BigDecimalResult.Err -> return err(r.code, r.msg)
-                    is BigDecimalResult.Ok -> {
-                        if (r.value < BigDecimal.ZERO) {
-                            return err(INVALID_NUMERIC_RANGE, "ingredient_cost_projections.averageUnitCostBase must be >= 0")
+        val reversedOriginalIds = dto.inventoryMovements
+            .mapNotNull { it.reversalOfMovementId }
+            .toSet()
+
+        val movementsByIngredient = dto.inventoryMovements
+            .filter { it.id !in reversedOriginalIds && it.movementType != InventoryMovementType.REVERSAL.name }
+            .sortedWith(compareBy({ it.effectiveAt }, { it.createdAt }, { it.id }))
+            .groupBy { it.ingredientId }
+
+        val costProjByIng = dto.ingredientCostProjections.associateBy { it.ingredientId }
+
+        for (ing in dto.ingredients) {
+            val moves = movementsByIngredient[ing.id] ?: emptyList()
+            var currentTotalQuantity = BigDecimal.ZERO
+            var currentAverageCost = BigDecimal.ZERO
+            var hasEstablishedCost = false
+
+            for (move in moves) {
+                val moveQty = BigDecimal(move.quantityBaseSigned)
+                val moveType = InventoryMovementType.valueOf(move.movementType)
+
+                when (moveType) {
+                    InventoryMovementType.PURCHASE,
+                    InventoryMovementType.OPENING_BALANCE,
+                    InventoryMovementType.PRODUCTION_OUTPUT -> {
+                        val incomingQuantity = moveQty
+                        val incomingUnitCost = move.unitCostBaseSnapshot?.let { BigDecimal(it) }
+
+                        if (incomingQuantity > BigDecimal.ZERO && incomingUnitCost != null) {
+                            currentAverageCost = if (currentTotalQuantity <= BigDecimal.ZERO) {
+                                incomingUnitCost
+                            } else {
+                                val currentTotalValue = currentTotalQuantity.multiply(currentAverageCost, java.math.MathContext.DECIMAL128)
+                                val purchaseTotalValue = incomingQuantity.multiply(incomingUnitCost, java.math.MathContext.DECIMAL128)
+                                val newTotalQuantity = currentTotalQuantity.add(incomingQuantity)
+                                currentTotalValue.add(purchaseTotalValue).divide(newTotalQuantity, java.math.MathContext.DECIMAL128)
+                            }
+                            hasEstablishedCost = true
                         }
+                        currentTotalQuantity = currentTotalQuantity.add(incomingQuantity)
+                    }
+                    else -> {
+                        currentTotalQuantity = currentTotalQuantity.add(moveQty)
                     }
                 }
             }
+
+            val proj = costProjByIng[ing.id]
+            if (hasEstablishedCost) {
+                if (proj == null) return err(INVALID_COST_PROJECTION, "Missing cost projection for ingredient with cost history: ${ing.id}")
+                if (proj.averageUnitCostBase == null) return err(INVALID_COST_PROJECTION, "Cost projection must have value when history exists")
+                val actual = BigDecimal(proj.averageUnitCostBase)
+                if (actual.compareTo(currentAverageCost) != 0) {
+                    return err(INVALID_COST_PROJECTION, "Cost projection value mismatch for ${ing.id}. Expected: $currentAverageCost, Actual: $actual")
+                }
+            } else {
+                if (proj != null && proj.averageUnitCostBase != null && BigDecimal(proj.averageUnitCostBase).compareTo(BigDecimal.ZERO) != 0) {
+                    return err(INVALID_COST_PROJECTION, "Cost projection must be zero or null when no cost history exists")
+                }
+            }
         }
+
         return null
     }
 
@@ -1191,15 +1285,20 @@ object BackupSnapshotIntegrityValidator {
                 }
                 DocumentStatus.POSTED -> {
                     if (batch.postedAt == null || batch.voidedAt != null) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch lifecycle error")
+                    if (batch.createdAt > batch.postedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.createdAt must be <= batch.postedAt")
+                    if (batch.postedAt > batch.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.postedAt must be <= batch.updatedAt")
                 }
                 DocumentStatus.VOIDED -> {
                     if (batch.postedAt == null || batch.voidedAt == null) return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED batch lifecycle error")
                     if (batch.postedAt > batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.postedAt must be <= voidedAt")
+                    if (batch.voidedAt > batch.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.voidedAt must be <= batch.updatedAt")
                 }
             }
 
             // Isolation & FKs
-            if (!ctx.recipeById.containsKey(batch.recipeId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to recipe")
+            val recipe = ctx.recipeById[batch.recipeId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to recipe")
+            if (recipe.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Recipe restaurant mismatch in batch")
+
             val outputIng = ctx.ingById[batch.outputIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output ingredient")
             val outputArea = ctx.areaById[batch.outputAreaId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output area")
             val outputOpt = ctx.optionById[batch.outputUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output option")
@@ -1209,15 +1308,39 @@ object BackupSnapshotIntegrityValidator {
             }
             if (outputOpt.ingredientId != batch.outputIngredientId) return err(RELATIONSHIP_MISMATCH, "Output option mismatch in batch")
 
-            // Quantities
-            val multiplierR = parseDecimal(batch.batchMultiplier, "Invalid multiplier")
-            if (multiplierR is BigDecimalResult.Ok && multiplierR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Multiplier must be > 0")
+            val yieldOptSnapshot = ctx.optionById[batch.recipeYieldUnitOptionIdSnapshot] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to yield option snapshot")
+            if (yieldOptSnapshot.ingredientId != batch.outputIngredientId) return err(RELATIONSHIP_MISMATCH, "Yield option snapshot mismatch")
 
-            val expectedR = parseDecimal(batch.expectedOutputQuantityBase, "Invalid expected output")
-            if (expectedR is BigDecimalResult.Ok && expectedR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Expected output must be > 0")
+            // Numeric semantics
+            val multiplier = BigDecimal(batch.batchMultiplier)
+            val rsYieldEntered = BigDecimal(batch.recipeStandardYieldQuantitySnapshot)
+            val rsYieldBase = BigDecimal(batch.recipeStandardYieldBaseSnapshot)
+            val expOutEntered = BigDecimal(batch.expectedOutputQuantityEntered)
+            val expOutBase = BigDecimal(batch.expectedOutputQuantityBase)
+            val actOutEntered = BigDecimal(batch.actualOutputQuantityEntered)
+            val actOutBase = BigDecimal(batch.actualOutputQuantityBase)
 
-            val actualR = parseDecimal(batch.actualOutputQuantityBase, "Invalid actual output")
-            if (actualR is BigDecimalResult.Ok && actualR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Actual output must be > 0")
+            if (multiplier <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "batchMultiplier must be > 0")
+            if (rsYieldEntered <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "recipe yield entered must be > 0")
+            if (rsYieldBase <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "recipe yield base must be > 0")
+            if (expOutEntered <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "expected output entered must be > 0")
+            if (expOutBase <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "expected output base must be > 0")
+            if (actOutEntered <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "actual output entered must be > 0")
+            if (actOutBase <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "actual output base must be > 0")
+
+            // Conversion validation
+            if (rsYieldBase.compareTo(rsYieldEntered.multiply(BigDecimal(yieldOptSnapshot.factorToBase))) != 0) {
+                return err(INVALID_NUMERIC_RANGE, "Recipe yield conversion mismatch in batch snapshot")
+            }
+            if (expOutEntered.compareTo(rsYieldEntered.multiply(multiplier)) != 0) {
+                return err(INVALID_NUMERIC_RANGE, "Expected output entered scaling mismatch")
+            }
+            if (expOutBase.compareTo(rsYieldBase.multiply(multiplier)) != 0) {
+                return err(INVALID_NUMERIC_RANGE, "Expected output base scaling mismatch")
+            }
+            if (actOutBase.compareTo(actOutEntered.multiply(BigDecimal(outputOpt.factorToBase))) != 0) {
+                return err(INVALID_NUMERIC_RANGE, "Actual output conversion mismatch")
+            }
 
             // Costs
             if (status == DocumentStatus.DRAFT) {
@@ -1228,6 +1351,16 @@ object BackupSnapshotIntegrityValidator {
                 if (batch.totalComponentCostSnapshot == null || batch.outputUnitCostBaseSnapshot == null) {
                     return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED batch must have cost snapshots")
                 }
+                val totalCost = BigDecimal(batch.totalComponentCostSnapshot)
+                val unitCost = BigDecimal(batch.outputUnitCostBaseSnapshot)
+                if (totalCost < BigDecimal.ZERO || unitCost < BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "Production costs must be >= 0")
+                }
+                
+                val expectedUnitCost = totalCost.divide(actOutBase, java.math.MathContext.DECIMAL128)
+                if (unitCost.compareTo(expectedUnitCost) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "outputUnitCostBaseSnapshot mismatch")
+                }
             }
 
             // Components
@@ -1236,34 +1369,69 @@ object BackupSnapshotIntegrityValidator {
 
             var computedTotalCost = BigDecimal.ZERO
             for (comp in components) {
+                if (comp.productionBatchId != batch.id) return err(RELATIONSHIP_MISMATCH, "Component parent mismatch")
+                if (comp.sourceRecipeComponentIdSnapshot.isBlank()) return err(BLANK_PRIMARY_KEY, "Blank sourceRecipeComponentIdSnapshot")
+
                 val compIng = ctx.ingById[comp.componentIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to ingredient")
                 val compOpt = ctx.optionById[comp.unitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to option")
+                val rUnitOpt = ctx.optionById[comp.recipeUnitOptionIdSnapshot] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to recipe option snapshot")
+
                 if (compIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in batch component")
                 if (compOpt.ingredientId != comp.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Component option mismatch")
+                if (rUnitOpt.ingredientId != comp.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Recipe unit option snapshot mismatch")
 
                 if (comp.sourceAreaId != null) {
                     val srcArea = ctx.areaById[comp.sourceAreaId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to source area")
                     if (srcArea.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in component source area")
+                } else {
+                    if (status != DocumentStatus.DRAFT) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED batch component must have sourceAreaId")
                 }
 
-                if (status != DocumentStatus.DRAFT) {
-                    if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
-                        return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED batch component must have cost snapshots")
+                val rQtyEntered = BigDecimal(comp.recipeQuantityEnteredSnapshot)
+                val rQtyBase = BigDecimal(comp.recipeQuantityBaseSnapshot)
+                val eQtyEntered = BigDecimal(comp.expectedQuantityEntered)
+                val eQtyBase = BigDecimal(comp.expectedQuantityBase)
+                val aQtyEntered = BigDecimal(comp.actualQuantityEntered)
+                val aQtyBase = BigDecimal(comp.actualQuantityBase)
+
+                if (rQtyEntered <= BigDecimal.ZERO || rQtyBase <= BigDecimal.ZERO ||
+                    eQtyEntered <= BigDecimal.ZERO || eQtyBase <= BigDecimal.ZERO ||
+                    aQtyEntered <= BigDecimal.ZERO || aQtyBase <= BigDecimal.ZERO) {
+                    return err(INVALID_NUMERIC_RANGE, "Component quantities must be > 0")
+                }
+
+                if (rQtyBase.compareTo(rQtyEntered.multiply(BigDecimal(rUnitOpt.factorToBase))) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "Component recipe conversion mismatch")
+                }
+                if (eQtyEntered.compareTo(rQtyEntered.multiply(multiplier)) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "Component expected scaling mismatch")
+                }
+                if (eQtyBase.compareTo(rQtyBase.multiply(multiplier)) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "Component expected base scaling mismatch")
+                }
+                if (aQtyBase.compareTo(aQtyEntered.multiply(BigDecimal(compOpt.factorToBase))) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "Component actual conversion mismatch")
+                }
+
+                if (status == DocumentStatus.DRAFT) {
+                    if (comp.unitCostBaseSnapshot != null || comp.totalCostSnapshot != null) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "DRAFT component must not have cost snapshots")
                     }
-                    val compTotal = BigDecimal(comp.totalCostSnapshot)
-                    computedTotalCost = computedTotalCost.add(compTotal)
+                } else {
+                    if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED component must have cost snapshots")
+                    }
+                    val uCost = BigDecimal(comp.unitCostBaseSnapshot)
+                    val tCost = BigDecimal(comp.totalCostSnapshot)
+                    if (uCost < BigDecimal.ZERO || tCost < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Component costs must be >= 0")
+                    if (tCost.compareTo(aQtyBase.multiply(uCost)) != 0) return err(INVALID_NUMERIC_RANGE, "Component total cost mismatch")
+                    computedTotalCost = computedTotalCost.add(tCost)
                 }
             }
 
             if (status != DocumentStatus.DRAFT) {
                 val totalSnapshot = BigDecimal(batch.totalComponentCostSnapshot!!)
                 if (totalSnapshot.compareTo(computedTotalCost) != 0) return err(INVALID_NUMERIC_RANGE, "Batch total cost does not match components sum")
-                
-                val actualBase = BigDecimal(batch.actualOutputQuantityBase)
-                val unitCostSnapshot = BigDecimal(batch.outputUnitCostBaseSnapshot!!)
-                if (unitCostSnapshot.multiply(actualBase).compareTo(totalSnapshot) != 0) {
-                     // Note: Due to DECIMAL128 division precision, we accept minor drift if any
-                }
             }
         }
         return null

@@ -150,7 +150,10 @@ class PreparationRecipeValidatorTest {
 
     @Test
     fun `restore archived to draft - cycle rejected`() {
-        val recipe = createRecipe(id = "rec-2", outputId = "ing-2", status = PreparationRecipeStatus.ARCHIVED)
+        val recipe = createRecipe(id = "rec-2", outputId = "ing-2", status = PreparationRecipeStatus.ARCHIVED).copy(
+            standardYieldQuantity = null,
+            standardYieldQuantityBase = null
+        )
         val components = listOf(
             createComponent(recipeId = "rec-2", componentId = "ing-1", unitId = "unit-y1")
         )

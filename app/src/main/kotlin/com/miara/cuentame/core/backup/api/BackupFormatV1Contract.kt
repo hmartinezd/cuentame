@@ -3,9 +3,9 @@ package com.miara.cuentame.core.backup.api
 object BackupFormatV1Contract {
 
     const val BACKUP_FORMAT_VERSION = 1
-    const val DATABASE_SCHEMA_VERSION = 3
+    const val DATABASE_SCHEMA_VERSION = 4
 
-    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3)
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -50,7 +50,9 @@ object BackupFormatV1Contract {
         "inventory_balance_projections",
         "ingredient_cost_projections",
         "preparation_recipes",
-        "preparation_recipe_components"
+        "preparation_recipe_components",
+        "production_batches",
+        "production_batch_components"
     )
 
     fun expectedTablesForSchema(schemaVersion: Int): Set<String> {
@@ -72,10 +74,16 @@ object BackupFormatV1Contract {
             "inventory_balance_projections",
             "ingredient_cost_projections"
         )
-        return if (schemaVersion >= 3) {
-            base + setOf("preparation_recipes", "preparation_recipe_components")
-        } else {
-            base
+        return when (schemaVersion) {
+            2 -> base
+            3 -> base + setOf("preparation_recipes", "preparation_recipe_components")
+            4 -> base + setOf(
+                "preparation_recipes",
+                "preparation_recipe_components",
+                "production_batches",
+                "production_batch_components"
+            )
+            else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }
     }
 

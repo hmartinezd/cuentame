@@ -67,4 +67,26 @@ class BackupSnapshotIntegrityNumericTest {
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
         assertThat(result.isFailure).isTrue()
     }
+
+    @Test
+    fun `rejects malformed multiplier`() {
+        val dto = createEmptyDto().copy(
+            productionBatches = listOf(
+                ProductionBatchBackupDto("b1", restId, "r1", "R", "i1", "bad", "1", "1", "o1", "1", "1", "1", "1", "o1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 4))
+        assertThat(result.isFailure).isTrue()
+    }
+
+    @Test
+    fun `rejects zero multiplier`() {
+        val dto = createEmptyDto().copy(
+            productionBatches = listOf(
+                ProductionBatchBackupDto("b1", restId, "r1", "R", "i1", "0", "1", "1", "o1", "1", "1", "1", "1", "o1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 4))
+        assertThat(result.isFailure).isTrue()
+    }
 }

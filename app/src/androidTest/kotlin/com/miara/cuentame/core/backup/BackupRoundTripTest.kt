@@ -54,7 +54,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun schema3BackupRoundTrip_preservesAllRecipeData() = runBlocking {
+    fun schema4BackupRoundTrip_preservesAllRecipeData() = runBlocking {
         // 1. Seed database with recipes
         seedDatabaseWithRecipes()
 
@@ -62,7 +62,7 @@ class BackupRoundTripTest {
         val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val snapshotResult = snapshotSource.loadSnapshot(restId.value)
         
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(3)
+        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(4)
         
         val planResult = planner.createPlan(restaurant, snapshotResult)
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
@@ -149,10 +149,12 @@ class BackupRoundTripTest {
         assertThat(restored.restaurants[0].name).isEqualTo("Legacy")
         assertThat(restored.preparationRecipes).isEmpty()
         assertThat(restored.preparationRecipeComponents).isEmpty()
+        assertThat(restored.productionBatches).isEmpty()
+        assertThat(restored.productionBatchComponents).isEmpty()
     }
 
     @Test
-    fun schema3BackupRoundTrip_restoresOverPopulatedStateExactly() = runBlocking {
+    fun schema4BackupRoundTrip_restoresOverPopulatedStateExactly() = runBlocking {
         // 1. Seed state A
         seedDatabaseWithRecipes()
         val originalSnapshot = snapshotSource.loadSnapshot(restId.value).dto

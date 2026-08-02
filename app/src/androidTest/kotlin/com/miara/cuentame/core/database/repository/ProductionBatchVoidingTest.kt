@@ -5,12 +5,14 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeComponentEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeEntity
 import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -130,12 +132,32 @@ class ProductionBatchVoidingTest {
     }
 
     private suspend fun seedCost() {
+        val now = Instant.now().toEpochMilli()
+        database.inventoryMovementDao().insert(
+            InventoryMovementEntity(
+                id = "move-seed-1",
+                restaurantId = restId.value,
+                ingredientId = componentIngredientId.value,
+                areaId = areaId.value,
+                movementType = InventoryMovementType.PURCHASE.name,
+                quantityBaseSigned = "10.00",
+                unitCostBaseSnapshot = "10.00",
+                totalValueSnapshot = "100.00",
+                effectiveAt = now - 10000,
+                sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
+                sourceDocumentId = "receipt-seed-1",
+                sourceOperationId = "seed-op-1",
+                sourceLineId = "line-seed-1",
+                reversalOfMovementId = null,
+                createdAt = now - 10000
+            )
+        )
         database.ingredientCostProjectionDao().upsert(
             IngredientCostProjectionEntity(
                 restaurantId = restId.value,
                 ingredientId = componentIngredientId.value,
                 averageUnitCostBase = "10.00",
-                updatedAt = Instant.now().toEpochMilli()
+                updatedAt = now - 10000
             )
         )
     }
@@ -174,7 +196,7 @@ class ProductionBatchVoidingTest {
         assertBigDecimalEquivalent(outReversal.quantityBaseSigned, "-4")
 
         // Verify projections restored
-        assertBigDecimalEquivalent(database.inventoryProjectionDao().getBalance(componentIngredientId.value, areaId.value)?.quantityBase ?: "0", "0")
+        assertBigDecimalEquivalent(database.inventoryProjectionDao().getBalance(componentIngredientId.value, areaId.value)?.quantityBase ?: "0", "10") // 10 original - 1 consumed + 1 reversed
         assertBigDecimalEquivalent(database.inventoryProjectionDao().getBalance(outputIngredientId.value, areaId.value)?.quantityBase ?: "0", "0")
     }
 

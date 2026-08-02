@@ -268,6 +268,10 @@ class DefaultBackupArchiveValidator @Inject constructor(
             tables["preparation_recipes"] = TableMetadata(dbDto.preparationRecipes.size, false)
             tables["preparation_recipe_components"] = TableMetadata(dbDto.preparationRecipeComponents.size, false)
         }
+        if (schemaVersion >= 4) {
+            tables["production_batches"] = TableMetadata(dbDto.productionBatches.size, false)
+            tables["production_batch_components"] = TableMetadata(dbDto.productionBatchComponents.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 

@@ -304,10 +304,16 @@ class BackupCreationPlanner @Inject constructor(
             "ingredient_cost_projections" to TableMetadata(dto.ingredientCostProjections.size, true)
         )
 
-        // Add recipe tables for schema 3
+        // Add recipe tables for schema 3+
         if (appVersionProvider.databaseSchemaVersion >= 3) {
             tables["preparation_recipes"] = TableMetadata(dto.preparationRecipes.size, false)
             tables["preparation_recipe_components"] = TableMetadata(dto.preparationRecipeComponents.size, false)
+        }
+
+        // Add production tables for schema 4+
+        if (appVersionProvider.databaseSchemaVersion >= 4) {
+            tables["production_batches"] = TableMetadata(dto.productionBatches.size, false)
+            tables["production_batch_components"] = TableMetadata(dto.productionBatchComponents.size, false)
         }
 
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }

@@ -65,7 +65,8 @@ class RoomInventorySnapshotService @Inject constructor(
 
             when (movement.movementType) {
                 InventoryMovementType.PURCHASE,
-                InventoryMovementType.OPENING_BALANCE -> {
+                InventoryMovementType.OPENING_BALANCE,
+                InventoryMovementType.PRODUCTION_OUTPUT -> {
                     val incomingQuantity = movement.quantityBaseSigned
                     val incomingUnitCost = movement.unitCostBaseSnapshot
                     

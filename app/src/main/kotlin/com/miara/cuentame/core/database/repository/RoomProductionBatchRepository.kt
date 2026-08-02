@@ -278,8 +278,13 @@ class RoomProductionBatchRepository @Inject constructor(
                 )
 
                 if (!updated.hasManualOutputQuantityOverride) {
+                    val outputOption = unitOptionDao.getById(updated.outputUnitOptionId)
+                        ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputUnitOptionNotFound))
+                    
+                    val newActualEntered = newExpectedBase.divide(outputOption.factorToBase, java.math.MathContext.DECIMAL128)
+                    
                     updated = updated.copy(
-                        actualOutputQuantityEntered = newExpectedEntered.toPlainString(),
+                        actualOutputQuantityEntered = newActualEntered.toPlainString(),
                         actualOutputQuantityBase = newExpectedBase.toPlainString()
                     )
                 }
@@ -417,6 +422,13 @@ class RoomProductionBatchRepository @Inject constructor(
                 blockers.add(PostingBlocker.MISSING_COMPONENT_AREA)
             }
 
+            val unitOption = unitOptionDao.getById(component.unitOptionId.value)
+            val canonicalActualQuantityBase = if (unitOption != null) {
+                component.actualQuantityEntered.multiply(unitOption.factorToBase)
+            } else {
+                component.actualQuantityBase
+            }
+
             val snapshot = if (sourceAreaId != null) {
                 inventorySnapshotService.calculateAt(
                     batch.restaurantId,
@@ -427,11 +439,11 @@ class RoomProductionBatchRepository @Inject constructor(
             } else null
 
             val currentBalance = snapshot?.areaQuantityBase ?: BigDecimal.ZERO
-            val remainingBalance = currentBalance.subtract(component.actualQuantityBase)
+            val remainingBalance = currentBalance.subtract(canonicalActualQuantityBase)
             
             val unitCost = snapshot?.ingredientAverageCostBase
             val totalCost = if (unitCost != null) {
-                component.actualQuantityBase.multiply(unitCost)
+                canonicalActualQuantityBase.multiply(unitCost)
             } else null
 
             if (unitCost == null) {
@@ -442,7 +454,6 @@ class RoomProductionBatchRepository @Inject constructor(
 
             val ingredient = ingredientDao.getById(component.componentIngredientId.value)
             val sourceArea = sourceAreaId?.let { areaDao.getById(it.value) }
-            val unitOption = unitOptionDao.getById(component.unitOptionId.value)
 
             ProductionBatchComponentPostingPreview(
                 componentId = component.id,
@@ -451,7 +462,7 @@ class RoomProductionBatchRepository @Inject constructor(
                 sourceAreaId = sourceAreaId ?: InventoryAreaId(""),
                 sourceAreaName = sourceArea?.name ?: "",
                 actualQuantityEntered = component.actualQuantityEntered,
-                actualQuantityBase = component.actualQuantityBase,
+                actualQuantityBase = canonicalActualQuantityBase,
                 unitOptionLabel = unitOption?.displayName ?: "",
                 currentAreaBalanceBase = currentBalance,
                 remainingAreaBalanceBase = remainingBalance,
@@ -466,13 +477,20 @@ class RoomProductionBatchRepository @Inject constructor(
             blockers.add(PostingBlocker.COMPONENT_COST_UNAVAILABLE)
         }
 
+        val outputOption = unitOptionDao.getById(batch.outputUnitOptionId.value)
+        val canonicalActualOutputBase = if (outputOption != null) {
+            batch.actualOutputQuantityEntered.multiply(outputOption.factorToBase)
+        } else {
+            batch.actualOutputQuantityBase
+        }
+
         val yieldVariancePercent = if (batch.expectedOutputQuantityBase.compareTo(BigDecimal.ZERO) > 0) {
-            val diff = batch.actualOutputQuantityBase.subtract(batch.expectedOutputQuantityBase)
+            val diff = canonicalActualOutputBase.subtract(batch.expectedOutputQuantityBase)
             diff.divide(batch.expectedOutputQuantityBase, java.math.MathContext.DECIMAL128).multiply(BigDecimal("100"))
         } else null
 
-        val outputUnitCostBase = if (!costUnavailable && batch.actualOutputQuantityBase.compareTo(BigDecimal.ZERO) > 0) {
-            totalComponentCost.divide(batch.actualOutputQuantityBase, java.math.MathContext.DECIMAL128)
+        val outputUnitCostBase = if (!costUnavailable && canonicalActualOutputBase.compareTo(BigDecimal.ZERO) > 0) {
+            totalComponentCost.divide(canonicalActualOutputBase, java.math.MathContext.DECIMAL128)
         } else null
 
         return ProductionBatchPostingPreview(
@@ -480,7 +498,7 @@ class RoomProductionBatchRepository @Inject constructor(
             effectiveAt = batch.effectiveAt,
             components = componentPreviews,
             totalComponentCost = if (costUnavailable) null else totalComponentCost,
-            actualOutputQuantityBase = batch.actualOutputQuantityBase,
+            actualOutputQuantityBase = canonicalActualOutputBase,
             outputUnitCostBase = outputUnitCostBase,
             yieldVariancePercent = yieldVariancePercent,
             blockers = blockers

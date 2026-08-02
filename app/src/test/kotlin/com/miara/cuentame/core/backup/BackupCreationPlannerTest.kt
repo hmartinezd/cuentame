@@ -75,12 +75,14 @@ class BackupCreationPlannerTest {
         assertThat(result).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (result as BackupPlanningResult.Success).plan
         assertThat(plan.manifest.localeTag).isEqualTo("en-US")
+        assertThat(plan.manifest.databaseSchemaVersion).isEqualTo(4)
         assertThat(plan.totalUncompressedBytes).isGreaterThan(0L)
         assertThat(plan.expectedEntryChecksums.keys).containsExactly(
             BackupFormatV1Contract.DATABASE_ENTRY,
             BackupFormatV1Contract.PREFERENCES_ENTRY,
             BackupFormatV1Contract.MANIFEST_ENTRY
         )
+        assertThat(plan.manifest.tableMetadata.keys).containsAtLeast("production_batches", "production_batch_components")
     }
 
     @Test

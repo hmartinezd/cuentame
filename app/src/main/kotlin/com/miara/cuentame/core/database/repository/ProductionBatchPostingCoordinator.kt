@@ -66,15 +66,39 @@ class ProductionBatchPostingCoordinator @Inject constructor(
 
             historyValidator.validateDraftHistory(batch, existingMovements)
 
+            if (components.isEmpty()) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.RecipeHasNoComponents))
+            }
+
+            val batchMultiplier = try {
+                BigDecimal(batch.batchMultiplier)
+            } catch (_: Exception) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MultiplierMustBePositive))
+            }
+
+            if (batchMultiplier.compareTo(BigDecimal.ZERO) <= 0) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MultiplierMustBePositive))
+            }
+
+            val now = timeProvider.now()
+            val postedAtMs = now.toEpochMilli()
+
+            if (batch.effectiveAt > postedAtMs) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.EffectiveTimeInFuture))
+            }
+
             // Revalidate references
             val recipe = recipeDao.getById(batch.recipeId)
             if (recipe == null || recipe.status != PreparationRecipeStatus.ACTIVE.name) {
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.RecipeNotActive))
             }
+            if (recipe.restaurantId != restaurantId.value) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.RestaurantMismatch))
+            }
 
             val outputIngredient = ingredientDao.getById(batch.outputIngredientId)
                 ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputIngredientNotFound))
-            if (!outputIngredient.isActive || outputIngredient.deletedAt != null) {
+            if (!outputIngredient.isActive || outputIngredient.deletedAt != null || outputIngredient.restaurantId != restaurantId.value) {
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputIngredientInactive))
             }
 
@@ -89,6 +113,19 @@ class ProductionBatchPostingCoordinator @Inject constructor(
             if (!outputUnitOption.isActive || outputUnitOption.deletedAt != null || outputUnitOption.ingredientId != batch.outputIngredientId) {
                 throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputUnitOptionInactive))
             }
+            if (outputUnitOption.factorToBase.compareTo(BigDecimal.ZERO) <= 0) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.InvalidUnitFactor))
+            }
+
+            val actualOutputQuantityEntered = try { BigDecimal(batch.actualOutputQuantityEntered) } catch(_: Exception) { BigDecimal.ZERO }
+            if (actualOutputQuantityEntered.compareTo(BigDecimal.ZERO) <= 0) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ActualOutputMustBePositive))
+            }
+            
+            val actualOutputQuantityBase = actualOutputQuantityEntered.multiply(outputUnitOption.factorToBase)
+            if (actualOutputQuantityBase.compareTo(BigDecimal.ZERO) <= 0) {
+                throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ActualOutputMustBePositive))
+            }
 
             // Recalculate canonical quantities and costs
             val effectiveAt = Instant.ofEpochMilli(batch.effectiveAt)
@@ -99,9 +136,12 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                     ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.SourceAreaNotFound))
 
                 val componentIngredient = ingredientDao.getById(component.componentIngredientId)
-                    ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputIngredientNotFound))
+                    ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentIngredientNotFound))
                 if (!componentIngredient.isActive || componentIngredient.deletedAt != null) {
-                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.OutputIngredientInactive))
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentIngredientInactive))
+                }
+                if (componentIngredient.restaurantId != restaurantId.value) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentIngredientRestaurantMismatch))
                 }
 
                 val sourceArea = areaDao.getById(sourceAreaId)
@@ -115,6 +155,19 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 if (!unitOption.isActive || unitOption.deletedAt != null || unitOption.ingredientId != component.componentIngredientId) {
                     throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentUnitOptionInactive))
                 }
+                if (unitOption.factorToBase.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.InvalidUnitFactor))
+                }
+
+                val actualQtyEntered = try { BigDecimal(component.actualQuantityEntered) } catch(_: Exception) { BigDecimal.ZERO }
+                if (actualQtyEntered.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentQuantityMustBePositive))
+                }
+
+                val actualQtyBase = actualQtyEntered.multiply(unitOption.factorToBase)
+                if (actualQtyBase.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentQuantityMustBePositive))
+                }
 
                 val snapshot = snapshotService.calculateAt(
                     restaurantId,
@@ -126,32 +179,26 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 val averageCost = snapshot.ingredientAverageCostBase
                     ?: throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentCostUnavailable))
 
-                val actualQuantityBase = BigDecimal(component.actualQuantityEntered).multiply(unitOption.factorToBase)
-                val componentTotalCost = actualQuantityBase.multiply(averageCost)
+                val componentTotalCost = actualQtyBase.multiply(averageCost)
                 totalComponentCost = totalComponentCost.add(componentTotalCost)
 
                 component.copy(
-                    actualQuantityBase = actualQuantityBase.toPlainString(),
+                    actualQuantityBase = actualQtyBase.toPlainString(),
                     unitCostBaseSnapshot = averageCost.toPlainString(),
                     totalCostSnapshot = componentTotalCost.toPlainString(),
-                    updatedAt = timeProvider.now().toEpochMilli()
+                    updatedAt = postedAtMs
                 )
             }
 
-            val actualOutputQuantityBase = BigDecimal(batch.actualOutputQuantityEntered).multiply(outputUnitOption.factorToBase)
-            val outputUnitCostBase = if (actualOutputQuantityBase.compareTo(BigDecimal.ZERO) > 0) {
-                totalComponentCost.divide(actualOutputQuantityBase, MathContext.DECIMAL128)
-            } else {
-                BigDecimal.ZERO
-            }
+            val outputUnitCostBase = totalComponentCost.divide(actualOutputQuantityBase, MathContext.DECIMAL128)
 
             val updatedBatch = batch.copy(
                 actualOutputQuantityBase = actualOutputQuantityBase.toPlainString(),
                 totalComponentCostSnapshot = totalComponentCost.toPlainString(),
                 outputUnitCostBaseSnapshot = outputUnitCostBase.toPlainString(),
                 status = DocumentStatus.POSTED.name,
-                postedAt = timeProvider.now().toEpochMilli(),
-                updatedAt = timeProvider.now().toEpochMilli()
+                postedAt = postedAtMs,
+                updatedAt = postedAtMs
             )
 
             // Persist snapshots
@@ -177,7 +224,7 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                     sourceOperationId = "production-post:${batch.id}:consume:${component.id}",
                     sourceLineId = component.id,
                     reversalOfMovementId = null,
-                    createdAt = timeProvider.now().toEpochMilli()
+                    createdAt = postedAtMs
                 )
             }
             movementDao.insertAll(movements)
@@ -199,7 +246,7 @@ class ProductionBatchPostingCoordinator @Inject constructor(
                 sourceOperationId = "production-post:${batch.id}:output",
                 sourceLineId = batch.id,
                 reversalOfMovementId = null,
-                createdAt = timeProvider.now().toEpochMilli()
+                createdAt = postedAtMs
             )
             movementDao.insert(outputMovement)
 
@@ -212,6 +259,8 @@ class ProductionBatchPostingCoordinator @Inject constructor(
             }
 
             failureBoundary.trigger(IntegrationFailurePoints.PRODUCTION_POST_AFTER_PROJECTIONS)
+
+            failureBoundary.trigger(IntegrationFailurePoints.PRODUCTION_POST_AFTER_MARK_POSTED)
         }
     }
 }

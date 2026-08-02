@@ -150,11 +150,22 @@ object BackupManifestContractValidator {
             "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
         )
 
-        if (manifest.databaseSchemaVersion >= 3) {
+        if (manifest.databaseSchemaVersion == 4) {
             actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
             actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+            actualCounts["production_batches"] = snapshot.productionBatches.size
+            actualCounts["production_batch_components"] = snapshot.productionBatchComponents.size
+        } else if (manifest.databaseSchemaVersion == 3) {
+            actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
+            actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+            if (snapshot.productionBatches.isNotEmpty() || snapshot.productionBatchComponents.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
         } else if (manifest.databaseSchemaVersion == 2) {
-            if (snapshot.preparationRecipes.isNotEmpty() || snapshot.preparationRecipeComponents.isNotEmpty()) {
+            if (snapshot.preparationRecipes.isNotEmpty() || 
+                snapshot.preparationRecipeComponents.isNotEmpty() ||
+                snapshot.productionBatches.isNotEmpty() ||
+                snapshot.productionBatchComponents.isNotEmpty()) {
                 return BackupRestoreFailure.ManifestMismatch
             }
         }

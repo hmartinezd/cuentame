@@ -96,7 +96,8 @@ class RoomMigrationTest {
             TEST_DB
         ).addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
-            RestaurantInventoryDatabase.MIGRATION_2_3
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4
         ).build()
 
         // Query through real DAO to confirm migrated database opens without schema errors
@@ -175,7 +176,7 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun createDatabaseDirectlyAtVersion3() = runBlocking {
+    fun createDatabaseDirectlyAtVersion4() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val roomDb = Room.databaseBuilder(
             context,
@@ -184,6 +185,7 @@ class RoomMigrationTest {
         ).build()
 
         assertThat(roomDb.preparationRecipeDao().getAllRecipesForRestaurant("non-existent")).isEmpty()
+        assertThat(roomDb.productionBatchDao().getComponents("non-existent")).isEmpty()
         roomDb.close()
     }
 }
