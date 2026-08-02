@@ -9,6 +9,7 @@ import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
 
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostBoundary
 import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
 import com.miara.cuentame.core.domain.service.SourceDocumentIdentity
 
@@ -956,7 +957,7 @@ object BackupSnapshotIntegrityValidator {
                     if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch must not have REVERSAL movements")
                     
                     // Exact movement content validation
-                    validateProductionMovements(batch, components, movements)?.let { return it }
+                    validateProductionOriginalMovements(batch, components, movements)?.let { return it }
                 }
                 DocumentStatus.VOIDED -> {
                     val originalMoves = movements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
@@ -969,7 +970,8 @@ object BackupSnapshotIntegrityValidator {
                     if (reversedTargetIds != origMoveIds) return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED batch: reversals must cover all original moves")
                     
                     // Exact movement content validation
-                    validateProductionMovements(batch, components, originalMoves)?.let { return it }
+                    validateProductionOriginalMovements(batch, components, originalMoves)?.let { return it }
+                    validateProductionReversals(batch, originalMoves, reversals)?.let { return it }
                 }
             }
         }
@@ -1264,13 +1266,7 @@ object BackupSnapshotIntegrityValidator {
     }
 
     private fun validateProductionBatches(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
-        val reversedOriginalIds = dto.inventoryMovements
-            .mapNotNull { it.reversalOfMovementId }
-            .toSet()
-
-        val movementsByIngredient = dto.inventoryMovements
-            .filter { it.id !in reversedOriginalIds && it.movementType != InventoryMovementType.REVERSAL.name }
-            .groupBy { it.ingredientId }
+        val movementsByIngredient = dto.inventoryMovements.groupBy { it.ingredientId }
 
         for (batch in dto.productionBatches) {
             val status = try {
@@ -1456,11 +1452,16 @@ object BackupSnapshotIntegrityValidator {
                             sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
                             sourceDocumentId = move.sourceDocumentId,
                             effectiveAt = move.effectiveAt,
-                            createdAt = move.createdAt
+                            createdAt = move.createdAt,
+                            reversalOfMovementId = move.reversalOfMovementId
                         )
                     }
                     val histResult = costCalculator.calculate(
                         moves,
+                        boundary = HistoricalInventoryCostBoundary(
+                            effectiveAtInclusive = batch.effectiveAt,
+                            createdAtInclusive = batch.postedAt!!
+                        ),
                         excludedSourceDocument = SourceDocumentIdentity(SourceDocumentType.PRODUCTION_BATCH, batch.id)
                     )
                     if (!histResult.hasEstablishedCost) {
@@ -1489,14 +1490,13 @@ object BackupSnapshotIntegrityValidator {
         return null
     }
 
-    private fun validateProductionMovements(
+    private fun validateProductionOriginalMovements(
         batch: com.miara.cuentame.core.backup.model.ProductionBatchBackupDto,
         components: List<com.miara.cuentame.core.backup.model.ProductionBatchComponentBackupDto>,
-        movements: List<com.miara.cuentame.core.backup.model.InventoryMovementBackupDto>
+        originalMovements: List<com.miara.cuentame.core.backup.model.InventoryMovementBackupDto>
     ): BackupSnapshotIntegrityException? {
-        val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
-        val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
-        val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
+        val consumptionMoves = originalMovements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
+        val outputMoves = originalMovements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
 
         if (consumptionMoves.size != components.size) return err(INVALID_MOVEMENT_GRAPH, "Production movement count mismatch")
         if (outputMoves.size != 1) return err(INVALID_MOVEMENT_GRAPH, "Production output movement count mismatch")
@@ -1557,45 +1557,62 @@ object BackupSnapshotIntegrityValidator {
         if (outMove.effectiveAt != batch.effectiveAt) return err(INVALID_TIMESTAMP_ORDER, "Production output effectiveAt mismatch")
         if (outMove.reversalOfMovementId != null) return err(INVALID_REVERSAL, "Original production movement must not have reversal ID")
 
-        // Reversals
-        if (batch.status == DocumentStatus.VOIDED.name) {
-            val originalMoves = consumptionMoves + outMove
-            val reversalTargetIds = reversals.mapNotNull { it.reversalOfMovementId }
-            if (reversalTargetIds.size != reversals.size) return err(INVALID_REVERSAL, "Production reversal missing target ID")
-            if (reversalTargetIds.distinct().size != reversalTargetIds.size) return err(INVALID_REVERSAL, "Duplicate production reversal target")
-            if (reversalTargetIds.toSet() != originalMoves.map { it.id }.toSet()) return err(INVALID_REVERSAL, "Production reversal target set mismatch")
+        return null
+    }
 
-            val reversalsByTargetId = reversals.associateBy { it.reversalOfMovementId }
-            for (original in originalMoves) {
-                val reversal = reversalsByTargetId[original.id]!!
-                if (reversal.movementType != InventoryMovementType.REVERSAL.name) return err(INVALID_REVERSAL, "Invalid reversal movement type")
-                if (reversal.restaurantId != original.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Reversal restaurant mismatch")
-                if (reversal.ingredientId != original.ingredientId) return err(RELATIONSHIP_MISMATCH, "Reversal ingredient mismatch")
-                if (reversal.areaId != original.areaId) return err(RELATIONSHIP_MISMATCH, "Reversal area mismatch")
-                if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Reversal document type mismatch")
-                if (reversal.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Reversal document ID mismatch")
-                if (reversal.sourceOperationId != "reversal:${original.id}") return err(INVALID_MOVEMENT_GRAPH, "Reversal operation ID mismatch")
-                if (reversal.sourceLineId != original.sourceLineId) return err(INVALID_MOVEMENT_GRAPH, "Reversal source line mismatch")
-                
-                val revQty = BigDecimal(reversal.quantityBaseSigned)
-                val origQty = BigDecimal(original.quantityBaseSigned)
-                if (revQty.compareTo(origQty.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal quantity mismatch")
-                
-                if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
-                    return err(INVALID_NUMERIC_RANGE, "Reversal unit cost mismatch")
-                }
-                
-                val revTotal = reversal.totalValueSnapshot?.let { BigDecimal(it) }
-                val origTotal = original.totalValueSnapshot?.let { BigDecimal(it) }
-                if (revTotal == null && origTotal != null) return err(INVALID_NUMERIC_RANGE, "Reversal total value nullability mismatch")
-                if (revTotal != null && origTotal == null) return err(INVALID_NUMERIC_RANGE, "Reversal total value nullability mismatch")
-                if (revTotal != null && origTotal != null) {
-                    if (revTotal.compareTo(origTotal.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal total value mismatch")
-                }
-                
-                if (reversal.effectiveAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal effectiveAt mismatch")
-                if (reversal.createdAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal createdAt mismatch")
+    private fun validateProductionReversals(
+        batch: com.miara.cuentame.core.backup.model.ProductionBatchBackupDto,
+        originalMovements: List<com.miara.cuentame.core.backup.model.InventoryMovementBackupDto>,
+        reversals: List<com.miara.cuentame.core.backup.model.InventoryMovementBackupDto>
+    ): BackupSnapshotIntegrityException? {
+        val reversalTargetIds = reversals.mapNotNull { it.reversalOfMovementId }
+        if (reversalTargetIds.size != reversals.size) return err(INVALID_REVERSAL, "Production reversal missing target ID")
+        if (reversalTargetIds.distinct().size != reversalTargetIds.size) return err(INVALID_REVERSAL, "Duplicate production reversal target")
+        if (reversalTargetIds.toSet() != originalMovements.map { it.id }.toSet()) return err(INVALID_REVERSAL, "Production reversal target set mismatch")
+
+        val reversalsByTargetId = reversals.associateBy { it.reversalOfMovementId }
+        for (original in originalMovements) {
+            val reversal = reversalsByTargetId[original.id]!!
+            if (reversal.movementType != InventoryMovementType.REVERSAL.name) return err(INVALID_REVERSAL, "Invalid reversal movement type")
+            if (reversal.restaurantId != original.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Reversal restaurant mismatch")
+            if (reversal.ingredientId != original.ingredientId) return err(RELATIONSHIP_MISMATCH, "Reversal ingredient mismatch")
+            if (reversal.areaId != original.areaId) return err(RELATIONSHIP_MISMATCH, "Reversal area mismatch")
+            if (reversal.sourceDocumentType != SourceDocumentType.PRODUCTION_BATCH.name) return err(INVALID_MOVEMENT_GRAPH, "Reversal document type mismatch")
+            if (reversal.sourceDocumentId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "Reversal document ID mismatch")
+            if (reversal.sourceOperationId != "reversal:${original.id}") return err(INVALID_MOVEMENT_GRAPH, "Reversal operation ID mismatch")
+            if (reversal.sourceLineId != original.sourceLineId) return err(INVALID_MOVEMENT_GRAPH, "Reversal source line mismatch")
+            
+            val revQtyResult = parseDecimal(reversal.quantityBaseSigned, "Invalid reversal quantity")
+            val origQtyResult = parseDecimal(original.quantityBaseSigned, "Invalid original quantity")
+            
+            if (revQtyResult is BigDecimalResult.Err) return err(revQtyResult.code, revQtyResult.msg)
+            if (origQtyResult is BigDecimalResult.Err) return err(origQtyResult.code, origQtyResult.msg)
+            
+            val revQty = (revQtyResult as BigDecimalResult.Ok).value
+            val origQty = (origQtyResult as BigDecimalResult.Ok).value
+            
+            if (revQty.compareTo(origQty.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal quantity mismatch")
+            
+            if (!isNumericallyEquivalent(reversal.unitCostBaseSnapshot, original.unitCostBaseSnapshot)) {
+                return err(INVALID_NUMERIC_RANGE, "Reversal unit cost mismatch")
             }
+            
+            val revTotalResult = parseNullableDecimal(reversal.totalValueSnapshot, "Invalid reversal total value")
+            val origTotalResult = parseNullableDecimal(original.totalValueSnapshot, "Invalid original total value")
+            
+            if (revTotalResult is NullableDecimalResult.Err) return err(revTotalResult.code, revTotalResult.msg)
+            if (origTotalResult is NullableDecimalResult.Err) return err(origTotalResult.code, origTotalResult.msg)
+            
+            val revTotal = if (revTotalResult is NullableDecimalResult.Ok) revTotalResult.value else null
+            val origTotal = if (origTotalResult is NullableDecimalResult.Ok) origTotalResult.value else null
+            
+            if ((revTotal == null) != (origTotal == null)) return err(INVALID_NUMERIC_RANGE, "Reversal total value nullability mismatch")
+            if (revTotal != null && origTotal != null) {
+                if (revTotal.compareTo(origTotal.negate()) != 0) return err(INVALID_NUMERIC_RANGE, "Reversal total value mismatch")
+            }
+            
+            if (reversal.effectiveAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal effectiveAt mismatch")
+            if (reversal.createdAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal createdAt mismatch")
         }
 
         return null

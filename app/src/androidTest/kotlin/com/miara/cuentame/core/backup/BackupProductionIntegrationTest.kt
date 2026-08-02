@@ -169,32 +169,53 @@ class BackupProductionIntegrationTest {
         val journal = RestoreJournal(storage, codecs)
         val sessionId = "recovery-session"
         
-        // 3. Capture and persist rollback snapshot
+        // 3. Validate state before capture (Instruction 10)
+        val backupDao = db.backupDao()
+        val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
+        val snapshotDto = snapshotSource.loadSnapshot("r1").dto
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(4)
+            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
+            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
+            restaurantId = "r1", restaurantName = "Original", localeTag = "en-US", currencyCode = "USD",
+            tableMetadata = tables, attachments = emptyList(), includedSections = listOf("data", "preferences", "attachments"),
+            checksumAlgorithm = "SHA-256"
+        )
+        BackupSnapshotIntegrityValidator.validate(snapshotDto, manifest).getOrThrow()
+
+        // 4. Capture and persist rollback snapshot
         val rollback = databaseApplier().captureRollbackSnapshot()
         storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString<RestoreDatabaseRollbackSnapshot>(rollback))
 
         
-        // 4. Write journal in ROLLING_BACK state
+        // 5. Write journal in ROLLING_BACK state
         val prevPrefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         journal.write(RestoreJournalDto(sessionId, RestorePhase.ROLLING_BACK, "hash", prevPrefs, 0))
         
-        // 5. Mutate live database to state B
+        // 6. Mutate live database to state B
         db.restoreDao().clearAllInOrder()
         assertThat(db.restaurantDao().getById("r1")).isNull()
         
-        // 6. Invoke recovery
+        // 7. Invoke recovery
         val result = coordinator.retryRecovery()
         
-        // 7. Assert recovery success
+        // 8. Assert recovery success
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered(sessionId))
         
-        // 8. Verify data matches original state
+        // 9. Verify data matches original state
         verifyAllTables()
+
+        // 10. Validate again after recovery (Instruction 10)
+        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
+        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, manifest).getOrThrow()
+        
+        
         val restoredLine = db.purchaseDao().getLineById("pl1")!!
         assertThat(restoredLine.lineTotal).isEqualTo(originalLine.lineTotal)
         assertThat(restoredLine.unitCostBase).isEqualTo(originalLine.unitCostBase)
         
-        // 9. Verify cleanup
+        // 11. Verify cleanup
         assertThat(journal.read()).isEqualTo(RestoreJournalReadResult.Absent)
         assertThat(storage.getRollbackSnapshotFile(sessionId).exists()).isFalse()
     }
@@ -214,28 +235,30 @@ class BackupProductionIntegrationTest {
         db.ingredientUnitOptionDao().upsert(IngredientUnitOptionEntity("o2", "i2", "Opt 2", "o2", "u1", BigDecimal.ONE, true, true, true, true, 100, 100, null))
 
         db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup 1", "123", "sup@test.com", "Notes", true, 100, 100, null))
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, 100, 100, 1000, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p2", "r1", "s1", "INV2", 1300, "POSTED", "Notes", null, 100, 100, 1300, null))
         db.purchaseDao().insertLine(PurchaseLineEntity(
-            id = "pl1",
-            purchaseReceiptId = "p1",
-            ingredientId = "i1",
+            id = "pl2",
+            purchaseReceiptId = "p2",
+            ingredientId = "i2",
             areaId = "a1",
-            ingredientUnitOptionId = "o1",
-            quantityEntered = "20",
-            quantityBase = "20",
-            lineTotal = "60",
-            unitCostBase = "3",
+            ingredientUnitOptionId = "o2",
+            quantityEntered = "10",
+            quantityBase = "10",
+            lineTotal = "100",
+            unitCostBase = "10",
             notes = "Notes",
             createdAt = 100,
             updatedAt = 100
         ))
+
         db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, null, "DRAFT", "Notes", 100, 100, null))
         db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "DRAFT", null, null, 1)))
         db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", null, null, "Notes", 100, 100))
         db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
         db.inventoryMovementDao().insertAll(listOf(
-            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "op1", "pl1", null, 100),
-            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", "op2", "w1", null, 100)
+            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "production-post:p1:line:pl1", "pl1", null, 1000),
+            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", "production-post:w1:waste", "w1", null, 1200),
+            InventoryMovementEntity("m5", "r1", "i2", "a1", "PURCHASE", "10", "10", "100", 1300, "PURCHASE_RECEIPT", "p2", "production-post:p2:line:pl2", "pl2", null, 1300)
         ))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "18", 1200))
         db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3", 1200))
@@ -333,6 +356,69 @@ class BackupProductionIntegrationTest {
         assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).isEmpty()
     }
 
+    @Test
+    fun schema3_archive_restore_succeeds() = runBlocking {
+        // 1. Build schema 3 archive (Recipes, no Production)
+        val schema3Snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
+            restaurants = listOf(RestaurantBackupDto("r1", "Recipes Only", "USD", "en-US", 100, 100, null)),
+            preparationRecipes = listOf(
+                com.miara.cuentame.core.backup.model.PreparationRecipeBackupDto(
+                    "rec1", "r1", "i1", "Recipe 1", "recipe 1", "10", "10", "o1", "ACTIVE", null, 100, 100, null
+                )
+            ),
+            preparationRecipeComponents = listOf(
+                com.miara.cuentame.core.backup.model.PreparationRecipeComponentBackupDto(
+                    "rc1", "rec1", "i2", "o2", "5", "5", 0, null, 100, 100
+                )
+            )
+        )
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(3)
+            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(
+                when (it) {
+                    "restaurants" -> 1
+                    "preparation_recipes" -> 1
+                    "preparation_recipe_components" -> 1
+                    else -> 0
+                },
+                it in BackupFormatV1Contract.DERIVED_TABLES
+            ) }
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 3,
+            restaurantId = "r1",
+            restaurantName = "Recipes Only",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = tables,
+            attachments = emptyList(),
+            includedSections = listOf("attachments", "data", "preferences"),
+            checksumAlgorithm = "SHA-256"
+        )
+
+        val bytes = buildArchive(manifest, schema3Snapshot)
+        val backupUri = "content://backup/schema3.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+
+        // 2. Inspect
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(3)
+
+        // 3. Apply
+        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
+
+        // 4. Verify
+        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Recipes Only")
+        assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).hasSize(1)
+        assertThat(db.productionBatchDao().getById("pb1")).isNull()
+    }
+
     private fun buildArchive(
         manifest: com.miara.cuentame.core.model.backup.BackupManifest,
         snapshot: BackupSnapshotDto
@@ -389,41 +475,51 @@ class BackupProductionIntegrationTest {
         assertThat(db.wasteDao().getById("w1")?.reason).isEqualTo("SPOILED")
         
         val movements = db.inventoryMovementDao().getAll()
-        assertThat(movements).hasSize(4)
+        assertThat(movements).hasSize(5)
         
         // m3 PRODUCTION_CONSUMPTION
         val m3 = movements.find { it.id == "m3" }!!
         assertThat(m3.movementType).isEqualTo("PRODUCTION_CONSUMPTION")
         assertThat(m3.ingredientId).isEqualTo("i2")
         assertThat(m3.areaId).isEqualTo("a1")
-        assertThat(BigDecimal(m3.quantityBaseSigned)).isEqualTo(BigDecimal("-5"))
-        assertThat(BigDecimal(m3.unitCostBaseSnapshot!!)).isEqualTo(BigDecimal("10"))
-        assertThat(BigDecimal(m3.totalValueSnapshot!!)).isEqualTo(BigDecimal("-50"))
+        assertThat(BigDecimal(m3.quantityBaseSigned).compareTo(BigDecimal("-5"))).isEqualTo(0)
+        assertThat(BigDecimal(m3.unitCostBaseSnapshot!!).compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertThat(BigDecimal(m3.totalValueSnapshot!!).compareTo(BigDecimal("-50"))).isEqualTo(0)
         assertThat(m3.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
         assertThat(m3.sourceDocumentId).isEqualTo("pb1")
         assertThat(m3.sourceLineId).isEqualTo("pbc1")
         assertThat(m3.sourceOperationId).isEqualTo("production-post:pb1:consume:pbc1")
         assertThat(m3.reversalOfMovementId).isNull()
+        assertThat(m3.effectiveAt).isEqualTo(2000)
+        assertThat(m3.createdAt).isEqualTo(2500)
 
         // m4 PRODUCTION_OUTPUT
         val m4 = movements.find { it.id == "m4" }!!
         assertThat(m4.movementType).isEqualTo("PRODUCTION_OUTPUT")
         assertThat(m4.ingredientId).isEqualTo("i1")
         assertThat(m4.areaId).isEqualTo("a1")
-        assertThat(BigDecimal(m4.quantityBaseSigned)).isEqualTo(BigDecimal("10"))
-        assertThat(BigDecimal(m4.unitCostBaseSnapshot!!)).isEqualTo(BigDecimal("5"))
-        assertThat(BigDecimal(m4.totalValueSnapshot!!)).isEqualTo(BigDecimal("50"))
+        assertThat(BigDecimal(m4.quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertThat(BigDecimal(m4.unitCostBaseSnapshot!!).compareTo(BigDecimal("5"))).isEqualTo(0)
+        assertThat(BigDecimal(m4.totalValueSnapshot!!).compareTo(BigDecimal("50"))).isEqualTo(0)
         assertThat(m4.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
         assertThat(m4.sourceDocumentId).isEqualTo("pb1")
         assertThat(m4.sourceLineId).isEqualTo("pb1")
         assertThat(m4.sourceOperationId).isEqualTo("production-post:pb1:output")
         assertThat(m4.reversalOfMovementId).isNull()
+        assertThat(m4.effectiveAt).isEqualTo(2000)
+        assertThat(m4.createdAt).isEqualTo(2500)
 
         assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("28")
+        assertThat(db.inventoryProjectionDao().getBalance("i2", "a1")?.quantityBase).isEqualTo("5")
         
+        // i2 average cost = 10
+        val costI2 = db.ingredientCostProjectionDao().getCost("i2")?.averageUnitCostBase
+        assertThat(BigDecimal(costI2!!).compareTo(BigDecimal("10"))).isEqualTo(0)
+
+        // i1 average cost = (18 * 3 + 10 * 5) / 28 = 104 / 28 = 26 / 7
         // Canonical DECIMAL128 result: 3.714285714285714285714285714285714
         val costI1 = db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase
-        assertThat(BigDecimal(costI1!!)).isEqualTo(BigDecimal("3.714285714285714285714285714285714"))
+        assertThat(BigDecimal(costI1!!).compareTo(BigDecimal("3.714285714285714285714285714285714"))).isEqualTo(0)
         
         val recipe = db.preparationRecipeDao().getById("r1")!!
         assertThat(recipe.name).isEqualTo("Recipe 1")
@@ -436,9 +532,20 @@ class BackupProductionIntegrationTest {
         val batch = db.productionBatchDao().getById("pb1")!!
         assertThat(batch.notes).isEqualTo("Batch 1")
         assertThat(batch.status).isEqualTo("POSTED")
+        assertThat(batch.postedAt).isEqualTo(2500)
+        assertThat(batch.effectiveAt).isEqualTo(2000)
+        assertThat(BigDecimal(batch.batchMultiplier).compareTo(BigDecimal("1.0"))).isEqualTo(0)
+        assertThat(BigDecimal(batch.totalComponentCostSnapshot!!).compareTo(BigDecimal("50.0"))).isEqualTo(0)
+        assertThat(BigDecimal(batch.outputUnitCostBaseSnapshot!!).compareTo(BigDecimal("5.0"))).isEqualTo(0)
+
         val batchComponents = db.productionBatchDao().getComponents("pb1")
         assertThat(batchComponents).hasSize(1)
-        assertThat(batchComponents[0].id).isEqualTo("pbc1")
+        val pbc = batchComponents[0]
+        assertThat(pbc.id).isEqualTo("pbc1")
+        assertThat(pbc.componentIngredientId).isEqualTo("i2")
+        assertThat(BigDecimal(pbc.actualQuantityBase).compareTo(BigDecimal("5.0"))).isEqualTo(0)
+        assertThat(BigDecimal(pbc.unitCostBaseSnapshot!!).compareTo(BigDecimal("10.0"))).isEqualTo(0)
+        assertThat(BigDecimal(pbc.totalCostSnapshot!!).compareTo(BigDecimal("50.0"))).isEqualTo(0)
     }
 
 

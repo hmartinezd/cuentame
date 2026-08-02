@@ -39,14 +39,15 @@ Posting calculates costs based on the batch's `effectiveAt` time using historica
 
 ## Backup and Restore (Format v1)
 The Backup Format v1 supports Database Schemas 2, 3, and 4.
+- **Plural Identifiers**: The backup manifest uses historical plural keys for projections (`inventory_balance_projections`, `ingredient_cost_projections`) to maintain compatibility, while Room tables remain singular.
 - **Schema 2**: Legacy set, no recipe or production data.
 - **Schema 3**: Includes preparation recipes but no production batches.
 - **Schema 4**: Includes preparation recipes and production batches.
 - **Payload Boundaries**: Manifest metadata and DTO payloads are strictly enforced by schema. For example, a Schema 3 backup must not contain production records.
 - **Integrity Validation**: Backups verify production numeric fields, foreign keys, lifecycle timestamps, and exact movement coverage. 
-- **Deep Historical Validation**: Beyond internal consistency, Backups validate that stored production component costs match the historical average cost reconstructed from the movement graph up to that point.
+- **Temporal Historical Validation**: Stored production component costs are validated against history available at the batch's original posting boundary (`effectiveAt` and `postedAt`). Future movements, later-created backdated movements, and future reversals do not alter an existing batch's historical cost.
 - **Exact Reversal Verification**: For `VOIDED` batches, every reversal movement is validated for exact field-level identity and negation against the original production movement.
-- **Projection Reconstruction**: Balance and cost projections are reconstructed from effective movement history using the shared `HistoricalInventoryCostCalculator` to ensure total consistency.
+- **Projection Reconstruction**: Current balance and cost projections are reconstructed from the complete current effective movement history using the shared `HistoricalInventoryCostCalculator`.
 
 ## Implementation Status
 Production Batches domain, historical costing, posting, voiding and Backup/Restore are complete, internally consistent and verified. The foundation is ready for Production UI.

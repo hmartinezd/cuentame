@@ -47,8 +47,8 @@ object BackupFormatV1Contract {
         "stock_count_lines",
         "waste_events",
         "inventory_movements",
-        "inventory_balance_projection",
-        "ingredient_cost_projection",
+        "inventory_balance_projections",
+        "ingredient_cost_projections",
         "preparation_recipes",
         "preparation_recipe_components",
         "production_batches",
@@ -71,8 +71,8 @@ object BackupFormatV1Contract {
             "stock_count_lines",
             "waste_events",
             "inventory_movements",
-            "inventory_balance_projection",
-            "ingredient_cost_projection"
+            "inventory_balance_projections",
+            "ingredient_cost_projections"
         )
         return when (schemaVersion) {
             2 -> base
@@ -88,8 +88,8 @@ object BackupFormatV1Contract {
     }
 
     val DERIVED_TABLES = setOf(
-        "inventory_balance_projection",
-        "ingredient_cost_projection"
+        "inventory_balance_projections",
+        "ingredient_cost_projections"
     )
 
     private val attachmentIdRegex = Regex("^[0-9a-f]{16}$")

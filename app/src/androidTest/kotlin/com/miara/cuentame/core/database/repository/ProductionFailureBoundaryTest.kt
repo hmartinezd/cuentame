@@ -132,6 +132,12 @@ class ProductionFailureBoundaryTest {
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.parse("2026-01-01T12:00:00Z"), null
         ))
 
+        // Capture before state
+        val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val beforeOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
         try {
@@ -140,17 +146,38 @@ class ProductionFailureBoundaryTest {
             // Expected
         }
 
-        val batch = repository.getBatch(batchId)!!
-        assertThat(batch.status).isEqualTo(DocumentStatus.DRAFT)
-        assertThat(batch.postedAt).isNull()
-        assertThat(batch.totalComponentCostSnapshot).isNull()
-        assertThat(batch.outputUnitCostBaseSnapshot).isNull()
+        val afterBatch = repository.getBatch(batchId)!!
+        assertThat(afterBatch.status).isEqualTo(DocumentStatus.DRAFT)
+        assertThat(afterBatch.postedAt).isNull()
+        assertThat(afterBatch.totalComponentCostSnapshot).isNull()
+        assertThat(afterBatch.outputUnitCostBaseSnapshot).isNull()
         
+        val afterComp = afterBatch.components[0]
+        assertThat(afterComp.unitCostBaseSnapshot).isNull()
+        assertThat(afterComp.totalCostSnapshot).isNull()
+
         val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
         assertThat(movements).isEmpty()
         
-        val compBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        assertThat(BigDecimal(compBalance?.quantityBase ?: "0").compareTo(BigDecimal("10"))).isEqualTo(0)
+        val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+
+        assertProjectionEquivalent(afterCompBalance, beforeCompBalance)
+        assertProjectionEquivalent(afterCompCost, beforeCompCost)
+        assertProjectionEquivalent(afterOutBalance, beforeOutBalance)
+        assertProjectionEquivalent(afterOutCost, beforeOutCost)
+    }
+
+    private fun assertProjectionEquivalent(after: Any?, before: Any?) {
+        if (before == null) {
+            assertThat(after).isNull()
+        } else {
+            assertThat(after).isNotNull()
+            // We could check all fields if needed, but usually just checking existence or main value is enough for rollback
+            assertThat(after).isEqualTo(before)
+        }
     }
 
     @Test
@@ -173,6 +200,14 @@ class ProductionFailureBoundaryTest {
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.parse("2026-01-01T12:00:00Z"), null
         ))
         repository.post(batchId)
+        
+        // Capture Posted state
+        val beforeBatch = repository.getBatch(batchId)!!
+        val beforeMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
+        val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val beforeOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
 
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
@@ -182,15 +217,24 @@ class ProductionFailureBoundaryTest {
             // Expected
         }
 
-        val batch = repository.getBatch(batchId)!!
-        assertThat(batch.status).isEqualTo(DocumentStatus.POSTED)
-        assertThat(batch.voidedAt).isNull()
+        val afterBatch = repository.getBatch(batchId)!!
+        assertThat(afterBatch.status).isEqualTo(DocumentStatus.POSTED)
+        assertThat(afterBatch.voidedAt).isNull()
+        assertThat(afterBatch.postedAt).isEqualTo(beforeBatch.postedAt)
+        assertThat(afterBatch.totalComponentCostSnapshot).isEqualTo(beforeBatch.totalComponentCostSnapshot)
         
-        val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
-        assertThat(movements).hasSize(2) // Only original moves
-        assertThat(movements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
+        val afterMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
+        assertThat(afterMovements).hasSize(beforeMovements.size)
+        assertThat(afterMovements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
         
-        val compBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        assertThat(BigDecimal(compBalance?.quantityBase ?: "0").compareTo(BigDecimal("9.5"))).isEqualTo(0)
+        val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
+        val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
+        val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
+        val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+
+        assertProjectionEquivalent(afterCompBalance, beforeCompBalance)
+        assertProjectionEquivalent(afterCompCost, beforeCompCost)
+        assertProjectionEquivalent(afterOutBalance, beforeOutBalance)
+        assertProjectionEquivalent(afterOutCost, beforeOutCost)
     }
 }

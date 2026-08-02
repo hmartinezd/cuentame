@@ -14,7 +14,13 @@ data class HistoricalInventoryMovement(
     val sourceDocumentType: SourceDocumentType,
     val sourceDocumentId: String,
     val effectiveAt: Long,
-    val createdAt: Long
+    val createdAt: Long,
+    val reversalOfMovementId: String? = null
+)
+
+data class HistoricalInventoryCostBoundary(
+    val effectiveAtInclusive: Long,
+    val createdAtInclusive: Long?
 )
 
 data class HistoricalInventoryCostResult(
@@ -32,15 +38,48 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
 
     fun calculate(
         movements: List<HistoricalInventoryMovement>,
+        boundary: HistoricalInventoryCostBoundary? = null,
         excludedSourceDocument: SourceDocumentIdentity? = null
     ): HistoricalInventoryCostResult {
-        // Filter out excluded documents and sort deterministically
-        val sortedMovements = movements
-            .filter { move ->
-                excludedSourceDocument == null || 
-                move.sourceDocumentType != excludedSourceDocument.type || 
-                move.sourceDocumentId != excludedSourceDocument.id
+        // 1. Filter by boundary and exclusion
+        val inBoundary = movements.filter { move ->
+            val matchesBoundary = if (boundary == null) {
+                true
+            } else {
+                (move.effectiveAt < boundary.effectiveAtInclusive) ||
+                (move.effectiveAt == boundary.effectiveAtInclusive &&
+                 (boundary.createdAtInclusive == null || move.createdAt <= boundary.createdAtInclusive))
             }
+
+            val matchesExclusion = excludedSourceDocument == null ||
+                move.sourceDocumentType != excludedSourceDocument.type ||
+                move.sourceDocumentId != excludedSourceDocument.id
+
+            matchesBoundary && matchesExclusion
+        }
+
+        // 2. Resolve reversals within the boundary
+        val reversalMoves = inBoundary.filter { it.movementType == InventoryMovementType.REVERSAL }
+        val inBoundaryIds = inBoundary.map { it.id }.toSet()
+        
+        // Basic integrity: every reversal must have a target in the set, and no duplicate targets
+        val reversalTargetIds = mutableSetOf<String>()
+        val effectiveReversedIds = mutableSetOf<String>()
+        val effectiveReversalIds = mutableSetOf<String>()
+
+        for (rev in reversalMoves) {
+            val targetId = rev.reversalOfMovementId
+            if (targetId != null && 
+                inBoundaryIds.contains(targetId) && 
+                reversalTargetIds.add(targetId)) {
+                effectiveReversedIds.add(targetId)
+                effectiveReversalIds.add(rev.id)
+            }
+        }
+
+        // 3. Filter effective movements and sort
+        val sortedMovements = inBoundary
+            .filter { it.id !in effectiveReversedIds && it.id !in effectiveReversalIds }
             .sortedWith(compareBy({ it.effectiveAt }, { it.createdAt }, { it.id }))
 
         var currentTotalQuantity = BigDecimal.ZERO
@@ -77,8 +116,7 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
                     currentTotalQuantity = currentTotalQuantity.add(move.quantityBaseSigned)
                 }
                 InventoryMovementType.REVERSAL -> {
-                    // Reversals should ideally be handled by the caller filtering them out of effective history.
-                    // If they reach here, we ignore them to avoid double-counting or complex reversal lookup.
+                    // Reversals already handled by filtering
                 }
             }
         }

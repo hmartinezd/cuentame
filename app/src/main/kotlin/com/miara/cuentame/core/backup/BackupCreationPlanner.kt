@@ -300,8 +300,8 @@ class BackupCreationPlanner @Inject constructor(
             "stock_count_lines" to TableMetadata(dto.stockCountLines.size, false),
             "waste_events" to TableMetadata(dto.wasteEvents.size, false),
             "inventory_movements" to TableMetadata(dto.inventoryMovements.size, false),
-            "inventory_balance_projection" to TableMetadata(dto.inventoryBalanceProjections.size, true),
-            "ingredient_cost_projection" to TableMetadata(dto.ingredientCostProjections.size, true)
+            "inventory_balance_projections" to TableMetadata(dto.inventoryBalanceProjections.size, true),
+            "ingredient_cost_projections" to TableMetadata(dto.ingredientCostProjections.size, true)
         )
 
         // Add recipe tables for schema 3+
