@@ -128,14 +128,17 @@ class BackupSchema4RoundTripTest {
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (planResult as BackupPlanningResult.Success).plan
 
-        // 5. Mutate database
+        // 5. Mutate database materially
         // Rename a recipe
         database.preparationRecipeDao().update(database.preparationRecipeDao().getById("r-1")!!.copy(name = "Renamed Recipe"))
         // Create another valid Draft batch
-        // Ensure the time is not in the future relative to the repository's time provider if it uses now()
         repository.createDraft(CreateProductionBatchDraftCommand(
             restId, recipeId, BigDecimal.ONE, areaId, null, null, effectiveAt.plusSeconds(60), "Another Draft"
         ))
+        // Verify mutation is present in a fresh snapshot
+        val mutatedSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        assertThat(mutatedSnapshot.preparationRecipes[0].name).isEqualTo("Renamed Recipe")
+        assertThat(mutatedSnapshot.productionBatches).hasSize(2)
         
         // 6. Restore backup
         applier.replaceWithBackup(plan.snapshotDto)
@@ -158,10 +161,12 @@ class BackupSchema4RoundTripTest {
 
         assertThat(restoredSnapshot).isEqualTo(snapshotBefore)
         
-        // Verify mutation records are gone
+        // Verify mutation records are gone exactly (Instruction 20)
         assertThat(restoredSnapshot.preparationRecipes[0].name).isEqualTo("Recipe")
         assertThat(restoredSnapshot.productionBatches).hasSize(1)
         assertThat(restoredSnapshot.productionBatches[0].notes).isEqualTo("Initial Notes")
+        
+        assertThat(database.preparationRecipeDao().getById("r-1")?.name).isEqualTo("Recipe")
     }
 
     private suspend fun seedBaseData() {

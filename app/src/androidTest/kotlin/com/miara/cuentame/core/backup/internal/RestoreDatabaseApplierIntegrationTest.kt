@@ -38,19 +38,31 @@ class RestoreDatabaseApplierIntegrationTest {
 
     @Test
     fun existing_data_is_fully_replaced() = runBlocking {
-        // 1. Seed initial data
-        db.restaurantDao().insert(RestaurantEntity("r1", "Old", "USD", "en-US", 0, 0, null))
+        // 1. Seed initial data (State A)
+        db.restaurantDao().insert(RestaurantEntity("r1", "Old", "USD", "en-US", 100, 100, null))
+        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "r1", "Area 1", "area 1", 0, true, 0, 0, null))
+        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "U", "u", "MASS", java.math.BigDecimal.ONE, true, 0)))
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 0, 0, null))
         
-        // 2. Prepare backup snapshot (Empty but with new restaurant)
-        val snapshot = createMinimalSnapshot("r2", "New")
+        // 2. Prepare backup snapshot (State B - Materially different)
+        val snapshotB = createMinimalSnapshot("r2", "New").copy(
+            inventoryAreas = listOf(com.miara.cuentame.core.backup.model.InventoryAreaBackupDto("a2", "r2", "Area 2", "area 2", 0, true, 0, 0, null))
+        )
         
         // 3. Replace
-        applier.replaceWithBackup(snapshot)
+        applier.replaceWithBackup(snapshotB)
         
-        // 4. Verify
-        val current = db.restaurantDao().getById("r2")
-        assertThat(current?.name).isEqualTo("New")
+        // 4. Verify exact preservation and removal
+        val backupDao = db.backupDao()
+        val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
+        val restoredSnapshot = snapshotSource.loadSnapshot("r2").dto
+        
+        assertThat(restoredSnapshot).isEqualTo(snapshotB)
+        
+        // State A records must be GONE
         assertThat(db.restaurantDao().getById("r1")).isNull()
+        assertThat(db.inventoryAreaDao().getById("a1")).isNull()
+        assertThat(db.ingredientDao().getById("i1")).isNull()
     }
 
     @Test
@@ -83,6 +95,9 @@ class RestoreDatabaseApplierIntegrationTest {
     fun replaceWithBackup_atomicity_on_failure() = runBlocking {
         // 1. Seed valid existing database state A
         db.restaurantDao().insert(RestaurantEntity("r1", "State A", "USD", "en-US", 100, 100, null))
+        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "r1", "Area 1", "area 1", 0, true, 0, 0, null))
+        db.inventoryProjectionDao().upsert(com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity("r1", "i1", "a1", "100", 1000L))
+        
         val backupDao = db.backupDao()
         val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
         val stateASnapshot = snapshotSource.loadSnapshot("r1").dto
@@ -120,6 +135,12 @@ class RestoreDatabaseApplierIntegrationTest {
         val currentSnapshot = snapshotSource.loadSnapshot("r1").dto
         assertThat(currentSnapshot).isEqualTo(stateASnapshot)
         
+        // Explicitly check State A survivors
+        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("State A")
+        assertThat(db.inventoryAreaDao().getById("a1")).isNotNull()
+        assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("100")
+        
+        // Explicitly check State B rejection
         assertThat(db.restaurantDao().getById("r2")).isNull()
     }
 

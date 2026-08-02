@@ -84,7 +84,7 @@ class RoomInventorySnapshotServiceTest {
         val t2 = now.minusSeconds(100)
         
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t1))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOf = "m1"))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, now)
         assertThat(snapshot.hasEffectiveHistory).isFalse()
@@ -98,7 +98,7 @@ class RoomInventorySnapshotServiceTest {
         val t2 = now.plusSeconds(100)
 
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t1))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOf = "m1"))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, now)
         assertThat(snapshot.hasEffectiveHistory).isTrue()
@@ -124,7 +124,7 @@ class RoomInventorySnapshotServiceTest {
         val t2 = now.minusSeconds(100) // reversal at t2
 
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOf = "m1"))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t1)
         assertThat(snapshot.hasEffectiveHistory).isTrue()
@@ -140,7 +140,7 @@ class RoomInventorySnapshotServiceTest {
         val t2 = now.minusSeconds(100) // snapshot at t2
 
         db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t1, reversalOf = "m1"))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t1, reversalOfMovementId = "m1"))
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t2)
         assertThat(snapshot.hasEffectiveHistory).isFalse()
@@ -151,43 +151,50 @@ class RoomInventorySnapshotServiceTest {
     private fun createMovement(
         id: String,
         type: String,
-        qty: String,
-        cost: String?,
+        quantityBaseSigned: String,
+        unitCostBaseSnapshot: String?,
         effectiveAt: Instant,
-        reversalOf: String? = null,
+        reversalOfMovementId: String? = null,
         sourceDocumentType: String = SourceDocumentType.PURCHASE_RECEIPT.name,
-        sourceDocumentId: String = "doc_$id",
-        sourceLineId: String? = "line_$id",
-        createdAt: Instant = effectiveAt
+        sourceDocumentId: String = "document-$id",
+        sourceLineId: String? = "line-$id",
+        createdAt: Instant = effectiveAt,
+        sourceOperationIdOverride: String? = null
     ) = InventoryMovementEntity(
         id = id,
         restaurantId = restaurantId.value,
         ingredientId = ingredientId.value,
         areaId = areaId.value,
         movementType = type,
-        quantityBaseSigned = qty,
-        unitCostBaseSnapshot = cost,
-        totalValueSnapshot = cost?.let { BigDecimal(qty).multiply(BigDecimal(it)).toPlainString() },
+        quantityBaseSigned = quantityBaseSigned,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalValueSnapshot = unitCostBaseSnapshot?.let {
+            BigDecimal(quantityBaseSigned).multiply(BigDecimal(it)).toPlainString()
+        },
         effectiveAt = effectiveAt.toEpochMilli(),
         sourceDocumentType = sourceDocumentType,
         sourceDocumentId = sourceDocumentId,
-        sourceOperationId = when {
-            type == InventoryMovementType.REVERSAL.name &&
-                    reversalOf != null ->
-                InventoryMovementOperationIds.reversal(reversalOf)
+        sourceOperationId = sourceOperationIdOverride
+            ?: when {
+                type == InventoryMovementType.REVERSAL.name &&
+                        reversalOfMovementId != null ->
+                    InventoryMovementOperationIds.reversal(reversalOfMovementId)
 
-            type == InventoryMovementType.PURCHASE.name &&
-                    sourceLineId != null ->
-                InventoryMovementOperationIds.purchasePost(
-                    sourceDocumentId,
-                    sourceLineId
-                )
+                type == InventoryMovementType.PURCHASE.name &&
+                        sourceLineId != null ->
+                    InventoryMovementOperationIds.purchasePost(
+                        sourceDocumentId,
+                        sourceLineId
+                    )
 
-            else ->
-                "op:$id"
-        },
+                type == InventoryMovementType.WASTE.name ->
+                    InventoryMovementOperationIds.wastePost(sourceDocumentId)
+
+                else ->
+                    "test-operation:$id"
+            },
         sourceLineId = sourceLineId,
-        reversalOfMovementId = reversalOf,
+        reversalOfMovementId = reversalOfMovementId,
         createdAt = createdAt.toEpochMilli()
     )
 }

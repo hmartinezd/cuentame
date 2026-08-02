@@ -149,6 +149,9 @@ class ProductionFailureBoundaryTest {
 
         // Capture Draft state
         val snapshotBefore = captureProductionSnapshot(batchId)
+        assertThat(snapshotBefore.batch.status.name).isEqualTo("DRAFT")
+        assertThat(snapshotBefore.batch.postedAt).isNull()
+        assertThat(snapshotBefore.batch.totalComponentCostSnapshot).isNull()
 
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
@@ -159,8 +162,11 @@ class ProductionFailureBoundaryTest {
         val snapshotAfter = captureProductionSnapshot(batchId)
         assertSnapshotsEqual(snapshotBefore, snapshotAfter)
 
-        val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
-        assertThat(movements).isEmpty()
+        // Post-failure explicit invariants
+        assertThat(snapshotAfter.batch.status.name).isEqualTo("DRAFT")
+        assertThat(snapshotAfter.batch.postedAt).isNull()
+        assertThat(snapshotAfter.batch.totalComponentCostSnapshot).isNull()
+        assertThat(snapshotAfter.movements).isEmpty()
     }
 
     private suspend fun testVoidFailure(point: String) {
@@ -171,6 +177,10 @@ class ProductionFailureBoundaryTest {
         
         // Capture Posted state
         val snapshotBefore = captureProductionSnapshot(batchId)
+        assertThat(snapshotBefore.batch.status.name).isEqualTo("POSTED")
+        assertThat(snapshotBefore.batch.postedAt).isNotNull()
+        assertThat(snapshotBefore.batch.voidedAt).isNull()
+        assertThat(snapshotBefore.movements).isNotEmpty()
 
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
@@ -181,6 +191,10 @@ class ProductionFailureBoundaryTest {
         val snapshotAfter = captureProductionSnapshot(batchId)
         assertSnapshotsEqual(snapshotBefore, snapshotAfter)
         
+        // Void-failure explicit invariants
+        assertThat(snapshotAfter.batch.status.name).isEqualTo("POSTED")
+        assertThat(snapshotAfter.batch.voidedAt).isNull()
+        assertThat(snapshotAfter.movements).isEqualTo(snapshotBefore.movements)
         assertThat(snapshotAfter.movements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
     }
 

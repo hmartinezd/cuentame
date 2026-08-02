@@ -63,7 +63,7 @@ class RoomInventorySnapshotServiceFailureTest {
     @Test
     fun calculateAt_reversalWithoutTarget_throws() = runBlocking {
         // Manual construction to bypass createMovement's automatic opId fix
-        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "m0").copy(reversalOfMovementId = null))
+        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOfMovementId = "m0").copy(reversalOfMovementId = null))
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
         }
@@ -94,10 +94,10 @@ class RoomInventorySnapshotServiceFailureTest {
         val m2 = createMovement(
             id = "m2",
             type = InventoryMovementType.REVERSAL.name,
-            qty = "-10",
-            cost = "5",
+            quantityBaseSigned = "-10",
+            unitCostBaseSnapshot = "5",
             effectiveAt = now,
-            reversalOf = "m1"
+            reversalOfMovementId = "m1"
         ).copy(areaId = "area_2")
 
         db.inventoryMovementDao().insert(m2)
@@ -116,11 +116,12 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m2",
                 type = InventoryMovementType.REVERSAL.name,
-                qty = "-10",
-                cost = "5",
+                quantityBaseSigned = "-10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now,
-                reversalOf = "m1"
-            ).copy(sourceOperationId = "wrong_op")
+                reversalOfMovementId = "m1",
+                sourceOperationIdOverride = "wrong_op"
+            )
         )
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
@@ -136,10 +137,10 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m2",
                 type = InventoryMovementType.REVERSAL.name,
-                qty = "-10",
-                cost = "5",
+                quantityBaseSigned = "-10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now.minusSeconds(50),
-                reversalOf = "m1"
+                reversalOfMovementId = "m1"
             )
         )
         // m3 targets m2 (which is a REVERSAL)
@@ -147,10 +148,10 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m3",
                 type = InventoryMovementType.REVERSAL.name,
-                qty = "10",
-                cost = "5",
+                quantityBaseSigned = "10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now,
-                reversalOf = "m2"
+                reversalOfMovementId = "m2"
             )
         )
 
@@ -167,10 +168,10 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m2",
                 type = InventoryMovementType.REVERSAL.name,
-                qty = "-10",
-                cost = "5",
+                quantityBaseSigned = "-10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now.minusSeconds(50),
-                reversalOf = "m1"
+                reversalOfMovementId = "m1"
             )
         )
 
@@ -181,10 +182,10 @@ class RoomInventorySnapshotServiceFailureTest {
                     createMovement(
                         id = "m3",
                         type = InventoryMovementType.REVERSAL.name,
-                        qty = "-10",
-                        cost = "5",
+                        quantityBaseSigned = "-10",
+                        unitCostBaseSnapshot = "5",
                         effectiveAt = now,
-                        reversalOf = "m1"
+                        reversalOfMovementId = "m1"
                     )
                 )
             }
@@ -195,7 +196,7 @@ class RoomInventorySnapshotServiceFailureTest {
     fun calculateAt_wrongReversalQuantity_throws() = runBlocking {
         val now = Instant.now()
         val m1 = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
-        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-9", "5", now, reversalOf = "m1")
+        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-9", "5", now, reversalOfMovementId = "m1")
 
         assertThat(db.inventoryMovementDao().insert(m1)).isNotNull()
         assertThat(db.inventoryMovementDao().insert(m2)).isNotNull()
@@ -209,7 +210,7 @@ class RoomInventorySnapshotServiceFailureTest {
     fun calculateAt_wrongReversalCost_throws() = runBlocking {
         val now = Instant.now()
         val m1 = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
-        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-10", "6", now, reversalOf = "m1")
+        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-10", "6", now, reversalOfMovementId = "m1")
 
         assertThat(db.inventoryMovementDao().insert(m1)).isNotNull()
         assertThat(db.inventoryMovementDao().insert(m2)).isNotNull()
@@ -243,8 +244,8 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m1",
                 type = InventoryMovementType.PURCHASE.name,
-                qty = "10",
-                cost = "5",
+                quantityBaseSigned = "10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now.minusSeconds(100),
                 sourceDocumentId = "purchase-1",
                 sourceLineId = "line-1"
@@ -274,8 +275,8 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m2",
                 type = InventoryMovementType.PURCHASE.name,
-                qty = "10",
-                cost = "5",
+                quantityBaseSigned = "10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now.minusSeconds(100),
                 sourceDocumentId = "purchase-2",
                 sourceLineId = "line-2"
@@ -285,11 +286,12 @@ class RoomInventorySnapshotServiceFailureTest {
             createMovement(
                 id = "m3",
                 type = InventoryMovementType.REVERSAL.name,
-                qty = "-10",
-                cost = "5",
+                quantityBaseSigned = "-10",
+                unitCostBaseSnapshot = "5",
                 effectiveAt = now,
-                reversalOf = "m2"
-            ).copy(ingredientId = "ing_2", sourceOperationId = "wrong-operation")
+                reversalOfMovementId = "m2",
+                sourceOperationIdOverride = "wrong-operation"
+            ).copy(ingredientId = "ing_2")
         )
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
@@ -300,52 +302,54 @@ class RoomInventorySnapshotServiceFailureTest {
     private fun createMovement(
         id: String,
         type: String,
-        qty: String,
-        cost: String?,
+        quantityBaseSigned: String,
+        unitCostBaseSnapshot: String?,
         effectiveAt: Instant,
-        reversalOf: String? = null,
+        reversalOfMovementId: String? = null,
         sourceDocumentType: String = SourceDocumentType.PURCHASE_RECEIPT.name,
-        sourceDocumentId: String = "doc_$id",
-        sourceLineId: String? = "line_$id",
-        createdAt: Instant = effectiveAt
-    ): InventoryMovementEntity {
-        val operationId = when {
-            type == InventoryMovementType.REVERSAL.name &&
-                    reversalOf != null ->
-                InventoryMovementOperationIds.reversal(reversalOf)
+        sourceDocumentId: String = "document-$id",
+        sourceLineId: String? = "line-$id",
+        createdAt: Instant = effectiveAt,
+        sourceOperationIdOverride: String? = null
+    ) = InventoryMovementEntity(
+        id = id,
+        restaurantId = restaurantId.value,
+        ingredientId = ingredientId.value,
+        areaId = areaId.value,
+        movementType = type,
+        quantityBaseSigned = quantityBaseSigned,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalValueSnapshot = unitCostBaseSnapshot?.let {
+            try {
+                BigDecimal(quantityBaseSigned).multiply(BigDecimal(it)).toPlainString()
+            } catch (e: Exception) {
+                null
+            }
+        },
+        effectiveAt = effectiveAt.toEpochMilli(),
+        sourceDocumentType = sourceDocumentType,
+        sourceDocumentId = sourceDocumentId,
+        sourceOperationId = sourceOperationIdOverride
+            ?: when {
+                type == InventoryMovementType.REVERSAL.name &&
+                        reversalOfMovementId != null ->
+                    InventoryMovementOperationIds.reversal(reversalOfMovementId)
 
-            type == InventoryMovementType.PURCHASE.name &&
-                    sourceLineId != null ->
-                InventoryMovementOperationIds.purchasePost(
-                    sourceDocumentId,
-                    sourceLineId
-                )
+                type == InventoryMovementType.PURCHASE.name &&
+                        sourceLineId != null ->
+                    InventoryMovementOperationIds.purchasePost(
+                        sourceDocumentId,
+                        sourceLineId
+                    )
 
-            else ->
-                "op:$id"
-        }
-        return InventoryMovementEntity(
-            id = id,
-            restaurantId = restaurantId.value,
-            ingredientId = ingredientId.value,
-            areaId = areaId.value,
-            movementType = type,
-            quantityBaseSigned = qty,
-            unitCostBaseSnapshot = cost,
-            totalValueSnapshot = cost?.let {
-                try {
-                    BigDecimal(qty).multiply(BigDecimal(it)).toPlainString()
-                } catch (e: Exception) {
-                    null
-                }
+                type == InventoryMovementType.WASTE.name ->
+                    InventoryMovementOperationIds.wastePost(sourceDocumentId)
+
+                else ->
+                    "test-operation:$id"
             },
-            effectiveAt = effectiveAt.toEpochMilli(),
-            sourceDocumentType = sourceDocumentType,
-            sourceDocumentId = sourceDocumentId,
-            sourceOperationId = operationId,
-            sourceLineId = sourceLineId,
-            reversalOfMovementId = reversalOf,
-            createdAt = createdAt.toEpochMilli()
-        )
-    }
+        sourceLineId = sourceLineId,
+        reversalOfMovementId = reversalOfMovementId,
+        createdAt = createdAt.toEpochMilli()
+    )
 }
