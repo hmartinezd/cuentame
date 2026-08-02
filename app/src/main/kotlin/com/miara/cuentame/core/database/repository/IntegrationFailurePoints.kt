@@ -27,4 +27,14 @@ object IntegrationFailurePoints {
     const val PURCHASE_VOID_AFTER_PROJECTIONS = "purchase-void-after-projections"
 
     const val PURCHASE_VOID_AFTER_MARK_VOIDED = "purchase-void-after-mark-voided"
+
+    const val PRODUCTION_POST_AFTER_SNAPSHOTS = "production-post-after-snapshots"
+    const val PRODUCTION_POST_AFTER_CONSUMPTION = "production-post-after-consumption"
+    const val PRODUCTION_POST_AFTER_OUTPUT = "production-post-after-output"
+    const val PRODUCTION_POST_AFTER_PROJECTIONS = "production-post-after-projections"
+    const val PRODUCTION_POST_AFTER_MARK_POSTED = "production-post-after-mark-posted"
+
+    const val PRODUCTION_VOID_AFTER_REVERSALS = "production-void-after-reversals"
+    const val PRODUCTION_VOID_AFTER_PROJECTIONS = "production-void-after-projections"
+    const val PRODUCTION_VOID_AFTER_MARK_VOIDED = "production-void-after-mark-voided"
 }

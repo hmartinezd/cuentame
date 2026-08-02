@@ -30,7 +30,9 @@ object BackupMapper {
             ingredientCostProjections = snapshot.ingredientCostProjections.map { it.toDto() }
                 .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId })),
             preparationRecipes = snapshot.preparationRecipes.map { it.toDto() }.sortedBy { it.id },
-            preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id }
+            preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id },
+            productionBatches = snapshot.productionBatches.map { it.toDto() }.sortedBy { it.id },
+            productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id }
         )
     }
 
@@ -268,6 +270,57 @@ object BackupMapper {
         unitOptionId = unitOptionId,
         quantityEntered = quantityEntered.toNormalizedString(),
         quantityBase = quantityBase.toNormalizedString(),
+        sortOrder = sortOrder,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
+    internal fun ProductionBatchEntity.toDto() = ProductionBatchBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        recipeId = recipeId,
+        recipeNameSnapshot = recipeNameSnapshot,
+        outputIngredientId = outputIngredientId,
+        batchMultiplier = batchMultiplier,
+        recipeStandardYieldQuantitySnapshot = recipeStandardYieldQuantitySnapshot,
+        recipeStandardYieldBaseSnapshot = recipeStandardYieldBaseSnapshot,
+        recipeYieldUnitOptionIdSnapshot = recipeYieldUnitOptionIdSnapshot,
+        expectedOutputQuantityEntered = expectedOutputQuantityEntered,
+        expectedOutputQuantityBase = expectedOutputQuantityBase,
+        actualOutputQuantityEntered = actualOutputQuantityEntered,
+        actualOutputQuantityBase = actualOutputQuantityBase,
+        outputUnitOptionId = outputUnitOptionId,
+        outputAreaId = outputAreaId,
+        hasManualOutputQuantityOverride = hasManualOutputQuantityOverride,
+        totalComponentCostSnapshot = totalComponentCostSnapshot,
+        outputUnitCostBaseSnapshot = outputUnitCostBaseSnapshot,
+        effectiveAt = effectiveAt,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
+
+    internal fun ProductionBatchComponentEntity.toDto() = ProductionBatchComponentBackupDto(
+        id = id,
+        productionBatchId = productionBatchId,
+        sourceRecipeComponentIdSnapshot = sourceRecipeComponentIdSnapshot,
+        componentIngredientId = componentIngredientId,
+        recipeQuantityEnteredSnapshot = recipeQuantityEnteredSnapshot,
+        recipeQuantityBaseSnapshot = recipeQuantityBaseSnapshot,
+        recipeUnitOptionIdSnapshot = recipeUnitOptionIdSnapshot,
+        expectedQuantityEntered = expectedQuantityEntered,
+        expectedQuantityBase = expectedQuantityBase,
+        actualQuantityEntered = actualQuantityEntered,
+        actualQuantityBase = actualQuantityBase,
+        unitOptionId = unitOptionId,
+        hasManualQuantityOverride = hasManualQuantityOverride,
+        sourceAreaId = sourceAreaId,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalCostSnapshot = totalCostSnapshot,
         sortOrder = sortOrder,
         notes = notes,
         createdAt = createdAt,
@@ -514,6 +567,57 @@ object BackupMapper {
         unitOptionId = unitOptionId,
         quantityEntered = java.math.BigDecimal(quantityEntered),
         quantityBase = java.math.BigDecimal(quantityBase),
+        sortOrder = sortOrder,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
+    fun ProductionBatchBackupDto.toEntity() = ProductionBatchEntity(
+        id = id,
+        restaurantId = restaurantId,
+        recipeId = recipeId,
+        recipeNameSnapshot = recipeNameSnapshot,
+        outputIngredientId = outputIngredientId,
+        batchMultiplier = batchMultiplier,
+        recipeStandardYieldQuantitySnapshot = recipeStandardYieldQuantitySnapshot,
+        recipeStandardYieldBaseSnapshot = recipeStandardYieldBaseSnapshot,
+        recipeYieldUnitOptionIdSnapshot = recipeYieldUnitOptionIdSnapshot,
+        expectedOutputQuantityEntered = expectedOutputQuantityEntered,
+        expectedOutputQuantityBase = expectedOutputQuantityBase,
+        actualOutputQuantityEntered = actualOutputQuantityEntered,
+        actualOutputQuantityBase = actualOutputQuantityBase,
+        outputUnitOptionId = outputUnitOptionId,
+        outputAreaId = outputAreaId,
+        hasManualOutputQuantityOverride = hasManualOutputQuantityOverride,
+        totalComponentCostSnapshot = totalComponentCostSnapshot,
+        outputUnitCostBaseSnapshot = outputUnitCostBaseSnapshot,
+        effectiveAt = effectiveAt,
+        status = status,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        postedAt = postedAt,
+        voidedAt = voidedAt
+    )
+
+    fun ProductionBatchComponentBackupDto.toEntity() = ProductionBatchComponentEntity(
+        id = id,
+        productionBatchId = productionBatchId,
+        sourceRecipeComponentIdSnapshot = sourceRecipeComponentIdSnapshot,
+        componentIngredientId = componentIngredientId,
+        recipeQuantityEnteredSnapshot = recipeQuantityEnteredSnapshot,
+        recipeQuantityBaseSnapshot = recipeQuantityBaseSnapshot,
+        recipeUnitOptionIdSnapshot = recipeUnitOptionIdSnapshot,
+        expectedQuantityEntered = expectedQuantityEntered,
+        expectedQuantityBase = expectedQuantityBase,
+        actualQuantityEntered = actualQuantityEntered,
+        actualQuantityBase = actualQuantityBase,
+        unitOptionId = unitOptionId,
+        hasManualQuantityOverride = hasManualQuantityOverride,
+        sourceAreaId = sourceAreaId,
+        unitCostBaseSnapshot = unitCostBaseSnapshot,
+        totalCostSnapshot = totalCostSnapshot,
         sortOrder = sortOrder,
         notes = notes,
         createdAt = createdAt,

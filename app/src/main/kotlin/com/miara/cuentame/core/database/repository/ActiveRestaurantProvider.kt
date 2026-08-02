@@ -13,4 +13,8 @@ class ActiveRestaurantProvider @Inject constructor(
     suspend fun getActiveRestaurant(): RestaurantEntity {
         return restaurantDao.getRestaurant() ?: throw ValidationError.RecordNotFound
     }
+
+    suspend fun getRequiredActiveRestaurantId(): com.miara.cuentame.core.common.ids.RestaurantId {
+        return com.miara.cuentame.core.common.ids.RestaurantId(getActiveRestaurant().id)
+    }
 }

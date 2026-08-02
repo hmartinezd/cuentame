@@ -43,7 +43,8 @@ object DatabaseModule {
         )
         .addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
-            RestaurantInventoryDatabase.MIGRATION_2_3
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4
         )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -99,6 +100,9 @@ object DatabaseModule {
 
     @Provides
     fun providePreparationRecipeDao(db: RestaurantInventoryDatabase): PreparationRecipeDao = db.preparationRecipeDao()
+
+    @Provides
+    fun provideProductionBatchDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.ProductionBatchDao = db.productionBatchDao()
 
     @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase): com.miara.cuentame.core.database.dao.BackupDao = db.backupDao()

@@ -94,7 +94,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         restoreDao.insertIngredientUnitOptions(snapshot.ingredientUnitOptions.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertPreparationRecipes(snapshot.preparationRecipes.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertPreparationRecipeComponents(snapshot.preparationRecipeComponents.map { BackupMapper.run { it.toEntity() } })
-        
+        restoreDao.insertProductionBatches(snapshot.productionBatches.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertProductionBatchComponents(snapshot.productionBatchComponents.map { BackupMapper.run { it.toEntity() } })
+
         val receipts = snapshot.purchaseReceipts.map { dto ->
             val entity = BackupMapper.run { dto.toEntity() }
             if (useOriginalPaths) {

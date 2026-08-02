@@ -172,6 +172,85 @@ class PreparationRecipeValidatorTest {
     }
 
     @Test
+    fun `restore archived to draft - no entered quantity, has base quantity rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", status = PreparationRecipeStatus.ARCHIVED).copy(
+            standardYieldQuantity = null,
+            standardYieldQuantityBase = BigDecimal("1.0")
+        )
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-1"),
+            yieldUnitOption = null,
+            components = emptyList(),
+            allComponentIngredients = emptyMap(),
+            allComponentUnitOptions = emptyMap(),
+            existingGraphEdges = emptyList()
+        )
+        assertThat(failures).contains(PreparationRecipeValidationFailure.YieldMustBePositive)
+    }
+
+    @Test
+    fun `restore archived to draft - entered quantity without option, has base quantity rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", status = PreparationRecipeStatus.ARCHIVED).copy(
+            standardYieldQuantity = BigDecimal("1.0"),
+            yieldUnitOptionId = null,
+            standardYieldQuantityBase = BigDecimal("1.0")
+        )
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-1"),
+            yieldUnitOption = null,
+            components = emptyList(),
+            allComponentIngredients = emptyMap(),
+            allComponentUnitOptions = emptyMap(),
+            existingGraphEdges = emptyList()
+        )
+        assertThat(failures).contains(PreparationRecipeValidationFailure.YieldMustBePositive)
+    }
+
+    @Test
+    fun `restore archived to draft - entered quantity with option, missing base quantity rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", status = PreparationRecipeStatus.ARCHIVED).copy(
+            standardYieldQuantity = BigDecimal("1.0"),
+            yieldUnitOptionId = IngredientUnitOptionId("unit-y"),
+            standardYieldQuantityBase = null
+        )
+        val yieldUnit = createUnitOption(id = "unit-y", ingId = "ing-1")
+
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-1"),
+            yieldUnitOption = yieldUnit,
+            components = emptyList(),
+            allComponentIngredients = emptyMap(),
+            allComponentUnitOptions = emptyMap(),
+            existingGraphEdges = emptyList()
+        )
+        assertThat(failures).contains(PreparationRecipeValidationFailure.YieldMustBePositive)
+    }
+
+    @Test
+    fun `restore archived to draft - entered quantity with option, mismatched base quantity rejected`() {
+        val recipe = createRecipe(outputId = "ing-1", status = PreparationRecipeStatus.ARCHIVED).copy(
+            standardYieldQuantity = BigDecimal("1.0"),
+            yieldUnitOptionId = IngredientUnitOptionId("unit-y"),
+            standardYieldQuantityBase = BigDecimal("2.0")
+        )
+        val yieldUnit = createUnitOption(id = "unit-y", ingId = "ing-1", factor = BigDecimal.ONE)
+
+        val failures = validator.validateRestoreToDraft(
+            recipe = recipe,
+            outputIngredient = createIngredient(id = "ing-1"),
+            yieldUnitOption = yieldUnit,
+            components = emptyList(),
+            allComponentIngredients = emptyMap(),
+            allComponentUnitOptions = emptyMap(),
+            existingGraphEdges = emptyList()
+        )
+        assertThat(failures).contains(PreparationRecipeValidationFailure.YieldMustBePositive)
+    }
+
+    @Test
     fun `activation validation - mismatched yield base quantity rejected`() {
         val recipe = createRecipe(outputId = "ing-1", yieldUnitId = "unit-y").copy(
             standardYieldQuantity = BigDecimal("10.0"),

@@ -24,13 +24,13 @@ import javax.inject.Inject
  * 1. Initialize current total quantity and average cost to zero.
  * 2. Process movements in chronological order (effectiveAt, then createdAt, then id).
  * 3. Update area balances by adding signed quantity.
- * 4. If movement is PURCHASE or OPENING_BALANCE:
+ * 4. If movement is PURCHASE, OPENING_BALANCE, or PRODUCTION_OUTPUT:
  *    a. If quantity > 0 and unit cost is present:
  *       Update average cost using the weighted average formula.
  *       Add quantity to current total quantity.
  *    b. If quantity <= 0:
  *       Subtract quantity from current total quantity (outflow at current average cost).
- * 5. If movement is WASTE, COUNT_ADJUSTMENT, or MANUAL_ADJUSTMENT:
+ * 5. If movement is WASTE, COUNT_ADJUSTMENT, MANUAL_ADJUSTMENT, or PRODUCTION_CONSUMPTION:
  *    Add signed quantity to current total quantity.
  * 6. If movement is REVERSAL:
  *    Treat as an opposite movement of the original type.
@@ -82,7 +82,8 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
                 // Cost update logic
                 when (movement.movementType) {
                     InventoryMovementType.PURCHASE, 
-                    InventoryMovementType.OPENING_BALANCE -> {
+                    InventoryMovementType.OPENING_BALANCE,
+                    InventoryMovementType.PRODUCTION_OUTPUT -> {
                         val incomingQuantity = movement.quantityBaseSigned
                         val incomingUnitCost = movement.unitCostBaseSnapshot
                         
@@ -97,7 +98,7 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
                         currentTotalQuantity = currentTotalQuantity.add(incomingQuantity)
                     }
                     else -> {
-                        // WASTE, ADJUSTMENTS, etc.
+                        // WASTE, ADJUSTMENTS, PRODUCTION_CONSUMPTION, etc.
                         currentTotalQuantity = currentTotalQuantity.add(movement.quantityBaseSigned)
                     }
                 }

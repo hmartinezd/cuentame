@@ -35,12 +35,15 @@ enum class InventoryMovementType {
     COUNT_ADJUSTMENT,
     MANUAL_ADJUSTMENT,
     OPENING_BALANCE,
-    REVERSAL
+    REVERSAL,
+    PRODUCTION_CONSUMPTION,
+    PRODUCTION_OUTPUT
 }
 
 enum class SourceDocumentType {
     PURCHASE_RECEIPT,
     STOCK_COUNT,
     WASTE_EVENT,
-    MANUAL
+    MANUAL,
+    PRODUCTION_BATCH
 }

@@ -5,7 +5,6 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeDependencyEdge
-import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import java.math.BigDecimal
 import javax.inject.Inject
 
@@ -241,29 +240,46 @@ class PreparationRecipeValidator @Inject constructor(
         }
 
         // 3. Yield
-        if (recipe.standardYieldQuantity != null && recipe.standardYieldQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-            failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
-        }
+        val hasEntered = recipe.standardYieldQuantity != null
+        val hasBase = recipe.standardYieldQuantityBase != null
+        val hasOption = recipe.yieldUnitOptionId != null
 
-        if (recipe.yieldUnitOptionId != null) {
-            if (yieldUnitOption == null) {
-                failures.add(PreparationRecipeValidationFailure.YieldUnitNotFound)
-            } else {
-                if (yieldUnitOption.ingredientId != recipe.outputIngredientId) {
-                    failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
-                }
-                if (yieldUnitOption.deletedAt != null || !yieldUnitOption.isActive) {
-                    failures.add(PreparationRecipeValidationFailure.YieldUnitInactive)
-                }
-                if (recipe.standardYieldQuantity != null && recipe.standardYieldQuantityBase != null) {
-                    val expectedBase = recipe.standardYieldQuantity.multiply(yieldUnitOption.factorToBase)
-                    if (recipe.standardYieldQuantityBase.compareTo(expectedBase) != 0) {
-                        failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
+        if (hasEntered) {
+            if (recipe.standardYieldQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+                failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
+            }
+
+            if (hasOption) {
+                if (yieldUnitOption == null) {
+                    failures.add(PreparationRecipeValidationFailure.YieldUnitNotFound)
+                } else {
+                    if (yieldUnitOption.ingredientId != recipe.outputIngredientId) {
+                        failures.add(PreparationRecipeValidationFailure.YieldUnitDoesNotBelongToOutput)
+                    }
+                    if (yieldUnitOption.deletedAt != null || !yieldUnitOption.isActive) {
+                        failures.add(PreparationRecipeValidationFailure.YieldUnitInactive)
+                    }
+
+                    if (!hasBase) {
+                        failures.add(PreparationRecipeValidationFailure.YieldMustBePositive) // Requirement: Reject entered quantity plus option when the base quantity is null
+                    } else {
+                        val expectedBase = recipe.standardYieldQuantity.multiply(yieldUnitOption.factorToBase)
+                        if (recipe.standardYieldQuantityBase.compareTo(expectedBase) != 0 || 
+                            recipe.standardYieldQuantityBase.compareTo(BigDecimal.ZERO) <= 0) {
+                            failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
+                        }
                     }
                 }
-                if (recipe.standardYieldQuantityBase != null && recipe.standardYieldQuantityBase.compareTo(BigDecimal.ZERO) <= 0) {
-                    failures.add(PreparationRecipeValidationFailure.YieldMustBePositive)
+            } else {
+                // Entered quantity without option
+                if (hasBase) {
+                    failures.add(PreparationRecipeValidationFailure.YieldMustBePositive) // Requirement: standardYieldQuantityBase = null
                 }
+            }
+        } else {
+            // No entered quantity
+            if (hasBase) {
+                failures.add(PreparationRecipeValidationFailure.YieldMustBePositive) // Requirement: standardYieldQuantityBase = null
             }
         }
 

@@ -21,7 +21,9 @@ data class BackupSnapshotDto(
     val inventoryBalanceProjections: List<InventoryBalanceProjectionBackupDto>,
     val ingredientCostProjections: List<IngredientCostProjectionBackupDto>,
     val preparationRecipes: List<PreparationRecipeBackupDto> = emptyList(),
-    val preparationRecipeComponents: List<PreparationRecipeComponentBackupDto> = emptyList()
+    val preparationRecipeComponents: List<PreparationRecipeComponentBackupDto> = emptyList(),
+    val productionBatches: List<ProductionBatchBackupDto> = emptyList(),
+    val productionBatchComponents: List<ProductionBatchComponentBackupDto> = emptyList()
 )
 
 @Serializable
@@ -49,6 +51,59 @@ data class PreparationRecipeComponentBackupDto(
     val unitOptionId: String,
     val quantityEntered: String,
     val quantityBase: String,
+    val sortOrder: Int,
+    val notes: String?,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+@Serializable
+data class ProductionBatchBackupDto(
+    val id: String,
+    val restaurantId: String,
+    val recipeId: String,
+    val recipeNameSnapshot: String,
+    val outputIngredientId: String,
+    val batchMultiplier: String,
+    val recipeStandardYieldQuantitySnapshot: String,
+    val recipeStandardYieldBaseSnapshot: String,
+    val recipeYieldUnitOptionIdSnapshot: String,
+    val expectedOutputQuantityEntered: String,
+    val expectedOutputQuantityBase: String,
+    val actualOutputQuantityEntered: String,
+    val actualOutputQuantityBase: String,
+    val outputUnitOptionId: String,
+    val outputAreaId: String,
+    val hasManualOutputQuantityOverride: Boolean,
+    val totalComponentCostSnapshot: String?,
+    val outputUnitCostBaseSnapshot: String?,
+    val effectiveAt: Long,
+    val status: String,
+    val notes: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val postedAt: Long?,
+    val voidedAt: Long?
+)
+
+@Serializable
+data class ProductionBatchComponentBackupDto(
+    val id: String,
+    val productionBatchId: String,
+    val sourceRecipeComponentIdSnapshot: String,
+    val componentIngredientId: String,
+    val recipeQuantityEnteredSnapshot: String,
+    val recipeQuantityBaseSnapshot: String,
+    val recipeUnitOptionIdSnapshot: String,
+    val expectedQuantityEntered: String,
+    val expectedQuantityBase: String,
+    val actualQuantityEntered: String,
+    val actualQuantityBase: String,
+    val unitOptionId: String,
+    val hasManualQuantityOverride: Boolean,
+    val sourceAreaId: String?,
+    val unitCostBaseSnapshot: String?,
+    val totalCostSnapshot: String?,
     val sortOrder: Int,
     val notes: String?,
     val createdAt: Long,

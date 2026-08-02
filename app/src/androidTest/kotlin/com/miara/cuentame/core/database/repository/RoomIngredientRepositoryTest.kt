@@ -41,6 +41,7 @@ class RoomIngredientRepositoryTest {
             db.restaurantDao(),
             db.ingredientCategoryDao(),
             db.preparationRecipeDao(),
+            db.productionBatchDao(),
             StandardUnitConverter(),
             object : IdGenerator { override fun newId(): String = "id" },
             object : TimeProvider { override fun now(): Instant = Instant.EPOCH }

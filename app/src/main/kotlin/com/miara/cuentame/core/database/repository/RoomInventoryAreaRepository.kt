@@ -23,7 +23,8 @@ import javax.inject.Inject
 class RoomInventoryAreaRepository @Inject constructor(
     private val database: RestaurantInventoryDatabase,
     private val inventoryAreaDao: InventoryAreaDao,
-    private val restaurantDao: RestaurantDao
+    private val restaurantDao: RestaurantDao,
+    private val batchDao: com.miara.cuentame.core.database.dao.ProductionBatchDao
 ) : InventoryAreaRepository {
     override fun observeActiveAreas(): Flow<List<InventoryArea>> {
         return restaurantDao.observeRestaurant().flatMapLatest { restaurant ->
@@ -64,6 +65,11 @@ class RoomInventoryAreaRepository @Inject constructor(
             if (activeCount <= 1) {
                 throw ValidationError.FinalAreaCannotBeArchived
             }
+
+            // Production Batches
+            if (batchDao.countDraftsUsingOutputArea(id.value) > 0) throw ValidationError.AreaUsedByProductionDraft
+            if (batchDao.countDraftsUsingComponentSourceArea(id.value) > 0) throw ValidationError.AreaUsedByProductionDraft
+
             inventoryAreaDao.softArchive(id.value, at.toEpochMilli())
         }
     }

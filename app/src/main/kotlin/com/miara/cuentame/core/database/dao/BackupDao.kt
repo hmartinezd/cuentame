@@ -29,7 +29,9 @@ interface BackupDao {
             inventoryBalanceProjections = getInventoryBalanceProjections(restaurantId),
             ingredientCostProjections = getIngredientCostProjections(restaurantId),
             preparationRecipes = getPreparationRecipes(restaurantId),
-            preparationRecipeComponents = getPreparationRecipeComponents(restaurantId)
+            preparationRecipeComponents = getPreparationRecipeComponents(restaurantId),
+            productionBatches = getProductionBatches(restaurantId),
+            productionBatchComponents = getProductionBatchComponents(restaurantId)
         )
     }
 
@@ -113,6 +115,17 @@ interface BackupDao {
     """)
     suspend fun getPreparationRecipeComponents(restaurantId: String): List<PreparationRecipeComponentEntity>
 
+    @Query("SELECT * FROM production_batches WHERE restaurantId = :restaurantId ORDER BY id ASC")
+    suspend fun getProductionBatches(restaurantId: String): List<ProductionBatchEntity>
+
+    @Query("""
+        SELECT pbc.* FROM production_batch_components pbc
+        JOIN production_batches pb ON pbc.productionBatchId = pb.id
+        WHERE pb.restaurantId = :restaurantId
+        ORDER BY pbc.id ASC
+    """)
+    suspend fun getProductionBatchComponents(restaurantId: String): List<ProductionBatchComponentEntity>
+
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
         return BackupSnapshot(
@@ -133,7 +146,9 @@ interface BackupDao {
             inventoryBalanceProjections = getAllInventoryBalanceProjections(),
             ingredientCostProjections = getAllIngredientCostProjections(),
             preparationRecipes = getAllPreparationRecipes(),
-            preparationRecipeComponents = getAllPreparationRecipeComponents()
+            preparationRecipeComponents = getAllPreparationRecipeComponents(),
+            productionBatches = getAllProductionBatches(),
+            productionBatchComponents = getAllProductionBatchComponents()
         )
     }
 
@@ -187,4 +202,10 @@ interface BackupDao {
 
     @Query("SELECT * FROM preparation_recipe_components")
     suspend fun getAllPreparationRecipeComponents(): List<PreparationRecipeComponentEntity>
+
+    @Query("SELECT * FROM production_batches")
+    suspend fun getAllProductionBatches(): List<ProductionBatchEntity>
+
+    @Query("SELECT * FROM production_batch_components")
+    suspend fun getAllProductionBatchComponents(): List<ProductionBatchComponentEntity>
 }

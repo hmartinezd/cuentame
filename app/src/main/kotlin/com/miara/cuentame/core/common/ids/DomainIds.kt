@@ -47,3 +47,9 @@ value class PreparationRecipeId(val value: String)
 
 @JvmInline
 value class PreparationRecipeComponentId(val value: String)
+
+@JvmInline
+value class ProductionBatchId(val value: String)
+
+@JvmInline
+value class ProductionBatchComponentId(val value: String)

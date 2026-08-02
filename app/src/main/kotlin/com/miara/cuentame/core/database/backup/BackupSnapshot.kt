@@ -20,5 +20,7 @@ data class BackupSnapshot(
     val inventoryBalanceProjections: List<InventoryBalanceProjectionEntity>,
     val ingredientCostProjections: List<IngredientCostProjectionEntity>,
     val preparationRecipes: List<PreparationRecipeEntity>,
-    val preparationRecipeComponents: List<PreparationRecipeComponentEntity>
+    val preparationRecipeComponents: List<PreparationRecipeComponentEntity>,
+    val productionBatches: List<ProductionBatchEntity>,
+    val productionBatchComponents: List<ProductionBatchComponentEntity>
 )

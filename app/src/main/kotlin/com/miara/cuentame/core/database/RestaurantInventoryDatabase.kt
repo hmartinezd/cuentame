@@ -28,7 +28,9 @@ import com.miara.cuentame.core.database.DatabaseSchema
         InventoryBalanceProjectionEntity::class,
         IngredientCostProjectionEntity::class,
         PreparationRecipeEntity::class,
-        PreparationRecipeComponentEntity::class
+        PreparationRecipeComponentEntity::class,
+        ProductionBatchEntity::class,
+        ProductionBatchComponentEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -49,6 +51,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun inventoryProjectionDao(): InventoryProjectionDao
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
     abstract fun preparationRecipeDao(): PreparationRecipeDao
+    abstract fun productionBatchDao(): ProductionBatchDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -130,6 +133,96 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_componentIngredientId` ON `preparation_recipe_components` (`componentIngredientId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_unitOptionId` ON `preparation_recipe_components` (`unitOptionId`)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_preparation_recipe_components_recipeId_componentIngredientId` ON `preparation_recipe_components` (`recipeId`, `componentIngredientId`)")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create production_batches table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `production_batches` (
+                        `id` TEXT NOT NULL, 
+                        `restaurantId` TEXT NOT NULL, 
+                        `recipeId` TEXT NOT NULL, 
+                        `recipeNameSnapshot` TEXT NOT NULL, 
+                        `outputIngredientId` TEXT NOT NULL, 
+                        `batchMultiplier` TEXT NOT NULL, 
+                        `recipeStandardYieldQuantitySnapshot` TEXT NOT NULL, 
+                        `recipeStandardYieldBaseSnapshot` TEXT NOT NULL, 
+                        `recipeYieldUnitOptionIdSnapshot` TEXT NOT NULL, 
+                        `expectedOutputQuantityEntered` TEXT NOT NULL, 
+                        `expectedOutputQuantityBase` TEXT NOT NULL, 
+                        `actualOutputQuantityEntered` TEXT NOT NULL, 
+                        `actualOutputQuantityBase` TEXT NOT NULL, 
+                        `outputUnitOptionId` TEXT NOT NULL, 
+                        `outputAreaId` TEXT NOT NULL, 
+                        `hasManualOutputQuantityOverride` INTEGER NOT NULL, 
+                        `totalComponentCostSnapshot` TEXT, 
+                        `outputUnitCostBaseSnapshot` TEXT, 
+                        `effectiveAt` INTEGER NOT NULL, 
+                        `status` TEXT NOT NULL, 
+                        `notes` TEXT, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        `postedAt` INTEGER, 
+                        `voidedAt` INTEGER, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`restaurantId`) REFERENCES `restaurants`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`recipeId`) REFERENCES `preparation_recipes`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`outputIngredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`outputAreaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`outputUnitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+
+                // Create indices for production_batches
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId` ON `production_batches` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_recipeId` ON `production_batches` (`recipeId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_outputIngredientId` ON `production_batches` (`outputIngredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_outputAreaId` ON `production_batches` (`outputAreaId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_outputUnitOptionId` ON `production_batches` (`outputUnitOptionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_status` ON `production_batches` (`status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_effectiveAt` ON `production_batches` (`effectiveAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId_effectiveAt` ON `production_batches` (`restaurantId`, `effectiveAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId_status` ON `production_batches` (`restaurantId`, `status`)")
+
+                // Create production_batch_components table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `production_batch_components` (
+                        `id` TEXT NOT NULL, 
+                        `productionBatchId` TEXT NOT NULL, 
+                        `sourceRecipeComponentIdSnapshot` TEXT NOT NULL, 
+                        `componentIngredientId` TEXT NOT NULL, 
+                        `recipeQuantityEnteredSnapshot` TEXT NOT NULL, 
+                        `recipeQuantityBaseSnapshot` TEXT NOT NULL, 
+                        `recipeUnitOptionIdSnapshot` TEXT NOT NULL, 
+                        `expectedQuantityEntered` TEXT NOT NULL, 
+                        `expectedQuantityBase` TEXT NOT NULL, 
+                        `actualQuantityEntered` TEXT NOT NULL, 
+                        `actualQuantityBase` TEXT NOT NULL, 
+                        `unitOptionId` TEXT NOT NULL, 
+                        `hasManualQuantityOverride` INTEGER NOT NULL, 
+                        `sourceAreaId` TEXT, 
+                        `unitCostBaseSnapshot` TEXT, 
+                        `totalCostSnapshot` TEXT, 
+                        `sortOrder` INTEGER NOT NULL, 
+                        `notes` TEXT, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`productionBatchId`) REFERENCES `production_batches`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`componentIngredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`sourceAreaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+
+                // Create indices for production_batch_components
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_productionBatchId` ON `production_batch_components` (`productionBatchId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_componentIngredientId` ON `production_batch_components` (`componentIngredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_sourceAreaId` ON `production_batch_components` (`sourceAreaId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_unitOptionId` ON `production_batch_components` (`unitOptionId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_production_batch_components_productionBatchId_componentIngredientId` ON `production_batch_components` (`productionBatchId`, `componentIngredientId`)")
             }
         }
     }

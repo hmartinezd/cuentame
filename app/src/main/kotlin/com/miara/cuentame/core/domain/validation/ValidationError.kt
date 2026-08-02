@@ -135,5 +135,11 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object WasteReversalAlreadyExists : ValidationError("Waste reversal already exists")
     data object MalformedWasteMovementHistory : ValidationError("Malformed waste movement history detected")
     data object WasteAttachmentUnavailable : ValidationError("The attached photo is no longer available")
+
+    // Production Batches
+    data object MalformedProductionMovementHistory : ValidationError("Malformed production movement history detected")
+    data object IngredientUsedByProductionDraft : ValidationError("Ingredient is used by a draft production batch")
+    data object UnitOptionUsedByProductionDraft : ValidationError("Unit option is used by a draft production batch")
+    data object AreaUsedByProductionDraft : ValidationError("Area is used by a draft production batch")
 }
 

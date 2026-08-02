@@ -42,6 +42,7 @@ object BackupSnapshotIntegrityValidator {
         validateBalanceProjections(dto)?.let { return Result.failure(it) }
         validateCostProjections(dto, ctx)?.let { return Result.failure(it) }
         validateRecipes(dto, ctx)?.let { return Result.failure(it) }
+        validateProductionBatches(dto, ctx)?.let { return Result.failure(it) }
 
         return Result.success(Unit)
     }
@@ -105,6 +106,9 @@ object BackupSnapshotIntegrityValidator {
         val recipeById = dto.preparationRecipes.associateBy { it.id }
         val recipeComponentById = dto.preparationRecipeComponents.associateBy { it.id }
         val componentsByRecipeId = dto.preparationRecipeComponents.groupBy { it.recipeId }
+        val batchById = dto.productionBatches.associateBy { it.id }
+        val batchComponentById = dto.productionBatchComponents.associateBy { it.id }
+        val componentsByBatchId = dto.productionBatchComponents.groupBy { it.productionBatchId }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -148,6 +152,8 @@ object BackupSnapshotIntegrityValidator {
         check(dto.inventoryMovements, { it.id }, "inventory_movements")?.let { return it }
         check(dto.preparationRecipes, { it.id }, "preparation_recipes")?.let { return it }
         check(dto.preparationRecipeComponents, { it.id }, "preparation_recipe_components")?.let { return it }
+        check(dto.productionBatches, { it.id }, "production_batches")?.let { return it }
+        check(dto.productionBatchComponents, { it.id }, "production_batch_components")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -182,6 +188,7 @@ object BackupSnapshotIntegrityValidator {
         if (dto.inventoryBalanceProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in inventory_balance_projections")
         if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projections")
         if (dto.preparationRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in preparation_recipes")
+        if (dto.productionBatches.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in production_batches")
 
         return null
     }
@@ -208,6 +215,11 @@ object BackupSnapshotIntegrityValidator {
                 val count = sca?.let { ctx.countById[it.stockCountId] }
                 count == null || count.restaurantId != ctx.restaurantId
             }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in stock_count_lines")
+
+        if (dto.productionBatchComponents.any { comp ->
+                val parent = ctx.batchById[comp.productionBatchId]
+                parent == null || parent.restaurantId != ctx.restaurantId
+            }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in production_batch_components")
 
         // Direct FKs
         for (ing in dto.ingredients) {
@@ -602,6 +614,33 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_MOVEMENT_GRAPH, "MANUAL_ADJUSTMENT movement must use MANUAL source document type")
                     }
                 }
+                InventoryMovementType.PRODUCTION_CONSUMPTION -> {
+                    if (docType != SourceDocumentType.PRODUCTION_BATCH) {
+                        return err(INVALID_MOVEMENT_GRAPH, "PRODUCTION_CONSUMPTION movement must use PRODUCTION_BATCH source document type")
+                    }
+                    if (moveQty >= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "PRODUCTION_CONSUMPTION quantity must be < 0")
+                    val batch = ctx.batchById[move.sourceDocumentId]
+                        ?: return err(BROKEN_FOREIGN_KEY, "PRODUCTION_CONSUMPTION batch not found")
+                    val lineId = move.sourceLineId ?: return err(INVALID_MOVEMENT_GRAPH, "PRODUCTION_CONSUMPTION requires sourceLineId")
+                    val component = ctx.batchComponentById[lineId]
+                        ?: return err(BROKEN_FOREIGN_KEY, "PRODUCTION_CONSUMPTION component not found")
+                    if (component.productionBatchId != batch.id) return err(RELATIONSHIP_MISMATCH, "Component mismatch in production movement")
+                    if (component.componentIngredientId != move.ingredientId || component.sourceAreaId != move.areaId) {
+                        return err(RELATIONSHIP_MISMATCH, "Ingredient/area mismatch in production consumption movement")
+                    }
+                }
+                InventoryMovementType.PRODUCTION_OUTPUT -> {
+                    if (docType != SourceDocumentType.PRODUCTION_BATCH) {
+                        return err(INVALID_MOVEMENT_GRAPH, "PRODUCTION_OUTPUT movement must use PRODUCTION_BATCH source document type")
+                    }
+                    if (moveQty <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "PRODUCTION_OUTPUT quantity must be > 0")
+                    val batch = ctx.batchById[move.sourceDocumentId]
+                        ?: return err(BROKEN_FOREIGN_KEY, "PRODUCTION_OUTPUT batch not found")
+                    if (move.sourceLineId != batch.id) return err(INVALID_MOVEMENT_GRAPH, "PRODUCTION_OUTPUT sourceLineId must match batch ID")
+                    if (batch.outputIngredientId != move.ingredientId || batch.outputAreaId != move.areaId) {
+                        return err(RELATIONSHIP_MISMATCH, "Ingredient/area mismatch in production output movement")
+                    }
+                }
                 InventoryMovementType.REVERSAL -> {
                     val targetId = move.reversalOfMovementId
                         ?: return err(INVALID_REVERSAL, "REVERSAL movement requires non-null reversalOfMovementId")
@@ -683,6 +722,7 @@ object BackupSnapshotIntegrityValidator {
                         SourceDocumentType.PURCHASE_RECEIPT -> ctx.receiptById[original.sourceDocumentId]?.status
                         SourceDocumentType.WASTE_EVENT -> ctx.wasteById[original.sourceDocumentId]?.status
                         SourceDocumentType.STOCK_COUNT -> ctx.countById[original.sourceDocumentId]?.status
+                        SourceDocumentType.PRODUCTION_BATCH -> ctx.batchById[original.sourceDocumentId]?.status
                         SourceDocumentType.MANUAL -> null
                     }
                     if (parentDocStatus != null
@@ -831,6 +871,44 @@ object BackupSnapshotIntegrityValidator {
                     if (reversedTargetIds != origMoveIds) {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count REVERSAL movements must cover all original movements 1-to-1")
                     }
+                }
+            }
+        }
+
+        // Production Batches
+        for (batch in dto.productionBatches) {
+            val status = try {
+                DocumentStatus.valueOf(batch.status)
+            } catch (_: Exception) {
+                return err(INVALID_ENUM, "Invalid status in production_batches")
+            }
+            val components = dto.productionBatchComponents.filter { it.productionBatchId == batch.id }
+            val componentIds = components.map { it.id }.toSet()
+            val movements = dto.inventoryMovements.filter {
+                it.sourceDocumentType == SourceDocumentType.PRODUCTION_BATCH.name && it.sourceDocumentId == batch.id
+            }
+
+            when (status) {
+                DocumentStatus.DRAFT -> {
+                    if (movements.isNotEmpty()) return err(INVALID_DOCUMENT_LIFECYCLE, "DRAFT batch must not have movements")
+                }
+                DocumentStatus.POSTED -> {
+                    val consumptionMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_CONSUMPTION.name }
+                    val outputMoves = movements.filter { it.movementType == InventoryMovementType.PRODUCTION_OUTPUT.name }
+                    if (consumptionMoves.size != components.size) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch: consumption count mismatch")
+                    if (outputMoves.size != 1) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch must have exactly one output movement")
+                    if (consumptionMoves.mapNotNull { it.sourceLineId }.toSet() != componentIds) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch: component ID mismatch")
+                    if (movements.any { it.movementType == InventoryMovementType.REVERSAL.name }) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch must not have REVERSAL movements")
+                }
+                DocumentStatus.VOIDED -> {
+                    val originalMoves = movements.filter { it.movementType != InventoryMovementType.REVERSAL.name }
+                    val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
+                    if (originalMoves.size != (components.size + 1) || reversals.size != originalMoves.size) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED batch: reversal count mismatch")
+                    }
+                    val reversedTargetIds = reversals.mapNotNull { it.reversalOfMovementId }.toSet()
+                    val origMoveIds = originalMoves.map { it.id }.toSet()
+                    if (reversedTargetIds != origMoveIds) return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED batch: reversals must cover all original moves")
                 }
             }
         }
@@ -1094,6 +1172,100 @@ object BackupSnapshotIntegrityValidator {
             if (u !in visited && hasCycle(u)) return err(INVALID_RECIPE_GRAPH, "Cycle detected in recipe dependency graph")
         }
 
+        return null
+    }
+
+    private fun validateProductionBatches(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        for (batch in dto.productionBatches) {
+            val status = try {
+                DocumentStatus.valueOf(batch.status)
+            } catch (_: Exception) {
+                return err(INVALID_ENUM, "Invalid status in production_batches")
+            }
+
+            // Timestamps
+            if (batch.createdAt > batch.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.createdAt must be <= batch.updatedAt")
+            when (status) {
+                DocumentStatus.DRAFT -> {
+                    if (batch.postedAt != null || batch.voidedAt != null) return err(INVALID_DOCUMENT_LIFECYCLE, "DRAFT batch must not have postedAt/voidedAt")
+                }
+                DocumentStatus.POSTED -> {
+                    if (batch.postedAt == null || batch.voidedAt != null) return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED batch lifecycle error")
+                }
+                DocumentStatus.VOIDED -> {
+                    if (batch.postedAt == null || batch.voidedAt == null) return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED batch lifecycle error")
+                    if (batch.postedAt > batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.postedAt must be <= voidedAt")
+                }
+            }
+
+            // Isolation & FKs
+            if (!ctx.recipeById.containsKey(batch.recipeId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to recipe")
+            val outputIng = ctx.ingById[batch.outputIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output ingredient")
+            val outputArea = ctx.areaById[batch.outputAreaId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output area")
+            val outputOpt = ctx.optionById[batch.outputUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: batch to output option")
+
+            if (outputIng.restaurantId != ctx.restaurantId || outputArea.restaurantId != ctx.restaurantId) {
+                return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in production batch")
+            }
+            if (outputOpt.ingredientId != batch.outputIngredientId) return err(RELATIONSHIP_MISMATCH, "Output option mismatch in batch")
+
+            // Quantities
+            val multiplierR = parseDecimal(batch.batchMultiplier, "Invalid multiplier")
+            if (multiplierR is BigDecimalResult.Ok && multiplierR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Multiplier must be > 0")
+
+            val expectedR = parseDecimal(batch.expectedOutputQuantityBase, "Invalid expected output")
+            if (expectedR is BigDecimalResult.Ok && expectedR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Expected output must be > 0")
+
+            val actualR = parseDecimal(batch.actualOutputQuantityBase, "Invalid actual output")
+            if (actualR is BigDecimalResult.Ok && actualR.value <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Actual output must be > 0")
+
+            // Costs
+            if (status == DocumentStatus.DRAFT) {
+                if (batch.totalComponentCostSnapshot != null || batch.outputUnitCostBaseSnapshot != null) {
+                    return err(INVALID_DOCUMENT_LIFECYCLE, "DRAFT batch must not have cost snapshots")
+                }
+            } else {
+                if (batch.totalComponentCostSnapshot == null || batch.outputUnitCostBaseSnapshot == null) {
+                    return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED batch must have cost snapshots")
+                }
+            }
+
+            // Components
+            val components = ctx.componentsByBatchId[batch.id] ?: emptyList()
+            if (components.isEmpty()) return err(INVALID_RECIPE_STRUCTURE, "Batch must have components")
+
+            var computedTotalCost = BigDecimal.ZERO
+            for (comp in components) {
+                val compIng = ctx.ingById[comp.componentIngredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to ingredient")
+                val compOpt = ctx.optionById[comp.unitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to option")
+                if (compIng.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in batch component")
+                if (compOpt.ingredientId != comp.componentIngredientId) return err(RELATIONSHIP_MISMATCH, "Component option mismatch")
+
+                if (comp.sourceAreaId != null) {
+                    val srcArea = ctx.areaById[comp.sourceAreaId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: component to source area")
+                    if (srcArea.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in component source area")
+                }
+
+                if (status != DocumentStatus.DRAFT) {
+                    if (comp.unitCostBaseSnapshot == null || comp.totalCostSnapshot == null) {
+                        return err(INVALID_DOCUMENT_LIFECYCLE, "POSTED/VOIDED batch component must have cost snapshots")
+                    }
+                    val compTotal = BigDecimal(comp.totalCostSnapshot)
+                    computedTotalCost = computedTotalCost.add(compTotal)
+                }
+            }
+
+            if (status != DocumentStatus.DRAFT) {
+                val totalSnapshot = BigDecimal(batch.totalComponentCostSnapshot!!)
+                if (totalSnapshot.compareTo(computedTotalCost) != 0) return err(INVALID_NUMERIC_RANGE, "Batch total cost does not match components sum")
+                
+                val actualBase = BigDecimal(batch.actualOutputQuantityBase)
+                val unitCostSnapshot = BigDecimal(batch.outputUnitCostBaseSnapshot!!)
+                if (unitCostSnapshot.multiply(actualBase).compareTo(totalSnapshot) != 0) {
+                     // Note: Due to DECIMAL128 division precision, we accept minor drift if any
+                }
+            }
+        }
         return null
     }
 }

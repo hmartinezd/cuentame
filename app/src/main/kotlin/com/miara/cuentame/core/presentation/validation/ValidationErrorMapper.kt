@@ -137,4 +137,10 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.WasteReversalAlreadyExists -> R.string.error_generic
     ValidationError.MalformedWasteMovementHistory -> R.string.error_malformed_history
     ValidationError.WasteAttachmentUnavailable -> R.string.error_attachment_unavailable
+
+    // Production Batches
+    ValidationError.MalformedProductionMovementHistory -> R.string.error_malformed_history
+    ValidationError.IngredientUsedByProductionDraft -> R.string.error_generic
+    ValidationError.UnitOptionUsedByProductionDraft -> R.string.error_generic
+    ValidationError.AreaUsedByProductionDraft -> R.string.error_generic
 }

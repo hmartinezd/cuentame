@@ -40,6 +40,7 @@ class RoomIngredientRepository @Inject constructor(
     private val restaurantDao: RestaurantDao,
     private val categoryDao: IngredientCategoryDao,
     private val recipeDao: PreparationRecipeDao,
+    private val batchDao: com.miara.cuentame.core.database.dao.ProductionBatchDao,
     private val converter: StandardUnitConverter,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
@@ -113,6 +114,10 @@ class RoomIngredientRepository @Inject constructor(
 
             val nonArchivedUsage = recipeDao.getRecipesUsingIngredient(id.value)
             if (nonArchivedUsage.isNotEmpty()) throw ValidationError.IngredientUsedByRecipe
+
+            // Production Batches
+            if (batchDao.countDraftsUsingOutputIngredient(id.value) > 0) throw ValidationError.IngredientUsedByProductionDraft
+            if (batchDao.countDraftsUsingComponentIngredient(id.value) > 0) throw ValidationError.IngredientUsedByProductionDraft
 
             ingredientDao.softArchive(id.value, at.toEpochMilli())
         }
@@ -296,6 +301,10 @@ class RoomIngredientRepository @Inject constructor(
 
             val componentUsage = recipeDao.countActiveOrDraftRecipeComponentsUsingOption(id.value)
             if (componentUsage > 0) throw ValidationError.UnitOptionUsedByRecipeComponent
+
+            // Production Batches
+            if (batchDao.countDraftsUsingOutputOption(id.value) > 0) throw ValidationError.UnitOptionUsedByProductionDraft
+            if (batchDao.countDraftsUsingComponentOption(id.value) > 0) throw ValidationError.UnitOptionUsedByProductionDraft
 
             unitOptionDao.softArchive(id.value, at.toEpochMilli())
         }
