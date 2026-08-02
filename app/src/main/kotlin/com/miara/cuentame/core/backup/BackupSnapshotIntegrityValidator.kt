@@ -1059,7 +1059,7 @@ object BackupSnapshotIntegrityValidator {
             val result = when (calculationResult) {
                 is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
                 is HistoricalInventoryCostCalculationResult.Failure -> {
-                    return err(INVALID_REVERSAL, "Malformed reversal in cost history for ingredient ${ing.id}")
+                    return err(INVALID_REVERSAL, "Malformed reversal in ingredient cost history")
                 }
             }
             val proj = costProjByIng[ing.id]
@@ -1477,7 +1477,7 @@ object BackupSnapshotIntegrityValidator {
                     val histResult = when (calculationResult) {
                         is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
                         is HistoricalInventoryCostCalculationResult.Failure -> {
-                            return err(INVALID_REVERSAL, "Malformed reversal in production cost history for batch ${batch.id}")
+                            return err(INVALID_REVERSAL, "Malformed reversal in production cost history")
                         }
                     }
                     if (!histResult.hasEstablishedCost) {

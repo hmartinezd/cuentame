@@ -48,6 +48,7 @@ class InventoryMovementValidator {
         if (original.movementType == InventoryMovementType.REVERSAL.name) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
+        
         if (reversal.restaurantId != original.restaurantId) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
@@ -57,6 +58,26 @@ class InventoryMovementValidator {
         if (reversal.areaId != original.areaId) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
+        if (reversal.sourceDocumentType != original.sourceDocumentType) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+        if (reversal.sourceDocumentId != original.sourceDocumentId) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+        if (reversal.sourceLineId != original.sourceLineId) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+        if (reversal.sourceOperationId != "reversal:${original.id}") {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+
+        if (reversal.effectiveAt < original.effectiveAt) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+        if (reversal.createdAt < original.createdAt) {
+            throw ValidationError.MalformedInventoryMovementHistory
+        }
+
         if (BigDecimal(reversal.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0) {
             throw ValidationError.MalformedInventoryMovementHistory
         }

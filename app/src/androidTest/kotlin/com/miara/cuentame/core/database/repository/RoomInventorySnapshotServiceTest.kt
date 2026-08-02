@@ -34,10 +34,14 @@ class RoomInventorySnapshotServiceTest {
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java)
             .allowMainThreadQueries()
             .build()
+        
+        val inventoryValidator = InventoryMovementValidator()
+        val historyValidator = InventoryMovementHistoryValidator(inventoryValidator)
         service = RoomInventorySnapshotService(
             db.inventoryMovementDao(),
             HistoricalInventoryCostCalculator(),
-            InventoryMovementValidator()
+            historyValidator,
+            inventoryValidator
         )
 
         runBlocking {

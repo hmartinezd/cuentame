@@ -7,17 +7,22 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeComponentEntity
 import com.miara.cuentame.core.database.entity.PreparationRecipeEntity
+import com.miara.cuentame.core.database.entity.PurchaseLineEntity
+import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftCommand
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.ProductionBatch
+import com.miara.cuentame.core.model.inventory.ProductionBatchComponent
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
@@ -41,6 +46,9 @@ class RoomProductionBatchRepositoryFailureTest {
     lateinit var repository: RoomProductionBatchRepository
 
     @Inject
+    lateinit var failureBoundary: ConfigurableFailureBoundary
+
+    @Inject
     lateinit var testStateManager: TestStateManager
 
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
@@ -56,7 +64,13 @@ class RoomProductionBatchRepositoryFailureTest {
         testStateManager.seedBaseline()
         seedOutputIngredient()
         seedRecipe()
-        seedComponentCost()
+        seedPostedPurchase()
+    }
+
+    @After
+    fun tearDown() {
+        failureBoundary.reset()
+        database.close()
     }
 
     private suspend fun seedOutputIngredient() {
@@ -131,10 +145,18 @@ class RoomProductionBatchRepositoryFailureTest {
         )
     }
 
-    private suspend fun seedComponentCost() {
+    private suspend fun seedPostedPurchase() {
+        val receiptId = "p1"
+        val lineId = "pl1"
+        database.purchaseDao().insertReceipt(
+            PurchaseReceiptEntity(receiptId, restId.value, null, "INV1", 0, "POSTED", null, null, 0, 0, 0, null)
+        )
+        database.purchaseDao().insertLine(
+            PurchaseLineEntity(lineId, receiptId, componentIngredientId.value, areaId.value, TestSeeder.OPTION_ID, "10", "10", "100", "10", null, 0, 0)
+        )
         database.inventoryMovementDao().insert(
             InventoryMovementEntity(
-                id = "m-cost",
+                id = "m-purchase",
                 restaurantId = restId.value,
                 ingredientId = componentIngredientId.value,
                 areaId = areaId.value,
@@ -144,12 +166,25 @@ class RoomProductionBatchRepositoryFailureTest {
                 totalValueSnapshot = "100.00",
                 effectiveAt = 0L,
                 sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-                sourceDocumentId = "p1",
-                sourceOperationId = "op1",
-                sourceLineId = "pl1",
+                sourceDocumentId = receiptId,
+                sourceOperationId = "purchase-post:$receiptId:$lineId",
+                sourceLineId = lineId,
                 reversalOfMovementId = null,
                 createdAt = 0L
             )
+        )
+        database.ingredientCostProjectionDao().upsert(
+            com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity(restId.value, componentIngredientId.value, "10.00", 0L)
+        )
+        database.inventoryProjectionDao().upsert(
+            com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity(restId.value, componentIngredientId.value, areaId.value, "10.00", 0L)
+        )
+    }
+
+    private fun corruptMovement(id: String, field: String, value: String?) {
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE inventory_movements SET $field = ? WHERE id = ?",
+            arrayOf(value, id)
         )
     }
 
@@ -192,13 +227,28 @@ class RoomProductionBatchRepositoryFailureTest {
         ))
         repository.post(batchId)
         
-        // Corrupt one movement
         val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
         val move = moves.first()
-        database.inventoryMovementDao().insert(move.copy(quantityBaseSigned = "-999"))
+        corruptMovement(move.id, "quantityBaseSigned", "-999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.post(batchId) }
+        }
+        assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+    }
+
+    @Test
+    fun voidPosted_withCorruptedHistory_returnsMovementHistoryConflict() = runBlocking {
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
+        ))
+        repository.post(batchId)
+        
+        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        corruptMovement(moves.first().id, "quantityBaseSigned", "-999")
+
+        val exception = assertThrows(ProductionBatchValidationException::class.java) {
+            runBlocking { repository.void(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
     }
@@ -211,14 +261,79 @@ class RoomProductionBatchRepositoryFailureTest {
         repository.post(batchId)
         repository.void(batchId)
 
-        // Corrupt one reversal
         val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
         val reversal = moves.find { it.movementType == InventoryMovementType.REVERSAL.name }!!
-        database.inventoryMovementDao().insert(reversal.copy(quantityBaseSigned = "999"))
+        corruptMovement(reversal.id, "quantityBaseSigned", "999")
 
         val exception = assertThrows(ProductionBatchValidationException::class.java) {
             runBlocking { repository.void(batchId) }
         }
         assertThat(exception.failures).contains(ProductionBatchValidationFailure.MovementHistoryConflict)
+    }
+
+    @Test
+    fun void_failsAfterReversals_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_REVERSALS)
+    }
+
+    @Test
+    fun void_failsAfterProjections_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_PROJECTIONS)
+    }
+
+    @Test
+    fun void_failsAfterMarkVoided_rollsBackEverything() = runBlocking {
+        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_MARK_VOIDED)
+    }
+
+    private suspend fun testVoidFailure(failurePoint: String) {
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.now(), null
+        ))
+        repository.post(batchId)
+        
+        val snapshot = captureProductionSnapshot(batchId)
+        
+        failureBoundary.triggerOn(failurePoint)
+        
+        assertThrows(RuntimeException::class.java) {
+            runBlocking { repository.void(batchId) }
+        }
+        
+        val finalSnapshot = captureProductionSnapshot(batchId)
+        assertSnapshotsEqual(snapshot, finalSnapshot)
+        
+        val batch = repository.getBatch(batchId)!!
+        assertThat(batch.status.name).isEqualTo("POSTED")
+        assertThat(batch.voidedAt).isNull()
+        
+        val moves = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        assertThat(moves.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
+    }
+
+    private data class ProductionSnapshot(
+        val batch: ProductionBatch,
+        val components: List<ProductionBatchComponent>,
+        val movements: List<InventoryMovementEntity>,
+        val balanceProjections: List<com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity>,
+        val costProjections: List<com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity>
+    )
+
+    private suspend fun captureProductionSnapshot(batchId: ProductionBatchId): ProductionSnapshot {
+        val batch = repository.getBatch(batchId)!!
+        val components = batch.components
+        val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PRODUCTION_BATCH.name, batchId.value)
+        val balanceProjections = database.inventoryProjectionDao().getAll()
+        val costProjections = database.ingredientCostProjectionDao().getAll()
+        
+        return ProductionSnapshot(batch, components, movements, balanceProjections, costProjections)
+    }
+
+    private fun assertSnapshotsEqual(s1: ProductionSnapshot, s2: ProductionSnapshot) {
+        assertThat(s1.batch).isEqualTo(s2.batch)
+        assertThat(s1.components).isEqualTo(s2.components)
+        assertThat(s1.movements).isEqualTo(s2.movements)
+        assertThat(s1.balanceProjections).isEqualTo(s2.balanceProjections)
+        assertThat(s1.costProjections).isEqualTo(s2.costProjections)
     }
 }

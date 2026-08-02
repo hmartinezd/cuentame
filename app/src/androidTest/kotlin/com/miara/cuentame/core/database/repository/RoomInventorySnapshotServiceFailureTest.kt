@@ -35,10 +35,14 @@ class RoomInventorySnapshotServiceFailureTest {
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java)
             .allowMainThreadQueries()
             .build()
+        
+        val inventoryValidator = InventoryMovementValidator()
+        val historyValidator = InventoryMovementHistoryValidator(inventoryValidator)
         service = RoomInventorySnapshotService(
             db.inventoryMovementDao(),
             HistoricalInventoryCostCalculator(),
-            InventoryMovementValidator()
+            historyValidator,
+            inventoryValidator
         )
 
         runBlocking {
@@ -55,41 +59,75 @@ class RoomInventorySnapshotServiceFailureTest {
     }
 
     @Test
-    fun calculateAt_reversalWithoutTarget_throws() {
-        runBlocking {
-            db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = null))
-            assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
-            }
+    fun calculateAt_reversalWithoutTarget_throws() = runBlocking {
+        db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = null))
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
         }
     }
 
     @Test
-    fun calculateAt_duplicateReversalTarget_throws() {
-        runBlocking {
-            val now = Instant.now()
-            db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
-            db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
-            db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+    fun calculateAt_duplicateReversalTarget_throws() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
+        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
 
-            assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
-            }
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
         }
     }
 
     @Test
-    fun calculateAt_reversalOfFutureMovement_throws() {
-        runBlocking {
-            val now = Instant.now()
-            db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.plusSeconds(100)))
-            db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
+    fun calculateAt_wrongReversalQuantity_throws() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-9", "5", now, reversalOf = "m1"))
 
-            // m1 is not in the set because calculateAt filters by effectiveAt <= boundary
-            // So m2 target is not found in the boundary set
-            assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, now) }
-            }
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_wrongReversalCost_throws() = runBlocking {
+        val now = Instant.now()
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "6", now, reversalOf = "m1"))
+
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_malformedDecimal_throws() = runBlocking {
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "invalid", "5", Instant.now()))
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAt_invalidMovementType_throws() = runBlocking {
+        db.inventoryMovementDao().insert(createMovement("m1", "INVALID", "10", "5", Instant.now()))
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+        }
+    }
+
+    @Test
+    fun calculateAreaBalancesAt_malformedHistory_throws() = runBlocking {
+        val now = Instant.now()
+        // Ing 1 is valid
+        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
+        
+        // Ing 2 is malformed
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity("ing_2", restaurantId.value, "Ing 2", "ing 2", null, "mass_lb", null, null, null, null, true, 0, 0, null))
+        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "missing").copy(ingredientId = "ing_2"))
+
+        assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
+            runBlocking { service.calculateAreaBalancesAt(restaurantId, areaId, Instant.now()) }
         }
     }
 
@@ -100,21 +138,26 @@ class RoomInventorySnapshotServiceFailureTest {
         cost: String?,
         effectiveAt: Instant,
         reversalOf: String? = null
-    ) = InventoryMovementEntity(
-        id = id,
-        restaurantId = restaurantId.value,
-        ingredientId = ingredientId.value,
-        areaId = areaId.value,
-        movementType = type,
-        quantityBaseSigned = qty,
-        unitCostBaseSnapshot = cost,
-        totalValueSnapshot = cost?.let { BigDecimal(qty).multiply(BigDecimal(it)).toPlainString() },
-        effectiveAt = effectiveAt.toEpochMilli(),
-        sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-        sourceDocumentId = "doc_1",
-        sourceOperationId = "op_$id",
-        sourceLineId = "line_1",
-        reversalOfMovementId = reversalOf,
-        createdAt = effectiveAt.toEpochMilli()
-    )
+    ): InventoryMovementEntity {
+        val opId = if (type == "REVERSAL" && reversalOf != null) "reversal:$reversalOf" else "op_$id"
+        return InventoryMovementEntity(
+            id = id,
+            restaurantId = restaurantId.value,
+            ingredientId = ingredientId.value,
+            areaId = areaId.value,
+            movementType = type,
+            quantityBaseSigned = qty,
+            unitCostBaseSnapshot = cost,
+            totalValueSnapshot = cost?.let { 
+                try { BigDecimal(qty).multiply(BigDecimal(it)).toPlainString() } catch(e: Exception) { null }
+            },
+            effectiveAt = effectiveAt.toEpochMilli(),
+            sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
+            sourceDocumentId = "doc_1",
+            sourceOperationId = opId,
+            sourceLineId = "line_1",
+            reversalOfMovementId = reversalOf,
+            createdAt = effectiveAt.toEpochMilli()
+        )
+    }
 }

@@ -35,6 +35,8 @@ import java.time.Instant
 
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.database.repository.RoomInventoryProjectionRebuilder
+import com.miara.cuentame.core.database.repository.InventoryMovementValidator
+import com.miara.cuentame.core.database.repository.InventoryMovementHistoryValidator
 import com.miara.cuentame.core.common.ids.IngredientId
 
 @RunWith(AndroidJUnit4::class)
@@ -172,8 +174,8 @@ class BackupProductionIntegrationTest {
         val backupDao = db.backupDao()
         val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
         val snapshotDto = snapshotSource.loadSnapshot("r1").dto
-        val tables = BackupFormatV1Contract.expectedTablesForSchema(4)
-            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        
+        val tables = createTableMetadata(snapshotDto, 4)
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
             appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
@@ -181,6 +183,10 @@ class BackupProductionIntegrationTest {
             tableMetadata = tables, attachments = emptyList(), includedSections = listOf("data", "preferences", "attachments"),
             checksumAlgorithm = "SHA-256"
         )
+        
+        // Assert exact manifest sets
+        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
+        
         BackupSnapshotIntegrityValidator.validate(snapshotDto, manifest).getOrThrow()
 
         // 4. Capture and persist rollback snapshot
@@ -207,7 +213,8 @@ class BackupProductionIntegrationTest {
 
         // 10. Validate again after recovery (Instruction 10)
         val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
-        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, manifest).getOrThrow()
+        val postManifest = manifest.copy(tableMetadata = createTableMetadata(restoredSnapshot, 4))
+        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, postManifest).getOrThrow()
         
         
         val restoredLine = db.purchaseDao().getLineById("pl1")!!
@@ -323,10 +330,12 @@ class BackupProductionIntegrationTest {
         ))
 
         // Use rebuilder for projections
+        val inventoryValidator = InventoryMovementValidator()
+        val historyValidator = InventoryMovementHistoryValidator(inventoryValidator)
         val rebuilder = RoomInventoryProjectionRebuilder(
             db, db.ingredientDao(), db.inventoryMovementDao(),
             db.inventoryProjectionDao(), db.ingredientCostProjectionDao(),
-            HistoricalInventoryCostCalculator(), timeProvider
+            HistoricalInventoryCostCalculator(), historyValidator, timeProvider
         )
         rebuilder.rebuildForIngredient(IngredientId("i1"))
         rebuilder.rebuildForIngredient(IngredientId("i2"))
@@ -338,10 +347,30 @@ class BackupProductionIntegrationTest {
         val legacySnapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
             restaurants = listOf(RestaurantBackupDto("r1", "Legacy", "USD", "en-US", 100, 100, null))
         )
-        val tables = listOf(
-            "restaurants", "inventory_areas", "units", "ingredients", "ingredient_unit_options",
-            "inventory_balance_projections", "ingredient_cost_projections"
-        ).associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in listOf("inventory_balance_projections", "ingredient_cost_projections")) }
+        val expectedLiteralTableSet = setOf(
+            "restaurants",
+            "inventory_areas",
+            "ingredient_categories",
+            "units",
+            "ingredients",
+            "ingredient_unit_options",
+            "suppliers",
+            "purchase_receipts",
+            "purchase_lines",
+            "stock_counts",
+            "stock_count_areas",
+            "stock_count_lines",
+            "waste_events",
+            "inventory_movements",
+            "inventory_balance_projections",
+            "ingredient_cost_projections"
+        )
+        val tables = expectedLiteralTableSet.associateWith { table ->
+            com.miara.cuentame.core.model.backup.TableMetadata(
+                if (table == "restaurants") 1 else 0,
+                table in listOf("inventory_balance_projections", "ingredient_cost_projections")
+            )
+        }
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1,
             createdAtUtc = "2026-01-01T12:00:00Z",
@@ -359,6 +388,10 @@ class BackupProductionIntegrationTest {
             checksumAlgorithm = "SHA-256"
         )
         
+        // Assert exact manifest sets before building archives
+        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
+        assertThat(manifest.tableMetadata.keys).containsNoneOf("production_batches", "production_batch_components")
+
         val bytes = buildArchive(manifest, legacySnapshot)
         val backupUri = "content://backup/legacy.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
@@ -367,6 +400,7 @@ class BackupProductionIntegrationTest {
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
         assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(2)
 
         // 3. Apply
@@ -404,23 +438,41 @@ class BackupProductionIntegrationTest {
                 )
             )
         )
-        val tables = listOf(
-            "restaurants", "inventory_areas", "units", "ingredients", "ingredient_unit_options",
-            "preparation_recipes", "preparation_recipe_components",
-            "inventory_balance_projections", "ingredient_cost_projections"
-        ).associateWith { com.miara.cuentame.core.model.backup.TableMetadata(
-            when (it) {
-                "restaurants" -> 1
-                "inventory_areas" -> 1
-                "units" -> 1
-                "ingredients" -> 2
-                "ingredient_unit_options" -> 2
-                "preparation_recipes" -> 1
-                "preparation_recipe_components" -> 1
-                else -> 0
-            },
-            it in listOf("inventory_balance_projections", "ingredient_cost_projections")
-        ) }
+        val expectedLiteralTableSet = setOf(
+            "restaurants",
+            "inventory_areas",
+            "ingredient_categories",
+            "units",
+            "ingredients",
+            "ingredient_unit_options",
+            "suppliers",
+            "purchase_receipts",
+            "purchase_lines",
+            "stock_counts",
+            "stock_count_areas",
+            "stock_count_lines",
+            "waste_events",
+            "inventory_movements",
+            "inventory_balance_projections",
+            "ingredient_cost_projections",
+            "preparation_recipes",
+            "preparation_recipe_components"
+        )
+        val tables = expectedLiteralTableSet.associateWith { table ->
+            com.miara.cuentame.core.model.backup.TableMetadata(
+                when (table) {
+                    "restaurants" -> 1
+                    "inventory_areas" -> 1
+                    "units" -> 1
+                    "ingredients" -> 2
+                    "ingredient_unit_options" -> 2
+                    "preparation_recipes" -> 1
+                    "preparation_recipe_components" -> 1
+                    else -> 0
+                },
+                table in listOf("inventory_balance_projections", "ingredient_cost_projections")
+            )
+        }
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1,
             createdAtUtc = "2026-01-01T12:00:00Z",
@@ -438,6 +490,10 @@ class BackupProductionIntegrationTest {
             checksumAlgorithm = "SHA-256"
         )
 
+        // Assert exact manifest sets before building archives
+        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
+        assertThat(manifest.tableMetadata.keys).containsNoneOf("production_batches", "production_batch_components")
+
         val bytes = buildArchive(manifest, schema3Snapshot)
         val backupUri = "content://backup/schema3.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
@@ -446,6 +502,7 @@ class BackupProductionIntegrationTest {
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
         assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(3)
 
         // 3. Apply
@@ -456,6 +513,38 @@ class BackupProductionIntegrationTest {
         assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Recipes Only")
         assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).hasSize(1)
         assertThat(db.productionBatchDao().getById("pb1")).isNull()
+    }
+
+    private fun createTableMetadata(dto: BackupSnapshotDto, schemaVersion: Int): Map<String, com.miara.cuentame.core.model.backup.TableMetadata> {
+        val counts = mapOf(
+            "restaurants" to dto.restaurants.size,
+            "inventory_areas" to dto.inventoryAreas.size,
+            "ingredient_categories" to dto.ingredientCategories.size,
+            "units" to dto.units.size,
+            "ingredients" to dto.ingredients.size,
+            "ingredient_unit_options" to dto.ingredientUnitOptions.size,
+            "suppliers" to dto.suppliers.size,
+            "purchase_receipts" to dto.purchaseReceipts.size,
+            "purchase_lines" to dto.purchaseLines.size,
+            "stock_counts" to dto.stockCounts.size,
+            "stock_count_areas" to dto.stockCountAreas.size,
+            "stock_count_lines" to dto.stockCountLines.size,
+            "waste_events" to dto.wasteEvents.size,
+            "inventory_movements" to dto.inventoryMovements.size,
+            "inventory_balance_projections" to dto.inventoryBalanceProjections.size,
+            "ingredient_cost_projections" to dto.ingredientCostProjections.size,
+            "preparation_recipes" to dto.preparationRecipes.size,
+            "preparation_recipe_components" to dto.preparationRecipeComponents.size,
+            "production_batches" to dto.productionBatches.size,
+            "production_batch_components" to dto.productionBatchComponents.size
+        )
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(schemaVersion)
+        return expectedTables.associateWith { table ->
+             com.miara.cuentame.core.model.backup.TableMetadata(
+                 counts.getOrDefault(table, 0),
+                 table in BackupFormatV1Contract.DERIVED_TABLES
+             )
+        }
     }
 
     private fun buildArchive(

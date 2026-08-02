@@ -87,7 +87,7 @@ object BackupTestFixtures {
             effectiveAt = effectiveAt,
             sourceDocumentType = "PURCHASE_RECEIPT",
             sourceDocumentId = receiptId,
-            sourceOperationId = "purchase-post:$receiptId:line:$lineId",
+            sourceOperationId = "purchase-post:$receiptId:$lineId",
             sourceLineId = lineId,
             reversalOfMovementId = null,
             createdAt = createdAt
