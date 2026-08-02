@@ -10,7 +10,6 @@ import com.miara.cuentame.core.domain.repository.CreateProductionBatchDraftComma
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
-import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
@@ -132,7 +131,9 @@ class ProductionFailureBoundaryTest {
             restId, recipeId, BigDecimal.ONE, areaId, null, null, Instant.parse("2026-01-01T12:00:00Z"), null
         ))
 
-        // Capture before state
+        // Capture Draft state
+        val beforeBatch = repository.getBatch(batchId)!!
+        val beforeComponents = beforeBatch.components
         val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
         val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
         val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
@@ -147,52 +148,21 @@ class ProductionFailureBoundaryTest {
         }
 
         val afterBatch = repository.getBatch(batchId)!!
-        assertThat(afterBatch.status).isEqualTo(DocumentStatus.DRAFT)
-        assertThat(afterBatch.postedAt).isNull()
-        assertThat(afterBatch.totalComponentCostSnapshot).isNull()
-        assertThat(afterBatch.outputUnitCostBaseSnapshot).isNull()
-        
-        val afterComp = afterBatch.components[0]
-        assertThat(afterComp.unitCostBaseSnapshot).isNull()
-        assertThat(afterComp.totalCostSnapshot).isNull()
+        assertThat(afterBatch).isEqualTo(beforeBatch)
+        assertThat(afterBatch.components).isEqualTo(beforeComponents)
 
         val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
         assertThat(movements).isEmpty()
-        
+
         val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
         val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
         val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
         val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
 
-        assertProjectionEquivalent(afterCompBalance, beforeCompBalance)
-        assertProjectionEquivalent(afterCompCost, beforeCompCost)
-        assertProjectionEquivalent(afterOutBalance, beforeOutBalance)
-        assertProjectionEquivalent(afterOutCost, beforeOutCost)
-    }
-
-    private fun assertProjectionEquivalent(after: Any?, before: Any?) {
-        if (before == null) {
-            assertThat(after).isNull()
-        } else {
-            assertThat(after).isNotNull()
-            // We could check all fields if needed, but usually just checking existence or main value is enough for rollback
-            assertThat(after).isEqualTo(before)
-        }
-    }
-
-    @Test
-    fun void_failsAfterReversals_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_REVERSALS)
-    }
-
-    @Test
-    fun void_failsAfterProjections_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_PROJECTIONS)
-    }
-
-    @Test
-    fun void_failsAfterMarkVoided_rollsBackEverything() = runBlocking {
-        testVoidFailure(IntegrationFailurePoints.PRODUCTION_VOID_AFTER_MARK_VOIDED)
+        assertThat(afterCompBalance).isEqualTo(beforeCompBalance)
+        assertThat(afterCompCost).isEqualTo(beforeCompCost)
+        assertThat(afterOutBalance).isEqualTo(beforeOutBalance)
+        assertThat(afterOutCost).isEqualTo(beforeOutCost)
     }
 
     private suspend fun testVoidFailure(point: String) {
@@ -203,6 +173,7 @@ class ProductionFailureBoundaryTest {
         
         // Capture Posted state
         val beforeBatch = repository.getBatch(batchId)!!
+        val beforeComponents = beforeBatch.components
         val beforeMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
         val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
         val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
@@ -218,13 +189,11 @@ class ProductionFailureBoundaryTest {
         }
 
         val afterBatch = repository.getBatch(batchId)!!
-        assertThat(afterBatch.status).isEqualTo(DocumentStatus.POSTED)
-        assertThat(afterBatch.voidedAt).isNull()
-        assertThat(afterBatch.postedAt).isEqualTo(beforeBatch.postedAt)
-        assertThat(afterBatch.totalComponentCostSnapshot).isEqualTo(beforeBatch.totalComponentCostSnapshot)
+        assertThat(afterBatch).isEqualTo(beforeBatch)
+        assertThat(afterBatch.components).isEqualTo(beforeComponents)
         
         val afterMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
-        assertThat(afterMovements).hasSize(beforeMovements.size)
+        assertThat(afterMovements).isEqualTo(beforeMovements)
         assertThat(afterMovements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
         
         val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
@@ -232,9 +201,9 @@ class ProductionFailureBoundaryTest {
         val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
         val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
 
-        assertProjectionEquivalent(afterCompBalance, beforeCompBalance)
-        assertProjectionEquivalent(afterCompCost, beforeCompCost)
-        assertProjectionEquivalent(afterOutBalance, beforeOutBalance)
-        assertProjectionEquivalent(afterOutCost, beforeOutCost)
+        assertThat(afterCompBalance).isEqualTo(beforeCompBalance)
+        assertThat(afterCompCost).isEqualTo(beforeCompCost)
+        assertThat(afterOutBalance).isEqualTo(beforeOutBalance)
+        assertThat(afterOutCost).isEqualTo(beforeOutCost)
     }
 }

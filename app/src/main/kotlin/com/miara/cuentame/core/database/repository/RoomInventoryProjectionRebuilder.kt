@@ -11,8 +11,11 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity
 import com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculationResult
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostFailure
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import java.math.BigDecimal
@@ -37,21 +40,7 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
             
             val allMovements = movementDao.getByIngredient(ingredientId.value)
             
-            // Reversal logic
-            val reversedMovementIds = allMovements
-                .mapNotNull { it.reversalOfMovementId }
-                .toSet()
-            
-            val effectiveMovements = allMovements.filter { movement ->
-                movement.movementType != InventoryMovementType.REVERSAL.name && 
-                !reversedMovementIds.contains(movement.id)
-            }
-            
-            // Rebuild balance by area
-            projectionDao.deleteForIngredient(ingredientId.value)
-            val areaBalances = mutableMapOf<String, BigDecimal>()
-            
-            val historicalMoves = effectiveMovements.map { move ->
+            val historicalMoves = allMovements.map { move ->
                 HistoricalInventoryMovement(
                     id = move.id,
                     movementType = InventoryMovementType.valueOf(move.movementType),
@@ -60,12 +49,25 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
                     sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
                     sourceDocumentId = move.sourceDocumentId,
                     effectiveAt = move.effectiveAt,
-                    createdAt = move.createdAt
+                    createdAt = move.createdAt,
+                    reversalOfMovementId = move.reversalOfMovementId
                 )
             }
 
-            val costResult = costCalculator.calculate(historicalMoves)
+            val calculationResult = costCalculator.calculate(historicalMoves)
+            val costResult = when (calculationResult) {
+                is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
+                is HistoricalInventoryCostCalculationResult.Failure -> {
+                    throw ValidationError.MalformedInventoryMovementHistory
+                }
+            }
 
+            val effectiveMovements = allMovements.filter { it.id in costResult.effectiveMovementIds }
+
+            // Rebuild balance by area
+            projectionDao.deleteForIngredient(ingredientId.value)
+            val areaBalances = mutableMapOf<String, BigDecimal>()
+            
             effectiveMovements.forEach { movement ->
                 val areaId = movement.areaId
                 val currentAreaBalance = areaBalances.getOrDefault(areaId, BigDecimal.ZERO)

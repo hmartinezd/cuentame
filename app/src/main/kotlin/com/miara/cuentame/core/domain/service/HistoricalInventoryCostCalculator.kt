@@ -26,8 +26,25 @@ data class HistoricalInventoryCostBoundary(
 data class HistoricalInventoryCostResult(
     val totalQuantityBase: BigDecimal,
     val averageUnitCostBase: BigDecimal?,
-    val hasEstablishedCost: Boolean
+    val hasEstablishedCost: Boolean,
+    val effectiveMovementIds: Set<String>
 )
+
+sealed interface HistoricalInventoryCostCalculationResult {
+    data class Success(
+        val value: HistoricalInventoryCostResult
+    ) : HistoricalInventoryCostCalculationResult
+
+    data class Failure(
+        val reason: HistoricalInventoryCostFailure
+    ) : HistoricalInventoryCostCalculationResult
+}
+
+sealed interface HistoricalInventoryCostFailure {
+    data object ReversalTargetMissing : HistoricalInventoryCostFailure
+    data object ReversalTargetNotFound : HistoricalInventoryCostFailure
+    data object DuplicateReversalTarget : HistoricalInventoryCostFailure
+}
 
 data class SourceDocumentIdentity(
     val type: SourceDocumentType,
@@ -40,16 +57,17 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
         movements: List<HistoricalInventoryMovement>,
         boundary: HistoricalInventoryCostBoundary? = null,
         excludedSourceDocument: SourceDocumentIdentity? = null
-    ): HistoricalInventoryCostResult {
+    ): HistoricalInventoryCostCalculationResult {
         // 1. Filter by boundary and exclusion
         val inBoundary = movements.filter { move ->
-            val matchesBoundary = if (boundary == null) {
-                true
-            } else {
-                (move.effectiveAt < boundary.effectiveAtInclusive) ||
-                (move.effectiveAt == boundary.effectiveAtInclusive &&
-                 (boundary.createdAtInclusive == null || move.createdAt <= boundary.createdAtInclusive))
-            }
+            val matchesBoundary = boundary == null ||
+                (
+                    move.effectiveAt <= boundary.effectiveAtInclusive &&
+                    (
+                        boundary.createdAtInclusive == null ||
+                        move.createdAt <= boundary.createdAtInclusive
+                    )
+                )
 
             val matchesExclusion = excludedSourceDocument == null ||
                 move.sourceDocumentType != excludedSourceDocument.type ||
@@ -69,12 +87,17 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
 
         for (rev in reversalMoves) {
             val targetId = rev.reversalOfMovementId
-            if (targetId != null && 
-                inBoundaryIds.contains(targetId) && 
-                reversalTargetIds.add(targetId)) {
-                effectiveReversedIds.add(targetId)
-                effectiveReversalIds.add(rev.id)
+            if (targetId == null) {
+                return HistoricalInventoryCostCalculationResult.Failure(HistoricalInventoryCostFailure.ReversalTargetMissing)
             }
+            if (!inBoundaryIds.contains(targetId)) {
+                return HistoricalInventoryCostCalculationResult.Failure(HistoricalInventoryCostFailure.ReversalTargetNotFound)
+            }
+            if (!reversalTargetIds.add(targetId)) {
+                return HistoricalInventoryCostCalculationResult.Failure(HistoricalInventoryCostFailure.DuplicateReversalTarget)
+            }
+            effectiveReversedIds.add(targetId)
+            effectiveReversalIds.add(rev.id)
         }
 
         // 3. Filter effective movements and sort
@@ -121,10 +144,13 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
             }
         }
 
-        return HistoricalInventoryCostResult(
-            totalQuantityBase = currentTotalQuantity,
-            averageUnitCostBase = if (hasEstablishedCost) currentAverageCost else null,
-            hasEstablishedCost = hasEstablishedCost
+        return HistoricalInventoryCostCalculationResult.Success(
+            HistoricalInventoryCostResult(
+                totalQuantityBase = currentTotalQuantity,
+                averageUnitCostBase = if (hasEstablishedCost) currentAverageCost else null,
+                hasEstablishedCost = hasEstablishedCost,
+                effectiveMovementIds = sortedMovements.map { it.id }.toSet()
+            )
         )
     }
 }

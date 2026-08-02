@@ -5,8 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import com.miara.cuentame.core.backup.model.BackupSnapshotDto
-import com.miara.cuentame.core.backup.model.RestaurantBackupDto
+import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
 import com.miara.cuentame.core.backup.platform.*
@@ -235,6 +234,25 @@ class BackupProductionIntegrationTest {
         db.ingredientUnitOptionDao().upsert(IngredientUnitOptionEntity("o2", "i2", "Opt 2", "o2", "u1", BigDecimal.ONE, true, true, true, true, 100, 100, null))
 
         db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup 1", "123", "sup@test.com", "Notes", true, 100, 100, null))
+        
+        // Purchase 1
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, 100, 100, 1000, null))
+        db.purchaseDao().insertLine(PurchaseLineEntity(
+            id = "pl1",
+            purchaseReceiptId = "p1",
+            ingredientId = "i1",
+            areaId = "a1",
+            ingredientUnitOptionId = "o1",
+            quantityEntered = "20",
+            quantityBase = "20",
+            lineTotal = "60",
+            unitCostBase = "3",
+            notes = "Notes",
+            createdAt = 100,
+            updatedAt = 100
+        ))
+
+        // Purchase 2
         db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p2", "r1", "s1", "INV2", 1300, "POSTED", "Notes", null, 100, 100, 1300, null))
         db.purchaseDao().insertLine(PurchaseLineEntity(
             id = "pl2",
@@ -254,11 +272,13 @@ class BackupProductionIntegrationTest {
         db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, null, "DRAFT", "Notes", 100, 100, null))
         db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "DRAFT", null, null, 1)))
         db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", null, null, "Notes", 100, 100))
+        
         db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
+        
         db.inventoryMovementDao().insertAll(listOf(
-            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "production-post:p1:line:pl1", "pl1", null, 1000),
-            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", "production-post:w1:waste", "w1", null, 1200),
-            InventoryMovementEntity("m5", "r1", "i2", "a1", "PURCHASE", "10", "10", "100", 1300, "PURCHASE_RECEIPT", "p2", "production-post:p2:line:pl2", "pl2", null, 1300)
+            InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", "purchase-post:p1:pl1", "pl1", null, 1000),
+            InventoryMovementEntity("m2", "r1", "i1", "a1", "WASTE", "-2", "3", "-6", 1200, "WASTE_EVENT", "w1", "waste-post:w1", "w1", null, 1200),
+            InventoryMovementEntity("m5", "r1", "i2", "a1", "PURCHASE", "10", "10", "100", 1300, "PURCHASE_RECEIPT", "p2", "purchase-post:p2:pl2", "pl2", null, 1300)
         ))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("r1", "i1", "a1", "18", 1200))
         db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1", "i1", "3", 1200))
@@ -318,8 +338,10 @@ class BackupProductionIntegrationTest {
         val legacySnapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
             restaurants = listOf(RestaurantBackupDto("r1", "Legacy", "USD", "en-US", 100, 100, null))
         )
-        val tables = BackupFormatV1Contract.expectedTablesForSchema(2)
-            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) }
+        val tables = listOf(
+            "restaurants", "inventory_areas", "units", "ingredients", "ingredient_unit_options",
+            "inventory_balance_projections", "ingredient_cost_projections"
+        ).associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in listOf("inventory_balance_projections", "ingredient_cost_projections")) }
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1,
             createdAtUtc = "2026-01-01T12:00:00Z",
@@ -361,27 +383,44 @@ class BackupProductionIntegrationTest {
         // 1. Build schema 3 archive (Recipes, no Production)
         val schema3Snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
             restaurants = listOf(RestaurantBackupDto("r1", "Recipes Only", "USD", "en-US", 100, 100, null)),
+            inventoryAreas = listOf(InventoryAreaBackupDto("a1", "r1", "Area 1", "area 1", 0, true, 100, 100, null)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "COUNT", "1.0", true, 0)),
+            ingredients = listOf(
+                IngredientBackupDto("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 100, 100, null),
+                IngredientBackupDto("i2", "r1", "Ing 2", "ing 2", null, "u1", "a1", null, null, null, true, 100, 100, null)
+            ),
+            ingredientUnitOptions = listOf(
+                IngredientUnitOptionBackupDto("o1", "i1", "Opt 1", "o1", null, "1.0", true, true, true, true, 100, 100, null),
+                IngredientUnitOptionBackupDto("o2", "i2", "Opt 2", "o2", null, "1.0", true, true, true, true, 100, 100, null)
+            ),
             preparationRecipes = listOf(
-                com.miara.cuentame.core.backup.model.PreparationRecipeBackupDto(
+                PreparationRecipeBackupDto(
                     "rec1", "r1", "i1", "Recipe 1", "recipe 1", "10", "10", "o1", "ACTIVE", null, 100, 100, null
                 )
             ),
             preparationRecipeComponents = listOf(
-                com.miara.cuentame.core.backup.model.PreparationRecipeComponentBackupDto(
+                PreparationRecipeComponentBackupDto(
                     "rc1", "rec1", "i2", "o2", "5", "5", 0, null, 100, 100
                 )
             )
         )
-        val tables = BackupFormatV1Contract.expectedTablesForSchema(3)
-            .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(
-                when (it) {
-                    "restaurants" -> 1
-                    "preparation_recipes" -> 1
-                    "preparation_recipe_components" -> 1
-                    else -> 0
-                },
-                it in BackupFormatV1Contract.DERIVED_TABLES
-            ) }
+        val tables = listOf(
+            "restaurants", "inventory_areas", "units", "ingredients", "ingredient_unit_options",
+            "preparation_recipes", "preparation_recipe_components",
+            "inventory_balance_projections", "ingredient_cost_projections"
+        ).associateWith { com.miara.cuentame.core.model.backup.TableMetadata(
+            when (it) {
+                "restaurants" -> 1
+                "inventory_areas" -> 1
+                "units" -> 1
+                "ingredients" -> 2
+                "ingredient_unit_options" -> 2
+                "preparation_recipes" -> 1
+                "preparation_recipe_components" -> 1
+                else -> 0
+            },
+            it in listOf("inventory_balance_projections", "ingredient_cost_projections")
+        ) }
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 1,
             createdAtUtc = "2026-01-01T12:00:00Z",

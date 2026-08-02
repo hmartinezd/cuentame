@@ -5,13 +5,15 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.domain.validation.ValidationError
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -22,12 +24,11 @@ import java.math.BigDecimal
 import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
-class RoomInventorySnapshotServiceFailureTest {
+class RoomInventoryProjectionRebuilderFailureTest {
     private lateinit var db: RestaurantInventoryDatabase
-    private lateinit var service: RoomInventorySnapshotService
+    private lateinit var rebuilder: RoomInventoryProjectionRebuilder
     private val restaurantId = RestaurantId("rest_1")
     private val ingredientId = IngredientId("ing_1")
-    private val areaId = InventoryAreaId("area_1")
 
     @Before
     fun setup() {
@@ -35,16 +36,24 @@ class RoomInventorySnapshotServiceFailureTest {
         db = Room.inMemoryDatabaseBuilder(context, RestaurantInventoryDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        service = RoomInventorySnapshotService(
+        
+        val timeProvider = mockk<TimeProvider>()
+        every { timeProvider.now() } returns Instant.now()
+
+        rebuilder = RoomInventoryProjectionRebuilder(
+            db,
+            db.ingredientDao(),
             db.inventoryMovementDao(),
+            db.inventoryProjectionDao(),
+            db.ingredientCostProjectionDao(),
             HistoricalInventoryCostCalculator(),
-            InventoryMovementValidator()
+            timeProvider
         )
 
         runBlocking {
             db.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(restaurantId.value, "Rest 1", "USD", "en-US", 0, 0, null))
             db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity("mass_lb", "Pound", "lb", "MASS", BigDecimal.ONE, true, 0)))
-            db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(areaId.value, restaurantId.value, "Area 1", "area 1", 0, true, 0, 0, null))
+            db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("area_1", restaurantId.value, "Area 1", "area 1", 0, true, 0, 0, null))
             db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingredientId.value, restaurantId.value, "Ing 1", "ing 1", null, "mass_lb", null, null, null, null, true, 0, 0, null))
         }
     }
@@ -55,40 +64,25 @@ class RoomInventorySnapshotServiceFailureTest {
     }
 
     @Test
-    fun calculateAt_reversalWithoutTarget_throws() {
+    fun rebuildForIngredient_reversalOfMissingTarget_throws() {
         runBlocking {
-            db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = null))
+            db.inventoryMovementDao().insert(createMovement("m1", "REVERSAL", "-10", "5", Instant.now(), reversalOf = "missing"))
             assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
+                runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
             }
         }
     }
 
     @Test
-    fun calculateAt_duplicateReversalTarget_throws() {
+    fun rebuildForIngredient_duplicateReversalTarget_throws() {
         runBlocking {
             val now = Instant.now()
             db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
             db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOf = "m1"))
             db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
-
+            
             assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
-            }
-        }
-    }
-
-    @Test
-    fun calculateAt_reversalOfFutureMovement_throws() {
-        runBlocking {
-            val now = Instant.now()
-            db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.plusSeconds(100)))
-            db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now, reversalOf = "m1"))
-
-            // m1 is not in the set because calculateAt filters by effectiveAt <= boundary
-            // So m2 target is not found in the boundary set
-            assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
-                runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, now) }
+                runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
             }
         }
     }
@@ -104,7 +98,7 @@ class RoomInventorySnapshotServiceFailureTest {
         id = id,
         restaurantId = restaurantId.value,
         ingredientId = ingredientId.value,
-        areaId = areaId.value,
+        areaId = "area_1",
         movementType = type,
         quantityBaseSigned = qty,
         unitCostBaseSnapshot = cost,

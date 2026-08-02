@@ -8,10 +8,13 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
 import java.math.BigDecimal
 
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculationResult
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostFailure
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostBoundary
 import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
 import com.miara.cuentame.core.domain.service.SourceDocumentIdentity
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostResult
 
 /**
  * Validates logical consistency, enum validity, document timestamps, movement graph semantics,
@@ -1047,11 +1050,18 @@ object BackupSnapshotIntegrityValidator {
                     sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
                     sourceDocumentId = move.sourceDocumentId,
                     effectiveAt = move.effectiveAt,
-                    createdAt = move.createdAt
+                    createdAt = move.createdAt,
+                    reversalOfMovementId = move.reversalOfMovementId
                 )
             }
 
-            val result = costCalculator.calculate(moves)
+            val calculationResult = costCalculator.calculate(moves)
+            val result = when (calculationResult) {
+                is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
+                is HistoricalInventoryCostCalculationResult.Failure -> {
+                    return err(INVALID_REVERSAL, "Malformed reversal in cost history for ingredient ${ing.id}")
+                }
+            }
             val proj = costProjByIng[ing.id]
 
             if (result.hasEstablishedCost) {
@@ -1456,7 +1466,7 @@ object BackupSnapshotIntegrityValidator {
                             reversalOfMovementId = move.reversalOfMovementId
                         )
                     }
-                    val histResult = costCalculator.calculate(
+                    val calculationResult = costCalculator.calculate(
                         moves,
                         boundary = HistoricalInventoryCostBoundary(
                             effectiveAtInclusive = batch.effectiveAt,
@@ -1464,6 +1474,12 @@ object BackupSnapshotIntegrityValidator {
                         ),
                         excludedSourceDocument = SourceDocumentIdentity(SourceDocumentType.PRODUCTION_BATCH, batch.id)
                     )
+                    val histResult = when (calculationResult) {
+                        is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
+                        is HistoricalInventoryCostCalculationResult.Failure -> {
+                            return err(INVALID_REVERSAL, "Malformed reversal in production cost history for batch ${batch.id}")
+                        }
+                    }
                     if (!histResult.hasEstablishedCost) {
                         return err(INVALID_PRODUCTION_COST_HISTORY, "Production component cost unavailable in history")
                     }

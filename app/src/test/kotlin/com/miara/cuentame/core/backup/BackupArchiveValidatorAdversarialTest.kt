@@ -121,29 +121,14 @@ private fun BackupArchiveTestBuilder.createValidBaseManifest() = BackupManifest(
     applicationId = "com.miara.cuentame",
     appVersionName = "1.0",
     appVersionCode = 1L,
-    databaseSchemaVersion = BackupFormatV1Contract.DATABASE_SCHEMA_VERSION,
+    databaseSchemaVersion = 2,
     restaurantId = "rest-1",
     restaurantName = "Test Rest",
     localeTag = "en-US",
     currencyCode = "USD",
-    tableMetadata = mapOf(
-        "restaurants" to TableMetadata(1, false),
-        "inventory_areas" to TableMetadata(0, false),
-        "ingredient_categories" to TableMetadata(0, false),
-        "units" to TableMetadata(0, false),
-        "ingredients" to TableMetadata(0, false),
-        "ingredient_unit_options" to TableMetadata(0, false),
-        "suppliers" to TableMetadata(0, false),
-        "purchase_receipts" to TableMetadata(0, false),
-        "purchase_lines" to TableMetadata(0, false),
-        "stock_counts" to TableMetadata(0, false),
-        "stock_count_areas" to TableMetadata(0, false),
-        "stock_count_lines" to TableMetadata(0, false),
-        "waste_events" to TableMetadata(0, false),
-        "inventory_movements" to TableMetadata(0, false),
-        "inventory_balance_projection" to TableMetadata(0, true),
-        "ingredient_cost_projection" to TableMetadata(0, true)
-    ).toSortedMap(),
+    tableMetadata = BackupFormatV1Contract.expectedTablesForSchema(2).associateWith { 
+        TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES)
+    }.toSortedMap(),
     attachments = emptyList(),
     includedSections = BackupFormatV1Contract.REQUIRED_SECTIONS.toList().sorted(),
     checksumAlgorithm = BackupFormatV1Contract.CHECKSUM_ALGORITHM

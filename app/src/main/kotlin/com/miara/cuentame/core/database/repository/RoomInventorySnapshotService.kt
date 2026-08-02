@@ -5,6 +5,8 @@ import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.mapper.toDomain
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculationResult
+import com.miara.cuentame.core.domain.service.HistoricalInventoryCostFailure
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.domain.service.HistoricalInventoryMovement
 import com.miara.cuentame.core.domain.service.InventorySnapshot
@@ -34,29 +36,7 @@ class RoomInventorySnapshotService @Inject constructor(
             effectiveAt.toEpochMilli()
         )
 
-        val reversedIds = mutableSetOf<String>()
-        val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
-        
-        reversals.forEach { reversal ->
-            val originalId = reversal.reversalOfMovementId ?: throw ValidationError.MalformedInventoryMovementHistory
-            val original = movements.find { it.id == originalId } ?: throw ValidationError.MalformedInventoryMovementHistory
-            validator.validateReversal(original, reversal)
-            if (reversedIds.contains(originalId)) throw ValidationError.MalformedInventoryMovementHistory
-            reversedIds.add(originalId)
-        }
-
-        val effectiveMovements = movements.filter { 
-            it.movementType != InventoryMovementType.REVERSAL.name && !reversedIds.contains(it.id) 
-        }
-
-        var areaQuantity = BigDecimal.ZERO
-        var hasEffectiveHistoryInArea = false
-        
-        val historicalMoves = effectiveMovements.map { move ->
-            if (move.areaId == areaId.value) {
-                areaQuantity = areaQuantity.add(BigDecimal(move.quantityBaseSigned))
-                hasEffectiveHistoryInArea = true
-            }
+        val historicalMoves = movements.map { move ->
             validator.validateMovement(move)
             HistoricalInventoryMovement(
                 id = move.id,
@@ -66,11 +46,30 @@ class RoomInventorySnapshotService @Inject constructor(
                 sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
                 sourceDocumentId = move.sourceDocumentId,
                 effectiveAt = move.effectiveAt,
-                createdAt = move.createdAt
+                createdAt = move.createdAt,
+                reversalOfMovementId = move.reversalOfMovementId
             )
         }
 
-        val costResult = costCalculator.calculate(historicalMoves)
+        val calculationResult = costCalculator.calculate(historicalMoves)
+        val costResult = when (calculationResult) {
+            is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
+            is HistoricalInventoryCostCalculationResult.Failure -> {
+                throw ValidationError.MalformedInventoryMovementHistory
+            }
+        }
+
+        val effectiveMovements = movements.filter { it.id in costResult.effectiveMovementIds }
+
+        var areaQuantity = BigDecimal.ZERO
+        var hasEffectiveHistoryInArea = false
+        
+        effectiveMovements.forEach { move ->
+            if (move.areaId == areaId.value) {
+                areaQuantity = areaQuantity.add(BigDecimal(move.quantityBaseSigned))
+                hasEffectiveHistoryInArea = true
+            }
+        }
 
         return InventorySnapshot(
             hasEffectiveHistory = hasEffectiveHistoryInArea,
@@ -90,24 +89,33 @@ class RoomInventorySnapshotService @Inject constructor(
             effectiveAt.toEpochMilli()
         )
 
-        val reversedIds = mutableSetOf<String>()
-        val reversals = movements.filter { it.movementType == InventoryMovementType.REVERSAL.name }
-
-        reversals.forEach { reversal ->
-            val originalId = reversal.reversalOfMovementId ?: throw ValidationError.MalformedInventoryMovementHistory
-            val original = movements.find { it.id == originalId } ?: throw ValidationError.MalformedInventoryMovementHistory
-            validator.validateReversal(original, reversal)
-            if (reversedIds.contains(originalId)) throw ValidationError.MalformedInventoryMovementHistory
-            reversedIds.add(originalId)
+        val historicalMoves = movements.map { move ->
+            validator.validateMovement(move)
+            HistoricalInventoryMovement(
+                id = move.id,
+                movementType = InventoryMovementType.valueOf(move.movementType),
+                quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                sourceDocumentId = move.sourceDocumentId,
+                effectiveAt = move.effectiveAt,
+                createdAt = move.createdAt,
+                reversalOfMovementId = move.reversalOfMovementId
+            )
         }
 
-        val effectiveMovements = movements.filter {
-            it.movementType != InventoryMovementType.REVERSAL.name && !reversedIds.contains(it.id)
+        val calculationResult = costCalculator.calculate(historicalMoves)
+        val costResult = when (calculationResult) {
+            is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
+            is HistoricalInventoryCostCalculationResult.Failure -> {
+                throw ValidationError.MalformedInventoryMovementHistory
+            }
         }
+
+        val effectiveMovements = movements.filter { it.id in costResult.effectiveMovementIds }
 
         val balances = mutableMapOf<IngredientId, BigDecimal>()
         effectiveMovements.forEach { movementEntity ->
-            validator.validateMovement(movementEntity)
             val movement = movementEntity.toDomain()
             val current = balances.getOrDefault(movement.ingredientId, BigDecimal.ZERO)
             balances[movement.ingredientId] = current.add(movement.quantityBaseSigned)
