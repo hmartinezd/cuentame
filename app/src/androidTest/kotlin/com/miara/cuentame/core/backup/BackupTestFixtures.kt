@@ -158,6 +158,44 @@ object BackupTestFixtures {
         )
     }
 
+    fun createPopulatedSchema4Snapshot(): BackupSnapshotDto {
+        val snapshot = createEmptySnapshotDto().copy(
+            restaurants = listOf(RestaurantBackupDto("r1", "Test Rest", "USD", "en-US", 100, 100, null)),
+            inventoryAreas = listOf(InventoryAreaBackupDto("a1", "r1", "Area 1", "area 1", 0, true, 100, 100, null)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "COUNT", "1.0", true, 0)),
+            ingredients = listOf(
+                IngredientBackupDto("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 100, 100, null),
+                IngredientBackupDto("i2", "r1", "Ing 2", "ing 2", null, "u1", "a1", null, null, null, true, 100, 100, null)
+            ),
+            ingredientUnitOptions = listOf(
+                IngredientUnitOptionBackupDto("o1", "i1", "Opt 1", "o1", null, "1.0", true, true, true, true, 100, 100, null),
+                IngredientUnitOptionBackupDto("o2", "i2", "Opt 2", "o2", null, "1.0", true, true, true, true, 100, 100, null)
+            ),
+            preparationRecipes = listOf(
+                PreparationRecipeBackupDto("rec1", "r1", "i1", "Recipe 1", "recipe 1", "10", "10", "o1", "ACTIVE", null, 100, 100, null)
+            ),
+            preparationRecipeComponents = listOf(
+                PreparationRecipeComponentBackupDto("rc1", "rec1", "i2", "o2", "5", "5", 0, null, 100, 100)
+            )
+        )
+        
+        return addPostedProduction(
+            snapshot = snapshot,
+            batchId = "pb1",
+            outputMovementId = "m-out",
+            outputIngredientId = "i1",
+            outputAreaId = "a1",
+            outputOptionId = "o1",
+            quantityBase = BigDecimal("10"),
+            unitCostBase = BigDecimal("5"),
+            effectiveAt = 2000,
+            createdAt = 2000
+        ).copy(
+            inventoryBalanceProjections = listOf(InventoryBalanceProjectionBackupDto("r1", "i1", "a1", "10", 2000)),
+            ingredientCostProjections = listOf(IngredientCostProjectionBackupDto("r1", "i1", "5", 2000))
+        )
+    }
+
     fun addPostedProduction(
         snapshot: BackupSnapshotDto,
         batchId: String,

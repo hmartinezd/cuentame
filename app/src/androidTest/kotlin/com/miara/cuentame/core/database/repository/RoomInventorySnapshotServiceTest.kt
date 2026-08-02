@@ -12,6 +12,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculator
 import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -153,7 +154,11 @@ class RoomInventorySnapshotServiceTest {
         qty: String,
         cost: String?,
         effectiveAt: Instant,
-        reversalOf: String? = null
+        reversalOf: String? = null,
+        sourceDocumentType: String = SourceDocumentType.PURCHASE_RECEIPT.name,
+        sourceDocumentId: String = "doc_$id",
+        sourceLineId: String? = "line_$id",
+        createdAt: Instant = effectiveAt
     ) = InventoryMovementEntity(
         id = id,
         restaurantId = restaurantId.value,
@@ -164,15 +169,25 @@ class RoomInventorySnapshotServiceTest {
         unitCostBaseSnapshot = cost,
         totalValueSnapshot = cost?.let { BigDecimal(qty).multiply(BigDecimal(it)).toPlainString() },
         effectiveAt = effectiveAt.toEpochMilli(),
-        sourceDocumentType = SourceDocumentType.PURCHASE_RECEIPT.name,
-        sourceDocumentId = "doc_1",
+        sourceDocumentType = sourceDocumentType,
+        sourceDocumentId = sourceDocumentId,
         sourceOperationId = when {
-            type == "REVERSAL" && reversalOf != null -> InventoryMovementOperationIds.reversal(reversalOf)
-            type == "PURCHASE" -> InventoryMovementOperationIds.purchasePost("doc_1", "line_1")
-            else -> "op_$id"
+            type == InventoryMovementType.REVERSAL.name &&
+                    reversalOf != null ->
+                InventoryMovementOperationIds.reversal(reversalOf)
+
+            type == InventoryMovementType.PURCHASE.name &&
+                    sourceLineId != null ->
+                InventoryMovementOperationIds.purchasePost(
+                    sourceDocumentId,
+                    sourceLineId
+                )
+
+            else ->
+                "op:$id"
         },
-        sourceLineId = "line_1",
+        sourceLineId = sourceLineId,
         reversalOfMovementId = reversalOf,
-        createdAt = effectiveAt.toEpochMilli()
+        createdAt = createdAt.toEpochMilli()
     )
 }

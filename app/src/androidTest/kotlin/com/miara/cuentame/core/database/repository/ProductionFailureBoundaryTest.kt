@@ -16,6 +16,7 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -147,37 +148,19 @@ class ProductionFailureBoundaryTest {
         ))
 
         // Capture Draft state
-        val beforeBatch = repository.getBatch(batchId)!!
-        val beforeComponents = beforeBatch.components
-        val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
-        val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
-        val beforeOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+        val snapshotBefore = captureProductionSnapshot(batchId)
 
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
-        try {
-            repository.post(batchId)
-        } catch (_: ForcedFailureException) {
-            // Expected
+        assertThrows(ForcedFailureException::class.java) {
+            runBlocking { repository.post(batchId) }
         }
 
-        val afterBatch = repository.getBatch(batchId)!!
-        assertThat(afterBatch).isEqualTo(beforeBatch)
-        assertThat(afterBatch.components).isEqualTo(beforeComponents)
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        assertSnapshotsEqual(snapshotBefore, snapshotAfter)
 
         val movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
         assertThat(movements).isEmpty()
-
-        val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
-        val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
-        val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
-
-        assertThat(afterCompBalance).isEqualTo(beforeCompBalance)
-        assertThat(afterCompCost).isEqualTo(beforeCompCost)
-        assertThat(afterOutBalance).isEqualTo(beforeOutBalance)
-        assertThat(afterOutCost).isEqualTo(beforeOutCost)
     }
 
     private suspend fun testVoidFailure(point: String) {
@@ -187,38 +170,50 @@ class ProductionFailureBoundaryTest {
         repository.post(batchId)
         
         // Capture Posted state
-        val beforeBatch = repository.getBatch(batchId)!!
-        val beforeComponents = beforeBatch.components
-        val beforeMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
-        val beforeCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        val beforeCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
-        val beforeOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
-        val beforeOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+        val snapshotBefore = captureProductionSnapshot(batchId)
 
         (failureBoundary as ConfigurableFailureBoundary).triggerOn(point)
 
-        try {
-            repository.void(batchId)
-        } catch (_: ForcedFailureException) {
-            // Expected
+        assertThrows(ForcedFailureException::class.java) {
+            runBlocking { repository.void(batchId) }
         }
 
-        val afterBatch = repository.getBatch(batchId)!!
-        assertThat(afterBatch).isEqualTo(beforeBatch)
-        assertThat(afterBatch.components).isEqualTo(beforeComponents)
+        val snapshotAfter = captureProductionSnapshot(batchId)
+        assertSnapshotsEqual(snapshotBefore, snapshotAfter)
         
-        val afterMovements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value)
-        assertThat(afterMovements).isEqualTo(beforeMovements)
-        assertThat(afterMovements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
-        
-        val afterCompBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value)
-        val afterCompCost = database.ingredientCostProjectionDao().getCost(compIngId.value)
-        val afterOutBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value)
-        val afterOutCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+        assertThat(snapshotAfter.movements.any { it.movementType == InventoryMovementType.REVERSAL.name }).isFalse()
+    }
 
-        assertThat(afterCompBalance).isEqualTo(beforeCompBalance)
-        assertThat(afterCompCost).isEqualTo(beforeCompCost)
-        assertThat(afterOutBalance).isEqualTo(beforeOutBalance)
-        assertThat(afterOutCost).isEqualTo(beforeOutCost)
+    private data class ProductionSnapshot(
+        val batch: com.miara.cuentame.core.model.inventory.ProductionBatch,
+        val components: List<com.miara.cuentame.core.model.inventory.ProductionBatchComponent>,
+        val movements: List<com.miara.cuentame.core.database.entity.InventoryMovementEntity>,
+        val compBalance: com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity?,
+        val compCost: com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity?,
+        val outBalance: com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity?,
+        val outCost: com.miara.cuentame.core.database.entity.IngredientCostProjectionEntity?
+    )
+
+    private suspend fun captureProductionSnapshot(batchId: ProductionBatchId): ProductionSnapshot {
+        val batch = repository.getBatch(batchId)!!
+        return ProductionSnapshot(
+            batch = batch,
+            components = batch.components,
+            movements = database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value),
+            compBalance = database.inventoryProjectionDao().getBalance(compIngId.value, areaId.value),
+            compCost = database.ingredientCostProjectionDao().getCost(compIngId.value),
+            outBalance = database.inventoryProjectionDao().getBalance(outIngId.value, areaId.value),
+            outCost = database.ingredientCostProjectionDao().getCost(outIngId.value)
+        )
+    }
+
+    private fun assertSnapshotsEqual(s1: ProductionSnapshot, s2: ProductionSnapshot) {
+        assertThat(s1.batch).isEqualTo(s2.batch)
+        assertThat(s1.components).isEqualTo(s2.components)
+        assertThat(s1.movements).isEqualTo(s2.movements)
+        assertThat(s1.compBalance).isEqualTo(s2.compBalance)
+        assertThat(s1.compCost).isEqualTo(s2.compCost)
+        assertThat(s1.outBalance).isEqualTo(s2.outBalance)
+        assertThat(s1.outCost).isEqualTo(s2.outCost)
     }
 }

@@ -6,7 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
-import com.miara.cuentame.core.backup.platform.BackupMapper
+import com.miara.cuentame.core.backup.platform.RoomBackupSnapshotSource
+import io.mockk.mockk
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
@@ -76,6 +77,50 @@ class RestoreDatabaseApplierIntegrationTest {
         ))
         
         assertThat(applier.hasExistingAttachmentReferences()).isTrue()
+    }
+
+    @Test
+    fun replaceWithBackup_atomicity_on_failure() = runBlocking {
+        // 1. Seed valid existing database state A
+        db.restaurantDao().insert(RestaurantEntity("r1", "State A", "USD", "en-US", 100, 100, null))
+        val backupDao = db.backupDao()
+        val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
+        val stateASnapshot = snapshotSource.loadSnapshot("r1").dto
+
+        // 2. Construct replacement snapshot B that fails during insertion (FK violation)
+        val snapshotB = createMinimalSnapshot("r2", "State B").copy(
+            purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto(
+                id = "pl1",
+                purchaseReceiptId = "p1", // Missing Receipt
+                ingredientId = "i1", // Missing Ingredient
+                areaId = "a1", // Missing Area
+                ingredientUnitOptionId = "o1", // Missing Option
+                quantityEntered = "1",
+                quantityBase = "1",
+                lineTotal = "10",
+                unitCostBase = "10",
+                notes = null,
+                createdAt = 200,
+                updatedAt = 200
+            ))
+        )
+
+        // 3. Invoke replaceWithBackup(B)
+        val result = try {
+            applier.replaceWithBackup(snapshotB)
+            null
+        } catch (e: Exception) {
+            e
+        }
+        
+        // 4. Require the operation to fail
+        assertThat(result).isNotNull()
+
+        // 5. Reload the database and require exact equality with state A
+        val currentSnapshot = snapshotSource.loadSnapshot("r1").dto
+        assertThat(currentSnapshot).isEqualTo(stateASnapshot)
+        
+        assertThat(db.restaurantDao().getById("r2")).isNull()
     }
 
     private fun createMinimalSnapshot(id: String, name: String) = BackupSnapshotDto(

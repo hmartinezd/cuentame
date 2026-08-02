@@ -190,45 +190,15 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.SNAPSHOT_INVALID, BackupValidationDiagnostic.SNAPSHOT_INTEGRITY_FAILURE)
         }
 
-        // 8. Attachments
-        val dbAttachmentRefs = mutableSetOf<AttachmentReferenceKey>()
-
-        dbDto.purchaseReceipts.forEach { r ->
-            r.attachmentId?.let { id ->
-                dbAttachmentRefs.add(AttachmentReferenceKey(id, "PURCHASE_RECEIPT", r.id))
-            }
-        }
-        dbDto.wasteEvents.forEach { w ->
-            w.attachmentId?.let { id ->
-                dbAttachmentRefs.add(AttachmentReferenceKey(id, "WASTE_EVENT", w.id))
-            }
+        // 8. Attachments (V1 Policy: No attachments supported)
+        if (manifest.attachments.isNotEmpty()) {
+            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENTS_NOT_SUPPORTED)
         }
 
-        val dbAttachmentIds = dbAttachmentRefs.map { it.attachmentId }.toSet()
-        val manifestAttachments = manifest.attachments
-        val manifestAttachmentIds = manifestAttachments.map { it.attachmentId }.toSet()
-
-        if (dbAttachmentIds != manifestAttachmentIds) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-        if (manifestAttachments.any { !BackupFormatV1Contract.isValidAttachmentId(it.attachmentId) }) {
-             return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-        }
-
-        val manifestAttachmentRefs = manifestAttachments.flatMap { att ->
-            att.referencedBy.map { ref -> AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId) }
-        }.toSet()
-
-        if (dbAttachmentRefs != manifestAttachmentRefs) {
-            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_REFERENCE_MISMATCH)
-        }
-
-        for (att in manifestAttachments) {
-            if (!AttachmentFilenameSanitizer.isValid(att.displayName)) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            if (att.archivePath != BackupFormatV1Contract.attachmentArchivePath(att.attachmentId, att.displayName)) {
-                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_PATH_MISMATCH)
-            }
-            val actual = entryMetadata[att.archivePath] ?: return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
-            if (actual.size != att.sizeBytes) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_SIZE_MISMATCH)
-            if (actual.checksum != att.checksumSha256) return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID, BackupValidationDiagnostic.ATTACHMENT_CHECKSUM_MISMATCH)
+        if (dbDto.purchaseReceipts.any { it.attachmentId != null } ||
+            dbDto.wasteEvents.any { it.attachmentId != null }
+        ) {
+            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENTS_NOT_SUPPORTED)
         }
 
         return BackupValidationResult.Valid(manifest)

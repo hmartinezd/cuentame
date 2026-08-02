@@ -131,6 +131,10 @@ class BackupProductionIntegrationTest {
         // 1. Seed data
         seedAllTables()
 
+        val backupDao = db.backupDao()
+        val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
+        val originalSnapshot = snapshotSource.loadSnapshot("r1").dto
+
         // 2. Create backup
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         val backupUri = "content://backup/full.zip"
@@ -151,12 +155,23 @@ class BackupProductionIntegrationTest {
         val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
         
-        // 6. Verify original data restored
-        verifyAllTables()
+        // 6. Verify original data restored exactly (Task 10)
+        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
+        assertThat(restoredSnapshot).isEqualTo(originalSnapshot)
+
+        // Integrity validation
+        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, ready.archive.manifest).getOrThrow()
         
-        val line = db.purchaseDao().getLineById("pl1")!!
-        assertThat(line.lineTotal).isEqualTo("60")
-        assertThat(line.unitCostBase).isEqualTo("3")
+        // Manifest consistency
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(ready.archive.manifest, restoredSnapshot)).isNull()
+
+        // Table counts match (Schema 4)
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(4)
+        assertThat(ready.archive.manifest.tableMetadata.keys).containsExactlyElementsIn(expectedTables)
+        
+        // Mutation-only records removed
+        val movements = db.inventoryMovementDao().getAll()
+        assertThat(movements.any { it.sourceDocumentType == "RESTORE_JOURNAL" }).isFalse()
     }
 
     @Test
@@ -213,19 +228,15 @@ class BackupProductionIntegrationTest {
         // 8. Assert recovery success
         assertThat(result).isEqualTo(RestoreRecoveryResult.Recovered(sessionId))
         
-        // 9. Verify data matches original state
-        verifyAllTables()
-
-        // 10. Validate again after recovery (Instruction 12)
+        // 9. Verify data matches original state exactly (Instruction 11)
         val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
-        val postManifest = manifest.copy(tableMetadata = createTableMetadata(restoredSnapshot, 4))
-        
-        // Validate manifest/snapshot contract
-        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(postManifest, restoredSnapshot)).isNull()
+        assertThat(restoredSnapshot).isEqualTo(snapshotDto)
+
+        // 10. Validate restored snapshot against ORIGINAL manifest (Instruction 11)
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, restoredSnapshot)).isNull()
         
         // Validate snapshot integrity
-        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, postManifest).getOrThrow()
-        
+        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, manifest).getOrThrow()
         
         val restoredLine = db.purchaseDao().getLineById("pl1")!!
         assertThat(restoredLine.lineTotal).isEqualTo(originalLine.lineTotal)
@@ -402,6 +413,9 @@ class BackupProductionIntegrationTest {
         assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
         assertThat(manifest.tableMetadata.keys).containsNoneOf("production_batches", "production_batch_components")
 
+        // Instruction 12: Validate consistency before write
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, legacySnapshot)).isNull()
+
         val bytes = buildArchive(manifest, legacySnapshot)
         val backupUri = "content://backup/legacy.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
@@ -417,9 +431,15 @@ class BackupProductionIntegrationTest {
         val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
 
-        // 4. Verify
+        // 4. Verify exact DTO equality (Instruction 12)
+        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
+        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
+        assertThat(restoredSnapshot).isEqualTo(legacySnapshot)
+
+        assertThat(restoredSnapshot.preparationRecipes).isEmpty()
+        assertThat(restoredSnapshot.productionBatches).isEmpty()
+        
         assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Legacy")
-        assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).isEmpty()
     }
 
     @Test
@@ -504,6 +524,9 @@ class BackupProductionIntegrationTest {
         assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
         assertThat(manifest.tableMetadata.keys).containsNoneOf("production_batches", "production_batch_components")
 
+        // Instruction 12: Validate consistency before write
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, schema3Snapshot)).isNull()
+
         val bytes = buildArchive(manifest, schema3Snapshot)
         val backupUri = "content://backup/schema3.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
@@ -519,10 +542,15 @@ class BackupProductionIntegrationTest {
         val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
         assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
 
-        // 4. Verify
+        // 4. Verify exact DTO equality (Instruction 12)
+        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
+        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
+        assertThat(restoredSnapshot).isEqualTo(schema3Snapshot)
+        
+        assertThat(restoredSnapshot.preparationRecipes).hasSize(1)
+        assertThat(restoredSnapshot.productionBatches).isEmpty()
+
         assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Recipes Only")
-        assertThat(db.preparationRecipeDao().getAllRecipesForRestaurant("r1")).hasSize(1)
-        assertThat(db.productionBatchDao().getById("pb1")).isNull()
     }
 
     private fun createTableMetadata(dto: BackupSnapshotDto, schemaVersion: Int): Map<String, com.miara.cuentame.core.model.backup.TableMetadata> {
@@ -557,9 +585,108 @@ class BackupProductionIntegrationTest {
         }
     }
 
+    @Test
+    fun planning_fails_if_snapshot_has_attachments(): Unit = runBlocking {
+        seedAllTables()
+        
+        // Corrupt purchase receipt with attachment ID
+        database().openHelper.writableDatabase.execSQL(
+            "UPDATE purchase_receipts SET attachmentId = 'att1' WHERE id = 'p1'"
+        )
+
+        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
+        val backupUri = "content://backup/attachment-fail.zip"
+        val statuses = backupRepository.createBackup(backupUri).toList()
+        
+        val error = statuses.find { it is com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error }
+                as com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error
+        
+        assertThat(error.result).isInstanceOf(com.miara.cuentame.core.model.backup.BackupResult.Error.AttachmentsNotSupported::class.java)
+        
+        val file = File(tempFolder.root, "backups/attachment-fail.zip")
+        assertThat(file.exists()).isFalse()
+    }
+
+    @Test
+    fun inspection_detects_attachments_in_archive() = runBlocking {
+        // 1. Build archive with attachment in manifest
+        val snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
+            restaurants = listOf(RestaurantBackupDto("r1", "Att", "USD", "en-US", 100, 100, null))
+        )
+        val tables = createTableMetadata(snapshot, 4)
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
+            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
+            restaurantId = "r1", restaurantName = "Att", localeTag = "en-US", currencyCode = "USD",
+            tableMetadata = tables, 
+            attachments = listOf(
+                com.miara.cuentame.core.model.backup.BackupAttachmentMetadata(
+                    "att1", "attachments/att1_file.jpg", "file.jpg", "image/jpeg", 100, "hash", emptyList()
+                )
+            ), 
+            includedSections = listOf("data", "preferences", "attachments"),
+            checksumAlgorithm = "SHA-256"
+        )
+
+        val bytes = buildArchive(manifest, snapshot, includeAttachmentFile = true)
+        val backupUri = "content://backup/with-att.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+
+        // 2. Inspect
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.AttachmentsNotSupported)
+    }
+
+    @Test
+    fun apply_fails_if_archive_has_attachments_no_mutation() = runBlocking {
+         // 1. Build archive with attachment in manifest
+        val snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
+            restaurants = listOf(RestaurantBackupDto("r1", "Att", "USD", "en-US", 100, 100, null))
+        )
+        val tables = createTableMetadata(snapshot, 4)
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
+            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
+            restaurantId = "r1", restaurantName = "Att", localeTag = "en-US", currencyCode = "USD",
+            tableMetadata = tables, 
+            attachments = listOf(
+                com.miara.cuentame.core.model.backup.BackupAttachmentMetadata(
+                    "att1", "attachments/att1_file.jpg", "file.jpg", "image/jpeg", 10, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", emptyList()
+                )
+            ), 
+            includedSections = listOf("data", "preferences", "attachments"),
+            checksumAlgorithm = "SHA-256"
+        )
+
+        val bytes = buildArchive(manifest, snapshot, includeAttachmentFile = true)
+        val backupUri = "content://backup/apply-att-fail.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+
+        // Seed some data in live DB
+        db.restaurantDao().insert(RestaurantEntity("live", "Live", "USD", "en-US", 0, 0, null))
+
+        // 2. Inspect
+        val ready = coordinator.inspect(BackupDocumentUri(backupUri)) as BackupArchiveInspectionResult.Ready
+        
+        // 3. Apply
+        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
+        assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
+        val failure = result as BackupRestoreApplyResult.Failure
+        assertThat(failure.reason).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreFailure.AttachmentsNotSupported)
+
+        // 4. Verify no mutation
+        assertThat(db.restaurantDao().getById("live")).isNotNull()
+        assertThat(db.restaurantDao().getById("r1")).isNull()
+    }
+
+    private fun database() = db
+
     private fun buildArchive(
         manifest: com.miara.cuentame.core.model.backup.BackupManifest,
-        snapshot: BackupSnapshotDto
+        snapshot: BackupSnapshotDto,
+        includeAttachmentFile: Boolean = false
     ): ByteArray {
         val bos = java.io.ByteArrayOutputStream()
         val zos = java.util.zip.ZipOutputStream(bos)
@@ -576,15 +703,24 @@ class BackupProductionIntegrationTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         val prefsJson = codecs.writer.encodeToString<com.miara.cuentame.core.model.backup.BackupPreferencesDto>(prefs).toByteArray()
 
-        add("manifest.json", manifestJson)
-        add("data/database.json", snapshotJson)
-        add("preferences/settings.json", prefsJson)
-
-        val checksums = mapOf(
+        val checksums = mutableMapOf(
             "manifest.json" to sha256(manifestJson),
             "data/database.json" to sha256(snapshotJson),
             "preferences/settings.json" to sha256(prefsJson)
         )
+
+        add("manifest.json", manifestJson)
+        add("data/database.json", snapshotJson)
+        add("preferences/settings.json", prefsJson)
+
+        if (includeAttachmentFile) {
+            for (att in manifest.attachments) {
+                val dummyContent = ByteArray(att.sizeBytes.toInt())
+                add(att.archivePath, dummyContent)
+                checksums[att.archivePath] = sha256(dummyContent)
+            }
+        }
+
         val checksumsJson = codecs.writer.encodeToString<Map<String, String>>(checksums).toByteArray()
         add("checksums.json", checksumsJson)
 
