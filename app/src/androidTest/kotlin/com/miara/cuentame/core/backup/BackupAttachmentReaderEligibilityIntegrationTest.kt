@@ -18,25 +18,16 @@ import javax.inject.Inject
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class BackupAttachmentEligibilityIntegrationTest {
+class BackupAttachmentReaderEligibilityIntegrationTest {
 
     @get:Rule
     var hiltRule = HiltAndroidRule(this)
-
-    @Inject
-    lateinit var coordinator: BackupRestoreCoordinator
 
     @Inject
     lateinit var archiveReader: BackupArchiveReader
 
     @Inject
     lateinit var jsonCodecs: BackupJsonCodecs
-
-    @Inject
-    lateinit var database: RestaurantInventoryDatabase
-
-    @Inject
-    lateinit var snapshotSource: BackupSnapshotSource
 
     @Before
     fun init() {
@@ -58,15 +49,6 @@ class BackupAttachmentEligibilityIntegrationTest {
         // Prove it reaches eligibility check by passing manifest and checksum validation
         assertThat(ready.archive.manifest.attachments).isNotEmpty()
         assertThat(ready.archive.manifest.attachments[0].attachmentId).isEqualTo(fixture.attachmentId)
-
-        // Seed some data to prove protection later if we could call coordinator.apply with this fixture
-        database.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity("r1", "Live", "USD", "en-US", 100, 100, null))
-        val stateBefore = snapshotSource.loadSnapshot("r1").dto
-        
-        // Verification of state preservation (Instruction 10)
-        // Since we can't easily mock docStore in this Hilt test without custom entry point,
-        // we rely on the unit test for Coordinator.apply(AttachmentsNotSupported) -> Failure.
-        // But we verify here that our fixture is indeed what the coordinator would see.
-        assertThat(stateBefore.restaurants).hasSize(1)
     }
 }
+

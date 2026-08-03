@@ -219,7 +219,6 @@ object BackupTestFixtures {
             outputAreaId = "a1",
             outputOptionId = "o1",
             quantityBase = BigDecimal("10"),
-            unitCostBase = BigDecimal("5"), // (5 * 10) / 10 = 5
             effectiveAt = 2000,
             createdAt = 2000
         ).copy(
@@ -368,19 +367,23 @@ object BackupTestFixtures {
         outputAreaId: String,
         outputOptionId: String,
         quantityBase: BigDecimal,
-        unitCostBase: BigDecimal,
         effectiveAt: Long,
         createdAt: Long
     ): BackupSnapshotDto {
         val restaurantId = snapshot.restaurants.firstOrNull()?.id ?: "r1"
+        val recipe = snapshot.preparationRecipes.find { it.id == recipeId }
+        val recipeName = recipe?.name ?: "Test Recipe"
+        
         val componentTotal = componentQuantityBase.multiply(componentUnitCostBase, java.math.MathContext.DECIMAL128)
-        val outputTotal = quantityBase.multiply(unitCostBase, java.math.MathContext.DECIMAL128)
+        
+        val outputUnitCost = componentTotal.divide(quantityBase, java.math.MathContext.DECIMAL128)
+        val outputTotal = componentTotal // Value conservation
 
         val batch = ProductionBatchBackupDto(
             id = batchId,
             restaurantId = restaurantId,
             recipeId = recipeId,
-            recipeNameSnapshot = "Test Recipe",
+            recipeNameSnapshot = recipeName,
             outputIngredientId = outputIngredientId,
             batchMultiplier = "1",
             recipeStandardYieldQuantitySnapshot = quantityBase.toPlainString(),
@@ -394,7 +397,7 @@ object BackupTestFixtures {
             outputAreaId = outputAreaId,
             hasManualOutputQuantityOverride = false,
             totalComponentCostSnapshot = componentTotal.toPlainString(),
-            outputUnitCostBaseSnapshot = unitCostBase.toPlainString(),
+            outputUnitCostBaseSnapshot = outputUnitCost.toPlainString(),
             status = "POSTED",
             effectiveAt = effectiveAt,
             notes = null,
@@ -452,7 +455,7 @@ object BackupTestFixtures {
             areaId = outputAreaId,
             movementType = "PRODUCTION_OUTPUT",
             quantityBaseSigned = quantityBase.toPlainString(),
-            unitCostBaseSnapshot = unitCostBase.toPlainString(),
+            unitCostBaseSnapshot = outputUnitCost.toPlainString(),
             totalValueSnapshot = outputTotal.toPlainString(),
             effectiveAt = effectiveAt,
             sourceDocumentType = "PRODUCTION_BATCH",
@@ -469,4 +472,5 @@ object BackupTestFixtures {
             inventoryMovements = snapshot.inventoryMovements + consumption + output
         )
     }
+
 }

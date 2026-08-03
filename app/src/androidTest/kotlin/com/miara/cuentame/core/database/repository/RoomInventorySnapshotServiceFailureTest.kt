@@ -119,28 +119,16 @@ class RoomInventorySnapshotServiceFailureTest {
     @Test
     fun calculateAt_reversal_targetingAnotherReversal_throws() = runBlocking {
         val now = Instant.now()
-        db.inventoryMovementDao().insert(createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100)))
-        db.inventoryMovementDao().insert(
-            createMovement(
-                id = "m2",
-                type = InventoryMovementType.REVERSAL.name,
-                quantityBaseSigned = "-10",
-                unitCostBaseSnapshot = "5",
-                effectiveAt = now.minusSeconds(50),
-                reversalOfMovementId = "m1"
-            )
-        )
-        // m3 targets m2 (which is a REVERSAL)
-        db.inventoryMovementDao().insert(
-            createMovement(
-                id = "m3",
-                type = InventoryMovementType.REVERSAL.name,
-                quantityBaseSigned = "10",
-                unitCostBaseSnapshot = "5",
-                effectiveAt = now,
-                reversalOfMovementId = "m2"
-            )
-        )
+        val original = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
+        db.inventoryMovementDao().insert(original)
+        
+        val firstReversal = createExactReversal("m2", original, now.minusSeconds(50))
+        db.inventoryMovementDao().insert(firstReversal)
+        
+        // m3 targets m2 (which is a REVERSAL). Must inherit m2 identities.
+        val invalidTargetReversal = createExactReversal("m3", firstReversal, now)
+
+        db.inventoryMovementDao().insert(invalidTargetReversal)
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }

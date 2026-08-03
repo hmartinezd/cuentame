@@ -265,10 +265,15 @@ class RoomInventoryProjectionRebuilderFailureTest {
     fun rebuild_reversalTargetingAnotherReversal_rollsBack() = runBlocking {
         seedValidProjections()
         val now = Instant.now()
-        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100)))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", now.minusSeconds(50), reversalOfMovementId = "m1"))
-        // m3 targets m2 (which is a REVERSAL)
-        db.inventoryMovementDao().insert(createMovement("m3", "REVERSAL", "10", "5", now, reversalOfMovementId = "m2"))
+        val original = createMovement("m1", "PURCHASE", "10", "5", now.minusSeconds(100))
+        db.inventoryMovementDao().insert(original)
+        
+        val firstReversal = createExactReversal("m2", original, now.minusSeconds(50))
+        db.inventoryMovementDao().insert(firstReversal)
+        
+        // m3 targets m2 (which is a REVERSAL). Must inherit m2 identities.
+        val invalidTargetReversal = createExactReversal("m3", firstReversal, now)
+        db.inventoryMovementDao().insert(invalidTargetReversal)
         
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { rebuilder.rebuildForIngredient(ingredientId) }
@@ -363,7 +368,7 @@ class RoomInventoryProjectionRebuilderFailureTest {
         val balance = db.inventoryProjectionDao().getBalance(ingredientId.value, areaId)
         assertThat(balance).isNull()
         val cost = db.ingredientCostProjectionDao().getCost(ingredientId.value)
-        assertThat(cost?.averageUnitCostBase).isNull()
+        assertThat(cost).isNull()
     }
 
     @Test

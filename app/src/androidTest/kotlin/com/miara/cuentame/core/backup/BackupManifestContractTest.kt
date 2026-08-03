@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.backup.platform.BackupManifestContractValidator
+import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.model.backup.TableMetadata
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -99,11 +100,11 @@ class BackupManifestContractTest {
         
         // This should fail because snapshot contains recipes and batches which are NOT in schema 2
         val result = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
-        assertThat(result).isNotNull()
+        assertThat(result).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 
     @Test
-    fun validateSnapshotConsistency_detectsMissingTable() {
+    fun validateManifestStructure_detectsMissingTable() {
         val snapshot = BackupTestFixtures.createPopulatedSchema4Snapshot()
         val manifest = createManifestForSnapshot(
             snapshot = snapshot,
@@ -118,12 +119,12 @@ class BackupManifestContractTest {
         sabotagedMetadata.remove("production_batches")
         val sabotagedManifest = manifest.copy(tableMetadata = sabotagedMetadata)
         
-        val result = BackupManifestContractValidator.validateSnapshotConsistency(sabotagedManifest, snapshot)
-        assertThat(result).isNotNull()
+        val result = BackupManifestContractValidator.validateManifestStructure(sabotagedManifest, emptyMap(), emptyMap())
+        assertThat(result).isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
-    fun validateSnapshotConsistency_detectsUnexpectedTableInManifest() {
+    fun validateManifestStructure_detectsUnexpectedTableInManifest() {
         val snapshot = BackupTestFixtures.createPopulatedSchema4Snapshot()
         val manifest = createManifestForSnapshot(
             snapshot = snapshot,
@@ -138,8 +139,8 @@ class BackupManifestContractTest {
         sabotagedMetadata["rogue_table"] = TableMetadata(entryCount = 1, isDerived = false)
         val sabotagedManifest = manifest.copy(tableMetadata = sabotagedMetadata)
         
-        val result = BackupManifestContractValidator.validateSnapshotConsistency(sabotagedManifest, snapshot)
-        assertThat(result).isNotNull()
+        val result = BackupManifestContractValidator.validateManifestStructure(sabotagedManifest, emptyMap(), emptyMap())
+        assertThat(result).isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
@@ -159,38 +160,62 @@ class BackupManifestContractTest {
         val sabotagedManifest = manifest.copy(tableMetadata = sabotagedMetadata)
         
         val result = BackupManifestContractValidator.validateSnapshotConsistency(sabotagedManifest, snapshot)
-        assertThat(result).isNotNull()
+        assertThat(result).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 
     @Test
-    fun validateSnapshotConsistency_detectsWrongDerivedFlag() {
+    fun validateManifestStructure_detectsWrongDerivedFlags() {
         val snapshot = BackupTestFixtures.createEmptySnapshotDto()
         val manifest = createManifestForSnapshot(snapshot, 4, "T", "en-US", "USD")
         
-        // Sabotage derived flag for non-derived table
-        val sabotagedMetadata = manifest.tableMetadata.toMutableMap()
-        sabotagedMetadata["ingredients"] = TableMetadata(entryCount = 0, isDerived = true)
-        val sabotagedManifest = manifest.copy(tableMetadata = sabotagedMetadata)
-        
-        val result = BackupManifestContractValidator.validateSnapshotConsistency(sabotagedManifest, snapshot)
-        assertThat(result).isNotNull()
+        // Test ingredients = true (should be false)
+        val meta1 = manifest.tableMetadata.toMutableMap()
+        meta1["ingredients"] = TableMetadata(entryCount = 0, isDerived = true)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest.copy(tableMetadata = meta1), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
+
+        // Test inventory_balance_projections = false (should be true)
+        val meta2 = manifest.tableMetadata.toMutableMap()
+        meta2["inventory_balance_projections"] = TableMetadata(entryCount = 0, isDerived = false)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest.copy(tableMetadata = meta2), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
+
+        // Test ingredient_cost_projections = false (should be true)
+        val meta3 = manifest.tableMetadata.toMutableMap()
+        meta3["ingredient_cost_projections"] = TableMetadata(entryCount = 0, isDerived = false)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(manifest.copy(tableMetadata = meta3), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
-    fun validateSnapshotConsistency_detectsBlankRestaurantId() {
+    fun validateManifestStructure_detectsBlankIdentity() {
         val snapshot = BackupTestFixtures.createEmptySnapshotDto()
-        val manifest = createManifestForSnapshot(snapshot, 4, "T", "en-US", "USD").copy(restaurantId = " ")
+        val base = createManifestForSnapshot(snapshot, 4, "T", "en-US", "USD")
         
-        val result = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
-        assertThat(result).isNotNull()
+        assertThat(BackupManifestContractValidator.validateManifestStructure(base.copy(restaurantId = ""), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(base.copy(restaurantName = " "), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(base.copy(localeTag = ""), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(base.copy(currencyCode = " "), emptyMap(), emptyMap()))
+            .isEqualTo(BackupRestoreFailure.MalformedManifest)
     }
 
     @Test
-    fun validateSnapshotConsistency_detectsUnsupportedSchema() {
-        val snapshot = BackupTestFixtures.createEmptySnapshotDto()
-        val manifest = createManifestForSnapshot(snapshot, 1, "T", "en-US", "USD")
+    fun validateManifestStructure_detectsUnsupportedSchema() {
+        val snapshot = BackupTestFixtures.createPopulatedSchema4Snapshot()
+        val validManifest = createManifestForSnapshot(
+            snapshot = snapshot,
+            schemaVersion = 4,
+            restaurantName = "Test",
+            localeTag = "en-US",
+            currencyCode = "USD",
+        )
         
-        val result = BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)
-        assertThat(result).isNotNull()
+        val unsupported = validManifest.copy(databaseSchemaVersion = 1)
+        
+        val result = BackupManifestContractValidator.validateManifestStructure(unsupported, emptyMap(), emptyMap())
+        assertThat(result).isEqualTo(BackupRestoreFailure.IncompatibleSchemaVersion)
     }
 }

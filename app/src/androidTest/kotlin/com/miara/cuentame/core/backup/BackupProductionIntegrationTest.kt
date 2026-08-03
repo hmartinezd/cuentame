@@ -679,63 +679,43 @@ class BackupProductionIntegrationTest {
 
     @Test
     fun inspection_detects_attachments_in_archive() = runBlocking {
-        // 1. Build archive with attachment in manifest
-        val snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(RestaurantBackupDto("r1", "Att", "USD", "en-US", 100, 100, null))
-        )
-        val tables = createTableMetadata(snapshot, 4)
-        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
-            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
-            restaurantId = "r1", restaurantName = "Att", localeTag = "en-US", currencyCode = "USD",
-            tableMetadata = tables, 
-            attachments = listOf(
-                com.miara.cuentame.core.model.backup.BackupAttachmentMetadata(
-                    "att1", "attachments/att1_file.jpg", "file.jpg", "image/jpeg", 100, "hash", emptyList()
-                )
-            ), 
-            includedSections = listOf("data", "preferences", "attachments"),
-            checksumAlgorithm = "SHA-256"
-        )
-
-        val bytes = buildArchive(manifest, snapshot, includeAttachmentFile = true)
-        val backupUri = "content://backup/with-att.zip"
-        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+        // 1. Build valid attachment fixture
+        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
+        val backupUri = "content://backup/valid-att.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 
         // 2. Inspect
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        
         val ready = inspection as BackupArchiveInspectionResult.Ready
         assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.AttachmentsNotSupported)
+        
+        // Assertions from Requirement 2
+        val manifest = ready.archive.manifest
+        assertThat(manifest.attachments).hasSize(1)
+        val inspectedAtt = manifest.attachments[0]
+        assertThat(inspectedAtt.attachmentId).isEqualTo(fixture.attachmentId)
+        assertThat(inspectedAtt.archivePath).isEqualTo(fixture.attachmentPath)
+        assertThat(inspectedAtt.sizeBytes).isEqualTo(fixture.attachmentBytes.size.toLong())
+        assertThat(inspectedAtt.checksumSha256).isEqualTo(fixture.manifest.attachments[0].checksumSha256)
+        
+        val snapshot = fixture.snapshot
+        val receipt = snapshot.purchaseReceipts.find { it.id == "p1" }!!
+        assertThat(receipt.attachmentId).isEqualTo(fixture.attachmentId)
     }
 
     @Test
     fun apply_fails_if_archive_has_attachments_no_mutation() = runBlocking {
-         // 1. Build archive with attachment in manifest
-        val snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(RestaurantBackupDto("r1", "Att", "USD", "en-US", 100, 100, null))
-        )
-        val tables = createTableMetadata(snapshot, 4)
-        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
-            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
-            restaurantId = "r1", restaurantName = "Att", localeTag = "en-US", currencyCode = "USD",
-            tableMetadata = tables, 
-            attachments = listOf(
-                com.miara.cuentame.core.model.backup.BackupAttachmentMetadata(
-                    "att1", "attachments/att1_file.jpg", "file.jpg", "image/jpeg", 10, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", emptyList()
-                )
-            ), 
-            includedSections = listOf("data", "preferences", "attachments"),
-            checksumAlgorithm = "SHA-256"
-        )
-
-        val bytes = buildArchive(manifest, snapshot, includeAttachmentFile = true)
+         // 1. Build valid attachment fixture
+        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
         val backupUri = "content://backup/apply-att-fail.zip"
-        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 
-        // Seed some data in live DB
-        db.restaurantDao().insert(RestaurantEntity("live", "Live", "USD", "en-US", 0, 0, null))
+        // Seed some data in live DB (Requirement 3.1 & 3.2)
+        seedAllTables()
+        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
+        val beforeApplySnapshot = snapshotSource.loadSnapshot("r1").dto
 
         // 2. Inspect
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
@@ -748,15 +728,20 @@ class BackupProductionIntegrationTest {
         val failure = result as BackupRestoreApplyResult.Failure
         assertThat(failure.reason).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreFailure.AttachmentsNotSupported)
 
-        // 4. Verify no mutation
-        assertThat(db.restaurantDao().getById("live")).isNotNull()
-        assertThat(db.restaurantDao().getById("r1")).isNull()
+        // 4. Verify no mutation (Requirement 3.6)
+        val afterApplySnapshot = snapshotSource.loadSnapshot("r1").dto
+        assertThat(afterApplySnapshot).isEqualTo(beforeApplySnapshot)
         
-        // 5. Verify no artifacts left
+        // 5. Verify no artifacts left (Requirement 3.7)
         val context = ApplicationProvider.getApplicationContext<Context>()
         val storage = InternalBackupRestoreStorage(context)
         assertThat(storage.getJournalFile().exists()).isFalse()
+        assertThat(storage.getRollbackSnapshotFile("any").exists()).isFalse()
+        
+        // Verify database was not cleared (seedAllTables data still there)
+        assertThat(db.restaurantDao().getById("r1")).isNotNull()
     }
+
 
     @Test
     fun application_with_wrong_fingerprint_does_not_mutate_database() = runBlocking {
@@ -789,8 +774,7 @@ class BackupProductionIntegrationTest {
 
     private fun buildArchive(
         manifest: com.miara.cuentame.core.model.backup.BackupManifest,
-        snapshot: BackupSnapshotDto,
-        includeAttachmentFile: Boolean = false
+        snapshot: BackupSnapshotDto
     ): ByteArray {
         val bos = java.io.ByteArrayOutputStream()
         val zos = java.util.zip.ZipOutputStream(bos)
@@ -817,20 +801,13 @@ class BackupProductionIntegrationTest {
         add("data/database.json", snapshotJson)
         add("preferences/settings.json", prefsJson)
 
-        if (includeAttachmentFile) {
-            for (att in manifest.attachments) {
-                val dummyContent = ByteArray(att.sizeBytes.toInt())
-                add(att.archivePath, dummyContent)
-                checksums[att.archivePath] = sha256(dummyContent)
-            }
-        }
-
         val checksumsJson = codecs.writer.encodeToString<Map<String, String>>(checksums).toByteArray()
         add("checksums.json", checksumsJson)
 
         zos.close()
         return bos.toByteArray()
     }
+
 
     private fun sha256(bytes: ByteArray): String {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
