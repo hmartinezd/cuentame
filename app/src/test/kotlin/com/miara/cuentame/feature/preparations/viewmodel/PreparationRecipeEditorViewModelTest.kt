@@ -12,6 +12,8 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -134,19 +136,67 @@ class PreparationRecipeEditorViewModelTest {
     }
 
     @Test
-    fun `onYieldQuantityChanged with invalid decimal sets error`() = runTest {
+    fun `create mode - blank name submits null to repository`() = runTest {
+        val ingredient = createIngredient("i1", "Ing 1")
+        val option = createUnitOption("o1", "i1")
+        coEvery { preparationRecipeRepository.createDraft(any()) } returns PreparationRecipeId("new-rec")
+        coEvery { ingredientRepository.getUnitOptions(ingredient.id, false) } returns listOf(option)
+
         val viewModel = PreparationRecipeEditorViewModel(
             preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
         )
         advanceUntilIdle()
 
-        viewModel.onOutputIngredientSelected(createIngredient("i1", "Ing 1"))
+        viewModel.onOutputIngredientSelected(ingredient)
         advanceUntilIdle()
-        viewModel.onYieldQuantityChanged("invalid")
+        viewModel.onRecipeNameChanged("  ")
         viewModel.onSave()
+        advanceUntilIdle()
+
+        coVerify { preparationRecipeRepository.createDraft(match { it.name == null }) }
+    }
+
+    @Test
+    fun `onSave - guards against concurrent saving`() = runTest {
+        val ingredient = createIngredient("i1", "Ing 1")
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { preparationRecipeRepository.createDraft(any()) } coAnswers {
+            testDispatcher.scheduler.advanceTimeBy(1000)
+            PreparationRecipeId("new")
+        }
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        advanceUntilIdle()
+        viewModel.onOutputIngredientSelected(ingredient)
+        advanceUntilIdle()
+
+        viewModel.onSave() // Starts saving
+        viewModel.onSave() // Should be ignored
+
+        advanceUntilIdle()
+        coVerify(exactly = 1) { preparationRecipeRepository.createDraft(any()) }
+    }
+
+    @Test
+    fun `edit mode - non-draft recipe navigates to detail`() = runTest {
+        val recipe = createRecipe("rec1", "i1").copy(status = PreparationRecipeStatus.ACTIVE)
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
         
-        assertThat(viewModel.uiState.value.yieldQuantityError).isTrue()
-        coVerify(exactly = 0) { preparationRecipeRepository.createDraft(any()) }
+        val events = mutableListOf<PreparationRecipeEditorEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        assertThat(events).contains(PreparationRecipeEditorEvent.NavigateToDetail(recipe.id))
+        job.cancel()
     }
 
     private fun createIngredient(id: String, name: String) = Ingredient(

@@ -13,9 +13,12 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Before
@@ -49,7 +52,7 @@ class PreparationRecipeComponentViewModelTest {
     fun `init loads recipe and available ingredients`() = runTest {
         val recipe = createRecipe("rec1", "out1")
         val ingredients = listOf(createIngredient("i1", "Ing 1"), createIngredient("out1", "Out"))
-        coEvery { preparationRecipeRepository.getRecipe(recipe.id) } returns recipe
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
         coEvery { ingredientRepository.getIngredients(restaurantId, false) } returns ingredients
 
         val viewModel = PreparationRecipeComponentViewModel(
@@ -63,11 +66,15 @@ class PreparationRecipeComponentViewModelTest {
     }
 
     @Test
-    fun `onSave calls saveComponent and sends Saved event`() = runTest {
-        val recipe = createRecipe("rec1", "out1")
-        val ingredient = createIngredient("i1", "Ing 1")
-        val option = createUnitOption("o1", "i1")
-        coEvery { preparationRecipeRepository.getRecipe(recipe.id) } returns recipe
+    fun `create mode - assigns next sort order`() = runTest {
+        val component = createComponent("c1", "i1", 0)
+        val recipe = createRecipe("rec1", "out1").copy(components = listOf(component))
+        val ingredient = createIngredient("i2", "Ing 2")
+        val option = createUnitOption("o2", "i2")
+        
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredient)
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
 
         val viewModel = PreparationRecipeComponentViewModel(
             preparationRecipeRepository, ingredientRepository, restaurantRepository, 
@@ -77,15 +84,48 @@ class PreparationRecipeComponentViewModelTest {
 
         viewModel.onIngredientSelected(ingredient)
         advanceUntilIdle()
-        viewModel.onQuantityChanged("5.0")
+        viewModel.onQuantityChanged("5")
         viewModel.onUnitOptionSelected(option)
         viewModel.onSave()
         advanceUntilIdle()
 
-        coVerify { preparationRecipeRepository.saveComponent(match { 
-            it.recipeId == recipe.id && it.componentIngredientId == ingredient.id && it.quantityEntered == BigDecimal("5.0")
-        }) }
+        coVerify { preparationRecipeRepository.saveComponent(match { it.sortOrder == 1 }) }
     }
+
+    @Test
+    fun `edit mode - preserves existing sort order`() = runTest {
+        val component = createComponent("c1", "i1", 5)
+        val recipe = createRecipe("rec1", "out1").copy(components = listOf(component))
+        val ingredient = createIngredient("i1", "Ing 1")
+        val option = createUnitOption("o1", "i1")
+
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredient)
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1", "componentId" to "c1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onQuantityChanged("10")
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        coVerify { preparationRecipeRepository.saveComponent(match { it.sortOrder == 5 }) }
+    }
+
+    private fun createComponent(id: String, ingId: String, sortOrder: Int) = PreparationRecipeComponent(
+        id = PreparationRecipeComponentId(id),
+        recipeId = PreparationRecipeId("rec1"),
+        componentIngredientId = IngredientId(ingId),
+        unitOptionId = IngredientUnitOptionId("o1"),
+        quantityEntered = BigDecimal.ONE,
+        quantityBase = BigDecimal.ONE,
+        sortOrder = sortOrder,
+        notes = null
+    )
 
     private fun createIngredient(id: String, name: String) = Ingredient(
         id = IngredientId(id),

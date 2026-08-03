@@ -65,21 +65,46 @@ class PreparationRecipeDetailViewModelTest {
     }
 
     @Test
-    fun `onActivate calls repository activate`() = runTest {
+    fun `moveToDraft calls repository and emits NavigateToEditor event`() = runTest {
         val recipeId = PreparationRecipeId("rec1")
-        every { preparationRecipeRepository.observeRecipe(recipeId) } returns flowOf(null)
+        every { preparationRecipeRepository.observeRecipe(recipeId) } returns flowOf(createRecipe("rec1", "out1").copy(status = PreparationRecipeStatus.ACTIVE))
 
         viewModel = PreparationRecipeDetailViewModel(
             preparationRecipeRepository, ingredientRepository, 
             SavedStateHandle(mapOf("recipeId" to "rec1"))
         )
-        backgroundScope.launch { viewModel.uiState.collect() }
+        
+        val events = mutableListOf<PreparationRecipeDetailEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
         advanceUntilIdle()
 
-        viewModel.onActivate()
+        viewModel.onMoveToDraft()
         advanceUntilIdle()
 
-        coVerify { preparationRecipeRepository.activate(recipeId) }
+        coVerify { preparationRecipeRepository.moveToDraft(recipeId) }
+        assertThat(events).contains(PreparationRecipeDetailEvent.NavigateToEditor(recipeId))
+        job.cancel()
+    }
+
+    @Test
+    fun `onActivate - guards against concurrent operations`() = runTest {
+        val recipeId = PreparationRecipeId("rec1")
+        every { preparationRecipeRepository.observeRecipe(recipeId) } returns flowOf(createRecipe("rec1", "out1"))
+        coEvery { preparationRecipeRepository.activate(any()) } coAnswers {
+            testDispatcher.scheduler.advanceTimeBy(1000)
+        }
+
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onActivate() // Starts operation
+        viewModel.onActivate() // Should be ignored
+
+        advanceUntilIdle()
+        coVerify(exactly = 1) { preparationRecipeRepository.activate(any()) }
     }
 
     private fun createRecipe(id: String, outputId: String) = PreparationRecipe(

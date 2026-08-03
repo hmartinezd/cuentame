@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.preparations
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -10,6 +11,7 @@ import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
+import com.miara.cuentame.core.database.entity.InventoryAreaEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
@@ -17,13 +19,16 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 import java.math.BigDecimal
 import javax.inject.Inject
 
 @HiltAndroidTest
+@RunWith(AndroidJUnit4::class)
 class PreparationRecipeUiTest {
 
     @get:Rule(order = 0)
@@ -47,15 +52,21 @@ class PreparationRecipeUiTest {
             database.clearAllTables()
             preferencesRepository.clearAll()
             
-            // Seed base data
+            // 1. Restaurant
             database.restaurantDao().insert(RestaurantEntity(restaurantId.value, "Test Rest", "USD", "en-US", 0, 0, null))
+            
+            // 2. Inventory Area
+            database.inventoryAreaDao().upsert(InventoryAreaEntity("a1", restaurantId.value, "Stock", "stock", 0, true, 0, 0, null))
+
+            // 3. Unit
             database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "Unit", "u", "COUNT", BigDecimal.ONE, true, 0)))
             
-            // Seed ingredients
+            // 4. Ingredients & unit options
             seedIngredient("i1", "Onion")
             seedIngredient("i2", "Water")
             seedIngredient("out1", "Onion Soup")
 
+            // 5. Preferences
             preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
         }
@@ -95,35 +106,41 @@ class PreparationRecipeUiTest {
             composeTestRule.waitForIdle()
 
             // 3. Select Output Ingredient
-            composeTestRule.onNodeWithText("Output ingredient").performClick()
+            composeTestRule.onNodeWithTag("recipe_output_ingredient_selector").performClick()
             composeTestRule.onNodeWithTag("ingredient_option_out1").performClick()
             
             // 4. Fill Header
-            composeTestRule.onNodeWithText("Recipe name").performTextInput("Classic Onion Soup")
-            composeTestRule.onNodeWithText("Standard yield").performTextInput("10")
-            composeTestRule.onNodeWithText("Yield unit").performClick()
+            // Recipe name can be blank - should default to ingredient name
+            composeTestRule.onNodeWithTag("recipe_yield_quantity_field").performTextInput("10")
+            composeTestRule.onNodeWithTag("recipe_yield_unit_selector").performClick()
             composeTestRule.onNodeWithTag("unit_option_o-out1").performClick()
             
             // 5. Save Draft
-            composeTestRule.onNodeWithText("Save Changes").performClick()
+            composeTestRule.onNodeWithTag("recipe_editor_save").performClick()
             composeTestRule.waitForIdle()
 
             // 6. Add Component
             composeTestRule.onNodeWithTag("add_recipe_component").performClick()
-            composeTestRule.onNodeWithText("Ingredients").performClick()
+            composeTestRule.onNodeWithTag("recipe_component_ingredient_selector").performClick()
             composeTestRule.onNodeWithTag("ingredient_option_i1").performClick()
-            composeTestRule.onNodeWithText("Quantity").performTextInput("5")
-            composeTestRule.onNodeWithText("Unit").performClick()
+            composeTestRule.onNodeWithTag("recipe_component_quantity_field").performTextInput("5")
+            composeTestRule.onNodeWithTag("recipe_component_unit_selector").performClick()
             composeTestRule.onNodeWithTag("unit_option_o-i1").performClick()
-            composeTestRule.onNodeWithText("Save Changes").performClick()
+            composeTestRule.onNodeWithTag("recipe_component_save").performClick()
             composeTestRule.waitForIdle()
 
             // 7. Verify Component in List
-            composeTestRule.onNodeWithTag("recipe_component_item_o-i1", useUnmergedTree = true).assertExists() // Actually uses ID which is random in production but I'm using IdGenerator. Use a different tag if needed.
-            // Wait, ID is from IdGenerator. In tests it might be predictable if I mock it, but I'm using real DB.
-            // I'll use content match.
+            // Find component ID from DB
+            val recipe = runBlocking { database.preparationRecipeDao().getActiveOrDraftByOutputIngredient(restaurantId.value, "out1") }
+            val components = runBlocking { database.preparationRecipeDao().getComponentsForRecipe(recipe!!.id) }
+            val componentId = components.first { it.componentIngredientId == "i1" }.id
+
+            composeTestRule.onNodeWithTag("recipe_component_item_$componentId").assertExists()
             composeTestRule.onNodeWithText("Onion").assertExists()
             composeTestRule.onNodeWithText("5 Unit").assertExists()
+
+            // Verify Recipe Name default
+            assertEquals("Onion Soup", recipe!!.name)
         }
     }
 

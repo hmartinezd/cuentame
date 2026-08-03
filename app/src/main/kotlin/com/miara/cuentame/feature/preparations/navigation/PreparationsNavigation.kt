@@ -85,7 +85,12 @@ fun NavGraphBuilder.preparationsGraph(
     ) {
         PreparationRecipeComponentRoute(
             onBack = { navController.popBackStack() },
-            onSaveSuccess = { navController.popBackStack() }
+            onSaveSuccess = { navController.popBackStack() },
+            onNavigateToDetail = { id ->
+                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
+                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { inclusive = false }
+                }
+            }
         )
     }
 
@@ -98,7 +103,12 @@ fun NavGraphBuilder.preparationsGraph(
     ) {
         PreparationRecipeComponentRoute(
             onBack = { navController.popBackStack() },
-            onSaveSuccess = { navController.popBackStack() }
+            onSaveSuccess = { navController.popBackStack() },
+            onNavigateToDetail = { id ->
+                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
+                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { inclusive = false }
+                }
+            }
         )
     }
 
@@ -109,8 +119,13 @@ fun NavGraphBuilder.preparationsGraph(
         )
     ) {
         PreparationRecipeDetailRoute(
-            onBack = onBackClick,
-            onEdit = { id -> navController.navigate(AppRoutes.preparationRecipeDraft(id)) }
+            onBack = { navController.popBackStack() },
+            onEdit = { id -> navController.navigate(AppRoutes.preparationRecipeDraft(id)) },
+            onNavigateToEditor = { id ->
+                navController.navigate(AppRoutes.preparationRecipeDraft(id)) {
+                    popUpTo(AppRoutes.preparationRecipeDetail(id)) { inclusive = true }
+                }
+            }
         )
     }
 }

@@ -75,6 +75,7 @@ fun RecipeStatusBadge(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IngredientSelector(
     label: String,
@@ -84,14 +85,17 @@ fun IngredientSelector(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isError: Boolean = false,
-    placeholder: String = stringResource(R.string.action_search)
+    placeholder: String = stringResource(R.string.action_search),
+    testTag: String = ""
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
     OutlinedCard(
         onClick = { if (enabled) showDialog = true },
         enabled = enabled,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(testTag),
         colors = CardDefaults.outlinedCardColors(
             containerColor = if (isError) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surface
         ),
@@ -100,7 +104,13 @@ fun IngredientSelector(
         }
     ) {
         ListItem(
-            headlineContent = { Text(label, style = MaterialTheme.typography.labelMedium, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) },
+            headlineContent = { 
+                Text(
+                    text = label, 
+                    style = MaterialTheme.typography.labelMedium, 
+                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                ) 
+            },
             supportingContent = {
                 Text(
                     text = selectedIngredient?.name ?: placeholder,
@@ -108,7 +118,12 @@ fun IngredientSelector(
                     color = if (selectedIngredient == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                 )
             },
-            trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+            trailingContent = { 
+                Icon(
+                    imageVector = Icons.Default.ChevronRight, 
+                    contentDescription = null 
+                ) 
+            },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
@@ -181,6 +196,7 @@ fun IngredientSelectionDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnitOptionSelector(
     label: String,
@@ -189,36 +205,39 @@ fun UnitOptionSelector(
     onOptionSelected: (IngredientUnitOption) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    isError: Boolean = false
+    isError: Boolean = false,
+    testTag: String = ""
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedOption = options.find { it.id == selectedOptionId }
 
-    Box(modifier = modifier.fillMaxWidth()) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = modifier.fillMaxWidth().testTag(testTag)
+    ) {
         OutlinedTextField(
             value = selectedOption?.displayName ?: "",
             onValueChange = {},
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
             label = { Text(label) },
             readOnly = true,
             enabled = enabled,
             isError = isError,
             trailingIcon = {
-                IconButton(onClick = { if (enabled) expanded = true }, enabled = enabled) {
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
-            colors = TextFieldDefaults.colors(
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
                 disabledContainerColor = Color.Transparent,
             )
         )
         
-        DropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth(0.9f)
+            modifier = Modifier.fillMaxWidth()
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -242,13 +261,14 @@ fun BigDecimalField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isError: Boolean = false,
-    helperText: String? = null
+    errorText: String? = null,
+    testTag: String = ""
 ) {
     Column(modifier = modifier) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag(testTag),
             label = { Text(label) },
             enabled = enabled,
             isError = isError,
@@ -260,11 +280,11 @@ fun BigDecimalField(
                 disabledContainerColor = Color.Transparent,
             )
         )
-        if (helperText != null || isError) {
+        if (isError && errorText != null) {
             Text(
-                text = helperText ?: "",
+                text = errorText,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp)
             )
         }

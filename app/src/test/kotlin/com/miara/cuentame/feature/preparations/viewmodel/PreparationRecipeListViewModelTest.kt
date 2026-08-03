@@ -117,18 +117,32 @@ class PreparationRecipeListViewModelTest {
     }
 
     @Test
-    fun `include archived toggle triggers new repository observation`() = runTest {
+    fun `status filter to ARCHIVED automatically enables includeArchived`() = runTest {
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository)
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        viewModel.onStatusFilterChanged(PreparationRecipeStatus.ARCHIVED)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.includeArchived).isTrue()
+        io.mockk.verify { preparationRecipeRepository.observeRecipes(restaurantId, true) }
+    }
+
+    @Test
+    fun `onRetry increments retry trigger and refreshes observation`() = runTest {
         every { preparationRecipeRepository.observeRecipes(restaurantId, false) } returns flowOf(emptyList())
-        every { preparationRecipeRepository.observeRecipes(restaurantId, true) } returns flowOf(emptyList())
 
         viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository)
         backgroundScope.launch { viewModel.uiState.collect() }
         advanceUntilIdle()
 
-        viewModel.onIncludeArchivedToggled(true)
+        viewModel.onRetry()
         advanceUntilIdle()
 
-        io.mockk.verify { preparationRecipeRepository.observeRecipes(restaurantId, true) }
+        // Incremented trigger should cause flatMapLatest to re-subscribe
+        io.mockk.verify(exactly = 2) { preparationRecipeRepository.observeRecipes(restaurantId, false) }
     }
 
     private fun createSummary(id: String, name: String, ingName: String, status: PreparationRecipeStatus) = PreparationRecipeSummary(

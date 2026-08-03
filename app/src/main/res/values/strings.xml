@@ -268,6 +268,7 @@
     <string name="search_ingredients">Search ingredients…</string>
     <string name="filter_by_category">Filter by category</string>
     <string name="show_archived">Show archived</string>
+    <string name="show_archived_to_see_results">Enable \"Show archived\" to see recipes with this status.</string>
     <string name="archived_label">Archived</string>
     <string name="active">Active</string>
     <string name="set_default_count">Set as default count</string>
@@ -556,6 +557,7 @@
     <!-- Preparation Recipes -->
     <string name="preparation_recipes">Preparation recipes</string>
     <string name="new_preparation_recipe">New preparation recipe</string>
+    <string name="edit_preparation_recipe">Edit preparation recipe</string>
     <string name="recipe_details">Recipe details</string>
     <string name="output_ingredient">Output ingredient</string>
     <string name="recipe_name">Recipe name</string>
@@ -598,6 +600,17 @@
     <string name="error_recipe_already_active">Recipe is already active</string>
     <string name="error_recipe_not_draft">Recipe is not in draft status</string>
     <string name="error_recipe_exists_for_output">Another non-archived recipe already exists for this output ingredient.</string>
+    <string name="error_recipe_name_required">Recipe name is required</string>
+    <string name="error_select_output_ingredient">Select an output ingredient</string>
+    <string name="error_yield_pairing_required">Yield quantity and unit must be entered together</string>
+    <string name="error_select_component_ingredient">Select a component ingredient</string>
+    <string name="error_select_unit">Select a unit</string>
+    <string name="error_recipe_not_editable">Recipe is no longer editable</string>
+    <string name="error_load_recipe_failed">Unable to load preparation recipe</string>
+    <string name="error_save_recipe_failed">Unable to save preparation recipe</string>
+    <string name="error_save_component_failed">Unable to save component</string>
+    <string name="error_reorder_components_failed">Unable to reorder components</string>
+    <string name="error_remove_component_failed">Unable to remove component</string>
     <string name="audit_created">Created: %1$s</string>
     <string name="audit_updated">Updated: %1$s</string>
     <string name="audit_archived">Archived: %1$s</string>

@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.preparations.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
@@ -11,6 +12,8 @@ import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
+import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -23,6 +26,7 @@ sealed interface PreparationRecipeEditorEvent {
     data class Created(val recipeId: PreparationRecipeId) : PreparationRecipeEditorEvent
     data object Saved : PreparationRecipeEditorEvent
     data object DeletedOrArchived : PreparationRecipeEditorEvent
+    data class NavigateToDetail(val recipeId: PreparationRecipeId) : PreparationRecipeEditorEvent
 }
 
 data class PreparationRecipeEditorUiState(
@@ -42,8 +46,9 @@ data class PreparationRecipeEditorUiState(
     val notes: String = "",
     // Validation
     val yieldQuantityError: Boolean = false,
+    val yieldQuantityErrorText: UiMessage? = null,
     val error: Throwable? = null,
-    val inlineError: String? = null
+    val inlineError: UiMessage? = null
 )
 
 @HiltViewModel
@@ -60,7 +65,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PreparationRecipeEditorUiState())
     val uiState: StateFlow<PreparationRecipeEditorUiState> = _uiState.asStateFlow()
 
-    private val _events = Channel<PreparationRecipeEditorEvent>()
+    private val _events = Channel<PreparationRecipeEditorEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     private var isInitialized = false
@@ -72,7 +77,11 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun loadData() {
         viewModelScope.launch {
-            val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+            val restaurant = restaurantRepository.getRestaurant()
+            if (restaurant == null) {
+                _uiState.update { it.copy(isLoading = false, error = IllegalStateException("Restaurant not found")) }
+                return@launch
+            }
             
             val ingredientsFlow = ingredientRepository.observeIngredients(restaurant.id, includeArchived = false)
             val recipesFlow = preparationRecipeRepository.observeRecipes(restaurant.id, includeArchived = false)
@@ -86,6 +95,16 @@ class PreparationRecipeEditorViewModel @Inject constructor(
             combine(ingredientsFlow, recipesFlow, recipeFlow) { ingredients, recipes, recipe ->
                 Triple(ingredients, recipes, recipe)
             }.collectLatest { (ingredients, recipes, recipe) ->
+                if (recipeId != null && !isInitialized && recipe == null) {
+                    _uiState.update { it.copy(isLoading = false, error = NoSuchElementException("Recipe not found")) }
+                    return@collectLatest
+                }
+
+                if (recipe != null && recipe.status != PreparationRecipeStatus.DRAFT) {
+                    _events.send(PreparationRecipeEditorEvent.NavigateToDetail(recipe.id))
+                    return@collectLatest
+                }
+
                 val alreadyUsedIds = recipes
                     .filter { if (recipeId != null) it.id != recipeId else true }
                     .map { it.outputIngredientId }
@@ -99,14 +118,13 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                 if (recipe != null) {
                     for (comp in recipe.components) {
                         componentNames[comp.id] = ingredients.find { it.id == comp.componentIngredientId }?.name ?: comp.componentIngredientId.value
-                        // This is inefficient but necessary because IngredientUnitOption labels are not in PreparationRecipeComponent
                         val options = ingredientRepository.getUnitOptions(comp.componentIngredientId, includeArchived = true)
                         componentUnitLabels[comp.id] = options.find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value
                     }
                 }
 
                 if (!isInitialized) {
-                    if (recipe != null) {
+                    if (recipeId != null && recipe != null) {
                         val unitOptions = ingredientRepository.getUnitOptions(recipe.outputIngredientId, includeArchived = false)
                         _uiState.update {
                             it.copy(
@@ -123,15 +141,16 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                                 notes = recipe.notes ?: ""
                             )
                         }
-                    } else {
+                        isInitialized = true
+                    } else if (recipeId == null) {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
                                 availableIngredients = availableIngredients
                             )
                         }
+                        isInitialized = true
                     }
-                    isInitialized = true
                 } else {
                     // Refresh data but preserve form state
                     _uiState.update {
@@ -165,11 +184,11 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     }
 
     fun onYieldQuantityChanged(quantity: String) {
-        _uiState.update { it.copy(yieldQuantity = quantity, yieldQuantityError = false) }
+        _uiState.update { it.copy(yieldQuantity = quantity, yieldQuantityError = false, yieldQuantityErrorText = null, inlineError = null) }
     }
 
     fun onYieldUnitOptionSelected(option: IngredientUnitOption) {
-        _uiState.update { it.copy(selectedYieldUnitOptionId = option.id) }
+        _uiState.update { it.copy(selectedYieldUnitOptionId = option.id, inlineError = null) }
     }
 
     fun onNotesChanged(notes: String) {
@@ -178,31 +197,40 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onSave() {
         val state = _uiState.value
-        if (state.selectedOutputIngredient == null) return
+        if (state.isSaving) return
+        if (state.selectedOutputIngredient == null) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_select_output_ingredient)) }
+            return
+        }
 
         val quantity = if (state.yieldQuantity.isBlank()) null else {
             try {
                 BigDecimal(state.yieldQuantity)
             } catch (e: Exception) {
-                _uiState.update { it.copy(yieldQuantityError = true) }
+                _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_invalid_decimal), inlineError = null) }
                 return
             }
         }
 
         if (quantity != null && quantity <= BigDecimal.ZERO) {
-            _uiState.update { it.copy(yieldQuantityError = true) }
+            _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_quantity_positive), inlineError = null) }
             return
         }
 
         // Standard yield must have both quantity and unit if either is present
         if ((quantity != null && state.selectedYieldUnitOptionId == null) || (quantity == null && state.selectedYieldUnitOptionId != null)) {
-            // Handled by UI validation or repository? Requirement 8 says "quantity and unit must be supplied together"
-            _uiState.update { it.copy(inlineError = "Standard yield must have both quantity and unit") } // TODO: Localize
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_yield_pairing_required)) }
             return
         }
 
+        val trimmedName = state.recipeName.trim().ifBlank { null }
+        if (recipeId != null && trimmedName == null) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_name_required)) }
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, inlineError = null) }
             try {
                 if (recipeId == null) {
                     val restaurant = restaurantRepository.getRestaurant()!!
@@ -210,10 +238,10 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                         CreatePreparationRecipeCommand(
                             restaurantId = restaurant.id,
                             outputIngredientId = state.selectedOutputIngredient.id,
-                            name = state.recipeName,
+                            name = trimmedName,
                             standardYieldQuantity = quantity,
                             yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                            notes = state.notes
+                            notes = state.notes.trim().ifBlank { null }
                         )
                     )
                     _events.send(PreparationRecipeEditorEvent.Created(newId))
@@ -221,16 +249,16 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                     preparationRecipeRepository.updateDraft(
                         UpdatePreparationRecipeCommand(
                             recipeId = recipeId,
-                            name = state.recipeName,
+                            name = trimmedName!!,
                             standardYieldQuantity = quantity,
                             yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                            notes = state.notes
+                            notes = state.notes.trim().ifBlank { null }
                         )
                     )
                     _events.send(PreparationRecipeEditorEvent.Saved)
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = e.message ?: "Save failed") }
+                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
@@ -239,11 +267,15 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onRemoveComponent(componentId: PreparationRecipeComponentId) {
         val rId = recipeId ?: return
+        if (_uiState.value.isSaving) return
         viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true, inlineError = null) }
             try {
                 preparationRecipeRepository.removeComponent(rId, componentId)
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = e.message) }
+                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
             }
         }
     }
@@ -258,6 +290,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     private fun moveComponent(componentId: PreparationRecipeComponentId, delta: Int) {
         val rId = recipeId ?: return
+        if (_uiState.value.isReordering) return
         val currentRecipe = _uiState.value.recipe ?: return
         val components = currentRecipe.components.sortedBy { it.sortOrder }
         val index = components.indexOfFirst { it.id == componentId }
@@ -271,14 +304,18 @@ class PreparationRecipeEditorViewModel @Inject constructor(
         mutableComponents.add(newIndex, item)
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isReordering = true) }
+            _uiState.update { it.copy(isReordering = true, inlineError = null) }
             try {
                 preparationRecipeRepository.reorderComponents(rId, mutableComponents.map { it.id })
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = e.message) }
+                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
             } finally {
                 _uiState.update { it.copy(isReordering = false) }
             }
         }
+    }
+
+    fun onRetry() {
+        loadData()
     }
 }

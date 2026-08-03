@@ -23,6 +23,7 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.presentation.ui.UiMessage
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditorEvent
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditorUiState
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditorViewModel
@@ -46,6 +47,7 @@ fun PreparationRecipeEditorRoute(
                 is PreparationRecipeEditorEvent.Created -> onRecipeCreated(event.recipeId)
                 is PreparationRecipeEditorEvent.Saved -> onSaveSuccess()
                 is PreparationRecipeEditorEvent.DeletedOrArchived -> onBack()
+                is PreparationRecipeEditorEvent.NavigateToDetail -> onNavigateToDetail(event.recipeId)
             }
         }
     }
@@ -90,15 +92,22 @@ fun PreparationRecipeEditorScreen(
     onEditComponent: (PreparationRecipeComponentId) -> Unit,
     onRemoveComponent: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentUp: (PreparationRecipeComponentId) -> Unit,
-    onMoveComponentDown: (PreparationRecipeComponentId) -> Unit
+    onMoveComponentDown: (PreparationRecipeComponentId) -> Unit,
+    onRetry: () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
     val isEditing = uiState.recipe != null
 
     Scaffold(
+        modifier = Modifier.testTag("preparation_recipe_editor_screen"),
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditing) stringResource(R.string.edit_ingredient) else stringResource(R.string.new_preparation_recipe)) },
+                title = { 
+                    Text(
+                        if (isEditing) stringResource(R.string.edit_preparation_recipe) 
+                        else stringResource(R.string.new_preparation_recipe)
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -110,7 +119,8 @@ fun PreparationRecipeEditorScreen(
                             focusManager.clearFocus()
                             onSaveClick()
                         },
-                        enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null
+                        enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
+                        modifier = Modifier.testTag("recipe_editor_save")
                     ) {
                         if (uiState.isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -122,124 +132,161 @@ fun PreparationRecipeEditorScreen(
             )
         }
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        when {
+            uiState.isLoading -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    IngredientSelector(
-                        label = stringResource(R.string.output_ingredient),
-                        selectedIngredient = uiState.selectedOutputIngredient,
-                        ingredients = uiState.availableIngredients,
-                        onIngredientSelected = onOutputIngredientSelected,
-                        enabled = !isEditing && !uiState.isSaving,
-                        isError = false
-                    )
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = uiState.recipeName,
-                        onValueChange = onRecipeNameChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.recipe_name)) },
-                        enabled = !uiState.isSaving,
-                        singleLine = true
-                    )
-                }
-
-                item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        BigDecimalField(
-                            value = uiState.yieldQuantity,
-                            onValueChange = onYieldQuantityChanged,
-                            label = stringResource(R.string.standard_yield),
-                            modifier = Modifier.weight(1f),
-                            enabled = !uiState.isSaving,
-                            isError = uiState.yieldQuantityError
+            uiState.error != null -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (uiState.error is NoSuchElementException) stringResource(R.string.error_recipe_not_found)
+                                   else stringResource(R.string.error_load_recipe_failed),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_editor_load_error")
                         )
-                        UnitOptionSelector(
-                            label = stringResource(R.string.yield_unit),
-                            selectedOptionId = uiState.selectedYieldUnitOptionId,
-                            options = uiState.availableUnitOptions,
-                            onOptionSelected = onYieldUnitOptionSelected,
-                            modifier = Modifier.weight(1f),
-                            enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null
-                        )
-                    }
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = uiState.notes,
-                        onValueChange = onNotesChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.notes)) },
-                        enabled = !uiState.isSaving,
-                        minLines = 3
-                    )
-                }
-
-                if (uiState.inlineError != null) {
-                    item {
-                        InlineValidationMessage(message = uiState.inlineError)
-                    }
-                }
-
-                if (isEditing) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
-                            TextButton(
-                                onClick = onAddComponent,
-                                modifier = Modifier.testTag("add_recipe_component")
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(stringResource(R.string.add_component))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (uiState.error !is NoSuchElementException) {
+                            Button(onClick = onRetry, modifier = Modifier.testTag("recipe_editor_retry")) {
+                                Text(stringResource(R.string.action_retry_desc))
                             }
                         }
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        IngredientSelector(
+                            label = stringResource(R.string.output_ingredient),
+                            selectedIngredient = uiState.selectedOutputIngredient,
+                            ingredients = uiState.availableIngredients,
+                            onIngredientSelected = onOutputIngredientSelected,
+                            enabled = !isEditing && !uiState.isSaving,
+                            isError = false,
+                            testTag = "recipe_output_ingredient_selector"
+                        )
                     }
 
-                    val components = uiState.recipe?.components?.sortedBy { it.sortOrder } ?: emptyList()
-                    if (components.isEmpty()) {
-                        item {
-                            Text(
-                                text = stringResource(R.string.missing_components),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(vertical = 16.dp)
+                    item {
+                        OutlinedTextField(
+                            value = uiState.recipeName,
+                            onValueChange = onRecipeNameChanged,
+                            modifier = Modifier.fillMaxWidth().testTag("recipe_name_field"),
+                            label = { Text(stringResource(R.string.recipe_name)) },
+                            enabled = !uiState.isSaving,
+                            singleLine = true,
+                            placeholder = { Text(uiState.selectedOutputIngredient?.name ?: "") }
+                        )
+                    }
+
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            BigDecimalField(
+                                value = uiState.yieldQuantity,
+                                onValueChange = onYieldQuantityChanged,
+                                label = stringResource(R.string.standard_yield),
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.isSaving,
+                                isError = uiState.yieldQuantityError,
+                                errorText = uiState.yieldQuantityErrorText?.let { message ->
+                                    when (message) {
+                                        is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
+                                        is UiMessage.PlainTextInternalOnly -> message.value
+                                    }
+                                },
+                                testTag = "recipe_yield_quantity_field"
+                            )
+                            UnitOptionSelector(
+                                label = stringResource(R.string.yield_unit),
+                                selectedOptionId = uiState.selectedYieldUnitOptionId,
+                                options = uiState.availableUnitOptions,
+                                onOptionSelected = onYieldUnitOptionSelected,
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
+                                testTag = "recipe_yield_unit_selector"
                             )
                         }
-                    } else {
-                        items(components, key = { it.id.value }) { component ->
-                            // TODO: Fetch these from UI state or repository
-                            val ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value
-                            val unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value
-                            
-                            RecipeComponentRow(
-                                component = component,
-                                ingredientName = ingredientName,
-                                unitLabel = unitLabel,
-                                onEdit = { onEditComponent(component.id) },
-                                onRemove = { onRemoveComponent(component.id) },
-                                onMoveUp = { onMoveComponentUp(component.id) },
-                                onMoveDown = { onMoveComponentDown(component.id) },
-                                isFirst = component == components.first(),
-                                isLast = component == components.last(),
-                                enabled = !uiState.isSaving && !uiState.isReordering
-                            )
-                            HorizontalDivider()
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = uiState.notes,
+                            onValueChange = onNotesChanged,
+                            modifier = Modifier.fillMaxWidth().testTag("recipe_notes_field"),
+                            label = { Text(stringResource(R.string.notes)) },
+                            enabled = !uiState.isSaving,
+                            minLines = 3
+                        )
+                    }
+
+                    uiState.inlineError?.let { message ->
+                        item {
+                            val text = when (message) {
+                                is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
+                                is UiMessage.PlainTextInternalOnly -> message.value
+                            }
+                            InlineValidationMessage(message = text)
+                        }
+                    }
+
+                    if (isEditing) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
+                                TextButton(
+                                    onClick = onAddComponent,
+                                    modifier = Modifier.testTag("add_recipe_component")
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(stringResource(R.string.add_component))
+                                }
+                            }
+                        }
+
+                        val components = uiState.recipe?.components?.sortedBy { it.sortOrder } ?: emptyList()
+                        if (components.isEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.missing_components),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(vertical = 16.dp)
+                                )
+                            }
+                        } else {
+                            items(components, key = { it.id.value }) { component ->
+                                val ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value
+                                val unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value
+                                
+                                RecipeComponentRow(
+                                    component = component,
+                                    ingredientName = ingredientName,
+                                    unitLabel = unitLabel,
+                                    onEdit = { onEditComponent(component.id) },
+                                    onRemove = { onRemoveComponent(component.id) },
+                                    onMoveUp = { onMoveComponentUp(component.id) },
+                                    onMoveDown = { onMoveComponentDown(component.id) },
+                                    isFirst = component == components.first(),
+                                    isLast = component == components.last(),
+                                    enabled = !uiState.isSaving && !uiState.isReordering
+                                )
+                                HorizontalDivider()
+                            }
                         }
                     }
                 }
@@ -281,6 +328,9 @@ fun RecipeComponentRow(
                 }
                 IconButton(onClick = { showDeleteConfirm = true }, enabled = enabled, modifier = Modifier.testTag("delete_recipe_component_${component.id.value}")) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_remove_item, ingredientName))
+                }
+                IconButton(onClick = onEdit, enabled = enabled, modifier = Modifier.testTag("edit_recipe_component_${component.id.value}")) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.action_edit))
                 }
             }
         }

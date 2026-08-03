@@ -20,6 +20,8 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailEvent
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailUiState
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailViewModel
 import java.time.ZoneId
@@ -30,9 +32,20 @@ import java.time.format.FormatStyle
 fun PreparationRecipeDetailRoute(
     onBack: () -> Unit,
     onEdit: (PreparationRecipeId) -> Unit,
+    onNavigateToEditor: (PreparationRecipeId) -> Unit,
     viewModel: PreparationRecipeDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val events = viewModel.events
+
+    LaunchedEffect(events) {
+        events.collect { event ->
+            when (event) {
+                is PreparationRecipeDetailEvent.NavigateToEditor -> onNavigateToEditor(event.recipeId)
+                PreparationRecipeDetailEvent.LifecycleUpdated -> { /* Maybe show a snackbar */ }
+            }
+        }
+    }
 
     PreparationRecipeDetailScreen(
         uiState = uiState,
@@ -67,6 +80,7 @@ fun PreparationRecipeDetailScreen(
     var showRestoreConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = Modifier.testTag("preparation_recipe_detail_screen"),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.recipe_details)) },
@@ -77,7 +91,7 @@ fun PreparationRecipeDetailScreen(
                 },
                 actions = {
                     if (status == PreparationRecipeStatus.DRAFT) {
-                        IconButton(onClick = onEditClick) {
+                        IconButton(onClick = onEditClick, modifier = Modifier.testTag("recipe_detail_edit")) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
                         }
                     }
@@ -93,23 +107,38 @@ fun PreparationRecipeDetailScreen(
             }
             uiState.error != null || recipe == null -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.error_recipe_not_found))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (uiState.error is NoSuchElementException) stringResource(R.string.error_recipe_not_found)
+                                   else stringResource(R.string.error_load_recipe_failed),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_detail_load_error")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
                 }
             }
             else -> {
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    if (uiState.inlineError != null) {
+                    uiState.inlineError?.let { message ->
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().testTag("recipe_detail_inline_error")
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val text = when (message) {
+                                    is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
+                                    is UiMessage.PlainTextInternalOnly -> message.value
+                                }
                                 Text(
-                                    text = stringResource(uiState.inlineError),
+                                    text = text,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
@@ -315,12 +344,12 @@ private fun ActionButtons(
                         text = stringResource(R.string.activate_recipe),
                         onClick = onActivateClick,
                         isLoading = isOperating,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).testTag("recipe_detail_activate")
                     )
                     OutlinedButton(
                         onClick = onArchiveClick,
                         enabled = !isOperating,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).testTag("recipe_detail_archive")
                     ) {
                         Text(stringResource(R.string.archive_recipe))
                     }
@@ -329,14 +358,14 @@ private fun ActionButtons(
                     Button(
                         onClick = onDraftClick,
                         enabled = !isOperating,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).testTag("recipe_detail_move_to_draft")
                     ) {
                         Text(stringResource(R.string.move_recipe_to_draft))
                     }
                     OutlinedButton(
                         onClick = onArchiveClick,
                         enabled = !isOperating,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).testTag("recipe_detail_archive")
                     ) {
                         Text(stringResource(R.string.archive_recipe))
                     }
@@ -346,7 +375,7 @@ private fun ActionButtons(
                         text = stringResource(R.string.restore_recipe),
                         onClick = onRestoreClick,
                         isLoading = isOperating,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("recipe_detail_restore")
                     )
                 }
                 else -> {}

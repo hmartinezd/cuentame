@@ -6,15 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
-import com.miara.cuentame.core.database.repository.RecipeValidationException
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.PreparationRecipeRepository
-import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationFailure
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
+import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
+import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+sealed interface PreparationRecipeDetailEvent {
+    data class NavigateToEditor(val recipeId: PreparationRecipeId) : PreparationRecipeDetailEvent
+    data object LifecycleUpdated : PreparationRecipeDetailEvent
+}
 
 data class PreparationRecipeDetailUiState(
     val isLoading: Boolean = true,
@@ -25,7 +31,7 @@ data class PreparationRecipeDetailUiState(
     val componentNames: Map<PreparationRecipeComponentId, String> = emptyMap(),
     val componentUnitLabels: Map<PreparationRecipeComponentId, String> = emptyMap(),
     val error: Throwable? = null,
-    val inlineError: Int? = null
+    val inlineError: UiMessage? = null
 )
 
 @HiltViewModel
@@ -38,7 +44,10 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     private val recipeId = PreparationRecipeId(savedStateHandle.get<String>("recipeId")!!)
 
     private val _isOperating = MutableStateFlow(false)
-    private val _inlineError = MutableStateFlow<Int?>(null)
+    private val _inlineError = MutableStateFlow<UiMessage?>(null)
+
+    private val _events = Channel<PreparationRecipeDetailEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     val uiState: StateFlow<PreparationRecipeDetailUiState> = combine(
         preparationRecipeRepository.observeRecipe(recipeId),
@@ -83,7 +92,7 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     }
 
     fun onMoveToDraft() {
-        performOperation { preparationRecipeRepository.moveToDraft(recipeId) }
+        performOperation(navigateToEditor = true) { preparationRecipeRepository.moveToDraft(recipeId) }
     }
 
     fun onArchive() {
@@ -91,40 +100,29 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     }
 
     fun onRestoreToDraft() {
-        performOperation { preparationRecipeRepository.restoreToDraft(recipeId) }
+        performOperation(navigateToEditor = true) { preparationRecipeRepository.restoreToDraft(recipeId) }
     }
 
-    private fun performOperation(operation: suspend () -> Unit) {
+    private fun performOperation(
+        navigateToEditor: Boolean = false,
+        operation: suspend () -> Unit
+    ) {
+        if (_isOperating.value) return
+        _isOperating.value = true
+        _inlineError.value = null
         viewModelScope.launch {
-            _isOperating.value = true
-            _inlineError.value = null
             try {
                 operation()
-            } catch (e: RecipeValidationException) {
-                _inlineError.value = mapValidationFailure(e.failures.first())
+                if (navigateToEditor) {
+                    _events.send(PreparationRecipeDetailEvent.NavigateToEditor(recipeId))
+                } else {
+                    _events.send(PreparationRecipeDetailEvent.LifecycleUpdated)
+                }
             } catch (e: Exception) {
-                _inlineError.value = R.string.error_generic
+                _inlineError.value = e.toPreparationRecipeUserMessage()
             } finally {
                 _isOperating.value = false
             }
-        }
-    }
-
-    private fun mapValidationFailure(failure: PreparationRecipeValidationFailure): Int {
-        return when (failure) {
-            PreparationRecipeValidationFailure.AtLeastOneComponentRequired -> R.string.missing_components
-            PreparationRecipeValidationFailure.YieldRequired,
-            PreparationRecipeValidationFailure.YieldMustBePositive,
-            PreparationRecipeValidationFailure.YieldUnitNotFound -> R.string.missing_yield
-            PreparationRecipeValidationFailure.RecipeWouldCreateCycle -> R.string.circular_recipe_warning
-            PreparationRecipeValidationFailure.OutputIngredientDeleted,
-            PreparationRecipeValidationFailure.YieldUnitInactive,
-            PreparationRecipeValidationFailure.ComponentIngredientDeleted,
-            PreparationRecipeValidationFailure.ComponentUnitInactive -> R.string.error_inactive_reference
-            PreparationRecipeValidationFailure.ComponentCannotBeOutput -> R.string.error_output_as_component
-            PreparationRecipeValidationFailure.ComponentAlreadyExists -> R.string.error_duplicate_component
-            PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput -> R.string.error_recipe_exists_for_output
-            else -> R.string.activation_failed
         }
     }
 

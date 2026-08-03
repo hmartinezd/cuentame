@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.preparations.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
@@ -11,6 +12,9 @@ import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
+import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -20,6 +24,7 @@ import javax.inject.Inject
 
 sealed interface PreparationRecipeComponentEvent {
     data object Saved : PreparationRecipeComponentEvent
+    data class NavigateToDetail(val recipeId: PreparationRecipeId) : PreparationRecipeComponentEvent
 }
 
 data class PreparationRecipeComponentUiState(
@@ -35,7 +40,9 @@ data class PreparationRecipeComponentUiState(
     val notes: String = "",
     // Validation
     val quantityError: Boolean = false,
-    val inlineError: String? = null
+    val quantityErrorText: UiMessage? = null,
+    val error: Throwable? = null,
+    val inlineError: UiMessage? = null
 )
 
 @HiltViewModel
@@ -52,7 +59,7 @@ class PreparationRecipeComponentViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PreparationRecipeComponentUiState())
     val uiState: StateFlow<PreparationRecipeComponentUiState> = _uiState.asStateFlow()
 
-    private val _events = Channel<PreparationRecipeComponentEvent>()
+    private val _events = Channel<PreparationRecipeComponentEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     private var isInitialized = false
@@ -63,51 +70,74 @@ class PreparationRecipeComponentViewModel @Inject constructor(
 
     private fun loadData() {
         viewModelScope.launch {
-            val restaurant = restaurantRepository.getRestaurant() ?: return@launch
-            val recipe = preparationRecipeRepository.getRecipe(recipeId) ?: return@launch
-            val ingredients = ingredientRepository.getIngredients(restaurant.id, includeArchived = false)
-
-            val usedIngredientIds = recipe.components
-                .filter { if (componentId != null) it.id != componentId else true }
-                .map { it.componentIngredientId }
-                .toSet()
-
-            val availableIngredients = ingredients.filter { 
-                it.id != recipe.outputIngredientId && it.id !in usedIngredientIds
+            val restaurant = restaurantRepository.getRestaurant()
+            if (restaurant == null) {
+                _uiState.update { it.copy(isLoading = false, error = IllegalStateException("Restaurant not found")) }
+                return@launch
             }
 
-            if (!isInitialized) {
-                val existingComp = if (componentId != null) recipe.components.find { it.id == componentId } else null
-                if (existingComp != null) {
-                    val unitOptions = ingredientRepository.getUnitOptions(existingComp.componentIngredientId, includeArchived = false)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            recipe = recipe,
-                            availableIngredients = availableIngredients,
-                            availableUnitOptions = unitOptions,
-                            selectedIngredient = ingredients.find { i -> i.id == existingComp.componentIngredientId },
-                            quantity = existingComp.quantityEntered.toPlainString(),
-                            selectedUnitOptionId = existingComp.unitOptionId,
-                            notes = existingComp.notes ?: ""
-                        )
+            preparationRecipeRepository.observeRecipe(recipeId).collectLatest { recipe ->
+                if (recipe == null) {
+                    if (!isInitialized) {
+                        _uiState.update { it.copy(isLoading = false, error = NoSuchElementException("Recipe not found")) }
                     }
+                    return@collectLatest
+                }
+
+                if (recipe.status != PreparationRecipeStatus.DRAFT) {
+                    _events.send(PreparationRecipeComponentEvent.NavigateToDetail(recipe.id))
+                    return@collectLatest
+                }
+
+                val ingredients = ingredientRepository.getIngredients(restaurant.id, includeArchived = false)
+
+                val usedIngredientIds = recipe.components
+                    .filter { if (componentId != null) it.id != componentId else true }
+                    .map { it.componentIngredientId }
+                    .toSet()
+
+                val availableIngredients = ingredients.filter { 
+                    it.id != recipe.outputIngredientId && it.id !in usedIngredientIds
+                }
+
+                if (!isInitialized) {
+                    val existingComp = if (componentId != null) recipe.components.find { it.id == componentId } else null
+                    if (componentId != null && existingComp == null) {
+                        _uiState.update { it.copy(isLoading = false, error = NoSuchElementException("Component not found")) }
+                        return@collectLatest
+                    }
+
+                    if (existingComp != null) {
+                        val unitOptions = ingredientRepository.getUnitOptions(existingComp.componentIngredientId, includeArchived = false)
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                recipe = recipe,
+                                availableIngredients = availableIngredients,
+                                availableUnitOptions = unitOptions,
+                                selectedIngredient = ingredients.find { i -> i.id == existingComp.componentIngredientId },
+                                quantity = existingComp.quantityEntered.toPlainString(),
+                                selectedUnitOptionId = existingComp.unitOptionId,
+                                notes = existingComp.notes ?: ""
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                recipe = recipe,
+                                availableIngredients = availableIngredients
+                            )
+                        }
+                    }
+                    isInitialized = true
                 } else {
                     _uiState.update {
                         it.copy(
-                            isLoading = false,
                             recipe = recipe,
                             availableIngredients = availableIngredients
                         )
                     }
-                }
-                isInitialized = true
-            } else {
-                _uiState.update {
-                    it.copy(
-                        recipe = recipe,
-                        availableIngredients = availableIngredients
-                    )
                 }
             }
         }
@@ -127,7 +157,7 @@ class PreparationRecipeComponentViewModel @Inject constructor(
     }
 
     fun onQuantityChanged(quantity: String) {
-        _uiState.update { it.copy(quantity = quantity, quantityError = false) }
+        _uiState.update { it.copy(quantity = quantity, quantityError = false, quantityErrorText = null) }
     }
 
     fun onUnitOptionSelected(option: IngredientUnitOption) {
@@ -140,22 +170,34 @@ class PreparationRecipeComponentViewModel @Inject constructor(
 
     fun onSave() {
         val state = _uiState.value
-        if (state.selectedIngredient == null || state.selectedUnitOptionId == null) return
+        if (state.isSaving) return
+        if (state.selectedIngredient == null) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_select_component_ingredient)) }
+            return
+        }
+        if (state.selectedUnitOptionId == null) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_select_unit)) }
+            return
+        }
 
         val parsedQuantity = try {
             BigDecimal(state.quantity)
         } catch (e: Exception) {
-            _uiState.update { it.copy(quantityError = true) }
+            _uiState.update { it.copy(quantityError = true, quantityErrorText = UiMessage.Resource(R.string.error_invalid_decimal)) }
             return
         }
 
         if (parsedQuantity <= BigDecimal.ZERO) {
-            _uiState.update { it.copy(quantityError = true) }
+            _uiState.update { it.copy(quantityError = true, quantityErrorText = UiMessage.Resource(R.string.error_quantity_positive)) }
             return
         }
 
+        val recipe = state.recipe ?: return
+        val existingComp = if (componentId != null) recipe.components.find { it.id == componentId } else null
+        val sortOrder = existingComp?.sortOrder ?: ((recipe.components.maxOfOrNull { it.sortOrder } ?: -1) + 1)
+
+        _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, inlineError = null) }
             try {
                 preparationRecipeRepository.saveComponent(
                     SavePreparationRecipeComponentCommand(
@@ -164,13 +206,13 @@ class PreparationRecipeComponentViewModel @Inject constructor(
                         componentIngredientId = state.selectedIngredient.id,
                         unitOptionId = state.selectedUnitOptionId,
                         quantityEntered = parsedQuantity,
-                        sortOrder = state.recipe?.components?.size ?: 0, // Repository will handle reordering/clamping
-                        notes = state.notes.ifBlank { null }
+                        sortOrder = sortOrder,
+                        notes = state.notes.trim().ifBlank { null }
                     )
                 )
                 _events.send(PreparationRecipeComponentEvent.Saved)
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = e.message ?: "Save failed") }
+                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }

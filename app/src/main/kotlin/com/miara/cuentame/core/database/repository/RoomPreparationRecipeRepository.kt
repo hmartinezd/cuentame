@@ -19,6 +19,7 @@ import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.domain.validation.PreparationRecipeGraphValidator
+import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationException
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationFailure
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidator
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
@@ -77,33 +78,33 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun createDraft(command: CreatePreparationRecipeCommand): PreparationRecipeId {
         return database.withTransaction {
             val outputIngredient = ingredientDao.getById(command.outputIngredientId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientNotFound))
 
             if (outputIngredient.deletedAt != null || !outputIngredient.isActive) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientDeleted))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientDeleted))
             }
 
             if (outputIngredient.restaurantId != command.restaurantId.value) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientMustBelongToRestaurant))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.OutputIngredientMustBelongToRestaurant))
             }
 
             // Milestone 1 constraint: at most one non-archived recipe per output ingredient
             val existing = recipeDao.getActiveOrDraftByOutputIngredient(command.restaurantId.value, command.outputIngredientId.value)
             if (existing != null) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput))
             }
 
             val recipeId = PreparationRecipeId(idGenerator.newId())
             val now = timeProvider.now().toEpochMilli()
-            val name = command.name ?: outputIngredient.name
+            val name = command.name?.trim()?.ifBlank { null } ?: outputIngredient.name
 
             if (name.isBlank()) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
             }
             
             val unitOption = command.yieldUnitOptionId?.let { unitOptionDao.getById(it.value) }
             if (unitOption != null && (unitOption.deletedAt != null || !unitOption.isActive)) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
             }
 
             val standardYieldQuantityBase = if (command.standardYieldQuantity != null && unitOption != null) {
@@ -120,7 +121,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                 standardYieldQuantityBase = standardYieldQuantityBase,
                 yieldUnitOptionId = command.yieldUnitOptionId?.value,
                 status = PreparationRecipeStatus.DRAFT.name,
-                notes = command.notes,
+                notes = command.notes?.trim()?.ifBlank { null },
                 createdAt = now,
                 updatedAt = now,
                 archivedAt = null
@@ -132,7 +133,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                 yieldUnitOption = unitOption?.toDomain()
             )
             if (draftFailures.isNotEmpty()) {
-                throw RecipeValidationException(draftFailures)
+                throw PreparationRecipeValidationException(draftFailures)
             }
 
             recipeDao.insert(entity)
@@ -143,21 +144,22 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun updateDraft(command: UpdatePreparationRecipeCommand) {
         database.withTransaction {
             val existing = recipeDao.getById(command.recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (existing.status != PreparationRecipeStatus.DRAFT.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
-            if (command.name.isBlank()) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
+            val trimmedName = command.name.trim()
+            if (trimmedName.isBlank()) {
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNameRequired))
             }
 
             val outputIngredient = ingredientDao.getById(existing.outputIngredientId)
             val unitOption = command.yieldUnitOptionId?.let { unitOptionDao.getById(it.value) }
 
             if (unitOption != null && (unitOption.deletedAt != null || !unitOption.isActive)) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.YieldUnitInactive))
             }
             
             val standardYieldQuantityBase = if (command.standardYieldQuantity != null && unitOption != null) {
@@ -165,12 +167,12 @@ class RoomPreparationRecipeRepository @Inject constructor(
             } else null
 
             val updated = existing.copy(
-                name = command.name,
-                normalizedName = command.name.normalizeName(),
+                name = trimmedName,
+                normalizedName = trimmedName.normalizeName(),
                 standardYieldQuantity = command.standardYieldQuantity,
                 standardYieldQuantityBase = standardYieldQuantityBase,
                 yieldUnitOptionId = command.yieldUnitOptionId?.value,
-                notes = command.notes,
+                notes = command.notes?.trim()?.ifBlank { null },
                 updatedAt = timeProvider.now().toEpochMilli()
             )
 
@@ -180,7 +182,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                 yieldUnitOption = unitOption?.toDomain()
             )
             if (draftFailures.isNotEmpty()) {
-                throw RecipeValidationException(draftFailures)
+                throw PreparationRecipeValidationException(draftFailures)
             }
 
             recipeDao.update(updated)
@@ -190,40 +192,40 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun saveComponent(command: SavePreparationRecipeComponentCommand): PreparationRecipeComponentId {
         return database.withTransaction {
             val recipe = recipeDao.getById(command.recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status != PreparationRecipeStatus.DRAFT.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val ingredient = ingredientDao.getById(command.componentIngredientId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentIngredientNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentIngredientNotFound))
 
             if (ingredient.deletedAt != null || !ingredient.isActive) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentIngredientDeleted))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentIngredientDeleted))
             }
 
             if (ingredient.restaurantId != recipe.restaurantId) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentMustBelongToRestaurant))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentMustBelongToRestaurant))
             }
 
             if (ingredient.id == recipe.outputIngredientId) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentCannotBeOutput))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentCannotBeOutput))
             }
 
             val unitOption = unitOptionDao.getById(command.unitOptionId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitNotFound))
 
             if (unitOption.deletedAt != null || !unitOption.isActive) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitInactive))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitInactive))
             }
 
             if (unitOption.ingredientId != command.componentIngredientId.value) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitDoesNotBelongToIngredient))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentUnitDoesNotBelongToIngredient))
             }
 
             if (command.quantityEntered.compareTo(BigDecimal.ZERO) <= 0) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentQuantityMustBePositive))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentQuantityMustBePositive))
             }
 
             val now = timeProvider.now().toEpochMilli()
@@ -243,14 +245,14 @@ class RoomPreparationRecipeRepository @Inject constructor(
 
             val componentEntity = if (command.componentId != null) {
                 val existingById = recipeDao.getComponentById(command.componentId.value)
-                    ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
+                    ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
 
                 if (existingById.recipeId != recipe.id) {
-                    throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
+                    throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
                 }
 
                 if (duplicate != null && duplicate.id != command.componentId.value) {
-                    throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentAlreadyExists))
+                    throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentAlreadyExists))
                 }
 
                 existingById.copy(
@@ -259,7 +261,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                     quantityEntered = command.quantityEntered,
                     quantityBase = quantityBase,
                     sortOrder = command.sortOrder,
-                    notes = command.notes,
+                    notes = command.notes?.trim()?.ifBlank { null },
                     updatedAt = now
                 )
             } else if (duplicate != null) {
@@ -268,7 +270,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                     quantityEntered = command.quantityEntered,
                     quantityBase = quantityBase,
                     sortOrder = command.sortOrder,
-                    notes = command.notes,
+                    notes = command.notes?.trim()?.ifBlank { null },
                     updatedAt = now
                 )
             } else {
@@ -280,7 +282,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
                     quantityEntered = command.quantityEntered,
                     quantityBase = quantityBase,
                     sortOrder = command.sortOrder,
-                    notes = command.notes,
+                    notes = command.notes?.trim()?.ifBlank { null },
                     createdAt = now,
                     updatedAt = now
                 )
@@ -293,7 +295,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
             }
 
             if (graphValidator.wouldCreateCycle(existingGraph, recipe.outputIngredientId, proposedEdges)) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeWouldCreateCycle))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeWouldCreateCycle))
             }
 
             recipeDao.upsertComponent(componentEntity)
@@ -304,17 +306,17 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun removeComponent(recipeId: PreparationRecipeId, componentId: PreparationRecipeComponentId) {
         database.withTransaction {
             val recipe = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status != PreparationRecipeStatus.DRAFT.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val component = recipeDao.getComponentById(componentId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentNotFound))
 
             if (component.recipeId != recipe.id) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.ComponentDoesNotBelongToRecipe))
             }
 
             recipeDao.deleteComponent(recipeId.value, componentId.value)
@@ -327,10 +329,10 @@ class RoomPreparationRecipeRepository @Inject constructor(
     ) {
         database.withTransaction {
             val recipe = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status != PreparationRecipeStatus.DRAFT.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val currentComponents = recipeDao.getComponentsForRecipe(recipe.id)
@@ -338,7 +340,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
             val orderedIds = orderedComponentIds.map { it.value }.toSet()
 
             if (orderedIds.size != orderedComponentIds.size || currentIds != orderedIds) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidComponentOrder))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidComponentOrder))
             }
 
             recipeDao.reorderComponents(
@@ -352,10 +354,10 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun activate(recipeId: PreparationRecipeId) {
         database.withTransaction {
             val recipe = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status != PreparationRecipeStatus.DRAFT.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val outputIngredient = ingredientDao.getById(recipe.outputIngredientId)
@@ -380,7 +382,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
             )
 
             if (failures.isNotEmpty()) {
-                throw RecipeValidationException(failures)
+                throw PreparationRecipeValidationException(failures)
             }
 
             recipeDao.updateStatus(
@@ -395,10 +397,10 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun moveToDraft(recipeId: PreparationRecipeId) {
         database.withTransaction {
             val recipe = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status != PreparationRecipeStatus.ACTIVE.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             recipeDao.updateStatus(
@@ -413,10 +415,10 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun archive(recipeId: PreparationRecipeId) {
         database.withTransaction {
             val recipe = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipe.status == PreparationRecipeStatus.ARCHIVED.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val now = timeProvider.now().toEpochMilli()
@@ -432,15 +434,15 @@ class RoomPreparationRecipeRepository @Inject constructor(
     override suspend fun restoreToDraft(recipeId: PreparationRecipeId) {
         database.withTransaction {
             val recipeEntity = recipeDao.getById(recipeId.value)
-                ?: throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
+                ?: throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeNotFound))
 
             if (recipeEntity.status != PreparationRecipeStatus.ARCHIVED.name) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.InvalidStatusTransition))
             }
 
             val existing = recipeDao.getActiveOrDraftByOutputIngredient(recipeEntity.restaurantId, recipeEntity.outputIngredientId)
             if (existing != null) {
-                throw RecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput))
+                throw PreparationRecipeValidationException(listOf(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput))
             }
 
             val outputIngredient = ingredientDao.getById(recipeEntity.outputIngredientId)
@@ -464,7 +466,7 @@ class RoomPreparationRecipeRepository @Inject constructor(
             )
 
             if (failures.isNotEmpty()) {
-                throw RecipeValidationException(failures)
+                throw PreparationRecipeValidationException(failures)
             }
 
             recipeDao.updateStatus(
@@ -476,5 +478,3 @@ class RoomPreparationRecipeRepository @Inject constructor(
         }
     }
 }
-
-class RecipeValidationException(val failures: List<PreparationRecipeValidationFailure>) : Exception(failures.joinToString())

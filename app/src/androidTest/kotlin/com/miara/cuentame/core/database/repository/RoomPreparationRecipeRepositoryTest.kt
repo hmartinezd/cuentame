@@ -19,6 +19,7 @@ import com.miara.cuentame.core.domain.repository.UpdatePreparationRecipeCommand
 import com.miara.cuentame.core.domain.validation.PreparationRecipeGraphValidator
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationFailure
 import com.miara.cuentame.core.domain.validation.PreparationRecipeValidator
+import com.miara.cuentame.core.domain.validation.PreparationRecipeValidationException
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -145,7 +146,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.activate(recipeId)
             assertThat(false).isTrue() // Should not reach here
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.AtLeastOneComponentRequired)
         }
     }
@@ -173,7 +174,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.createDraft(command)
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.OutputIngredientMustBelongToRestaurant)
         }
     }
@@ -188,7 +189,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.createDraft(command)
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.OutputIngredientDeleted)
         }
     }
@@ -209,7 +210,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.updateDraft(UpdatePreparationRecipeCommand(recipeId, "New Name", BigDecimal.TEN, unitId, null))
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidStatusTransition)
         }
         
@@ -217,7 +218,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, null, compId, compUnitId, BigDecimal.TEN, 1, null))
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidStatusTransition)
         }
     }
@@ -231,7 +232,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             setupDraftRecipe("Recipe 2", ingId)
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput)
         }
     }
@@ -259,7 +260,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.restoreToDraft(r1)
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeAlreadyExistsForOutput)
         }
     }
@@ -282,7 +283,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.saveComponent(SavePreparationRecipeComponentCommand(recipeB, null, ingA, unitA, BigDecimal.ONE, 0, null))
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.RecipeWouldCreateCycle)
         }
     }
@@ -359,7 +360,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.reorderComponents(recipeId, listOf(comp1Id, PreparationRecipeComponentId("fake")))
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.InvalidComponentOrder)
         }
         
@@ -396,7 +397,7 @@ class RoomPreparationRecipeRepositoryTest {
         try {
             repository.saveComponent(SavePreparationRecipeComponentCommand(recipeId, saltCompId, waterId, waterUnitId, BigDecimal.TEN, 1, null))
             assertThat(false).isTrue()
-        } catch (e: RecipeValidationException) {
+        } catch (e: PreparationRecipeValidationException) {
             assertThat(e.failures).contains(PreparationRecipeValidationFailure.ComponentAlreadyExists)
         }
         

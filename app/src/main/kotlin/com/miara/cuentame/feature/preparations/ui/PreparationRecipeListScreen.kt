@@ -116,12 +116,26 @@ fun PreparationRecipeListScreen(
                 }
                 uiState.recipes.isEmpty() -> {
                     Box(modifier = Modifier.fillMaxSize().testTag("preparation_recipe_empty"), contentAlignment = Alignment.Center) {
-                        val emptyText = if (uiState.searchQuery.isNotBlank() || uiState.selectedStatus != null) {
-                            stringResource(R.string.no_recipes_match_filters)
-                        } else {
-                            stringResource(R.string.no_preparation_recipes)
+                        val emptyText = when {
+                            uiState.selectedStatus == PreparationRecipeStatus.ARCHIVED && !uiState.includeArchived -> 
+                                stringResource(R.string.no_recipes_match_filters) // Or a more specific one about the toggle
+                            uiState.searchQuery.isNotBlank() || uiState.selectedStatus != null ->
+                                stringResource(R.string.no_recipes_match_filters)
+                            else ->
+                                stringResource(R.string.no_preparation_recipes)
                         }
-                        Text(text = emptyText)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                            Text(text = emptyText, style = MaterialTheme.typography.bodyLarge, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            if (uiState.selectedStatus == PreparationRecipeStatus.ARCHIVED && !uiState.includeArchived) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = stringResource(R.string.show_archived_to_see_results),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
                     }
                 }
                 else -> {

@@ -30,12 +30,14 @@ class PreparationRecipeListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _selectedStatus = MutableStateFlow<PreparationRecipeStatus?>(null)
     private val _includeArchived = MutableStateFlow(false)
+    private val _retryTrigger = MutableStateFlow(0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _recipes = combine(
         restaurantRepository.observeRestaurant(),
-        _includeArchived
-    ) { restaurant, includeArchived ->
+        _includeArchived,
+        _retryTrigger
+    ) { restaurant, includeArchived, _ ->
         restaurant to includeArchived
     }.flatMapLatest { (restaurant, includeArchived) ->
         if (restaurant == null) flowOf(emptyList())
@@ -81,6 +83,9 @@ class PreparationRecipeListViewModel @Inject constructor(
 
     fun onStatusFilterChanged(status: PreparationRecipeStatus?) {
         _selectedStatus.value = status
+        if (status == PreparationRecipeStatus.ARCHIVED) {
+            _includeArchived.value = true
+        }
     }
 
     fun onIncludeArchivedToggled(includeArchived: Boolean) {
@@ -88,6 +93,6 @@ class PreparationRecipeListViewModel @Inject constructor(
     }
 
     fun onRetry() {
-        // uiState will automatically retry because it's observing the repository
+        _retryTrigger.value += 1
     }
 }

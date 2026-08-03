@@ -266,6 +266,7 @@
     <string name="search_ingredients">Buscar ingredientes…</string>
     <string name="filter_by_category">Filtrar por categoría</string>
     <string name="show_archived">Mostrar archivados</string>
+    <string name="show_archived_to_see_results">Active \"Mostrar archivados\" para ver recetas con este estado.</string>
     <string name="archived_label">Archivado</string>
     <string name="active">Activo</string>
     <string name="set_default_count">Marcar como defecto para conteo</string>
@@ -556,6 +557,7 @@
     <!-- Preparation Recipes -->
     <string name="preparation_recipes">Recetas de preparación</string>
     <string name="new_preparation_recipe">Nueva receta de preparación</string>
+    <string name="edit_preparation_recipe">Editar receta de preparación</string>
     <string name="recipe_details">Detalles de la receta</string>
     <string name="output_ingredient">Ingrediente de salida</string>
     <string name="recipe_name">Nombre de la receta</string>
@@ -598,6 +600,17 @@
     <string name="error_recipe_already_active">La receta ya está activa</string>
     <string name="error_recipe_not_draft">La receta no está en estado de borrador</string>
     <string name="error_recipe_exists_for_output">Ya existe otra receta no archivada para este ingrediente de salida.</string>
+    <string name="error_recipe_name_required">El nombre de la receta es obligatorio</string>
+    <string name="error_select_output_ingredient">Seleccione un ingrediente de salida</string>
+    <string name="error_yield_pairing_required">La cantidad de rendimiento y la unidad deben ingresarse juntas</string>
+    <string name="error_select_component_ingredient">Seleccione un componente</string>
+    <string name="error_select_unit">Seleccione una unidad</string>
+    <string name="error_recipe_not_editable">La receta ya no es editable</string>
+    <string name="error_load_recipe_failed">No se pudo cargar la receta de preparación</string>
+    <string name="error_save_recipe_failed">No se pudo guardar la receta de preparación</string>
+    <string name="error_save_component_failed">No se pudo guardar el componente</string>
+    <string name="error_reorder_components_failed">No se pudieron reordenar los componentes</string>
+    <string name="error_remove_component_failed">No se pudo eliminar el componente</string>
     <string name="audit_created">Creada: %1$s</string>
     <string name="audit_updated">Actualizada: %1$s</string>
     <string name="audit_archived">Archivada: %1$s</string>
