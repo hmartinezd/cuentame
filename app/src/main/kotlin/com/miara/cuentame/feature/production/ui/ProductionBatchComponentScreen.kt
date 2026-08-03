@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
+import com.miara.cuentame.core.presentation.ui.toDisplayText
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchComponentEvent
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchComponentUiState
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchComponentViewModel
@@ -137,6 +138,7 @@ fun ProductionBatchComponentScreen(
                             label = { Text(stringResource(R.string.production_component_quantity_field)) },
                             modifier = Modifier.fillMaxWidth().testTag("production_component_quantity_field"),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            isError = uiState.quantityError,
                             supportingText = { Text(stringResource(R.string.manually_overridden)) }
                         )
 
@@ -163,6 +165,14 @@ fun ProductionBatchComponentScreen(
                         minLines = 3
                     )
 
+                    if (uiState.inlineError != null) {
+                        Text(
+                            text = uiState.inlineError.toDisplayText(),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
                     Button(
                         onClick = onSaveClick,
                         modifier = Modifier.fillMaxWidth().testTag("production_batch_save"),
@@ -176,7 +186,26 @@ fun ProductionBatchComponentScreen(
                     }
                 }
             }
-            else -> {}
+            ProductionBatchScreenState.InvalidRoute -> {
+                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_generic))
+                }
+            }
+            ProductionBatchScreenState.BatchNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_batch_not_found))
+                }
+            }
+            ProductionBatchScreenState.ComponentNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_component_not_found))
+                }
+            }
+            ProductionBatchScreenState.ParentNotEditable -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_recipe_not_editable))
+                }
+            }
         }
     }
 }

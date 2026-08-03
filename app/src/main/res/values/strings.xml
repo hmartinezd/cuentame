@@ -665,6 +665,7 @@
     <string name="production_component_unit_selector">Unit</string>
     <string name="production_component_quantity_field">Actual quantity</string>
     <string name="production_component_reset">Reset</string>
+    <string name="save_before_review">Save your changes before reviewing this batch.</string>
 </resources>
 
 

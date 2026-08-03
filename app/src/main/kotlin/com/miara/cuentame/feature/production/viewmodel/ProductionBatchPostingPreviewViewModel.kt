@@ -29,6 +29,7 @@ data class ProductionBatchPreviewUiState(
     
     val batch: ProductionBatch? = null,
     val preview: ProductionBatchPostingPreview? = null,
+    val currencyCode: String = "",
     
     val blockers: List<UiMessage> = emptyList(),
     val hasNegativeBalances: Boolean = false,
@@ -90,6 +91,7 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
                             screenState = ProductionBatchScreenState.Ready,
                             batch = batch,
                             preview = preview,
+                            currencyCode = restaurant.currencyCode,
                             blockers = preview.blockers.map { b -> b.toUserMessage() },
                             hasNegativeBalances = preview.components.any { c -> c.createsNegativeBalance },
                             hasUnavailableCosts = preview.components.any { c -> c.costUnavailable }
@@ -113,6 +115,10 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
             try {
                 productionBatchRepository.post(batchId)
                 _events.send(ProductionBatchPreviewEvent.Posted(batchId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: com.miara.cuentame.core.domain.validation.ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isPosting = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isPosting = false) }
             }

@@ -52,6 +52,7 @@ fun ProductionBatchDraftRoute(
         events.collect { event ->
             when (event) {
                 is ProductionBatchDraftEvent.NavigateToDetail -> onNavigateToDetail(event.batchId)
+                is ProductionBatchDraftEvent.NavigateToPreview -> onReview(event.batchId)
                 ProductionBatchDraftEvent.Deleted -> onDeleted()
             }
         }
@@ -145,6 +146,7 @@ fun ProductionBatchDraftScreen(
                                 onAreaSelected = onAreaSelected,
                                 onUnitOptionSelected = onUnitOptionSelected,
                                 onActualOutputChanged = onActualOutputChanged,
+                                onEffectiveAtChanged = onEffectiveAtChanged,
                                 onNotesChanged = onNotesChanged,
                                 onOverrideOutput = onOverrideOutput
                             )
@@ -170,11 +172,31 @@ fun ProductionBatchDraftScreen(
                     ActionButtons(
                         onSave = onSaveClick,
                         onReview = onReviewClick,
-                        isSaving = uiState.isSaving
+                        isSaving = uiState.isSaving,
+                        hasUnsavedChanges = uiState.hasUnsavedChanges
                     )
                 }
             }
-            else -> {}
+            ProductionBatchScreenState.InvalidRoute -> {
+                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_generic))
+                }
+            }
+            ProductionBatchScreenState.BatchNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_batch_not_found))
+                }
+            }
+            ProductionBatchScreenState.ComponentNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_component_not_found))
+                }
+            }
+            ProductionBatchScreenState.ParentNotEditable -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_recipe_not_editable))
+                }
+            }
         }
     }
 
@@ -204,6 +226,7 @@ private fun DraftHeader(
     onAreaSelected: (com.miara.cuentame.core.common.ids.InventoryAreaId) -> Unit,
     onUnitOptionSelected: (com.miara.cuentame.core.common.ids.IngredientUnitOptionId) -> Unit,
     onActualOutputChanged: (String) -> Unit,
+    onEffectiveAtChanged: (java.time.Instant) -> Unit,
     onNotesChanged: (String) -> Unit,
     onOverrideOutput: () -> Unit
 ) {
@@ -234,6 +257,11 @@ private fun DraftHeader(
                 options = uiState.availableUnitOptions,
                 onSelected = onUnitOptionSelected,
                 label = stringResource(R.string.production_output_unit_selector)
+            )
+
+            ProductionEffectiveTimeEditor(
+                effectiveAt = uiState.effectiveAt,
+                onEffectiveAtChanged = onEffectiveAtChanged
             )
 
             if (uiState.expectedOutputEntered != null) {
@@ -318,16 +346,31 @@ private fun ComponentItem(
 private fun ActionButtons(
     onSave: () -> Unit,
     onReview: () -> Unit,
-    isSaving: Boolean
+    isSaving: Boolean,
+    hasUnsavedChanges: Boolean
 ) {
     Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f).testTag("production_batch_save"), enabled = !isSaving) {
-                if (isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                else Text(stringResource(R.string.action_save))
+        Column {
+            if (hasUnsavedChanges) {
+                Text(
+                    text = stringResource(R.string.save_before_review),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
-            Button(onClick = onReview, modifier = Modifier.weight(1f).testTag("production_batch_review"), enabled = !isSaving) {
-                Text(stringResource(R.string.review_and_post))
+            Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f).testTag("production_batch_save"), enabled = !isSaving) {
+                    if (isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    else Text(stringResource(R.string.action_save))
+                }
+                Button(
+                    onClick = onReview,
+                    modifier = Modifier.weight(1f).testTag("production_batch_review"),
+                    enabled = !isSaving && !hasUnsavedChanges
+                ) {
+                    Text(stringResource(R.string.review_and_post))
+                }
             }
         }
     }

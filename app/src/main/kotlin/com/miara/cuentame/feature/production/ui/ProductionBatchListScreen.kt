@@ -128,6 +128,7 @@ fun ProductionBatchListScreen(
                             items(uiState.batches, key = { it.id.value }) { batch ->
                                 ProductionBatchItem(
                                     batch = batch,
+                                    currencyCode = uiState.currencyCode,
                                     onClick = { onBatchClick(batch.id, batch.status) }
                                 )
                                 HorizontalDivider()
@@ -208,6 +209,7 @@ private fun BatchListFilters(
 @Composable
 private fun ProductionBatchItem(
     batch: ProductionBatchSummary,
+    currencyCode: String,
     onClick: () -> Unit
 ) {
     val dateTimeFormatter = remember {
@@ -249,7 +251,7 @@ private fun ProductionBatchItem(
                 )
                 if (batch.totalComponentCost != null) {
                     Text(
-                        text = Formatters.formatCurrency(batch.totalComponentCost, ""), // Currency code handling?
+                        text = Formatters.formatCurrency(batch.totalComponentCost, currencyCode),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold
                     )

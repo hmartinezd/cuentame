@@ -7,6 +7,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
@@ -73,6 +74,8 @@ class ProductionBatchCreateViewModel @Inject constructor(
         ?.takeIf { it.isNotBlank() }
         ?.let { PreparationRecipeId(it) }
 
+    private var initialRouteResolved = false
+
     private val _uiState = MutableStateFlow(ProductionBatchCreateUiState(effectiveAt = timeProvider.now()))
     val uiState: StateFlow<ProductionBatchCreateUiState> = _uiState.asStateFlow()
 
@@ -115,13 +118,21 @@ class ProductionBatchCreateViewModel @Inject constructor(
                             )
                         }
 
-                        if (initialRecipeId != null && _uiState.value.selectedRecipe == null) {
+                        if (initialRecipeId != null && !initialRouteResolved) {
+                            initialRouteResolved = true
                             val preselected = activeRecipes.find { it.id == initialRecipeId }
                             if (preselected != null) {
                                 onRecipeSelected(preselected)
                             } else {
-                                // Recipe not found or not active
-                                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_not_active)) }
+                                val fullRecipe = preparationRecipeRepository.getRecipe(initialRecipeId)
+                                when {
+                                    fullRecipe == null -> {
+                                        _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_not_found)) }
+                                    }
+                                    fullRecipe.status != PreparationRecipeStatus.ACTIVE -> {
+                                        _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_not_active)) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -155,7 +166,7 @@ class ProductionBatchCreateViewModel @Inject constructor(
                             selectedUnitOptionId = recipe.yieldUnitOptionId ?: unitOptions.find { it.isBase }?.id,
                             selectedAreaId = outputIngredient?.defaultAreaId?.takeIf { areaId -> 
                                 state.availableAreas.any { it.id == areaId }
-                            } ?: state.selectedAreaId
+                            }
                         )
                     }
                     calculateExpectedOutput()
@@ -169,7 +180,18 @@ class ProductionBatchCreateViewModel @Inject constructor(
     }
 
     fun onRecipeSelected(recipeSummary: PreparationRecipeSummary) {
-        _uiState.update { it.copy(selectedRecipeSummary = recipeSummary, selectedRecipe = null, inlineError = null) }
+        _uiState.update { 
+            it.copy(
+                selectedRecipeSummary = recipeSummary, 
+                selectedRecipe = null, 
+                inlineError = null,
+                availableUnitOptions = emptyList(),
+                selectedUnitOptionId = null,
+                selectedAreaId = null,
+                actualOutputQuantity = "",
+                expectedOutputEntered = null
+            ) 
+        }
         recipeDetailsRequests.tryEmit(recipeSummary.id)
     }
 
@@ -220,7 +242,6 @@ class ProductionBatchCreateViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isCreating) return
 
-        val restaurantId = (state.screenState as? ProductionBatchScreenState.Ready)?.let { RestaurantId("r1") } // Needs real restaurant
         val recipe = state.selectedRecipe
         if (recipe == null) {
             _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_not_active)) }
@@ -271,7 +292,12 @@ class ProductionBatchCreateViewModel @Inject constructor(
         _uiState.update { it.copy(isCreating = true, inlineError = null) }
         viewModelScope.launch {
             try {
-                val restaurant = restaurantRepository.getRestaurant() ?: throw IllegalStateException("No restaurant")
+                val restaurant = restaurantRepository.getRestaurant() 
+                if (restaurant == null) {
+                    _uiState.update { it.copy(isCreating = false, inlineError = UiMessage.Resource(R.string.error_no_restaurant)) }
+                    return@launch
+                }
+                
                 val batchId = productionBatchRepository.createDraft(
                     CreateProductionBatchDraftCommand(
                         restaurantId = restaurant.id,
@@ -285,11 +311,12 @@ class ProductionBatchCreateViewModel @Inject constructor(
                     )
                 )
                 _events.send(ProductionBatchCreateEvent.Created(batchId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(isCreating = false, inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                // Map repository errors
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
-            } finally {
-                _uiState.update { it.copy(isCreating = false) }
+                _uiState.update { it.copy(isCreating = false, inlineError = UiMessage.Resource(R.string.error_generic)) }
             }
         }
     }

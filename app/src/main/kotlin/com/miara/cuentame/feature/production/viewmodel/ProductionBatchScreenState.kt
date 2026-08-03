@@ -7,6 +7,7 @@ sealed interface ProductionBatchScreenState {
     data object Ready : ProductionBatchScreenState
     data object InvalidRoute : ProductionBatchScreenState
     data object BatchNotFound : ProductionBatchScreenState
+    data object ComponentNotFound : ProductionBatchScreenState
     data object ParentNotEditable : ProductionBatchScreenState
 
     data class LoadError(

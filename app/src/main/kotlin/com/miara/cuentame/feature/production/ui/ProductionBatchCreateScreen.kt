@@ -143,6 +143,11 @@ fun ProductionBatchCreateScreen(
                         label = stringResource(R.string.production_output_unit_selector)
                     )
 
+                    ProductionEffectiveTimeEditor(
+                        effectiveAt = uiState.effectiveAt,
+                        onEffectiveAtChanged = onEffectiveAtChanged
+                    )
+
                     if (uiState.expectedOutputEntered != null) {
                         Text(
                             text = stringResource(R.string.expected_output) + ": ${Formatters.formatQuantity(uiState.expectedOutputEntered)}",
@@ -189,7 +194,26 @@ fun ProductionBatchCreateScreen(
                     }
                 }
             }
-            else -> {}
+            ProductionBatchScreenState.InvalidRoute -> {
+                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_generic))
+                }
+            }
+            ProductionBatchScreenState.BatchNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_batch_not_found))
+                }
+            }
+            ProductionBatchScreenState.ComponentNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_component_not_found))
+                }
+            }
+            ProductionBatchScreenState.ParentNotEditable -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_recipe_not_editable))
+                }
+            }
         }
     }
 }

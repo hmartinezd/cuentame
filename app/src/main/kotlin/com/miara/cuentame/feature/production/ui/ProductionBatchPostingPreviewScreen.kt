@@ -64,6 +64,7 @@ fun ProductionBatchPostingPreviewScreen(
     onRetry: () -> Unit
 ) {
     var showPostConfirm by remember { mutableStateOf(false) }
+    var showNegativeConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.testTag("production_batch_preview_screen"),
@@ -130,7 +131,11 @@ fun ProductionBatchPostingPreviewScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         item {
-                            PreviewHeader(preview, uiState.batch?.recipeNameSnapshot ?: "")
+                            PreviewHeader(
+                                preview = preview,
+                                batch = uiState.batch,
+                                currencyCode = uiState.currencyCode
+                            )
                         }
 
                         item {
@@ -138,7 +143,7 @@ fun ProductionBatchPostingPreviewScreen(
                         }
 
                         items(preview.components, key = { it.componentId.value }) { component ->
-                            PreviewComponentItem(component)
+                            PreviewComponentItem(component, uiState.currencyCode)
                             HorizontalDivider()
                         }
                     }
@@ -165,16 +170,24 @@ fun ProductionBatchPostingPreviewScreen(
             onDismissRequest = { showPostConfirm = false },
             title = { Text(stringResource(R.string.post_production_batch)) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(preview?.actualOutputQuantityBase ?: java.math.BigDecimal.ZERO)}")
-                    Text(stringResource(R.string.total_component_cost) + ": ${Formatters.formatCurrency(preview?.totalComponentCost ?: java.math.BigDecimal.ZERO, "")}")
-                    if (uiState.hasNegativeBalances) {
-                        Text(stringResource(R.string.negative_balance_warning), color = MaterialTheme.colorScheme.error)
-                    }
+                    Text(stringResource(R.string.total_component_cost) + ": ${preview?.totalComponentCost?.let { Formatters.formatCurrency(it, uiState.currencyCode) } ?: stringResource(R.string.not_applicable)}")
+                    Text(stringResource(R.string.posting_warning))
                 }
             },
             confirmButton = {
-                TextButton(onClick = { onPostClick(); showPostConfirm = false }) {
+                TextButton(
+                    onClick = { 
+                        showPostConfirm = false
+                        if (uiState.hasNegativeBalances) {
+                            showNegativeConfirm = true
+                        } else {
+                            onPostClick()
+                        }
+                    },
+                    modifier = Modifier.testTag("production_post_confirmation")
+                ) {
                     Text(stringResource(R.string.action_confirm))
                 }
             },
@@ -185,19 +198,64 @@ fun ProductionBatchPostingPreviewScreen(
             }
         )
     }
+
+    if (showNegativeConfirm) {
+        AlertDialog(
+            onDismissRequest = { showNegativeConfirm = false },
+            title = { Text(stringResource(R.string.negative_balance_warning)) },
+            text = {
+                Text(
+                    text = "One or more component balances will become negative. Inventory will still be posted. Continue?",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onPostClick(); showNegativeConfirm = false },
+                    modifier = Modifier.testTag("production_negative_balance_continue")
+                ) {
+                    Text(stringResource(R.string.action_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNegativeConfirm = false }) {
+                    Text(stringResource(R.string.action_back))
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun PreviewHeader(
     preview: com.miara.cuentame.core.domain.repository.ProductionBatchPostingPreview,
-    recipeName: String
+    batch: com.miara.cuentame.core.model.inventory.ProductionBatch?,
+    currencyCode: String
 ) {
+    val zoneId = java.time.ZoneId.systemDefault()
+    val formatter = remember { java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM) }
+    
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = recipeName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = batch?.recipeNameSnapshot ?: "", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             
-            DetailRow(stringResource(R.string.total_component_cost), Formatters.formatCurrency(preview.totalComponentCost ?: java.math.BigDecimal.ZERO, ""))
-            DetailRow(stringResource(R.string.output_unit_cost), Formatters.formatCurrency(preview.outputUnitCostBase ?: java.math.BigDecimal.ZERO, ""))
+            Text(
+                text = stringResource(R.string.production_effective_time) + ": ${preview.effectiveAt.atZone(zoneId).format(formatter)}",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            if (batch != null) {
+                DetailRow(stringResource(R.string.expected_output), "${Formatters.formatQuantity(batch.expectedOutputQuantityEntered)} entered (${Formatters.formatQuantity(batch.expectedOutputQuantityBase)} base)")
+                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(batch.actualOutputQuantityEntered)} entered (${Formatters.formatQuantity(preview.actualOutputQuantityBase)} base)")
+            } else {
+                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(preview.actualOutputQuantityBase)} base")
+            }
+
+            DetailRow(stringResource(R.string.total_component_cost), preview.totalComponentCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable))
+            DetailRow(stringResource(R.string.output_unit_cost), preview.outputUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable))
             
             if (preview.yieldVariancePercent != null) {
                 DetailRow(stringResource(R.string.yield_variance), Formatters.formatPercent(preview.yieldVariancePercent, java.util.Locale.getDefault()))
@@ -207,13 +265,17 @@ private fun PreviewHeader(
 }
 
 @Composable
-private fun PreviewComponentItem(component: ProductionBatchComponentPostingPreview) {
+private fun PreviewComponentItem(
+    component: ProductionBatchComponentPostingPreview,
+    currencyCode: String
+) {
     ListItem(
         modifier = Modifier.testTag("production_preview_component_${component.componentId.value}"),
         headlineContent = { Text(component.ingredientName) },
         supportingContent = {
             Column {
                 Text(stringResource(R.string.area_label) + ": ${component.sourceAreaName}")
+                Text(stringResource(R.string.quantity) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, component.unitOptionLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} base)")
                 Text(stringResource(R.string.current_balance) + ": ${Formatters.formatQuantity(component.currentAreaBalanceBase)}")
                 Text(stringResource(R.string.remaining_balance) + ": ${Formatters.formatQuantity(component.remainingAreaBalanceBase)}")
                 
@@ -227,7 +289,8 @@ private fun PreviewComponentItem(component: ProductionBatchComponentPostingPrevi
                 if (component.costUnavailable) {
                     Text(stringResource(R.string.component_cost_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 } else {
-                    Text(Formatters.formatCurrency(component.totalCost ?: java.math.BigDecimal.ZERO, ""), fontWeight = FontWeight.Bold)
+                    Text(text = component.totalCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable), fontWeight = FontWeight.Bold)
+                    Text(text = component.averageUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) + " base" } ?: "", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

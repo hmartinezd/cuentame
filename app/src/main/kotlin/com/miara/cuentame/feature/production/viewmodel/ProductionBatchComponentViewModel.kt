@@ -12,6 +12,8 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.ProductionBatch
 import com.miara.cuentame.core.model.inventory.ProductionBatchComponent
 import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.feature.production.presentation.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,7 +49,10 @@ data class ProductionBatchComponentUiState(
     val notes: String = "",
     val notesDirty: Boolean = false,
     
-    val hasManualOverride: Boolean = false
+    val hasManualOverride: Boolean = false,
+    
+    val quantityError: Boolean = false,
+    val inlineError: UiMessage? = null
 )
 
 @HiltViewModel
@@ -110,15 +115,38 @@ class ProductionBatchComponentViewModel @Inject constructor(
 
                         val component = batch.components.find { it.id == componentId }
                         if (component == null) {
-                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.BatchNotFound) } // Or ComponentNotFound
+                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.ComponentNotFound) }
                             return@collectLatest
                         }
 
                         val ingredient = ingredientRepository.getById(component.componentIngredientId)
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
+
                         val unitOptions = ingredientRepository.getUnitOptions(component.componentIngredientId, includeArchived = true)
+                        val currentUnit = unitOptions.find { it.id == component.unitOptionId }
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
+                        
+                        val recipeUnit = unitOptions.find { it.id == component.recipeUnitOptionIdSnapshot }
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
+
                         val activeAreas = inventoryAreaRepository.observeActiveAreas().first()
-                        val currentArea = component.sourceAreaId?.let { inventoryAreaRepository.getById(it) }
-                        val allAreas = (activeAreas + listOfNotNull(currentArea)).distinctBy { it.id }
+                        val sourceArea = component.sourceAreaId?.let { inventoryAreaRepository.getById(it) }
+                        
+                        if (component.sourceAreaId != null && sourceArea == null) {
+                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                            return@collectLatest
+                        }
+
+                        val allAreas = (activeAreas + listOfNotNull(sourceArea)).distinctBy { it.id }
 
                         if (!isInitialized) {
                             _uiState.update { state ->
@@ -126,10 +154,10 @@ class ProductionBatchComponentViewModel @Inject constructor(
                                     screenState = ProductionBatchScreenState.Ready,
                                     batch = batch,
                                     component = component,
-                                    ingredientName = ingredient?.name ?: component.componentIngredientId.value,
+                                    ingredientName = ingredient.name,
                                     availableAreas = allAreas,
                                     availableUnitOptions = unitOptions,
-                                    recipeUnitLabel = unitOptions.find { it.id == component.recipeUnitOptionIdSnapshot }?.displayName ?: component.recipeUnitOptionIdSnapshot.value,
+                                    recipeUnitLabel = recipeUnit.displayName,
                                     
                                     selectedAreaId = component.sourceAreaId,
                                     selectedUnitOptionId = component.unitOptionId,
@@ -145,10 +173,10 @@ class ProductionBatchComponentViewModel @Inject constructor(
                                     screenState = ProductionBatchScreenState.Ready,
                                     batch = batch,
                                     component = component,
-                                    ingredientName = ingredient?.name ?: component.componentIngredientId.value,
+                                    ingredientName = ingredient.name,
                                     availableAreas = allAreas,
                                     availableUnitOptions = unitOptions,
-                                    recipeUnitLabel = unitOptions.find { it.id == component.recipeUnitOptionIdSnapshot }?.displayName ?: component.recipeUnitOptionIdSnapshot.value
+                                    recipeUnitLabel = recipeUnit.displayName
                                 )
                             }
                         }
@@ -201,16 +229,29 @@ class ProductionBatchComponentViewModel @Inject constructor(
     }
 
     fun onResetToRecipe() {
-        if (batchId == null || componentId == null) return
-        _uiState.update { it.copy(isSaving = true) }
+        if (batchId == null || componentId == null || _uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
             try {
                 productionBatchRepository.resetComponentToExpected(batchId, componentId)
-                // Observation will update isInitialized may need reset if we want to reset form
-                // But the requirement says "Show automatic state"
-                _uiState.update { it.copy(hasManualOverride = false, quantityDirty = false, unitDirty = false) }
+                val updatedBatch = productionBatchRepository.getBatch(batchId)
+                val updatedComponent = updatedBatch?.components?.find { it.id == componentId }
+                
+                if (updatedComponent != null) {
+                    _uiState.update { it.copy(
+                        actualQuantity = updatedComponent.actualQuantityEntered.toPlainString(),
+                        selectedUnitOptionId = updatedComponent.unitOptionId,
+                        hasManualOverride = false,
+                        quantityDirty = false,
+                        unitDirty = false
+                    ) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                // error
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
@@ -221,11 +262,22 @@ class ProductionBatchComponentViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isSaving || batchId == null || componentId == null) return
 
-        val quantityVal = if (state.quantityDirty || state.unitDirty) {
-            try { BigDecimal(state.actualQuantity) } catch (e: Exception) { null }
+        val parsedQuantity = if (state.quantityDirty || state.unitDirty) {
+            state.actualQuantity.trim().takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
         } else null
 
-        _uiState.update { it.copy(isSaving = true) }
+        if (state.quantityDirty || state.unitDirty) {
+            if (parsedQuantity == null || parsedQuantity <= BigDecimal.ZERO) {
+                _uiState.update { it.copy(quantityError = true, inlineError = UiMessage.Resource(R.string.error_quantity_positive)) }
+                return
+            }
+            if (state.selectedUnitOptionId == null) {
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_unit_required)) }
+                return
+            }
+        }
+
+        _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
             try {
                 productionBatchRepository.updateComponent(
@@ -233,14 +285,18 @@ class ProductionBatchComponentViewModel @Inject constructor(
                         batchId = batchId,
                         componentId = componentId,
                         sourceAreaId = state.selectedAreaId.takeIf { state.sourceAreaDirty },
-                        actualQuantityEntered = quantityVal,
+                        actualQuantityEntered = parsedQuantity,
                         unitOptionId = state.selectedUnitOptionId.takeIf { state.quantityDirty || state.unitDirty },
                         notes = state.notes.takeIf { state.notesDirty }?.trim() ?: if (state.notesDirty) "" else null
                     )
                 )
                 _events.send(ProductionBatchComponentEvent.Saved)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                // error
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }

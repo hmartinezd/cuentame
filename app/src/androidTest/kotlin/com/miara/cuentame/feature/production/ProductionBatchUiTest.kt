@@ -6,10 +6,12 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.R
-import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.test.TestSeeder
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
@@ -39,7 +41,16 @@ class ProductionBatchUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var purchaseRepository: PurchaseRepository
+
     private val restaurantId = RestaurantId("r1")
+    private val areaId = InventoryAreaId("a1")
+    private val ingredientId = IngredientId("i1")
+    private val outputIngredientId = IngredientId("out1")
+    private val unitId = "u1"
+    private val optionId = IngredientUnitOptionId("o-i1")
+    private val outputOptionId = IngredientUnitOptionId("o-out1")
 
     @Before
     fun setup() {
@@ -50,24 +61,37 @@ class ProductionBatchUiTest {
             
             // Seed base data
             database.restaurantDao().insert(RestaurantEntity(restaurantId.value, "Test Rest", "USD", "en-US", 0, 0, null))
-            database.inventoryAreaDao().upsert(InventoryAreaEntity("a1", restaurantId.value, "Kitchen", "kitchen", 0, true, 0, 0, null))
-            database.inventoryAreaDao().upsert(InventoryAreaEntity("a2", restaurantId.value, "Bar", "bar", 1, true, 0, 0, null))
-            database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "Unit", "u", "COUNT", BigDecimal.ONE, true, 0)))
+            database.inventoryAreaDao().upsert(InventoryAreaEntity(areaId.value, restaurantId.value, "Kitchen", "kitchen", 0, true, 0, 0, null))
+            database.unitDao().insertSeedUnits(listOf(UnitEntity(unitId, "Unit", "u", "COUNT", BigDecimal.ONE, true, 0)))
             
-            seedIngredient("i1", "Raw Beef")
-            seedIngredient("out1", "Ground Beef")
+            seedIngredient(ingredientId.value, "Raw Beef")
+            seedIngredient(outputIngredientId.value, "Ground Beef")
             
+            // Seed valid cost-bearing inventory: 100 base units @ 5 USD
+            TestSeeder.seedPostedPurchase(
+                db = database,
+                repo = purchaseRepository,
+                restaurantId = restaurantId,
+                ingredientId = ingredientId,
+                areaId = areaId,
+                unitOptionId = optionId,
+                quantityEntered = BigDecimal("100"),
+                unitCostBase = BigDecimal("5"),
+                effectiveAt = java.time.Instant.now().minusSeconds(3600)
+            )
+
             // Seed Active Recipe
+            // Standard yield = 10, component quantity = 12
             database.preparationRecipeDao().insert(PreparationRecipeEntity(
-                id = "rec1", restaurantId = restaurantId.value, outputIngredientId = "out1",
+                id = "rec1", restaurantId = restaurantId.value, outputIngredientId = outputIngredientId.value,
                 name = "Grounding", normalizedName = "grounding",
                 standardYieldQuantity = BigDecimal("10"), standardYieldQuantityBase = BigDecimal("10"),
-                yieldUnitOptionId = "o-out1", status = "ACTIVE", notes = null, createdAt = 0, updatedAt = 0, archivedAt = null
+                yieldUnitOptionId = outputOptionId.value, status = "ACTIVE", notes = null, createdAt = 0, updatedAt = 0, archivedAt = null
             ))
             database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity(
-                id = "comp1", recipeId = "rec1", componentIngredientId = "i1",
+                id = "comp1", recipeId = "rec1", componentIngredientId = ingredientId.value,
                 quantityEntered = BigDecimal("12"), quantityBase = BigDecimal("12"),
-                unitOptionId = "o-i1", sortOrder = 0, notes = null, createdAt = 0, updatedAt = 0
+                unitOptionId = optionId.value, sortOrder = 0, notes = null, createdAt = 0, updatedAt = 0
             ))
 
             preferencesRepository.setAppLocaleTag("en")
@@ -100,21 +124,24 @@ class ProductionBatchUiTest {
 
             // 1. Open Production List from Home
             composeTestRule.onNodeWithTag("open_production_batches_button").performScrollTo().performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_list_screen")
 
             // 2. Create Draft
             composeTestRule.onNodeWithTag("add_production_batch_fab").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_create_screen")
             
             composeTestRule.onNodeWithTag("production_recipe_selector").performClick()
             composeTestRule.onNodeWithText("Grounding").performClick()
             
+            // Batch multiplier = 2
+            // Expected component consumption = 24
+            // Expected output = 20
             composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
             composeTestRule.onNodeWithTag("production_output_area_selector").performClick()
             composeTestRule.onNodeWithText("Kitchen").performClick()
             
             composeTestRule.onNodeWithTag("production_batch_create").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_draft_screen")
 
             // 3. Verify Draft state
             val batchSummaries = runBlocking { database.productionBatchDao().observeSummaries(restaurantId.value, null).first() }
@@ -122,55 +149,87 @@ class ProductionBatchUiTest {
             assertNotNull(summary)
             assertEquals("DRAFT", summary!!.status)
             
-            val batch = runBlocking { database.productionBatchDao().getById(summary.id) }
+            val batchId = ProductionBatchId(summary.id)
+            val batch = runBlocking { database.productionBatchDao().getById(batchId.value) }
             assertNotNull(batch)
             assertEquals(0, BigDecimal("2").compareTo(BigDecimal(batch!!.batchMultiplier)))
+            assertEquals(0, BigDecimal("20").compareTo(BigDecimal(batch.expectedOutputQuantityEntered)))
+            assertEquals(0, BigDecimal("20").compareTo(BigDecimal(batch.actualOutputQuantityEntered)))
             
             // 4. Open Component and Set Area
-            val batchComponents = runBlocking { database.productionBatchDao().getComponents(batch.id) }
-            val compId = batchComponents.first().id
-            composeTestRule.onNodeWithTag("production_component_item_$compId").performClick()
-            composeTestRule.waitForIdle()
+            val batchComponents = runBlocking { database.productionBatchDao().getComponents(batchId.value) }
+            val component = batchComponents.first()
+            assertEquals(0, BigDecimal("24").compareTo(BigDecimal(component.expectedQuantityEntered)))
+            assertEquals(0, BigDecimal("24").compareTo(BigDecimal(component.actualQuantityEntered)))
+
+            composeTestRule.onNodeWithTag("production_component_item_${component.id}").performClick()
+            waitForTag("production_batch_component_screen")
             
             composeTestRule.onNodeWithTag("production_component_area_selector").performClick()
             composeTestRule.onNodeWithText("Kitchen").performClick()
             composeTestRule.onNodeWithTag("production_batch_save").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_draft_screen")
 
             // 5. Review and Post
             composeTestRule.onNodeWithTag("production_batch_review").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_preview_screen")
+            
+            // Verify Preview Costing
+            // Component total cost = 24 * 5 = 120
+            // Output unit cost = 120 / 20 = 6
+            composeTestRule.onNodeWithText("120.00").assertExists()
+            composeTestRule.onNodeWithText("6.00").assertExists()
             
             composeTestRule.onNodeWithTag("production_batch_post").performClick()
-            composeTestRule.onNodeWithText("Confirm").performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("production_post_confirmation").performClick()
+            waitForTag("production_batch_detail_screen")
 
             // 6. Verify Posted Detail
             composeTestRule.onNodeWithTag("production_batch_detail_screen").assertExists()
-            composeTestRule.onNodeWithText("Posted").assertExists()
+            
+            // Check movements
+            val movements = runBlocking { 
+                database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value) 
+            }
+            assertEquals(2, movements.size)
+            
+            val consumption = movements.find { it.movementType == "PRODUCTION_CONSUMPTION" }!!
+            val output = movements.find { it.movementType == "PRODUCTION_OUTPUT" }!!
+            
+            assertEquals(0, BigDecimal("-24").compareTo(BigDecimal(consumption.quantityBaseSigned)))
+            assertEquals(0, BigDecimal("5").compareTo(BigDecimal(consumption.unitCostBaseSnapshot!!)))
+            assertEquals(0, BigDecimal("-120").compareTo(BigDecimal(consumption.totalValueSnapshot!!)))
+            
+            assertEquals(0, BigDecimal("20").compareTo(BigDecimal(output.quantityBaseSigned)))
+            assertEquals(0, BigDecimal("6").compareTo(BigDecimal(output.unitCostBaseSnapshot!!)))
+            assertEquals(0, BigDecimal("120").compareTo(BigDecimal(output.totalValueSnapshot!!)))
             
             // 7. Void
             composeTestRule.onNodeWithTag("production_batch_void").performClick()
             composeTestRule.onNodeWithText("Confirm").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("production_batch_detail_screen") // Status will change to VOIDED
             
             // 8. Verify Voided state
-            composeTestRule.onNodeWithText("Voided").assertExists()
-            val finalBatch = runBlocking { database.productionBatchDao().getById(batch.id) }
+            val finalBatch = runBlocking { database.productionBatchDao().getById(batchId.value) }
             assertEquals("VOIDED", finalBatch!!.status)
             assertNotNull(finalBatch.voidedAt)
+            
+            val allMovements = runBlocking { 
+                database.inventoryMovementDao().getBySourceDocument("PRODUCTION_BATCH", batchId.value) 
+            }
+            assertEquals(4, allMovements.size) // 2 original + 2 reversals
+            val reversals = allMovements.filter { it.movementType == "REVERSAL" }
+            assertEquals(2, reversals.size)
         }
     }
 
     private fun waitForHome() {
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        waitForTag("home_screen")
+    }
+
+    private fun waitForTag(tag: String) {
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.waitForIdle()
     }
 }

@@ -16,6 +16,7 @@ import javax.inject.Inject
 data class ProductionBatchListUiState(
     val screenState: ProductionBatchScreenState = ProductionBatchScreenState.Loading,
     val batches: List<ProductionBatchSummary> = emptyList(),
+    val currencyCode: String = "",
     val searchQuery: String = "",
     val selectedStatus: DocumentStatus? = null
 )
@@ -65,7 +66,8 @@ class ProductionBatchListViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 screenState = ProductionBatchScreenState.Ready,
-                                batches = filteredBatches
+                                batches = filteredBatches,
+                                currencyCode = restaurant.currencyCode
                             )
                         }
                     }

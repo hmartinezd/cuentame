@@ -12,6 +12,8 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.ProductionBatch
 import com.miara.cuentame.core.model.inventory.ProductionBatchComponent
 import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.feature.production.presentation.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,6 +34,7 @@ data class ProductionBatchDetailUiState(
     val outputIngredientName: String = "",
     val outputAreaName: String = "",
     val outputUnitLabel: String = "",
+    val currencyCode: String = "",
     
     val componentNames: Map<ProductionBatchComponentId, String> = emptyMap(),
     val componentUnitLabels: Map<ProductionBatchComponentId, String> = emptyMap(),
@@ -98,10 +101,22 @@ class ProductionBatchDetailViewModel @Inject constructor(
                             return@collectLatest
                         }
 
-                        // Enrichment
+                        // Strict enrichment
                         val outputIng = ingredientRepository.getById(batch.outputIngredientId)
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
                         val outputArea = inventoryAreaRepository.getById(batch.outputAreaId)
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
                         val outputUnit = ingredientRepository.getUnitOptions(batch.outputIngredientId, true).find { it.id == batch.outputUnitOptionId }
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
 
                         val componentNames = mutableMapOf<ProductionBatchComponentId, String>()
                         val componentUnitLabels = mutableMapOf<ProductionBatchComponentId, String>()
@@ -109,12 +124,35 @@ class ProductionBatchDetailViewModel @Inject constructor(
                         val componentRecipeUnitLabels = mutableMapOf<ProductionBatchComponentId, String>()
 
                         for (comp in batch.components) {
-                            componentNames[comp.id] = ingredientRepository.getById(comp.componentIngredientId)?.name ?: comp.componentIngredientId.value
+                            val compIng = ingredientRepository.getById(comp.componentIngredientId)
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentNames[comp.id] = compIng.name
+                            
                             val compOptions = ingredientRepository.getUnitOptions(comp.componentIngredientId, true)
-                            componentUnitLabels[comp.id] = compOptions.find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value
-                            componentRecipeUnitLabels[comp.id] = compOptions.find { it.id == comp.recipeUnitOptionIdSnapshot }?.displayName ?: comp.recipeUnitOptionIdSnapshot.value
+                            val compUnit = compOptions.find { it.id == comp.unitOptionId }
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentUnitLabels[comp.id] = compUnit.displayName
+
+                            val compRecipeUnit = compOptions.find { it.id == comp.recipeUnitOptionIdSnapshot }
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentRecipeUnitLabels[comp.id] = compRecipeUnit.displayName
+
                             comp.sourceAreaId?.let { areaId ->
-                                componentAreaNames[comp.id] = inventoryAreaRepository.getById(areaId)?.name ?: areaId.value
+                                val area = inventoryAreaRepository.getById(areaId)
+                                    ?: run {
+                                        _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                        return@collectLatest
+                                    }
+                                componentAreaNames[comp.id] = area.name
                             }
                         }
 
@@ -122,9 +160,10 @@ class ProductionBatchDetailViewModel @Inject constructor(
                             it.copy(
                                 screenState = ProductionBatchScreenState.Ready,
                                 batch = batch,
-                                outputIngredientName = outputIng?.name ?: batch.outputIngredientId.value,
-                                outputAreaName = outputArea?.name ?: batch.outputAreaId.value,
-                                outputUnitLabel = outputUnit?.displayName ?: batch.outputUnitOptionId.value,
+                                outputIngredientName = outputIng.name,
+                                outputAreaName = outputArea.name,
+                                outputUnitLabel = outputUnit.displayName,
+                                currencyCode = restaurant.currencyCode,
                                 componentNames = componentNames,
                                 componentUnitLabels = componentUnitLabels,
                                 componentAreaNames = componentAreaNames,
@@ -148,6 +187,10 @@ class ProductionBatchDetailViewModel @Inject constructor(
             try {
                 productionBatchRepository.void(batchId)
                 // Observation will handle status change
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isOperating = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isOperating = false) }
             } finally {

@@ -5,12 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.*
+import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.ProductionBatch
 import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.feature.production.presentation.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,6 +27,7 @@ import javax.inject.Inject
 
 sealed interface ProductionBatchDraftEvent {
     data class NavigateToDetail(val batchId: ProductionBatchId) : ProductionBatchDraftEvent
+    data class NavigateToPreview(val batchId: ProductionBatchId) : ProductionBatchDraftEvent
     data object Deleted : ProductionBatchDraftEvent
 }
 
@@ -64,7 +68,15 @@ data class ProductionBatchDraftUiState(
     val multiplierError: Boolean = false,
     val actualOutputError: Boolean = false,
     val inlineError: UiMessage? = null
-)
+) {
+    val hasUnsavedChanges: Boolean
+        get() = multiplierDirty ||
+                outputAreaDirty ||
+                outputUnitDirty ||
+                outputQuantityDirty ||
+                effectiveAtDirty ||
+                notesDirty
+}
 
 @HiltViewModel
 class ProductionBatchDraftViewModel @Inject constructor(
@@ -72,6 +84,7 @@ class ProductionBatchDraftViewModel @Inject constructor(
     private val ingredientRepository: IngredientRepository,
     private val inventoryAreaRepository: InventoryAreaRepository,
     private val restaurantRepository: RestaurantRepository,
+    private val timeProvider: TimeProvider,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -125,11 +138,28 @@ class ProductionBatchDraftViewModel @Inject constructor(
                         }
 
                         val activeAreas = inventoryAreaRepository.observeActiveAreas().first()
-                        val currentArea = inventoryAreaRepository.getById(batch.outputAreaId)
-                        val allAreas = (activeAreas + listOfNotNull(currentArea)).distinctBy { it.id }
+                        val currentArea = batch.outputAreaId.let { inventoryAreaRepository.getById(it) }
+                        
+                        // Strict output area enrichment
+                        if (currentArea == null) {
+                             _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                             return@collectLatest
+                        }
+
+                        val allAreas = (activeAreas + listOf(currentArea)).distinctBy { it.id }
 
                         val outputIngredient = ingredientRepository.getById(batch.outputIngredientId)
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
+
                         val unitOptions = ingredientRepository.getUnitOptions(batch.outputIngredientId, includeArchived = true)
+                        val outputUnit = unitOptions.find { it.id == batch.outputUnitOptionId }
+                            ?: run {
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                return@collectLatest
+                            }
 
                         val componentNames = mutableMapOf<ProductionBatchComponentId, String>()
                         val componentUnitLabels = mutableMapOf<ProductionBatchComponentId, String>()
@@ -137,12 +167,35 @@ class ProductionBatchDraftViewModel @Inject constructor(
                         val componentRecipeUnitLabels = mutableMapOf<ProductionBatchComponentId, String>()
 
                         for (comp in batch.components) {
-                            componentNames[comp.id] = ingredientRepository.getById(comp.componentIngredientId)?.name ?: comp.componentIngredientId.value
+                            val compIng = ingredientRepository.getById(comp.componentIngredientId)
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentNames[comp.id] = compIng.name
+                            
                             val compOptions = ingredientRepository.getUnitOptions(comp.componentIngredientId, true)
-                            componentUnitLabels[comp.id] = compOptions.find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value
-                            componentRecipeUnitLabels[comp.id] = compOptions.find { it.id == comp.recipeUnitOptionIdSnapshot }?.displayName ?: comp.recipeUnitOptionIdSnapshot.value
+                            val compUnit = compOptions.find { it.id == comp.unitOptionId }
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentUnitLabels[comp.id] = compUnit.displayName
+
+                            val compRecipeUnit = compOptions.find { it.id == comp.recipeUnitOptionIdSnapshot }
+                                ?: run {
+                                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                    return@collectLatest
+                                }
+                            componentRecipeUnitLabels[comp.id] = compRecipeUnit.displayName
+
                             comp.sourceAreaId?.let { areaId ->
-                                componentAreaNames[comp.id] = inventoryAreaRepository.getById(areaId)?.name ?: areaId.value
+                                val area = inventoryAreaRepository.getById(areaId)
+                                    ?: run {
+                                        _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                        return@collectLatest
+                                    }
+                                componentAreaNames[comp.id] = area.name
                             }
                         }
 
@@ -151,7 +204,7 @@ class ProductionBatchDraftViewModel @Inject constructor(
                                 state.copy(
                                     screenState = ProductionBatchScreenState.Ready,
                                     batch = batch,
-                                    outputIngredientName = outputIngredient?.name ?: batch.outputIngredientId.value,
+                                    outputIngredientName = outputIngredient.name,
                                     availableAreas = allAreas,
                                     availableUnitOptions = unitOptions,
                                     componentNames = componentNames,
@@ -175,7 +228,7 @@ class ProductionBatchDraftViewModel @Inject constructor(
                                 state.copy(
                                     screenState = ProductionBatchScreenState.Ready,
                                     batch = batch,
-                                    outputIngredientName = outputIngredient?.name ?: batch.outputIngredientId.value,
+                                    outputIngredientName = outputIngredient.name,
                                     availableAreas = allAreas,
                                     availableUnitOptions = unitOptions,
                                     componentNames = componentNames,
@@ -265,7 +318,7 @@ class ProductionBatchDraftViewModel @Inject constructor(
 
     fun onSave() {
         val state = _uiState.value
-        if (state.isSaving || batchId == null) return
+        if (state.isSaving || state.isDeleting || batchId == null) return
 
         val multiplierVal = if (state.multiplierDirty) {
             try { BigDecimal(state.multiplier) } catch (e: Exception) {
@@ -291,6 +344,11 @@ class ProductionBatchDraftViewModel @Inject constructor(
             return
         }
 
+        if (state.effectiveAtDirty && state.effectiveAt.isAfter(timeProvider.now())) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_future_effective_time)) }
+            return
+        }
+
         _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
             try {
@@ -305,9 +363,6 @@ class ProductionBatchDraftViewModel @Inject constructor(
                         notes = state.notes.takeIf { state.notesDirty }?.trim() ?: if (state.notesDirty) "" else null
                     )
                 )
-                // Clear dirty flags after successful save? Usually observation reloads data.
-                // We'll let observation reload and reset isInitialized = true if we want to reset form.
-                // Or just clear dirty flags here if we stay on screen.
                 _uiState.update { it.copy(
                     multiplierDirty = false,
                     outputAreaDirty = false,
@@ -316,6 +371,10 @@ class ProductionBatchDraftViewModel @Inject constructor(
                     effectiveAtDirty = false,
                     notesDirty = false
                 ) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
@@ -325,15 +384,28 @@ class ProductionBatchDraftViewModel @Inject constructor(
     }
 
     fun onDelete() {
-        if (batchId == null || _uiState.value.isDeleting) return
+        val state = _uiState.value
+        if (batchId == null || state.isDeleting || state.isSaving) return
         _uiState.update { it.copy(isDeleting = true, inlineError = null) }
         viewModelScope.launch {
             try {
                 productionBatchRepository.deleteDraft(batchId)
                 _events.send(ProductionBatchDraftEvent.Deleted)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProductionBatchValidationException) {
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isDeleting = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isDeleting = false) }
             }
+        }
+    }
+
+    fun onReview() {
+        val state = _uiState.value
+        if (state.hasUnsavedChanges || state.isSaving || state.isDeleting || batchId == null) return
+        viewModelScope.launch {
+            _events.send(ProductionBatchDraftEvent.NavigateToPreview(batchId))
         }
     }
 

@@ -143,7 +143,8 @@ fun ProductionBatchDetailScreen(
                                 ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value,
                                 unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value,
                                 recipeUnitLabel = uiState.componentRecipeUnitLabels[component.id] ?: "",
-                                areaName = uiState.componentAreaNames[component.id] ?: component.sourceAreaId?.value ?: ""
+                                areaName = uiState.componentAreaNames[component.id] ?: component.sourceAreaId?.value ?: "",
+                                currencyCode = uiState.currencyCode
                             )
                             HorizontalDivider()
                         }
@@ -168,7 +169,26 @@ fun ProductionBatchDetailScreen(
                     }
                 }
             }
-            else -> {}
+            ProductionBatchScreenState.InvalidRoute -> {
+                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_generic))
+                }
+            }
+            ProductionBatchScreenState.BatchNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_batch_not_found))
+                }
+            }
+            ProductionBatchScreenState.ComponentNotFound -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_component_not_found))
+                }
+            }
+            ProductionBatchScreenState.ParentNotEditable -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(text = stringResource(R.string.error_recipe_not_editable))
+                }
+            }
         }
     }
 
@@ -213,10 +233,36 @@ private fun DetailHeader(uiState: ProductionBatchDetailUiState) {
 
             DetailRow(stringResource(R.string.batch_multiplier), batch.batchMultiplier.toPlainString())
             DetailRow(stringResource(R.string.output_area), uiState.outputAreaName)
-            DetailRow(stringResource(R.string.actual_output), Formatters.formatQuantity(batch.actualOutputQuantityEntered, uiState.outputUnitLabel))
             
+            DetailRow(
+                stringResource(R.string.standard_yield), 
+                "${Formatters.formatQuantity(batch.recipeStandardYieldQuantitySnapshot)} (${Formatters.formatQuantity(batch.recipeStandardYieldBaseSnapshot)} base)"
+            )
+
+            DetailRow(
+                stringResource(R.string.expected_output), 
+                "${Formatters.formatQuantity(batch.expectedOutputQuantityEntered, uiState.outputUnitLabel)} (${Formatters.formatQuantity(batch.expectedOutputQuantityBase)} base)"
+            )
+
+            DetailRow(
+                stringResource(R.string.actual_output), 
+                "${Formatters.formatQuantity(batch.actualOutputQuantityEntered, uiState.outputUnitLabel)} (${Formatters.formatQuantity(batch.actualOutputQuantityBase)} base)"
+            )
+            
+            if (batch.hasManualOutputQuantityOverride) {
+                Text(text = stringResource(R.string.manually_overridden), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+            }
+
             if (batch.totalComponentCostSnapshot != null) {
-                DetailRow(stringResource(R.string.total_component_cost), Formatters.formatCurrency(batch.totalComponentCostSnapshot, ""))
+                DetailRow(stringResource(R.string.total_component_cost), Formatters.formatCurrency(batch.totalComponentCostSnapshot, uiState.currencyCode))
+            }
+            
+            if (batch.outputUnitCostBaseSnapshot != null) {
+                DetailRow(stringResource(R.string.output_unit_cost), Formatters.formatCurrency(batch.outputUnitCostBaseSnapshot, uiState.currencyCode) + " base")
+            }
+
+            if (batch.notes != null) {
+                Text(text = stringResource(R.string.notes) + ": ${batch.notes}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -228,20 +274,35 @@ private fun ComponentDetailItem(
     ingredientName: String,
     unitLabel: String,
     recipeUnitLabel: String,
-    areaName: String
+    areaName: String,
+    currencyCode: String
 ) {
     ListItem(
         headlineContent = { Text(ingredientName) },
         supportingContent = {
             Column {
                 Text(text = stringResource(R.string.area_label) + ": $areaName")
-                Text(text = stringResource(R.string.expected_quantity) + ": ${Formatters.formatQuantity(component.expectedQuantityEntered, recipeUnitLabel)}")
-                Text(text = stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, unitLabel)}")
+                Text(text = "Recipe snapshot: ${Formatters.formatQuantity(component.recipeQuantityEnteredSnapshot, recipeUnitLabel)} (${Formatters.formatQuantity(component.recipeQuantityBaseSnapshot)} base)")
+                Text(text = stringResource(R.string.expected_quantity) + ": ${Formatters.formatQuantity(component.expectedQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.expectedQuantityBase)} base)")
+                Text(text = stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} base)")
+                
+                if (component.hasManualQuantityOverride) {
+                    Text(text = stringResource(R.string.manually_overridden), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                }
+
+                if (component.notes != null) {
+                    Text(text = stringResource(R.string.notes) + ": ${component.notes}", style = MaterialTheme.typography.labelSmall)
+                }
             }
         },
         trailingContent = {
-            if (component.totalCostSnapshot != null) {
-                Text(Formatters.formatCurrency(component.totalCostSnapshot, ""), fontWeight = FontWeight.Bold)
+            Column(horizontalAlignment = Alignment.End) {
+                if (component.totalCostSnapshot != null) {
+                    Text(Formatters.formatCurrency(component.totalCostSnapshot, currencyCode), fontWeight = FontWeight.Bold)
+                }
+                if (component.unitCostBaseSnapshot != null) {
+                    Text(Formatters.formatCurrency(component.unitCostBaseSnapshot, currencyCode) + " base", style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     )
@@ -256,6 +317,7 @@ private fun AuditInfo(batch: ProductionBatch) {
 
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(text = stringResource(R.string.audit_created, dateTimeFormatter.format(batch.createdAt)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        Text(text = stringResource(R.string.audit_updated, dateTimeFormatter.format(batch.updatedAt)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         batch.postedAt?.let {
             Text(text = stringResource(R.string.posted_at, dateTimeFormatter.format(it)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         }

@@ -356,7 +356,7 @@ class RoomProductionBatchRepository @Inject constructor(
 
                 val actualEntered = command.actualQuantityEntered ?: BigDecimal(component.actualQuantityEntered)
                 if (actualEntered.compareTo(BigDecimal.ZERO) <= 0) {
-                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ActualOutputMustBePositive)) // Plan says reject zero/negative
+                    throw ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.ComponentQuantityMustBePositive))
                 }
 
                 updated = updated.copy(

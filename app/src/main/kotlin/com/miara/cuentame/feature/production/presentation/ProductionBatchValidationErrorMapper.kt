@@ -25,15 +25,15 @@ fun ProductionBatchValidationFailure.toUserMessage(): UiMessage {
         ProductionBatchValidationFailure.ComponentNotFound -> R.string.error_component_not_found
         ProductionBatchValidationFailure.ComponentIngredientNotFound -> R.string.error_ingredient_not_found
         ProductionBatchValidationFailure.ComponentIngredientInactive -> R.string.error_ingredient_inactive
-        ProductionBatchValidationFailure.ComponentIngredientRestaurantMismatch -> R.string.error_generic
+        ProductionBatchValidationFailure.ComponentIngredientRestaurantMismatch -> R.string.error_no_restaurant
         ProductionBatchValidationFailure.ComponentQuantityMustBePositive -> R.string.error_quantity_positive
         ProductionBatchValidationFailure.InvalidUnitFactor -> R.string.error_generic
         ProductionBatchValidationFailure.SourceAreaNotFound -> R.string.error_area_not_found
         ProductionBatchValidationFailure.SourceAreaInactive -> R.string.error_area_inactive
-        ProductionBatchValidationFailure.SourceAreaRestaurantMismatch -> R.string.error_generic
+        ProductionBatchValidationFailure.SourceAreaRestaurantMismatch -> R.string.error_no_restaurant
         ProductionBatchValidationFailure.ComponentUnitOptionNotFound -> R.string.error_unit_option_not_found
         ProductionBatchValidationFailure.ComponentUnitOptionInactive -> R.string.error_unit_inactive
-        ProductionBatchValidationFailure.ComponentUnitOptionMismatch -> R.string.error_generic
+        ProductionBatchValidationFailure.ComponentUnitOptionMismatch -> R.string.error_unit_option_not_found
         ProductionBatchValidationFailure.ComponentCostUnavailable -> R.string.error_cost_unavailable
         ProductionBatchValidationFailure.MovementHistoryConflict -> R.string.error_malformed_history
         ProductionBatchValidationFailure.RestrictedByArchive -> R.string.error_restricted_by_archive

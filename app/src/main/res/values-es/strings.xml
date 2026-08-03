@@ -665,6 +665,7 @@
     <string name="production_component_unit_selector">Unidad</string>
     <string name="production_component_quantity_field">Cantidad real</string>
     <string name="production_component_reset">Restablecer</string>
+    <string name="save_before_review">Guarde sus cambios antes de revisar este lote.</string>
 </resources>
 
 
