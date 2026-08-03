@@ -83,12 +83,16 @@ class RoomInventorySnapshotServiceTest {
         val t1 = now.minusSeconds(200)
         val t2 = now.minusSeconds(100)
         
-        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t1))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
+        val original = createMovement("m1", "PURCHASE", "10", "5", t1)
+        val reversal = createExactReversal("m2", original, t2)
+        
+        db.inventoryMovementDao().insert(original)
+        db.inventoryMovementDao().insert(reversal)
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, now)
         assertThat(snapshot.hasEffectiveHistory).isFalse()
         assertThat(snapshot.areaQuantityBase.compareTo(BigDecimal.ZERO)).isEqualTo(0)
+        assertThat(snapshot.ingredientAverageCostBase).isNull()
     }
 
     @Test
@@ -97,12 +101,16 @@ class RoomInventorySnapshotServiceTest {
         val t1 = now.minusSeconds(100)
         val t2 = now.plusSeconds(100)
 
-        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t1))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
+        val original = createMovement("m1", "PURCHASE", "10", "5", t1)
+        val reversal = createExactReversal("m2", original, t2)
+
+        db.inventoryMovementDao().insert(original)
+        db.inventoryMovementDao().insert(reversal)
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, now)
         assertThat(snapshot.hasEffectiveHistory).isTrue()
         assertThat(snapshot.areaQuantityBase.compareTo(BigDecimal("10"))).isEqualTo(0)
+        assertThat(snapshot.ingredientAverageCostBase?.compareTo(BigDecimal("5"))).isEqualTo(0)
     }
 
     @Test
@@ -123,8 +131,11 @@ class RoomInventorySnapshotServiceTest {
         val t1 = now.minusSeconds(200) // snapshot at t1
         val t2 = now.minusSeconds(100) // reversal at t2
 
-        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t2, reversalOfMovementId = "m1"))
+        val original = createMovement("m1", "PURCHASE", "10", "5", t0)
+        val reversal = createExactReversal("m2", original, t2)
+
+        db.inventoryMovementDao().insert(original)
+        db.inventoryMovementDao().insert(reversal)
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t1)
         assertThat(snapshot.hasEffectiveHistory).isTrue()
@@ -139,13 +150,58 @@ class RoomInventorySnapshotServiceTest {
         val t1 = now.minusSeconds(200)
         val t2 = now.minusSeconds(100) // snapshot at t2
 
-        db.inventoryMovementDao().insert(createMovement("m1", "PURCHASE", "10", "5", t0))
-        db.inventoryMovementDao().insert(createMovement("m2", "REVERSAL", "-10", "5", t1, reversalOfMovementId = "m1"))
+        val original = createMovement("m1", "PURCHASE", "10", "5", t0)
+        val reversal = createExactReversal("m2", original, t1)
+
+        db.inventoryMovementDao().insert(original)
+        db.inventoryMovementDao().insert(reversal)
 
         val snapshot = service.calculateAt(restaurantId, ingredientId, areaId, t2)
         assertThat(snapshot.hasEffectiveHistory).isFalse()
         assertThat(snapshot.areaQuantityBase.compareTo(BigDecimal.ZERO)).isEqualTo(0)
         assertThat(snapshot.ingredientAverageCostBase).isNull()
+    }
+
+    private fun createExactReversal(
+        id: String,
+        original: InventoryMovementEntity,
+        effectiveAt: Instant,
+        createdAt: Instant = effectiveAt
+    ): InventoryMovementEntity {
+        return InventoryMovementEntity(
+            id = id,
+            restaurantId = original.restaurantId,
+            ingredientId = original.ingredientId,
+            areaId = original.areaId,
+            movementType = InventoryMovementType.REVERSAL.name,
+            quantityBaseSigned =
+                BigDecimal(original.quantityBaseSigned)
+                    .negate()
+                    .toPlainString(),
+            unitCostBaseSnapshot =
+                original.unitCostBaseSnapshot,
+            totalValueSnapshot =
+                original.totalValueSnapshot
+                    ?.let {
+                        BigDecimal(it)
+                            .negate()
+                            .toPlainString()
+                    },
+            effectiveAt = effectiveAt.toEpochMilli(),
+            sourceDocumentType =
+                original.sourceDocumentType,
+            sourceDocumentId =
+                original.sourceDocumentId,
+            sourceOperationId =
+                InventoryMovementOperationIds
+                    .reversal(original.id),
+            sourceLineId =
+                original.sourceLineId,
+            reversalOfMovementId =
+                original.id,
+            createdAt =
+                createdAt.toEpochMilli()
+        )
     }
 
     private fun createMovement(

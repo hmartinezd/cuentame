@@ -609,9 +609,9 @@ class BackupProductionIntegrationTest {
     fun planning_fails_if_snapshot_has_attachments(): Unit = runBlocking {
         seedAllTables()
         
-        // Corrupt purchase receipt with attachment ID
+        // Corrupt purchase receipt with attachment path
         database().openHelper.writableDatabase.execSQL(
-            "UPDATE purchase_receipts SET attachmentId = 'att1' WHERE id = 'p1'"
+            "UPDATE purchase_receipts SET attachmentPath = '/test/receipt.jpg' WHERE id = 'p1'"
         )
 
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
@@ -631,9 +631,9 @@ class BackupProductionIntegrationTest {
     fun planning_fails_if_waste_has_attachments(): Unit = runBlocking {
         seedAllTables()
         
-        // Corrupt waste event with attachment ID
+        // Corrupt waste event with attachment path
         database().openHelper.writableDatabase.execSQL(
-            "UPDATE waste_events SET attachmentId = 'att2' WHERE id = 'w1'"
+            "UPDATE waste_events SET attachmentPath = '/test/waste.jpg' WHERE id = 'w1'"
         )
 
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync

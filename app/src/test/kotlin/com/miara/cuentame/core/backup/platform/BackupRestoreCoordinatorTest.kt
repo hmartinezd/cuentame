@@ -332,6 +332,29 @@ class BackupRestoreCoordinatorTest {
         }
     }
 
+    @Test
+    fun `apply rejects attachments eligibility before mutation`() = runTest {
+        val source = BackupDocumentUri("uri")
+        val fingerprint = BackupArchiveFingerprint("hash")
+        
+        val archive = mockk<InspectedBackupArchive>(relaxed = true) {
+            every { this@mockk.fingerprint } returns fingerprint
+        }
+        coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(
+            archive, mockk(relaxed = true), BackupRestoreEligibility.AttachmentsNotSupported
+        )
+        
+        val result = coordinator.apply(source, fingerprint) {}
+        
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported))
+        
+        coVerify(exactly = 0) {
+            databaseApplier.captureRollbackSnapshot()
+            journal.write(any())
+            databaseApplier.replaceWithBackup(any())
+        }
+    }
+
     private fun createEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(
         restaurants = emptyList(),
         inventoryAreas = emptyList(),

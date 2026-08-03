@@ -19,7 +19,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
-import java.math.BigDecimal
 import java.time.Instant
 
 class BackupMetadataParityTest {
@@ -58,19 +57,29 @@ class BackupMetadataParityTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
-        var snapshotDto = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(RestaurantBackupDto("r1", "Rest", "USD", "en-US", 0, 0, null))
-        )
-        snapshotDto = BackupTestFixtures.addPostedPurchase(
-            snapshotDto, "p1", "pl1", "m1", "i1", "a1", "o1", BigDecimal("10"), BigDecimal("5"), 1000L, 1000L
-        )
-        snapshotDto = BackupTestFixtures.addPostedProduction(
-            snapshotDto, "pb1", "m2", "i2", "a1", "o2", BigDecimal("5"), BigDecimal("20"), 2000L, 2000L
-        )
+        val snapshotDto = BackupTestFixtures.createPopulatedSchema4Snapshot()
         
+        // 0. Validate snapshot integrity before planning
+        val manifestBefore = BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-08-02T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 4,
+            restaurantId = "r1",
+            restaurantName = "Test Rest",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = createExpectedMetadata(snapshotDto),
+            attachments = emptyList(),
+            includedSections = listOf("DATABASE", "PREFERENCES")
+        )
+        assertThat(BackupSnapshotIntegrityValidator.validate(snapshotDto, manifestBefore).isSuccess).isTrue()
+
         val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
 
-        val restaurant = Restaurant(RestaurantId("r1"), "Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        val restaurant = Restaurant(RestaurantId("r1"), "Test Rest", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val planResult = planner.createPlan(restaurant, snapshotResult)
         
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
@@ -88,13 +97,51 @@ class BackupMetadataParityTest {
         assertThat(validationResult).isInstanceOf(BackupValidationResult.Valid::class.java)
         val validatedManifest = (validationResult as BackupValidationResult.Valid).manifest
         
-        // 4. Compare
+        // 4. Compare all three manifestations
         assertThat(validatedManifest.tableMetadata).isEqualTo(plannerMetadata)
+        assertThat(validatedManifest.entryCounts()).isEqualTo(plannerMetadata.mapValues { it.value.entryCount })
+        assertThat(validatedManifest.databaseSchemaVersion).isEqualTo(plan.manifest.databaseSchemaVersion)
+        assertThat(validatedManifest.restaurantId).isEqualTo(plan.manifest.restaurantId)
         
         // Assert specific derived flags
         assertThat(plannerMetadata["inventory_balance_projections"]?.isDerived).isTrue()
         assertThat(plannerMetadata["ingredient_cost_projections"]?.isDerived).isTrue()
         assertThat(plannerMetadata["ingredients"]?.isDerived).isFalse()
+    }
+
+    private fun BackupManifest.entryCounts() = tableMetadata.mapValues { it.value.entryCount }
+
+    private fun createExpectedMetadata(dto: BackupSnapshotDto): Map<String, TableMetadata> {
+        val schemaVersion = 4
+        val counts = mapOf(
+            "restaurants" to dto.restaurants.size,
+            "inventory_areas" to dto.inventoryAreas.size,
+            "ingredient_categories" to dto.ingredientCategories.size,
+            "units" to dto.units.size,
+            "ingredients" to dto.ingredients.size,
+            "ingredient_unit_options" to dto.ingredientUnitOptions.size,
+            "suppliers" to dto.suppliers.size,
+            "purchase_receipts" to dto.purchaseReceipts.size,
+            "purchase_lines" to dto.purchaseLines.size,
+            "stock_counts" to dto.stockCounts.size,
+            "stock_count_areas" to dto.stockCountAreas.size,
+            "stock_count_lines" to dto.stockCountLines.size,
+            "waste_events" to dto.wasteEvents.size,
+            "inventory_movements" to dto.inventoryMovements.size,
+            "inventory_balance_projections" to dto.inventoryBalanceProjections.size,
+            "ingredient_cost_projections" to dto.ingredientCostProjections.size,
+            "preparation_recipes" to dto.preparationRecipes.size,
+            "preparation_recipe_components" to dto.preparationRecipeComponents.size,
+            "production_batches" to dto.productionBatches.size,
+            "production_batch_components" to dto.productionBatchComponents.size
+        )
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(schemaVersion)
+        return expectedTables.associateWith { table ->
+             TableMetadata(
+                 counts.getOrDefault(table, 0),
+                 table in BackupFormatV1Contract.DERIVED_TABLES
+             )
+        }
     }
 
     private fun buildArchive(plan: BackupPlan): ByteArray {

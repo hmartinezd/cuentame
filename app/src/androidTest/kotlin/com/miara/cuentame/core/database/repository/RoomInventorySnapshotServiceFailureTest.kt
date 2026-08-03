@@ -87,20 +87,13 @@ class RoomInventorySnapshotServiceFailureTest {
             )
         )
 
-        val m1 = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
-        db.inventoryMovementDao().insert(m1)
+        val original = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
+        db.inventoryMovementDao().insert(original)
 
-        // Area mismatch - m2 targets m1 but is in area_2
-        val m2 = createMovement(
-            id = "m2",
-            type = InventoryMovementType.REVERSAL.name,
-            quantityBaseSigned = "-10",
-            unitCostBaseSnapshot = "5",
-            effectiveAt = now,
-            reversalOfMovementId = "m1"
-        ).copy(areaId = "area_2")
+        val validReversal = createExactReversal("m2", original, now)
+        val malformed = validReversal.copy(areaId = "area_2")
 
-        db.inventoryMovementDao().insert(m2)
+        db.inventoryMovementDao().insert(malformed)
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
@@ -110,19 +103,13 @@ class RoomInventorySnapshotServiceFailureTest {
     @Test
     fun calculateAt_reversal_operationIdMismatch_throws() = runBlocking {
         val now = Instant.now()
-        db.inventoryMovementDao().insert(createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100)))
-        // Wrong operation ID
-        db.inventoryMovementDao().insert(
-            createMovement(
-                id = "m2",
-                type = InventoryMovementType.REVERSAL.name,
-                quantityBaseSigned = "-10",
-                unitCostBaseSnapshot = "5",
-                effectiveAt = now,
-                reversalOfMovementId = "m1",
-                sourceOperationIdOverride = "wrong_op"
-            )
-        )
+        val original = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
+        db.inventoryMovementDao().insert(original)
+        
+        val validReversal = createExactReversal("m2", original, now)
+        val malformed = validReversal.copy(sourceOperationId = "wrong_op")
+        
+        db.inventoryMovementDao().insert(malformed)
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
@@ -195,11 +182,12 @@ class RoomInventorySnapshotServiceFailureTest {
     @Test
     fun calculateAt_wrongReversalQuantity_throws() = runBlocking {
         val now = Instant.now()
-        val m1 = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
-        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-9", "5", now, reversalOfMovementId = "m1")
+        val original = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
+        val validReversal = createExactReversal("m2", original, now)
+        val malformed = validReversal.copy(quantityBaseSigned = "-9")
 
-        assertThat(db.inventoryMovementDao().insert(m1)).isNotNull()
-        assertThat(db.inventoryMovementDao().insert(m2)).isNotNull()
+        assertThat(db.inventoryMovementDao().insert(original)).isNotNull()
+        assertThat(db.inventoryMovementDao().insert(malformed)).isNotNull()
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
@@ -209,11 +197,12 @@ class RoomInventorySnapshotServiceFailureTest {
     @Test
     fun calculateAt_wrongReversalCost_throws() = runBlocking {
         val now = Instant.now()
-        val m1 = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
-        val m2 = createMovement("m2", InventoryMovementType.REVERSAL.name, "-10", "6", now, reversalOfMovementId = "m1")
+        val original = createMovement("m1", InventoryMovementType.PURCHASE.name, "10", "5", now.minusSeconds(100))
+        val validReversal = createExactReversal("m2", original, now)
+        val malformed = validReversal.copy(unitCostBaseSnapshot = "6")
 
-        assertThat(db.inventoryMovementDao().insert(m1)).isNotNull()
-        assertThat(db.inventoryMovementDao().insert(m2)).isNotNull()
+        assertThat(db.inventoryMovementDao().insert(original)).isNotNull()
+        assertThat(db.inventoryMovementDao().insert(malformed)).isNotNull()
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAt(restaurantId, ingredientId, areaId, Instant.now()) }
@@ -271,32 +260,67 @@ class RoomInventorySnapshotServiceFailureTest {
                 null
             )
         )
-        db.inventoryMovementDao().insert(
-            createMovement(
-                id = "m2",
-                type = InventoryMovementType.PURCHASE.name,
-                quantityBaseSigned = "10",
-                unitCostBaseSnapshot = "5",
-                effectiveAt = now.minusSeconds(100),
-                sourceDocumentId = "purchase-2",
-                sourceLineId = "line-2"
-            ).copy(ingredientId = "ing_2")
-        )
-        db.inventoryMovementDao().insert(
-            createMovement(
-                id = "m3",
-                type = InventoryMovementType.REVERSAL.name,
-                quantityBaseSigned = "-10",
-                unitCostBaseSnapshot = "5",
-                effectiveAt = now,
-                reversalOfMovementId = "m2",
-                sourceOperationIdOverride = "wrong-operation"
-            ).copy(ingredientId = "ing_2")
-        )
+        val original2 = createMovement(
+            id = "m2",
+            type = InventoryMovementType.PURCHASE.name,
+            quantityBaseSigned = "10",
+            unitCostBaseSnapshot = "5",
+            effectiveAt = now.minusSeconds(100),
+            sourceDocumentId = "purchase-2",
+            sourceLineId = "line-2"
+        ).copy(ingredientId = "ing_2")
+        db.inventoryMovementDao().insert(original2)
+        
+        val validReversal2 = createExactReversal("m3", original2, now)
+        val malformed2 = validReversal2.copy(sourceOperationId = "wrong-operation")
+        
+        db.inventoryMovementDao().insert(malformed2)
 
         assertThrows(ValidationError.MalformedInventoryMovementHistory::class.java) {
             runBlocking { service.calculateAreaBalancesAt(restaurantId, areaId, Instant.now()) }
         }
+    }
+
+    private fun createExactReversal(
+        id: String,
+        original: InventoryMovementEntity,
+        effectiveAt: Instant,
+        createdAt: Instant = effectiveAt
+    ): InventoryMovementEntity {
+        return InventoryMovementEntity(
+            id = id,
+            restaurantId = original.restaurantId,
+            ingredientId = original.ingredientId,
+            areaId = original.areaId,
+            movementType = InventoryMovementType.REVERSAL.name,
+            quantityBaseSigned =
+                BigDecimal(original.quantityBaseSigned)
+                    .negate()
+                    .toPlainString(),
+            unitCostBaseSnapshot =
+                original.unitCostBaseSnapshot,
+            totalValueSnapshot =
+                original.totalValueSnapshot
+                    ?.let {
+                        BigDecimal(it)
+                            .negate()
+                            .toPlainString()
+                    },
+            effectiveAt = effectiveAt.toEpochMilli(),
+            sourceDocumentType =
+                original.sourceDocumentType,
+            sourceDocumentId =
+                original.sourceDocumentId,
+            sourceOperationId =
+                InventoryMovementOperationIds
+                    .reversal(original.id),
+            sourceLineId =
+                original.sourceLineId,
+            reversalOfMovementId =
+                original.id,
+            createdAt =
+                createdAt.toEpochMilli()
+        )
     }
 
     private fun createMovement(

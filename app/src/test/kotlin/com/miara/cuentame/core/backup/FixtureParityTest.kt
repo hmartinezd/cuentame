@@ -65,6 +65,15 @@ class FixtureParityTest {
         val snapshot = BackupTestFixtures.addPostedProduction(
             snapshot = BackupTestFixtures.createEmptySnapshotDto(),
             batchId = batchId,
+            recipeId = "rec1",
+            recipeComponentId = "rc1",
+            componentId = "pbc1",
+            componentIngredientId = "i-comp",
+            componentAreaId = "a-out",
+            componentOptionId = "o-comp",
+            componentQuantityBase = BigDecimal.ONE,
+            componentUnitCostBase = BigDecimal.ONE,
+            consumptionMovementId = "m-consume",
             outputMovementId = "m-out",
             outputIngredientId = "i-out",
             outputAreaId = "a-out",
@@ -75,7 +84,7 @@ class FixtureParityTest {
             createdAt = 1000L
         )
         
-        val move = snapshot.inventoryMovements.first()
+        val move = snapshot.inventoryMovements.find { it.movementType == "PRODUCTION_OUTPUT" }!!
         assertThat(move.sourceOperationId).isEqualTo(expected)
         assertThat(expected).isEqualTo("production-post:pb1:output")
     }

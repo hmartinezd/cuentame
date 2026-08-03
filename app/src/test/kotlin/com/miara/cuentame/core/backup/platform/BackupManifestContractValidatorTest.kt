@@ -200,6 +200,45 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
+    fun `wrong derived flag for balance projection fails`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(4).associateWith { 
+            TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) 
+        }.toMutableMap()
+        // Sabotage balance projection
+        tables["inventory_balance_projections"] = TableMetadata(0, false)
+        
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 4, tableMetadata = tables)
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `wrong derived flag for cost projection fails`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(4).associateWith { 
+            TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) 
+        }.toMutableMap()
+        // Sabotage cost projection
+        tables["ingredient_cost_projections"] = TableMetadata(0, false)
+        
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 4, tableMetadata = tables)
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
+    fun `derived true on ingredients fails`() {
+        val tables = BackupFormatV1Contract.expectedTablesForSchema(4).associateWith { 
+            TableMetadata(0, it in BackupFormatV1Contract.DERIVED_TABLES) 
+        }.toMutableMap()
+        // Sabotage ingredients
+        tables["ingredients"] = TableMetadata(0, true)
+        
+        val manifest = createValidBaseManifest().copy(databaseSchemaVersion = 4, tableMetadata = tables)
+        val failure = BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())
+        assertThat(failure).isEqualTo(BackupRestoreFailure.MalformedManifest)
+    }
+
+    @Test
     fun `invalid attachment metadata fails`() {
         val att = createValidAttachment(attachmentId = "short")
         val manifest = createValidBaseManifest().copy(attachments = listOf(att))

@@ -96,6 +96,8 @@ class RestoreDatabaseApplierIntegrationTest {
         // 1. Seed valid existing database state A
         db.restaurantDao().insert(RestaurantEntity("r1", "State A", "USD", "en-US", 100, 100, null))
         db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", "r1", "Area 1", "area 1", 0, true, 0, 0, null))
+        db.unitDao().insertSeedUnits(listOf(com.miara.cuentame.core.database.entity.UnitEntity("u1", "U", "u", "MASS", java.math.BigDecimal.ONE, true, 0)))
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 0, 0, null))
         db.inventoryProjectionDao().upsert(com.miara.cuentame.core.database.entity.InventoryBalanceProjectionEntity("r1", "i1", "a1", "100", 1000L))
         
         val backupDao = db.backupDao()
@@ -106,10 +108,10 @@ class RestoreDatabaseApplierIntegrationTest {
         val snapshotB = createMinimalSnapshot("r2", "State B").copy(
             purchaseLines = listOf(com.miara.cuentame.core.backup.model.PurchaseLineBackupDto(
                 id = "pl1",
-                purchaseReceiptId = "p1", // Missing Receipt
-                ingredientId = "i1", // Missing Ingredient
-                areaId = "a1", // Missing Area
-                ingredientUnitOptionId = "o1", // Missing Option
+                purchaseReceiptId = "p1", // Missing Receipt (FK violation)
+                ingredientId = "i1",
+                areaId = "a1",
+                ingredientUnitOptionId = "o1",
                 quantityEntered = "1",
                 quantityBase = "1",
                 lineTotal = "10",
@@ -124,12 +126,13 @@ class RestoreDatabaseApplierIntegrationTest {
         val result = try {
             applier.replaceWithBackup(snapshotB)
             null
-        } catch (e: Exception) {
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
             e
         }
         
-        // 4. Require the operation to fail
+        // 4. Require the operation to fail with specific exception
         assertThat(result).isNotNull()
+        assertThat(result).isInstanceOf(android.database.sqlite.SQLiteConstraintException::class.java)
 
         // 5. Reload the database and require exact equality with state A
         val currentSnapshot = snapshotSource.loadSnapshot("r1").dto
@@ -138,10 +141,13 @@ class RestoreDatabaseApplierIntegrationTest {
         // Explicitly check State A survivors
         assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("State A")
         assertThat(db.inventoryAreaDao().getById("a1")).isNotNull()
+        assertThat(db.ingredientDao().getById("i1")).isNotNull()
         assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("100")
         
         // Explicitly check State B rejection
         assertThat(db.restaurantDao().getById("r2")).isNull()
+        // Ensure no rows from State B leaked through (e.g. the restaurant r2 which was inserted first)
+        assertThat(db.backupDao().createSnapshot("r2").restaurants).isEmpty()
     }
 
     private fun createMinimalSnapshot(id: String, name: String) = BackupSnapshotDto(

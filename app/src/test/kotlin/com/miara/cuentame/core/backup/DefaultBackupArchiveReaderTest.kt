@@ -599,6 +599,19 @@ class DefaultBackupArchiveReaderTest {
         assertThat(source.isClosed).isFalse()
     }
 
+    @Test
+    fun `inspect valid attachment-bearing archive returns Ready and AttachmentsNotSupported`() = runTest {
+        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(jsonCodecs)
+        
+        val result = reader.inspect(ByteArrayInputStream(fixture.archiveBytes), docUri)
+        
+        assertThat(result).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = result as BackupArchiveInspectionResult.Ready
+        assertThat(ready.archive.manifest.attachments).isNotEmpty()
+        assertThat(ready.archive.manifest.attachments[0].attachmentId).isEqualTo(fixture.attachmentId)
+        assertThat(ready.eligibility).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreEligibility.AttachmentsNotSupported)
+    }
+
     private fun createValidEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(
         restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("rest-1", "Test Rest", "USD", "en-US", 0, 0, null)),
         inventoryAreas = emptyList(),

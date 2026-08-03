@@ -52,8 +52,15 @@ object BackupManifestContractValidator {
         if (unexpectedTables.isNotEmpty()) {
             return BackupRestoreFailure.MalformedManifest
         }
-        if (manifest.tableMetadata.values.any { it.entryCount < 0 }) {
-            return BackupRestoreFailure.MalformedManifest
+        
+        for ((tableName, metadata) in manifest.tableMetadata) {
+            if (metadata.entryCount < 0) {
+                return BackupRestoreFailure.MalformedManifest
+            }
+            val expectedDerived = tableName in BackupFormatV1Contract.DERIVED_TABLES
+            if (metadata.isDerived != expectedDerived) {
+                return BackupRestoreFailure.MalformedManifest
+            }
         }
 
         // 5. Attachment cross-validation (Manifest side)
