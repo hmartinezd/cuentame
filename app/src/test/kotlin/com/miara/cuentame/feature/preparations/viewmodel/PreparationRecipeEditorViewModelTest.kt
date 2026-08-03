@@ -353,6 +353,91 @@ class PreparationRecipeEditorViewModelTest {
         assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
     }
 
+    @Test
+    fun `load cancellation - maximum one active collector and no LoadError`() = runTest {
+        var activeCollectors = 0
+        var maximumActiveCollectors = 0
+        var subscriptionCount = 0
+        var cancellationCount = 0
+
+        val controllableFlow = flow {
+            subscriptionCount++
+            activeCollectors++
+            maximumActiveCollectors = maxOf(maximumActiveCollectors, activeCollectors)
+            try {
+                emit(emptyList<Ingredient>())
+                delay(Long.MAX_VALUE) // Suspend indefinitely until cancelled
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                cancellationCount++
+                throw e
+            } finally {
+                activeCollectors--
+            }
+        }
+
+        every { ingredientRepository.observeIngredients(any(), any()) } returns controllableFlow
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        
+        // Start load 1
+        testScheduler.advanceTimeBy(100)
+        assertThat(subscriptionCount).isEqualTo(1)
+        assertThat(activeCollectors).isEqualTo(1)
+
+        // Enter some unsaved data
+        viewModel.onRecipeNameChanged("Unsaved")
+        
+        // Start load 2 (Retry) while 1 is active
+        viewModel.onRetry()
+        testScheduler.advanceTimeBy(100)
+        
+        assertThat(subscriptionCount).isEqualTo(2)
+        assertThat(cancellationCount).isEqualTo(1)
+        assertThat(maximumActiveCollectors).isEqualTo(1)
+        assertThat(activeCollectors).isEqualTo(1)
+        
+        // Ensure no LoadError was emitted due to cancellation
+        assertThat(viewModel.uiState.value.loadState).isNotInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        assertThat(viewModel.uiState.value.recipeName).isEqualTo("Unsaved")
+    }
+
+    @Test
+    fun `rapid-retry - only latest retry publishes state`() = runTest {
+        var emitCount = 0
+        val controllableFlow = flow {
+            emitCount++
+            val currentEmit = emitCount
+            delay(1000) // Simulate slow load
+            emit(listOf(createIngredient("i$currentEmit", "Ing $currentEmit")))
+        }
+
+        every { ingredientRepository.observeIngredients(any(), any()) } returns controllableFlow
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        
+        // Initial load starts
+        testScheduler.advanceTimeBy(100) 
+        
+        // Rapid retries
+        viewModel.onRetry() // Retry 1
+        testScheduler.advanceTimeBy(100)
+        viewModel.onRetry() // Retry 2
+        testScheduler.advanceTimeBy(2000)
+        
+        advanceUntilIdle()
+
+        // Only the latest (Retry 2, which is actually the 3rd subscription) should have its data
+        assertThat(viewModel.uiState.value.availableIngredients).hasSize(1)
+        assertThat(viewModel.uiState.value.availableIngredients[0].id.value).isEqualTo("i3")
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+    }
+
     private fun createIngredient(id: String, name: String) = Ingredient(
         id = IngredientId(id),
         restaurantId = restaurantId,

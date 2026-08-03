@@ -19,6 +19,28 @@ fun NavController.navigateToPreparationRecipeList() {
     this.navigate(Destination.PREPARATION_RECIPE_LIST.route)
 }
 
+internal fun NavController.replacePreparationDraftWithDetail(
+    recipeId: PreparationRecipeId
+) {
+    navigate(AppRoutes.preparationRecipeDetail(recipeId)) {
+        popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) {
+            inclusive = true
+        }
+        launchSingleTop = true
+    }
+}
+
+internal fun NavController.replacePreparationDetailWithDraft(
+    recipeId: PreparationRecipeId
+) {
+    navigate(AppRoutes.preparationRecipeDraft(recipeId)) {
+        popUpTo(Destination.PREPARATION_RECIPE_DETAIL.route) {
+            inclusive = true
+        }
+        launchSingleTop = true
+    }
+}
+
 fun NavGraphBuilder.preparationsGraph(
     navController: NavHostController,
     onBackClick: () -> Unit,
@@ -49,11 +71,7 @@ fun NavGraphBuilder.preparationsGraph(
             onSaveSuccess = { navController.popBackStack() },
             onAddComponent = { id -> navController.navigate(AppRoutes.preparationRecipeComponentCreate(id)) },
             onEditComponent = { rId, cId -> navController.navigate(AppRoutes.preparationRecipeComponentEdit(rId, cId)) },
-            onNavigateToDetail = { id -> 
-                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { inclusive = true }
-                }
-            }
+            onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }
         )
     }
 
@@ -69,11 +87,7 @@ fun NavGraphBuilder.preparationsGraph(
             onSaveSuccess = { navController.popBackStack() },
             onAddComponent = { id -> navController.navigate(AppRoutes.preparationRecipeComponentCreate(id)) },
             onEditComponent = { rId, cId -> navController.navigate(AppRoutes.preparationRecipeComponentEdit(rId, cId)) },
-            onNavigateToDetail = { id -> 
-                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { inclusive = true }
-                }
-            }
+            onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }
         )
     }
 
@@ -86,14 +100,7 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeComponentRoute(
             onBack = { navController.popBackStack() },
             onSaveSuccess = { navController.popBackStack() },
-            onNavigateToDetail = { id ->
-                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { 
-                        inclusive = true 
-                    }
-                    launchSingleTop = true
-                }
-            }
+            onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }
         )
     }
 
@@ -107,14 +114,7 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeComponentRoute(
             onBack = { navController.popBackStack() },
             onSaveSuccess = { navController.popBackStack() },
-            onNavigateToDetail = { id ->
-                navController.navigate(AppRoutes.preparationRecipeDetail(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_DRAFT.route) { 
-                        inclusive = true 
-                    }
-                    launchSingleTop = true
-                }
-            }
+            onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }
         )
     }
 
@@ -126,15 +126,8 @@ fun NavGraphBuilder.preparationsGraph(
     ) {
         PreparationRecipeDetailRoute(
             onBack = { navController.popBackStack() },
-            onEdit = { id -> navController.navigate(AppRoutes.preparationRecipeDraft(id)) },
-            onNavigateToEditor = { id ->
-                navController.navigate(AppRoutes.preparationRecipeDraft(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_DETAIL.route) { 
-                        inclusive = true 
-                    }
-                    launchSingleTop = true
-                }
-            }
+            onEdit = { id -> navController.replacePreparationDetailWithDraft(id) },
+            onNavigateToEditor = { id -> navController.replacePreparationDetailWithDraft(id) }
         )
     }
 }

@@ -17,6 +17,7 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -130,7 +131,7 @@ class PreparationRecipeComponentViewModelTest {
         every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(recipe)
         coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredientA, ingredientB)
         coEvery { ingredientRepository.getUnitOptions(ingredientA.id, false) } coAnswers {
-            kotlinx.coroutines.delay(1000)
+            delay(1000)
             optionsA
         }
         coEvery { ingredientRepository.getUnitOptions(ingredientB.id, false) } returns optionsB
@@ -273,6 +274,92 @@ class PreparationRecipeComponentViewModelTest {
         
         assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.EditReady)
         assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
+    }
+
+    @Test
+    fun `load cancellation - maximum one active collector and no LoadError`() = runTest {
+        var activeCollectors = 0
+        var maximumActiveCollectors = 0
+        var subscriptionCount = 0
+        var cancellationCount = 0
+
+        val controllableFlow = flow {
+            subscriptionCount++
+            activeCollectors++
+            maximumActiveCollectors = maxOf(maximumActiveCollectors, activeCollectors)
+            try {
+                emit(createRecipe("rec1", "out1"))
+                delay(Long.MAX_VALUE)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                cancellationCount++
+                throw e
+            } finally {
+                activeCollectors--
+            }
+        }
+
+        every { preparationRecipeRepository.observeRecipe(any()) } returns controllableFlow
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns emptyList()
+        
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        
+        testScheduler.advanceTimeBy(100)
+        assertThat(subscriptionCount).isEqualTo(1)
+
+        viewModel.onQuantityChanged("99")
+        viewModel.onNotesChanged("Notes")
+        
+        viewModel.onRetry()
+        testScheduler.advanceTimeBy(100)
+        
+        assertThat(subscriptionCount).isEqualTo(2)
+        assertThat(cancellationCount).isEqualTo(1)
+        assertThat(maximumActiveCollectors).isEqualTo(1)
+        
+        assertThat(viewModel.uiState.value.loadState).isNotInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        assertThat(viewModel.uiState.value.quantity).isEqualTo("99")
+        assertThat(viewModel.uiState.value.notes).isEqualTo("Notes")
+    }
+
+    @Test
+    fun `stale unit-option request cancellation - does not clear newer selection`() = runTest {
+        val recipe = createRecipe("rec1", "out1")
+        val ingredientA = createIngredient("iA", "Ing A")
+        val ingredientB = createIngredient("iB", "Ing B")
+        val optionsB = listOf(createUnitOption("oB", "iB"))
+
+        every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(recipe)
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredientA, ingredientB)
+        
+        coEvery { ingredientRepository.getUnitOptions(ingredientA.id, false) } coAnswers {
+            delay(1000)
+            throw kotlinx.coroutines.CancellationException("Stale")
+        }
+        coEvery { ingredientRepository.getUnitOptions(ingredientB.id, false) } returns optionsB
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onIngredientSelected(ingredientA)
+        testScheduler.advanceTimeBy(100)
+        viewModel.onIngredientSelected(ingredientB)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedIngredient).isEqualTo(ingredientB)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+        
+        // Ensure the cancellation of A doesn't clear B's options
+        testScheduler.advanceTimeBy(2000)
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.selectedIngredient).isEqualTo(ingredientB)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
     }
 
     private fun createComponent(id: String, ingId: String, sortOrder: Int) = PreparationRecipeComponent(

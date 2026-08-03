@@ -16,7 +16,7 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -78,149 +78,169 @@ class PreparationRecipeComponentViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     private var isInitialized = false
-    private var loadJob: Job? = null
-    private var unitOptionsJob: Job? = null
+    private val retryTrigger = MutableStateFlow(0)
+    private val unitOptionsTrigger = MutableStateFlow<Ingredient?>(null)
     private var nonDraftNavigationEmitted = false
 
     init {
-        loadData()
+        observeData()
+        observeUnitOptions()
     }
 
-    private fun loadData() {
+    private fun observeData() {
+        viewModelScope.launch {
+            retryTrigger.collectLatest {
+                loadData()
+            }
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private suspend fun loadData() {
         if (recipeId == null) {
             _uiState.update { it.copy(loadState = PreparationScreenLoadState.InvalidRoute) }
             return
         }
 
-        loadJob?.cancel()
         _uiState.update { it.copy(loadState = PreparationScreenLoadState.Loading) }
 
-        loadJob = viewModelScope.launch {
-            try {
-                val restaurant = restaurantRepository.getRestaurant()
-                if (restaurant == null) {
-                    _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(UiMessage.Resource(R.string.error_generic))) }
-                    return@launch
+        try {
+            val restaurant = restaurantRepository.getRestaurant()
+            if (restaurant == null) {
+                _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                return
+            }
+
+            preparationRecipeRepository.observeRecipe(recipeId).collectLatest { recipe ->
+                if (recipe == null) {
+                    _uiState.update { it.copy(loadState = PreparationScreenLoadState.RecipeNotFound) }
+                    return@collectLatest
                 }
 
-                preparationRecipeRepository.observeRecipe(recipeId).collectLatest { recipe ->
-                    if (recipe == null) {
-                        _uiState.update { it.copy(loadState = PreparationScreenLoadState.RecipeNotFound) }
+                if (recipe.status != PreparationRecipeStatus.DRAFT) {
+                    if (!nonDraftNavigationEmitted) {
+                        nonDraftNavigationEmitted = true
+                        _events.send(PreparationRecipeComponentEvent.NavigateToDetail(recipe.id))
+                    }
+                    _uiState.update { it.copy(loadState = PreparationScreenLoadState.ParentNotEditable) }
+                    return@collectLatest
+                }
+
+                val ingredients = try {
+                    ingredientRepository.getIngredients(restaurant.id, includeArchived = false)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())) }
+                    return@collectLatest
+                }
+
+                val usedIngredientIds = recipe.components
+                    .filter { if (componentId != null) it.id != componentId else true }
+                    .map { it.componentIngredientId }
+                    .toSet()
+
+                val availableIngredients = ingredients.filter {
+                    it.id != recipe.outputIngredientId && it.id !in usedIngredientIds
+                }
+
+                if (!isInitialized) {
+                    val existingComp = if (componentId != null) recipe.components.find { it.id == componentId } else null
+                    if (componentId != null && existingComp == null) {
+                        _uiState.update { it.copy(loadState = PreparationScreenLoadState.ComponentNotFound) }
                         return@collectLatest
                     }
 
-                    if (recipe.status != PreparationRecipeStatus.DRAFT) {
-                        if (!nonDraftNavigationEmitted) {
-                            nonDraftNavigationEmitted = true
-                            _events.send(PreparationRecipeComponentEvent.NavigateToDetail(recipe.id))
-                        }
-                        _uiState.update { it.copy(loadState = PreparationScreenLoadState.ParentNotEditable) }
-                        return@collectLatest
-                    }
-
-                    val ingredients = try {
-                        ingredientRepository.getIngredients(restaurant.id, includeArchived = false)
-                    } catch (e: Exception) {
-                        _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())) }
-                        return@collectLatest
-                    }
-
-                    val usedIngredientIds = recipe.components
-                        .filter { if (componentId != null) it.id != componentId else true }
-                        .map { it.componentIngredientId }
-                        .toSet()
-
-                    val availableIngredients = ingredients.filter { 
-                        it.id != recipe.outputIngredientId && it.id !in usedIngredientIds
-                    }
-
-                    if (!isInitialized) {
-                        val existingComp = if (componentId != null) recipe.components.find { it.id == componentId } else null
-                        if (componentId != null && existingComp == null) {
-                            _uiState.update { it.copy(loadState = PreparationScreenLoadState.ComponentNotFound) }
+                    if (existingComp != null) {
+                        val unitOptions = try {
+                            ingredientRepository.getUnitOptions(existingComp.componentIngredientId, includeArchived = false)
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (e: Exception) {
+                            _uiState.update {
+                                it.copy(
+                                    loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())
+                                )
+                            }
                             return@collectLatest
-                        }
-
-                        if (existingComp != null) {
-                            val unitOptions = try {
-                                ingredientRepository.getUnitOptions(existingComp.componentIngredientId, includeArchived = false)
-                            } catch (e: Exception) {
-                                _uiState.update {
-                                    it.copy(
-                                        loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())
-                                    )
-                                }
-                                return@collectLatest
-                            }
-                            _uiState.update {
-                                it.copy(
-                                    loadState = PreparationScreenLoadState.EditReady,
-                                    recipe = recipe,
-                                    availableIngredients = availableIngredients,
-                                    availableUnitOptions = unitOptions,
-                                    selectedIngredient = ingredients.find { i -> i.id == existingComp.componentIngredientId },
-                                    quantity = existingComp.quantityEntered.toPlainString(),
-                                    selectedUnitOptionId = existingComp.unitOptionId,
-                                    notes = existingComp.notes ?: ""
-                                )
-                            }
-                        } else {
-                            _uiState.update {
-                                it.copy(
-                                    loadState = PreparationScreenLoadState.CreateReady,
-                                    recipe = recipe,
-                                    availableIngredients = availableIngredients
-                                )
-                            }
-                        }
-                        isInitialized = true
-                    } else {
-                        val readyState = when (val currentMode = _uiState.value.mode) {
-                            PreparationRecipeComponentMode.Create -> PreparationScreenLoadState.CreateReady
-                            is PreparationRecipeComponentMode.Edit -> PreparationScreenLoadState.EditReady
                         }
                         _uiState.update {
                             it.copy(
-                                loadState = readyState,
+                                loadState = PreparationScreenLoadState.EditReady,
+                                recipe = recipe,
+                                availableIngredients = availableIngredients,
+                                availableUnitOptions = unitOptions,
+                                selectedIngredient = ingredients.find { i -> i.id == existingComp.componentIngredientId },
+                                quantity = existingComp.quantityEntered.toPlainString(),
+                                selectedUnitOptionId = existingComp.unitOptionId,
+                                notes = existingComp.notes ?: ""
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                loadState = PreparationScreenLoadState.CreateReady,
                                 recipe = recipe,
                                 availableIngredients = availableIngredients
                             )
                         }
                     }
+                    isInitialized = true
+                } else {
+                    val readyState = when (val currentMode = _uiState.value.mode) {
+                        PreparationRecipeComponentMode.Create -> PreparationScreenLoadState.CreateReady
+                        is PreparationRecipeComponentMode.Edit -> PreparationScreenLoadState.EditReady
+                    }
+                    _uiState.update {
+                        it.copy(
+                            loadState = readyState,
+                            recipe = recipe,
+                            availableIngredients = availableIngredients
+                        )
+                    }
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())) }
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (e: Exception) {
+            _uiState.update { it.copy(loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())) }
+        }
+    }
+
+    private fun observeUnitOptions() {
+        viewModelScope.launch {
+            unitOptionsTrigger.collectLatest { ingredient ->
+                if (ingredient == null) return@collectLatest
+                try {
+                    val unitOptions = ingredientRepository.getUnitOptions(ingredient.id, includeArchived = false)
+                    if (_uiState.value.selectedIngredient?.id == ingredient.id) {
+                        _uiState.update {
+                            it.copy(
+                                availableUnitOptions = unitOptions,
+                                selectedUnitOptionId = if (it.selectedUnitOptionId !in unitOptions.map { o -> o.id }) null else it.selectedUnitOptionId
+                            )
+                        }
+                    }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (e: Exception) {
+                    if (_uiState.value.selectedIngredient?.id == ingredient.id) {
+                        _uiState.update {
+                            it.copy(
+                                availableUnitOptions = emptyList(),
+                                selectedUnitOptionId = null,
+                                inlineError = e.toPreparationRecipeUserMessage()
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 
     fun onIngredientSelected(ingredient: Ingredient) {
-        unitOptionsJob?.cancel()
         _uiState.update { it.copy(selectedIngredient = ingredient) }
-        
-        unitOptionsJob = viewModelScope.launch {
-            try {
-                val unitOptions = ingredientRepository.getUnitOptions(ingredient.id, includeArchived = false)
-                if (_uiState.value.selectedIngredient?.id == ingredient.id) {
-                    _uiState.update {
-                        it.copy(
-                            availableUnitOptions = unitOptions,
-                            selectedUnitOptionId = if (it.selectedUnitOptionId !in unitOptions.map { o -> o.id }) null else it.selectedUnitOptionId
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                if (_uiState.value.selectedIngredient?.id == ingredient.id) {
-                    _uiState.update {
-                        it.copy(
-                            availableUnitOptions = emptyList(),
-                            selectedUnitOptionId = null,
-                            inlineError = e.toPreparationRecipeUserMessage()
-                        )
-                    }
-                }
-            }
-        }
+        unitOptionsTrigger.value = ingredient
     }
 
     fun onQuantityChanged(quantity: String) {
@@ -288,6 +308,6 @@ class PreparationRecipeComponentViewModel @Inject constructor(
     }
 
     fun onRetry() {
-        loadData()
+        retryTrigger.value += 1
     }
 }

@@ -12,6 +12,7 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -105,7 +106,10 @@ class PreparationRecipeDetailViewModel @Inject constructor(
                     )
                 }
                 .onStart { emit(RecipeDetailLoadResult.Loading) }
-                .catch { e -> emit(RecipeDetailLoadResult.Failure(e)) }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    emit(RecipeDetailLoadResult.Failure(e))
+                }
         }
     }
 
@@ -190,6 +194,8 @@ class PreparationRecipeDetailViewModel @Inject constructor(
                 } else {
                     _events.send(PreparationRecipeDetailEvent.LifecycleUpdated)
                 }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (e: Exception) {
                 _inlineError.value = e.toPreparationRecipeUserMessage()
             } finally {
