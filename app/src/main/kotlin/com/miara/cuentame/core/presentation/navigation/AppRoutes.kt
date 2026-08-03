@@ -9,6 +9,8 @@ import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
+import com.miara.cuentame.core.common.ids.ProductionBatchId
+import com.miara.cuentame.core.common.ids.ProductionBatchComponentId
 
 object AppRoutes {
     var encoder: RouteEncoder = AndroidRouteEncoder
@@ -72,4 +74,30 @@ object AppRoutes {
         componentId: PreparationRecipeComponentId
     ): String =
         "preparations/recipes/${encoder.encode(recipeId.value)}/component/${encoder.encode(componentId.value)}"
+
+    fun productionBatchCreate(
+        recipeId: PreparationRecipeId? = null
+    ): String =
+        "production/batches/create" + (recipeId?.let { "?recipeId=${encoder.encode(it.value)}" } ?: "")
+
+    fun productionBatchDraft(
+        batchId: ProductionBatchId
+    ): String =
+        "production/batches/${encoder.encode(batchId.value)}/edit"
+
+    fun productionBatchComponent(
+        batchId: ProductionBatchId,
+        componentId: ProductionBatchComponentId
+    ): String =
+        "production/batches/${encoder.encode(batchId.value)}/component/${encoder.encode(componentId.value)}"
+
+    fun productionBatchPreview(
+        batchId: ProductionBatchId
+    ): String =
+        "production/batches/${encoder.encode(batchId.value)}/preview"
+
+    fun productionBatchDetail(
+        batchId: ProductionBatchId
+    ): String =
+        "production/batches/${encoder.encode(batchId.value)}"
 }

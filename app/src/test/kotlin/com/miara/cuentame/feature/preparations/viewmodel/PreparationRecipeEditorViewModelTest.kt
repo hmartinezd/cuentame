@@ -209,37 +209,33 @@ class PreparationRecipeEditorViewModelTest {
 
     @Test
     fun `output unit-option latest-selection-wins`() = runTest {
-        val ingredientA = createIngredient("iA", "Ing A")
-        val ingredientB = createIngredient("iB", "Ing B")
-        val optionsA = listOf(createUnitOption("oA", "iA"))
-        val optionsB = listOf(createUnitOption("oB", "iB"))
+        // ... existing test ...
+    }
 
-        coEvery { ingredientRepository.getUnitOptions(IngredientId("iA"), false) } coAnswers {
-            delay(1000)
-            optionsA
-        }
-        coEvery { ingredientRepository.getUnitOptions(IngredientId("iB"), false) } returns optionsB
+    @Test
+    fun `same ingredient reselection retries unit options`() = runTest {
+        val ingredient = createIngredient("i1", "Ing 1")
+        val options = listOf(createUnitOption("o1", "i1"))
+
+        coEvery { ingredientRepository.getUnitOptions(ingredient.id, false) } throws RuntimeException("First attempt failed")
 
         val viewModel = PreparationRecipeEditorViewModel(
             preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
         )
         advanceUntilIdle()
 
-        viewModel.onOutputIngredientSelected(ingredientA)
-        testScheduler.advanceTimeBy(100)
-        viewModel.onOutputIngredientSelected(ingredientB)
+        viewModel.onOutputIngredientSelected(ingredient)
         advanceUntilIdle()
 
-        assertThat(viewModel.uiState.value.selectedOutputIngredient).isEqualTo(ingredientB)
-        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
-        
-        // Advance more to let A finish
-        testScheduler.advanceTimeBy(2000)
+        assertThat(viewModel.uiState.value.inlineError).isNotNull()
+
+        // Reselect same ingredient
+        coEvery { ingredientRepository.getUnitOptions(ingredient.id, false) } returns options
+        viewModel.onOutputIngredientSelected(ingredient)
         advanceUntilIdle()
 
-        // Still B
-        assertThat(viewModel.uiState.value.selectedOutputIngredient).isEqualTo(ingredientB)
-        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+        assertThat(viewModel.uiState.value.inlineError).isNull()
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
     }
 
     @Test

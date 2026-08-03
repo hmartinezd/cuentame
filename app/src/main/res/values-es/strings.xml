@@ -94,6 +94,7 @@
     <string name="action_remove">Eliminar</string>
     <string name="action_archive">Archivar</string>
     <string name="action_confirm">Confirmar</string>
+    <string name="optional">Opcional</string>
 
     <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
     <string name="about_version">Versión %s</string>
@@ -106,6 +107,7 @@
     <string name="error_invalid_currency">Código de moneda inválido</string>
     <string name="error_unsupported_locale">Idioma no soportado</string>
     <string name="error_no_areas">Se requiere al menos un área</string>
+    <string name="error_area_not_found">Área de inventario no encontrada</string>
     <string name="error_draft_corrupted">El borrador de configuración estaba corrupto y ha sido reiniciado</string>
     <string name="error_draft_save">Error al guardar el borrador</string>
     <string name="error_overlapping_area">El área %1$s ya está incluida en otro conteo en borrador</string>
@@ -599,6 +601,7 @@
     <string name="error_duplicate_component">Este ingrediente ya es un componente de esta receta.</string>
     <string name="error_recipe_already_active">La receta ya está activa</string>
     <string name="error_recipe_not_draft">La receta no está en estado de borrador</string>
+    <string name="error_recipe_not_active">La receta no está activa</string>
     <string name="error_recipe_exists_for_output">Ya existe otra receta no archivada para este ingrediente de salida.</string>
     <string name="error_recipe_name_required">El nombre de la receta es obligatorio</string>
     <string name="error_select_output_ingredient">Seleccione un ingrediente de salida</string>
@@ -614,6 +617,54 @@
     <string name="audit_created">Creada: %1$s</string>
     <string name="audit_updated">Actualizada: %1$s</string>
     <string name="audit_archived">Archivada: %1$s</string>
+
+    <!-- Production Batches -->
+    <string name="production_batches">Lotes de producción</string>
+    <string name="new_production_batch">Nuevo lote de producción</string>
+    <string name="production_batch">Lote de producción</string>
+    <string name="batch_multiplier">Multiplicador del lote</string>
+    <string name="output_area">Área de salida</string>
+    <string name="output_unit">Unidad de salida</string>
+    <string name="expected_output">Salida esperada</string>
+    <string name="actual_output">Salida real</string>
+    <string name="override_actual_output">Anular salida real</string>
+    <string name="using_expected_output">Usando salida esperada</string>
+    <string name="manually_overridden">Anulado manualmente</string>
+    <string name="production_components">Componentes de producción</string>
+    <string name="using_recipe_quantity">Usando cantidad de receta</string>
+    <string name="override_quantity">Anular cantidad</string>
+    <string name="reset_to_recipe_quantity">Restablecer a cantidad de receta</string>
+    <string name="review_and_post">Revisar y publicar</string>
+    <string name="posting_preview">Vista previa de publicación</string>
+    <string name="post_production_batch">Publicar lote de producción</string>
+    <string name="void_production_batch">Anular lote de producción</string>
+    <string name="negative_balance_warning">Advertencia de saldo negativo</string>
+    <string name="component_cost_unavailable">Costo de componente no disponible</string>
+    <string name="total_component_cost">Costo total de componentes</string>
+    <string name="output_unit_cost">Costo unitario de salida</string>
+    <string name="yield_variance">Variación de rendimiento</string>
+    <string name="no_production_batches">No hay lotes de producción</string>
+    <string name="no_batches_match_filters">No hay lotes que coincidan con estos filtros</string>
+    <string name="error_batch_not_found">Lote de producción no encontrado</string>
+    <string name="error_batch_not_draft">El lote ya no es un borrador</string>
+    <string name="error_component_not_found">Componente de producción no encontrado</string>
+    <string name="error_recipe_no_yield">La receta seleccionada no tiene un rendimiento estándar definido</string>
+    <string name="error_recipe_no_components">La receta seleccionada no tiene componentes</string>
+    <string name="error_multiplier_positive">El multiplicador debe ser positivo</string>
+    <string name="error_missing_component_area">Uno o más componentes no tienen un área de origen</string>
+    <string name="error_cost_unavailable">El costo no está disponible para uno o más componentes</string>
+    <string name="error_restricted_by_archive">Esta operación está restringida por un período de inventario archivado</string>
+    <string name="production_recipe_selector">Receta</string>
+    <string name="production_output_area_selector">Área de salida</string>
+    <string name="production_output_unit_selector">Unidad de salida</string>
+    <string name="production_multiplier_field">Multiplicador del lote</string>
+    <string name="production_actual_output_field">Salida real</string>
+    <string name="production_effective_time">Hora efectiva</string>
+    <string name="production_notes_field">Notas</string>
+    <string name="production_component_area_selector">Área de origen</string>
+    <string name="production_component_unit_selector">Unidad</string>
+    <string name="production_component_quantity_field">Cantidad real</string>
+    <string name="production_component_reset">Restablecer</string>
 </resources>
 
 

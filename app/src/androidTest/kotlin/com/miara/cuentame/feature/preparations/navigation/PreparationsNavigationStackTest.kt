@@ -152,10 +152,11 @@ class PreparationsNavigationStackTest {
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PREPARATION_RECIPE_CREATE.route)
 
         composeTestRule.runOnUiThread {
-            // This is the manual popUpTo in preparationsGraph for onRecipeCreated
-            navController.navigate(AppRoutes.preparationRecipeDraft(recipeId)) {
-                popUpTo(Destination.PREPARATION_RECIPE_CREATE.route) { inclusive = true }
-            }
+            // Use the centralized navigation helper
+            navController.replaceProductionOrRecipeCreateWithDraft(
+                recipeOrBatchDraftRoute = AppRoutes.preparationRecipeDraft(recipeId),
+                createDestinationRoute = Destination.PREPARATION_RECIPE_CREATE.route
+            )
         }
 
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PREPARATION_RECIPE_DRAFT.route)

@@ -11,6 +11,7 @@ import com.miara.cuentame.feature.counts.navigation.countsGraph
 import com.miara.cuentame.feature.home.navigation.homeGraph
 import com.miara.cuentame.feature.ingredients.navigation.ingredientsGraph
 import com.miara.cuentame.feature.preparations.navigation.preparationsGraph
+import com.miara.cuentame.feature.production.navigation.productionGraph
 import com.miara.cuentame.feature.purchases.navigation.purchasesGraph
 import com.miara.cuentame.feature.reports.navigation.reportsGraph
 import com.miara.cuentame.feature.settings.navigation.settingsGraph
@@ -37,6 +38,7 @@ fun CuentameNavHost(
         reportsGraph(navController)
         settingsGraph(navController, onBackClick)
         preparationsGraph(navController, onBackClick)
+        productionGraph(navController, onBackClick)
         areasGraph()
         categoriesGraph()
         suppliersGraph(navController)

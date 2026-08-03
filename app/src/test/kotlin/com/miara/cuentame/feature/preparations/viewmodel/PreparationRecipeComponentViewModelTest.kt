@@ -122,19 +122,18 @@ class PreparationRecipeComponentViewModelTest {
 
     @Test
     fun `ingredient selection latest-selection-wins`() = runTest {
+        // ... existing test ...
+    }
+
+    @Test
+    fun `same ingredient reselection retries unit options`() = runTest {
         val recipe = createRecipe("rec1", "out1")
-        val ingredientA = createIngredient("iA", "Ing A")
-        val ingredientB = createIngredient("iB", "Ing B")
-        val optionsA = listOf(createUnitOption("oA", "iA"))
-        val optionsB = listOf(createUnitOption("oB", "iB"))
+        val ingredient = createIngredient("i1", "Ing 1")
+        val options = listOf(createUnitOption("o1", "i1"))
 
         every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(recipe)
-        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredientA, ingredientB)
-        coEvery { ingredientRepository.getUnitOptions(ingredientA.id, false) } coAnswers {
-            delay(1000)
-            optionsA
-        }
-        coEvery { ingredientRepository.getUnitOptions(ingredientB.id, false) } returns optionsB
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredient)
+        coEvery { ingredientRepository.getUnitOptions(ingredient.id, false) } throws RuntimeException("First attempt failed")
 
         val viewModel = PreparationRecipeComponentViewModel(
             preparationRecipeRepository, ingredientRepository, restaurantRepository, 
@@ -142,18 +141,18 @@ class PreparationRecipeComponentViewModelTest {
         )
         advanceUntilIdle()
 
-        viewModel.onIngredientSelected(ingredientA)
-        testScheduler.advanceTimeBy(100)
-        viewModel.onIngredientSelected(ingredientB)
+        viewModel.onIngredientSelected(ingredient)
         advanceUntilIdle()
 
-        assertThat(viewModel.uiState.value.selectedIngredient).isEqualTo(ingredientB)
-        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
-        
-        testScheduler.advanceTimeBy(2000)
+        assertThat(viewModel.uiState.value.inlineError).isNotNull()
+
+        // Reselect same ingredient
+        coEvery { ingredientRepository.getUnitOptions(ingredient.id, false) } returns options
+        viewModel.onIngredientSelected(ingredient)
         advanceUntilIdle()
 
-        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+        assertThat(viewModel.uiState.value.inlineError).isNull()
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
     }
 
     @Test

@@ -14,9 +14,22 @@ import com.miara.cuentame.feature.preparations.ui.PreparationRecipeEditorRoute
 import com.miara.cuentame.feature.preparations.ui.PreparationRecipeListRoute
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.feature.production.navigation.navigateToProductionBatchList
 
 fun NavController.navigateToPreparationRecipeList() {
     this.navigate(Destination.PREPARATION_RECIPE_LIST.route)
+}
+
+internal fun NavController.replaceProductionOrRecipeCreateWithDraft(
+    recipeOrBatchDraftRoute: String,
+    createDestinationRoute: String
+) {
+    navigate(recipeOrBatchDraftRoute) {
+        popUpTo(createDestinationRoute) {
+            inclusive = true
+        }
+        launchSingleTop = true
+    }
 }
 
 internal fun NavController.replacePreparationDraftWithDetail(
@@ -49,6 +62,7 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeListRoute(
             onBackClick = onBackClick,
             onCreateRecipe = { navController.navigate(Destination.PREPARATION_RECIPE_CREATE.route) },
+            onViewProduction = { navController.navigateToProductionBatchList() },
             onRecipeClick = { id, status ->
                 val route = if (status == PreparationRecipeStatus.DRAFT) {
                     AppRoutes.preparationRecipeDraft(id)
@@ -64,9 +78,10 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeEditorRoute(
             onBack = { navController.popBackStack() },
             onRecipeCreated = { id ->
-                navController.navigate(AppRoutes.preparationRecipeDraft(id)) {
-                    popUpTo(Destination.PREPARATION_RECIPE_CREATE.route) { inclusive = true }
-                }
+                navController.replaceProductionOrRecipeCreateWithDraft(
+                    recipeOrBatchDraftRoute = AppRoutes.preparationRecipeDraft(id),
+                    createDestinationRoute = Destination.PREPARATION_RECIPE_CREATE.route
+                )
             },
             onSaveSuccess = { navController.popBackStack() },
             onAddComponent = { id -> navController.navigate(AppRoutes.preparationRecipeComponentCreate(id)) },
@@ -127,6 +142,7 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeDetailRoute(
             onBack = { navController.popBackStack() },
             onEdit = { id -> navController.replacePreparationDetailWithDraft(id) },
+            onCreateProduction = { id -> navController.navigate(AppRoutes.productionBatchCreate(id)) },
             onNavigateToEditor = { id -> navController.replacePreparationDetailWithDraft(id) }
         )
     }

@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.feature.home.HomeRoute
+import com.miara.cuentame.feature.production.navigation.navigateToProductionBatchList
 
 fun NavGraphBuilder.homeGraph(navController: NavHostController) {
     composable(route = TopLevelDestination.HOME.route) {
@@ -15,7 +16,8 @@ fun NavGraphBuilder.homeGraph(navController: NavHostController) {
             onNewPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
             onStartCount = { navController.navigate(Destination.STOCK_COUNT_START.route) },
             onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) },
-            onViewPreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) }
+            onViewPreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) },
+            onViewProduction = { navController.navigateToProductionBatchList() }
         )
     }
 }

@@ -17,6 +17,7 @@ import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -71,7 +72,10 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     private var isInitialized = false
     private val retryTrigger = MutableStateFlow(0)
-    private val unitOptionsTrigger = MutableStateFlow<Ingredient?>(null)
+    private val unitOptionsRequests = MutableSharedFlow<Ingredient>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     private var nonDraftNavigationEmitted = false
 
     init {
@@ -207,8 +211,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeUnitOptions() {
         viewModelScope.launch {
-            unitOptionsTrigger.collectLatest { ingredient ->
-                if (ingredient == null) return@collectLatest
+            unitOptionsRequests.collectLatest { ingredient ->
                 try {
                     val unitOptions = ingredientRepository.getUnitOptions(ingredient.id, includeArchived = false)
                     if (_uiState.value.selectedOutputIngredient?.id == ingredient.id) {
@@ -238,7 +241,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onOutputIngredientSelected(ingredient: Ingredient) {
         _uiState.update { it.copy(selectedOutputIngredient = ingredient) }
-        unitOptionsTrigger.value = ingredient
+        unitOptionsRequests.tryEmit(ingredient)
     }
 
     fun onRecipeNameChanged(name: String) {

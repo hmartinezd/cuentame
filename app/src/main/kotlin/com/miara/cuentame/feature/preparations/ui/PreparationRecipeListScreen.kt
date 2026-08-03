@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.PrecisionManufacturing
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +35,7 @@ import java.time.format.FormatStyle
 fun PreparationRecipeListRoute(
     onBackClick: () -> Unit,
     onCreateRecipe: () -> Unit,
+    onViewProduction: () -> Unit,
     onRecipeClick: (PreparationRecipeId, PreparationRecipeStatus) -> Unit,
     viewModel: PreparationRecipeListViewModel = hiltViewModel()
 ) {
@@ -47,6 +49,7 @@ fun PreparationRecipeListRoute(
         onRetry = viewModel::onRetry,
         onBackClick = onBackClick,
         onCreateRecipe = onCreateRecipe,
+        onViewProduction = onViewProduction,
         onRecipeClick = onRecipeClick
     )
 }
@@ -61,6 +64,7 @@ fun PreparationRecipeListScreen(
     onRetry: () -> Unit,
     onBackClick: () -> Unit,
     onCreateRecipe: () -> Unit,
+    onViewProduction: () -> Unit,
     onRecipeClick: (PreparationRecipeId, PreparationRecipeStatus) -> Unit
 ) {
     Scaffold(
@@ -71,6 +75,11 @@ fun PreparationRecipeListScreen(
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onViewProduction, modifier = Modifier.testTag("open_production_from_recipes")) {
+                        Icon(Icons.Default.PrecisionManufacturing, contentDescription = stringResource(R.string.production_batches))
                     }
                 }
             )

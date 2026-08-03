@@ -44,5 +44,12 @@ enum class Destination(val route: String) {
     PREPARATION_RECIPE_DRAFT("preparations/recipes/{recipeId}/edit"),
     PREPARATION_RECIPE_COMPONENT_CREATE("preparations/recipes/{recipeId}/component"),
     PREPARATION_RECIPE_COMPONENT_EDIT("preparations/recipes/{recipeId}/component/{componentId}"),
-    PREPARATION_RECIPE_DETAIL("preparations/recipes/{recipeId}")
+    PREPARATION_RECIPE_DETAIL("preparations/recipes/{recipeId}"),
+
+    PRODUCTION_BATCH_LIST("production/batches"),
+    PRODUCTION_BATCH_CREATE("production/batches/create?recipeId={recipeId}"),
+    PRODUCTION_BATCH_DRAFT("production/batches/{batchId}/edit"),
+    PRODUCTION_BATCH_COMPONENT("production/batches/{batchId}/component/{componentId}"),
+    PRODUCTION_BATCH_PREVIEW("production/batches/{batchId}/preview"),
+    PRODUCTION_BATCH_DETAIL("production/batches/{batchId}")
 }

@@ -94,6 +94,7 @@
     <string name="action_remove">Remove</string>
     <string name="action_archive">Archive</string>
     <string name="action_confirm">Confirm</string>
+    <string name="optional">Optional</string>
 
     <string name="about_desc">Cuentame is a local-only inventory management solution. All your data stays on this device.</string>
     <string name="about_version">Version %s</string>
@@ -106,6 +107,7 @@
     <string name="error_invalid_currency">Invalid currency code</string>
     <string name="error_unsupported_locale">Unsupported language</string>
     <string name="error_no_areas">At least one area is required</string>
+    <string name="error_area_not_found">Inventory area not found</string>
     <string name="error_draft_corrupted">Setup draft was corrupted and has been reset</string>
     <string name="error_draft_save">Draft save failed</string>
     <string name="error_overlapping_area">Area %1$s is already included in another draft count</string>
@@ -599,6 +601,7 @@
     <string name="error_duplicate_component">This ingredient is already a component of this recipe.</string>
     <string name="error_recipe_already_active">Recipe is already active</string>
     <string name="error_recipe_not_draft">Recipe is not in draft status</string>
+    <string name="error_recipe_not_active">Recipe is not active</string>
     <string name="error_recipe_exists_for_output">Another non-archived recipe already exists for this output ingredient.</string>
     <string name="error_recipe_name_required">Recipe name is required</string>
     <string name="error_select_output_ingredient">Select an output ingredient</string>
@@ -614,6 +617,54 @@
     <string name="audit_created">Created: %1$s</string>
     <string name="audit_updated">Updated: %1$s</string>
     <string name="audit_archived">Archived: %1$s</string>
+
+    <!-- Production Batches -->
+    <string name="production_batches">Production batches</string>
+    <string name="new_production_batch">New production batch</string>
+    <string name="production_batch">Production batch</string>
+    <string name="batch_multiplier">Batch multiplier</string>
+    <string name="output_area">Output area</string>
+    <string name="output_unit">Output unit</string>
+    <string name="expected_output">Expected output</string>
+    <string name="actual_output">Actual output</string>
+    <string name="override_actual_output">Override actual output</string>
+    <string name="using_expected_output">Using expected output</string>
+    <string name="manually_overridden">Manually overridden</string>
+    <string name="production_components">Production components</string>
+    <string name="using_recipe_quantity">Using Recipe quantity</string>
+    <string name="override_quantity">Override quantity</string>
+    <string name="reset_to_recipe_quantity">Reset to Recipe quantity</string>
+    <string name="review_and_post">Review and post</string>
+    <string name="posting_preview">Posting preview</string>
+    <string name="post_production_batch">Post production batch</string>
+    <string name="void_production_batch">Void production batch</string>
+    <string name="negative_balance_warning">Negative balance warning</string>
+    <string name="component_cost_unavailable">Component cost unavailable</string>
+    <string name="total_component_cost">Total component cost</string>
+    <string name="output_unit_cost">Output unit cost</string>
+    <string name="yield_variance">Yield variance</string>
+    <string name="no_production_batches">No production batches</string>
+    <string name="no_batches_match_filters">No batches match these filters</string>
+    <string name="error_batch_not_found">Production batch not found</string>
+    <string name="error_batch_not_draft">Batch is no longer a draft</string>
+    <string name="error_component_not_found">Production component not found</string>
+    <string name="error_recipe_no_yield">Selected recipe has no standard yield defined</string>
+    <string name="error_recipe_no_components">Selected recipe has no components</string>
+    <string name="error_multiplier_positive">Multiplier must be positive</string>
+    <string name="error_missing_component_area">One or more components are missing a source area</string>
+    <string name="error_cost_unavailable">Cost is unavailable for one or more components</string>
+    <string name="error_restricted_by_archive">This operation is restricted by an archived inventory period</string>
+    <string name="production_recipe_selector">Recipe</string>
+    <string name="production_output_area_selector">Output area</string>
+    <string name="production_output_unit_selector">Output unit</string>
+    <string name="production_multiplier_field">Batch multiplier</string>
+    <string name="production_actual_output_field">Actual output</string>
+    <string name="production_effective_time">Effective time</string>
+    <string name="production_notes_field">Notes</string>
+    <string name="production_component_area_selector">Source area</string>
+    <string name="production_component_unit_selector">Unit</string>
+    <string name="production_component_quantity_field">Actual quantity</string>
+    <string name="production_component_reset">Reset</string>
 </resources>
 
 

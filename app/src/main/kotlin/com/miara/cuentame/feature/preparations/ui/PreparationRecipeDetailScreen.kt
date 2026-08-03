@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PrecisionManufacturing
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,7 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.core.presentation.ui.toDisplayText
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailEvent
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailUiState
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailViewModel
@@ -32,6 +34,7 @@ import java.time.format.FormatStyle
 fun PreparationRecipeDetailRoute(
     onBack: () -> Unit,
     onEdit: (PreparationRecipeId) -> Unit,
+    onCreateProduction: (PreparationRecipeId) -> Unit,
     onNavigateToEditor: (PreparationRecipeId) -> Unit,
     viewModel: PreparationRecipeDetailViewModel = hiltViewModel()
 ) {
@@ -51,6 +54,7 @@ fun PreparationRecipeDetailRoute(
         uiState = uiState,
         onBackClick = onBack,
         onEditClick = { uiState.recipe?.let { onEdit(it.id) } },
+        onCreateProductionClick = { uiState.recipe?.let { onCreateProduction(it.id) } },
         onActivate = viewModel::onActivate,
         onMoveToDraft = viewModel::onMoveToDraft,
         onArchive = viewModel::onArchive,
@@ -66,6 +70,7 @@ fun PreparationRecipeDetailScreen(
     uiState: PreparationRecipeDetailUiState,
     onBackClick: () -> Unit,
     onEditClick: () -> Unit,
+    onCreateProductionClick: () -> Unit,
     onActivate: () -> Unit,
     onMoveToDraft: () -> Unit,
     onArchive: () -> Unit,
@@ -93,6 +98,11 @@ fun PreparationRecipeDetailScreen(
                     }
                 },
                 actions = {
+                    if (status == PreparationRecipeStatus.ACTIVE) {
+                        IconButton(onClick = onCreateProductionClick, modifier = Modifier.testTag("create_production_from_recipe")) {
+                            Icon(Icons.Default.PrecisionManufacturing, contentDescription = stringResource(R.string.new_production_batch))
+                        }
+                    }
                     if (status == PreparationRecipeStatus.DRAFT) {
                         IconButton(onClick = onEditClick, modifier = Modifier.testTag("recipe_detail_edit")) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
@@ -126,7 +136,7 @@ fun PreparationRecipeDetailScreen(
             is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.LoadError -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val message = loadState.message.toRecipeDisplayText()
+                        val message = loadState.message.toDisplayText()
                         Text(
                             text = message,
                             style = MaterialTheme.typography.bodyLarge,
@@ -171,7 +181,7 @@ fun PreparationRecipeDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = message.toRecipeDisplayText(),
+                                        text = message.toDisplayText(),
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
@@ -417,13 +427,3 @@ private fun ActionButtons(
         }
     }
 }
-
-@Composable
-private fun UiMessage.toRecipeDisplayText(): String =
-    when (this) {
-        is UiMessage.Resource ->
-            stringResource(id, *args.toTypedArray())
-
-        is UiMessage.PlainTextInternalOnly ->
-            stringResource(R.string.error_generic)
-    }
