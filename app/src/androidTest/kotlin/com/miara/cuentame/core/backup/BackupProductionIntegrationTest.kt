@@ -700,7 +700,7 @@ class BackupProductionIntegrationTest {
         assertThat(inspectedAtt.sizeBytes).isEqualTo(fixture.attachmentBytes.size.toLong())
         assertThat(inspectedAtt.checksumSha256).isEqualTo(fixture.manifest.attachments[0].checksumSha256)
         
-        val snapshot = fixture.snapshot
+        val snapshot = ready.archive.snapshot
         val receipt = snapshot.purchaseReceipts.find { it.id == "p1" }!!
         assertThat(receipt.attachmentId).isEqualTo(fixture.attachmentId)
     }
@@ -736,7 +736,10 @@ class BackupProductionIntegrationTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val storage = InternalBackupRestoreStorage(context)
         assertThat(storage.getJournalFile().exists()).isFalse()
-        assertThat(storage.getRollbackSnapshotFile("any").exists()).isFalse()
+        
+        val baseDir = File(context.filesDir, "backup_restore")
+        val rollbackDir = File(baseDir, "rollback")
+        assertThat(rollbackDir.exists() && rollbackDir.listFiles()?.isNotEmpty() == true).isFalse()
         
         // Verify database was not cleared (seedAllTables data still there)
         assertThat(db.restaurantDao().getById("r1")).isNotNull()

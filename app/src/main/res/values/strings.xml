@@ -553,4 +553,54 @@
     <string name="error_reason_required">A valid waste reason is required</string>
     <string name="error_future_effective_time">Waste effective time cannot be in the future</string>
     <string name="error_attachment_unavailable">The attached photo is no longer available</string>
+    <!-- Preparation Recipes -->
+    <string name="preparation_recipes">Preparation recipes</string>
+    <string name="new_preparation_recipe">New preparation recipe</string>
+    <string name="recipe_details">Recipe details</string>
+    <string name="output_ingredient">Output ingredient</string>
+    <string name="recipe_name">Recipe name</string>
+    <string name="standard_yield">Standard yield</string>
+    <string name="yield_unit">Yield unit</string>
+    <string name="components">Components</string>
+    <string name="add_component">Add component</string>
+    <string name="edit_component">Edit component</string>
+    <string name="activate_recipe">Activate recipe</string>
+    <string name="move_recipe_to_draft">Move recipe to Draft</string>
+    <string name="archive_recipe">Archive recipe</string>
+    <string name="restore_recipe">Restore recipe</string>
+    <string name="status_active">Active</string>
+    <string name="status_archived">Archived</string>
+    <string name="no_preparation_recipes">No preparation recipes</string>
+    <string name="no_recipes_match_filters">No recipes match these filters</string>
+    <string name="circular_recipe_warning">This recipe would create a circular preparation dependency.</string>
+    <string name="missing_yield">Enter a valid standard yield and select its unit.</string>
+    <string name="missing_components">Add at least one component before activating this recipe.</string>
+    <string name="save_failed">Save failed</string>
+    <string name="activation_failed">Activation failed</string>
+    <string name="manage_preparation_recipes">Manage preparation recipes</string>
+    <string name="preparation_recipes_dashboard_desc">Manage ingredient recipes and production yields</string>
+    <string name="component_count_format">%1$d components</string>
+    <string name="last_updated_format">Last updated: %1$s</string>
+    <string name="search_recipes">Search recipes…</string>
+    <string name="confirm_activation_title">Activate Recipe?</string>
+    <string name="confirm_activation_message">Activating this recipe will make it available for production batches. The recipe will become read-only.</string>
+    <string name="confirm_move_to_draft_title">Move to Draft?</string>
+    <string name="confirm_move_to_draft_message">Moving this recipe back to Draft will allow you to edit its components and yield. It will not be available for new production batches until reactivated.</string>
+    <string name="confirm_archive_recipe_title">Archive Recipe?</string>
+    <string name="confirm_archive_recipe_message">Archived recipes are hidden from main lists and cannot be used for production. You can restore them later.</string>
+    <string name="confirm_restore_recipe_title">Restore Recipe?</string>
+    <string name="confirm_restore_recipe_message">Restoring this recipe will move it back to Draft status.</string>
+    <string name="error_recipe_not_found">Preparation recipe not found</string>
+    <string name="error_recipe_component_not_found">Recipe component not found</string>
+    <string name="error_inactive_reference">One of the selected ingredients or units is no longer active.</string>
+    <string name="error_output_as_component">The output ingredient cannot be used as a component of its own recipe.</string>
+    <string name="error_duplicate_component">This ingredient is already a component of this recipe.</string>
+    <string name="error_recipe_already_active">Recipe is already active</string>
+    <string name="error_recipe_not_draft">Recipe is not in draft status</string>
+    <string name="error_recipe_exists_for_output">Another non-archived recipe already exists for this output ingredient.</string>
+    <string name="audit_created">Created: %1$s</string>
+    <string name="audit_updated">Updated: %1$s</string>
+    <string name="audit_archived">Archived: %1$s</string>
 </resources>
+
+

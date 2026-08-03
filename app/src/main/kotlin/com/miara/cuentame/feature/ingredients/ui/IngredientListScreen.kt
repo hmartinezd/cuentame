@@ -13,9 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SoupKitchen
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,6 +55,7 @@ import com.miara.cuentame.feature.ingredients.viewmodel.IngredientListViewModel
 fun IngredientListRoute(
     onAddIngredient: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
+    onManagePreparations: () -> Unit,
     viewModel: IngredientListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -62,7 +66,8 @@ fun IngredientListRoute(
         onCategoryFilterChanged = viewModel::onCategoryFilterChanged,
         onShowArchivedToggled = viewModel::onShowArchivedToggled,
         onAddIngredient = onAddIngredient,
-        onIngredientClick = onIngredientClick
+        onIngredientClick = onIngredientClick,
+        onManagePreparations = onManagePreparations
     )
 }
 
@@ -74,7 +79,8 @@ fun IngredientListScreen(
     onCategoryFilterChanged: (IngredientCategoryFilter) -> Unit,
     onShowArchivedToggled: (Boolean) -> Unit,
     onAddIngredient: () -> Unit,
-    onIngredientClick: (IngredientId) -> Unit
+    onIngredientClick: (IngredientId) -> Unit,
+    onManagePreparations: () -> Unit
 ) {
     Scaffold(
         modifier = Modifier.testTag("ingredient_list_screen"),
@@ -101,6 +107,21 @@ fun IngredientListScreen(
                 showArchived = uiState.showArchived,
                 onShowArchivedToggle = onShowArchivedToggled
             )
+
+            ElevatedCard(
+                onClick = onManagePreparations,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .testTag("manage_preparation_recipes")
+            ) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.manage_preparation_recipes)) },
+                    supportingContent = { Text(stringResource(R.string.preparation_recipes_dashboard_desc)) },
+                    trailingContent = { Icon(Icons.Default.SoupKitchen, contentDescription = null) },
+                    colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
 
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

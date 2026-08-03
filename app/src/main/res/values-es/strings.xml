@@ -553,4 +553,54 @@
     <string name="error_attachment_unavailable">La foto adjunta ya no está disponible</string>
     <string name="error_unit_option_used_by_recipe">Esta unidad es utilizada por una receta no archivada y no se puede archivar.</string>
     <string name="error_unit_option_used_by_recipe_comp">Esta unidad es utilizada como componente en una receta y no se puede archivar.</string>
+    <!-- Preparation Recipes -->
+    <string name="preparation_recipes">Recetas de preparación</string>
+    <string name="new_preparation_recipe">Nueva receta de preparación</string>
+    <string name="recipe_details">Detalles de la receta</string>
+    <string name="output_ingredient">Ingrediente de salida</string>
+    <string name="recipe_name">Nombre de la receta</string>
+    <string name="standard_yield">Rendimiento estándar</string>
+    <string name="yield_unit">Unidad de rendimiento</string>
+    <string name="components">Componentes</string>
+    <string name="add_component">Agregar componente</string>
+    <string name="edit_component">Editar componente</string>
+    <string name="activate_recipe">Activar receta</string>
+    <string name="move_recipe_to_draft">Mover receta a Borrador</string>
+    <string name="archive_recipe">Archivar receta</string>
+    <string name="restore_recipe">Restaurar receta</string>
+    <string name="status_active">Activa</string>
+    <string name="status_archived">Archivada</string>
+    <string name="no_preparation_recipes">No hay recetas de preparación</string>
+    <string name="no_recipes_match_filters">No hay recetas que coincidan con estos filtros</string>
+    <string name="circular_recipe_warning">Esta receta crearía una dependencia de preparación circular.</string>
+    <string name="missing_yield">Ingrese un rendimiento estándar válido y seleccione su unidad.</string>
+    <string name="missing_components">Agregue al menos un componente antes de activar esta receta.</string>
+    <string name="save_failed">Error al guardar</string>
+    <string name="activation_failed">Error de activación</string>
+    <string name="manage_preparation_recipes">Gestionar recetas de preparación</string>
+    <string name="preparation_recipes_dashboard_desc">Gestionar recetas de ingredientes y rendimientos de producción</string>
+    <string name="component_count_format">%1$d componentes</string>
+    <string name="last_updated_format">Última actualización: %1$s</string>
+    <string name="search_recipes">Buscar recetas…</string>
+    <string name="confirm_activation_title">¿Activar receta?</string>
+    <string name="confirm_activation_message">La activación de esta receta la hará disponible para lotes de producción. La receta pasará a ser de solo lectura.</string>
+    <string name="confirm_move_to_draft_title">¿Mover a Borrador?</string>
+    <string name="confirm_move_to_draft_message">Mover esta receta de nuevo a Borrador le permitirá editar sus componentes y rendimiento. No estará disponible para nuevos lotes de producción hasta que se reactive.</string>
+    <string name="confirm_archive_recipe_title">¿Archivar receta?</string>
+    <string name="confirm_archive_recipe_message">Las recetas archivadas se ocultan de las listas principales y no se pueden usar para la producción. Puede restaurarlas más tarde.</string>
+    <string name="confirm_restore_recipe_title">¿Restaurar receta?</string>
+    <string name="confirm_restore_recipe_message">Al restaurar esta receta, volverá al estado de Borrador.</string>
+    <string name="error_recipe_not_found">Receta de preparación no encontrada</string>
+    <string name="error_recipe_component_not_found">Componente de receta no encontrado</string>
+    <string name="error_inactive_reference">Uno de los ingredientes o unidades seleccionados ya no está activo.</string>
+    <string name="error_output_as_component">El ingrediente de salida no puede usarse como componente de su propia receta.</string>
+    <string name="error_duplicate_component">Este ingrediente ya es un componente de esta receta.</string>
+    <string name="error_recipe_already_active">La receta ya está activa</string>
+    <string name="error_recipe_not_draft">La receta no está en estado de borrador</string>
+    <string name="error_recipe_exists_for_output">Ya existe otra receta no archivada para este ingrediente de salida.</string>
+    <string name="audit_created">Creada: %1$s</string>
+    <string name="audit_updated">Actualizada: %1$s</string>
+    <string name="audit_archived">Archivada: %1$s</string>
 </resources>
+
+

@@ -7,6 +7,8 @@ import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.WasteEventId
+import com.miara.cuentame.core.common.ids.PreparationRecipeId
+import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 
 object AppRoutes {
     var encoder: RouteEncoder = AndroidRouteEncoder
@@ -55,4 +57,19 @@ object AppRoutes {
 
     fun reportWasteDetail(rangeName: String): String =
         "reports/waste?range=${encoder.encode(rangeName)}"
+
+    fun preparationRecipeDraft(id: PreparationRecipeId): String =
+        "preparations/recipes/${encoder.encode(id.value)}/edit"
+
+    fun preparationRecipeDetail(id: PreparationRecipeId): String =
+        "preparations/recipes/${encoder.encode(id.value)}"
+
+    fun preparationRecipeComponentCreate(id: PreparationRecipeId): String =
+        "preparations/recipes/${encoder.encode(id.value)}/component"
+
+    fun preparationRecipeComponentEdit(
+        recipeId: PreparationRecipeId,
+        componentId: PreparationRecipeComponentId
+    ): String =
+        "preparations/recipes/${encoder.encode(recipeId.value)}/component/${encoder.encode(componentId.value)}"
 }

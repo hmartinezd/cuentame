@@ -37,5 +37,12 @@ enum class Destination(val route: String) {
     
     SUPPLIER_LIST("suppliers"),
     SUPPLIER_CREATE("suppliers/create"),
-    SUPPLIER_EDIT("suppliers/{supplierId}/edit")
+    SUPPLIER_EDIT("suppliers/{supplierId}/edit"),
+
+    PREPARATION_RECIPE_LIST("preparations/recipes"),
+    PREPARATION_RECIPE_CREATE("preparations/recipes/create"),
+    PREPARATION_RECIPE_DRAFT("preparations/recipes/{recipeId}/edit"),
+    PREPARATION_RECIPE_COMPONENT_CREATE("preparations/recipes/{recipeId}/component"),
+    PREPARATION_RECIPE_COMPONENT_EDIT("preparations/recipes/{recipeId}/component/{componentId}"),
+    PREPARATION_RECIPE_DETAIL("preparations/recipes/{recipeId}")
 }

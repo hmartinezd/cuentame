@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.SoupKitchen
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -66,6 +67,7 @@ fun HomeRoute(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
+    onViewPreparations: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -80,6 +82,7 @@ fun HomeRoute(
         onNewPurchase = onNewPurchase,
         onStartCount = onStartCount,
         onViewReports = onViewReports,
+        onViewPreparations = onViewPreparations,
         modifier = modifier
     )
 }
@@ -95,6 +98,7 @@ fun HomeScreen(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
+    onViewPreparations: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -140,7 +144,8 @@ fun HomeScreen(
                     onViewWaste = onViewWaste,
                     onNewPurchase = onNewPurchase,
                     onStartCount = onStartCount,
-                    onViewReports = onViewReports
+                    onViewReports = onViewReports,
+                    onViewPreparations = onViewPreparations
                 )
             }
         }
@@ -156,7 +161,8 @@ private fun DashboardContent(
     onViewWaste: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
-    onViewReports: () -> Unit
+    onViewReports: () -> Unit,
+    onViewPreparations: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -226,7 +232,7 @@ private fun DashboardContent(
         }
 
         item {
-            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste)
+            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewPreparations)
         }
 
         item {
@@ -449,7 +455,8 @@ private fun QuickActionsSection(
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
-    onViewWasteHistory: () -> Unit
+    onViewWasteHistory: () -> Unit,
+    onViewPreparations: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -460,7 +467,10 @@ private fun QuickActionsSection(
             QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.new_purchase_action), onNewPurchase, Modifier.weight(1f).testTag("new_purchase_button"))
             QuickActionButton(Icons.Default.Straighten, stringResource(R.string.start_count_action), onStartCount, Modifier.weight(1f).testTag("start_count_button"))
         }
-        QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.fillMaxWidth().testTag("view_reports_button"))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.SoupKitchen, stringResource(R.string.preparation_recipes), onViewPreparations, Modifier.weight(1f).testTag("open_preparation_recipes_button"))
+            QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.weight(1f).testTag("view_reports_button"))
+        }
     }
 }
 
