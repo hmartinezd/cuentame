@@ -139,7 +139,12 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                             val unitOptions = try {
                                 ingredientRepository.getUnitOptions(recipe.outputIngredientId, includeArchived = false)
                             } catch (e: Exception) {
-                                emptyList()
+                                _uiState.update {
+                                    it.copy(
+                                        loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())
+                                    )
+                                }
+                                return@collectLatest
                             }
                             _uiState.update {
                                 it.copy(
@@ -168,8 +173,14 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                         }
                     } else {
                         // Refresh data but preserve form state
+                        val readyState = if (recipeId == null) {
+                            PreparationScreenLoadState.CreateReady
+                        } else {
+                            PreparationScreenLoadState.EditReady
+                        }
                         _uiState.update {
                             it.copy(
+                                loadState = readyState,
                                 recipe = recipe,
                                 availableIngredients = availableIngredients,
                                 componentNames = componentNames,

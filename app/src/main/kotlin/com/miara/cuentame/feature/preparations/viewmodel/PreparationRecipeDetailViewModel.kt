@@ -24,8 +24,15 @@ sealed interface PreparationRecipeDetailEvent {
 
 sealed interface RecipeDetailLoadResult {
     data object Loading : RecipeDetailLoadResult
-    data class Success(val recipe: PreparationRecipe) : RecipeDetailLoadResult
+    data class Success(
+        val recipe: PreparationRecipe,
+        val outputIngredientName: String,
+        val yieldUnitLabel: String,
+        val componentNames: Map<PreparationRecipeComponentId, String>,
+        val componentUnitLabels: Map<PreparationRecipeComponentId, String>
+    ) : RecipeDetailLoadResult
     data object NotFound : RecipeDetailLoadResult
+    data object InvalidRoute : RecipeDetailLoadResult
     data class Failure(val error: Throwable) : RecipeDetailLoadResult
 }
 
@@ -63,12 +70,39 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     private val _loadResult = _retryTrigger.flatMapLatest {
         val rId = recipeId
         if (rId == null) {
-            flowOf(RecipeDetailLoadResult.NotFound)
+            flowOf(RecipeDetailLoadResult.InvalidRoute)
         } else {
             preparationRecipeRepository.observeRecipe(rId)
-                .map<PreparationRecipe?, RecipeDetailLoadResult> { recipe ->
-                    if (recipe == null) RecipeDetailLoadResult.NotFound
-                    else RecipeDetailLoadResult.Success(recipe)
+                .mapLatest { recipe ->
+                    if (recipe == null) return@mapLatest RecipeDetailLoadResult.NotFound
+
+                    val outputIngredient = ingredientRepository.getById(recipe.outputIngredientId)
+                        ?: throw IllegalStateException("Output ingredient not found")
+                    
+                    val yieldUnitLabel = recipe.yieldUnitOptionId?.let { unitId ->
+                        ingredientRepository.getUnitOptions(recipe.outputIngredientId, true)
+                            .find { it.id == unitId }?.displayName
+                            ?: throw IllegalStateException("Yield unit not found")
+                    } ?: ""
+
+                    val componentNames = mutableMapOf<PreparationRecipeComponentId, String>()
+                    val componentUnitLabels = mutableMapOf<PreparationRecipeComponentId, String>()
+
+                    for (comp in recipe.components) {
+                        componentNames[comp.id] = ingredientRepository.getById(comp.componentIngredientId)?.name
+                            ?: throw IllegalStateException("Component ingredient not found")
+                        componentUnitLabels[comp.id] = ingredientRepository.getUnitOptions(comp.componentIngredientId, true)
+                            .find { it.id == comp.unitOptionId }?.displayName
+                            ?: throw IllegalStateException("Component unit not found")
+                    }
+
+                    RecipeDetailLoadResult.Success(
+                        recipe = recipe,
+                        outputIngredientName = outputIngredient.name,
+                        yieldUnitLabel = yieldUnitLabel,
+                        componentNames = componentNames,
+                        componentUnitLabels = componentUnitLabels
+                    )
                 }
                 .onStart { emit(RecipeDetailLoadResult.Loading) }
                 .catch { e -> emit(RecipeDetailLoadResult.Failure(e)) }
@@ -84,6 +118,9 @@ class PreparationRecipeDetailViewModel @Inject constructor(
             is RecipeDetailLoadResult.Loading -> {
                 PreparationRecipeDetailUiState(loadState = PreparationScreenLoadState.Loading, isOperating = isOperating)
             }
+            is RecipeDetailLoadResult.InvalidRoute -> {
+                PreparationRecipeDetailUiState(loadState = PreparationScreenLoadState.InvalidRoute, isOperating = isOperating)
+            }
             is RecipeDetailLoadResult.NotFound -> {
                 PreparationRecipeDetailUiState(loadState = PreparationScreenLoadState.RecipeNotFound, isOperating = isOperating)
             }
@@ -95,28 +132,14 @@ class PreparationRecipeDetailViewModel @Inject constructor(
                 )
             }
             is RecipeDetailLoadResult.Success -> {
-                val recipe = result.recipe
-                val outputIngredient = try { ingredientRepository.getById(recipe.outputIngredientId) } catch (_: Exception) { null }
-                val yieldUnitOption = recipe.yieldUnitOptionId?.let { 
-                    try { ingredientRepository.getUnitOptions(recipe.outputIngredientId, true).find { o -> o.id == it } } catch (_: Exception) { null }
-                }
-                
-                val componentNames = mutableMapOf<PreparationRecipeComponentId, String>()
-                val componentUnitLabels = mutableMapOf<PreparationRecipeComponentId, String>()
-                
-                for (comp in recipe.components) {
-                    componentNames[comp.id] = try { ingredientRepository.getById(comp.componentIngredientId)?.name ?: comp.componentIngredientId.value } catch (_: Exception) { comp.componentIngredientId.value }
-                    componentUnitLabels[comp.id] = try { ingredientRepository.getUnitOptions(comp.componentIngredientId, true).find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value } catch (_: Exception) { comp.unitOptionId.value }
-                }
-
                 PreparationRecipeDetailUiState(
                     loadState = PreparationScreenLoadState.EditReady,
                     isOperating = isOperating,
-                    recipe = recipe,
-                    outputIngredientName = outputIngredient?.name ?: "",
-                    yieldUnitLabel = yieldUnitOption?.displayName ?: "",
-                    componentNames = componentNames,
-                    componentUnitLabels = componentUnitLabels,
+                    recipe = result.recipe,
+                    outputIngredientName = result.outputIngredientName,
+                    yieldUnitLabel = result.yieldUnitLabel,
+                    componentNames = result.componentNames,
+                    componentUnitLabels = result.componentUnitLabels,
                     inlineError = inlineError
                 )
             }

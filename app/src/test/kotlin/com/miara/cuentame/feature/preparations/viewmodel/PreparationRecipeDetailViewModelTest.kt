@@ -8,6 +8,7 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.PreparationRecipeRepository
+import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import io.mockk.*
@@ -16,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
@@ -48,9 +50,10 @@ class PreparationRecipeDetailViewModelTest {
     @Test
     fun `init loads recipe and names`() = runTest {
         val recipe = createRecipe("rec1", "out1")
+        val option = createUnitOption("o1", "out1")
         every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
         coEvery { ingredientRepository.getById(IngredientId("out1")) } returns mockk { every { name } returns "Output Name" }
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("out1"), true) } returns listOf(option)
 
         viewModel = PreparationRecipeDetailViewModel(
             preparationRecipeRepository, ingredientRepository, 
@@ -58,10 +61,11 @@ class PreparationRecipeDetailViewModelTest {
         )
         backgroundScope.launch { viewModel.uiState.collect() }
         
-        viewModel.uiState.filter { it.loadState !is PreparationScreenLoadState.Loading }.first()
+        val state = viewModel.uiState.filter { it.loadState is PreparationScreenLoadState.EditReady }.first()
 
-        assertThat(viewModel.uiState.value.recipe).isEqualTo(recipe)
-        assertThat(viewModel.uiState.value.outputIngredientName).isEqualTo("Output Name")
+        assertThat(state.recipe).isEqualTo(recipe)
+        assertThat(state.outputIngredientName).isEqualTo("Output Name")
+        assertThat(state.yieldUnitLabel).isEqualTo("Opt o1")
     }
 
     @Test
@@ -110,12 +114,16 @@ class PreparationRecipeDetailViewModelTest {
     @Test
     fun `onRetry refreshes observation after failure`() = runTest {
         val recipeId = PreparationRecipeId("rec1")
+        val recipe = createRecipe("rec1", "out1")
+        val option = createUnitOption("o1", "out1")
         var callCount = 0
         every { preparationRecipeRepository.observeRecipe(recipeId) } answers {
             callCount++
-            if (callCount == 1) kotlinx.coroutines.flow.flow { throw RuntimeException("Fail") }
-            else flowOf(createRecipe("rec1", "out1"))
+            if (callCount == 1) flow { throw RuntimeException("Fail") }
+            else flowOf(recipe)
         }
+        coEvery { ingredientRepository.getById(any()) } returns mockk { every { name } returns "Output Name" }
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
 
         viewModel = PreparationRecipeDetailViewModel(
             preparationRecipeRepository, ingredientRepository, 
@@ -134,7 +142,36 @@ class PreparationRecipeDetailViewModelTest {
     }
 
     @Test
-    fun `missing recipeId leads to RecipeNotFound state`() = runTest {
+    fun `enrichment failure triggers LoadError and is retryable`() = runTest {
+        val recipe = createRecipe("rec1", "out1")
+        val option = createUnitOption("o1", "out1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        
+        // Enrichment fails initially
+        coEvery { ingredientRepository.getById(IngredientId("out1")) } throws RuntimeException("Enrichment failed")
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(option)
+
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+
+        // Retry succeeds
+        coEvery { ingredientRepository.getById(IngredientId("out1")) } returns mockk { every { name } returns "Output Name" }
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.EditReady)
+        assertThat(viewModel.uiState.value.outputIngredientName).isEqualTo("Output Name")
+    }
+
+    @Test
+    fun `route classification - missing or blank recipeId results in InvalidRoute`() = runTest {
         viewModel = PreparationRecipeDetailViewModel(
             preparationRecipeRepository, ingredientRepository, 
             SavedStateHandle(mapOf("recipeId" to ""))
@@ -142,8 +179,41 @@ class PreparationRecipeDetailViewModelTest {
         backgroundScope.launch { viewModel.uiState.collect() }
         advanceUntilIdle()
 
-        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.RecipeNotFound)
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.InvalidRoute)
+        verify(exactly = 0) { preparationRecipeRepository.observeRecipe(any()) }
     }
+
+    @Test
+    fun `route classification - valid missing ID results in RecipeNotFound`() = runTest {
+        val recipeId = PreparationRecipeId("missing")
+        every { preparationRecipeRepository.observeRecipe(recipeId) } returns flowOf(null)
+
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, 
+            SavedStateHandle(mapOf("recipeId" to "missing"))
+        )
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.RecipeNotFound)
+        verify(exactly = 1) { preparationRecipeRepository.observeRecipe(recipeId) }
+    }
+
+    private fun createUnitOption(id: String, ingId: String) = IngredientUnitOption(
+        id = IngredientUnitOptionId(id),
+        ingredientId = IngredientId(ingId),
+        displayName = "Opt $id",
+        shortLabel = "o",
+        standardUnitId = null,
+        factorToBase = BigDecimal.ONE,
+        isBase = true,
+        isDefaultCount = true,
+        isDefaultPurchase = true,
+        isActive = true,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH,
+        deletedAt = null
+    )
 
     private fun createRecipe(id: String, outputId: String) = PreparationRecipe(
         id = PreparationRecipeId(id),

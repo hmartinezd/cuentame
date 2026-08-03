@@ -88,7 +88,7 @@ fun PreparationRecipeDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.recipe_details)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -126,10 +126,7 @@ fun PreparationRecipeDetailScreen(
             is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.LoadError -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val message = when (loadState.message) {
-                            is UiMessage.Resource -> stringResource(loadState.message.id, *loadState.message.args.toTypedArray())
-                            is UiMessage.PlainTextInternalOnly -> loadState.message.value
-                        }
+                        val message = loadState.message.toRecipeDisplayText()
                         Text(
                             text = message,
                             style = MaterialTheme.typography.bodyLarge,
@@ -173,12 +170,8 @@ fun PreparationRecipeDetailScreen(
                                     modifier = Modifier.padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val text = when (message) {
-                                        is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
-                                        is UiMessage.PlainTextInternalOnly -> message.value
-                                    }
                                     Text(
-                                        text = text,
+                                        text = message.toRecipeDisplayText(),
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
@@ -424,3 +417,13 @@ private fun ActionButtons(
         }
     }
 }
+
+@Composable
+private fun UiMessage.toRecipeDisplayText(): String =
+    when (this) {
+        is UiMessage.Resource ->
+            stringResource(id, *args.toTypedArray())
+
+        is UiMessage.PlainTextInternalOnly ->
+            stringResource(R.string.error_generic)
+    }

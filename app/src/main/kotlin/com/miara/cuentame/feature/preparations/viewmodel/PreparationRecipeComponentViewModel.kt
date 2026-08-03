@@ -145,7 +145,12 @@ class PreparationRecipeComponentViewModel @Inject constructor(
                             val unitOptions = try {
                                 ingredientRepository.getUnitOptions(existingComp.componentIngredientId, includeArchived = false)
                             } catch (e: Exception) {
-                                emptyList()
+                                _uiState.update {
+                                    it.copy(
+                                        loadState = PreparationScreenLoadState.LoadError(e.toPreparationRecipeUserMessage())
+                                    )
+                                }
+                                return@collectLatest
                             }
                             _uiState.update {
                                 it.copy(
@@ -170,8 +175,13 @@ class PreparationRecipeComponentViewModel @Inject constructor(
                         }
                         isInitialized = true
                     } else {
+                        val readyState = when (val currentMode = _uiState.value.mode) {
+                            PreparationRecipeComponentMode.Create -> PreparationScreenLoadState.CreateReady
+                            is PreparationRecipeComponentMode.Edit -> PreparationScreenLoadState.EditReady
+                        }
                         _uiState.update {
                             it.copy(
+                                loadState = readyState,
                                 recipe = recipe,
                                 availableIngredients = availableIngredients
                             )

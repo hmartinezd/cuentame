@@ -17,6 +17,8 @@ import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
@@ -201,6 +203,76 @@ class PreparationRecipeComponentViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+    }
+
+    @Test
+    fun `post-initialization retry - preserves fields and restores Ready state`() = runTest {
+        val recipe = createRecipe("rec1", "out1")
+        val recipeFlow = MutableStateFlow(recipe)
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns recipeFlow
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns emptyList()
+        
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+        
+        // Enter unsaved data
+        viewModel.onQuantityChanged("123")
+        viewModel.onNotesChanged("Unsaved Notes")
+        
+        // Simulate failure after initialization
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flow {
+            throw RuntimeException("Async failure")
+        }
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        
+        // Mock success for retry
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+        assertThat(viewModel.uiState.value.quantity).isEqualTo("123")
+        assertThat(viewModel.uiState.value.notes).isEqualTo("Unsaved Notes")
+    }
+
+    @Test
+    fun `initial unit-option failure triggers LoadError and prevents initialization`() = runTest {
+        val component = createComponent("c1", "i1", 0)
+        val recipe = createRecipe("rec1", "out1").copy(components = listOf(component))
+        
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(createIngredient("i1", "Ing 1"))
+        
+        // Simulate unit options failure
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("i1"), false) } throws RuntimeException("Unit options failed")
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1", "componentId" to "c1"))
+        )
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        
+        // Retry
+        val options = listOf(createUnitOption("o1", "i1"))
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("i1"), false) } returns options
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.EditReady)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
     }
 
     private fun createComponent(id: String, ingId: String, sortOrder: Int) = PreparationRecipeComponent(

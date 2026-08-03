@@ -75,7 +75,7 @@ fun PreparationRecipeComponentScreen(
             TopAppBar(
                 title = { Text(if (isEditing) stringResource(R.string.edit_component) else stringResource(R.string.add_component)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -170,10 +170,7 @@ fun PreparationRecipeComponentScreen(
             is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.LoadError -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val message = when (loadState.message) {
-                            is UiMessage.Resource -> stringResource(loadState.message.id, *loadState.message.args.toTypedArray())
-                            is UiMessage.PlainTextInternalOnly -> loadState.message.value
-                        }
+                        val message = loadState.message.toRecipeDisplayText()
                         Text(
                             text = message,
                             style = MaterialTheme.typography.bodyLarge,
@@ -217,12 +214,7 @@ fun PreparationRecipeComponentScreen(
                                 modifier = Modifier.weight(1f),
                                 enabled = !uiState.isSaving,
                                 isError = uiState.quantityError,
-                                errorText = uiState.quantityErrorText?.let { message ->
-                                    when (message) {
-                                        is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
-                                        is UiMessage.PlainTextInternalOnly -> message.value
-                                    }
-                                },
+                                errorText = uiState.quantityErrorText?.toRecipeDisplayText(),
                                 testTag = "recipe_component_quantity_field"
                             )
                             UnitOptionSelector(
@@ -250,11 +242,7 @@ fun PreparationRecipeComponentScreen(
 
                     uiState.inlineError?.let { message ->
                         item {
-                            val text = when (message) {
-                                is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
-                                is UiMessage.PlainTextInternalOnly -> message.value
-                            }
-                            InlineValidationMessage(message = text)
+                            InlineValidationMessage(message = message.toRecipeDisplayText())
                         }
                     }
                 }
@@ -262,3 +250,14 @@ fun PreparationRecipeComponentScreen(
         }
     }
 }
+
+@Composable
+private fun UiMessage.toRecipeDisplayText(): String =
+    when (this) {
+        is UiMessage.Resource ->
+            stringResource(id, *args.toTypedArray())
+
+        is UiMessage.PlainTextInternalOnly ->
+            stringResource(R.string.error_generic)
+    }
+

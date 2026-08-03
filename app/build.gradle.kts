@@ -50,6 +50,9 @@ android {
 
     testOptions {
         animationsDisabled = false
+        unitTests {
+            isIncludeAndroidResources = true
+        }
         unitTests.all { testTask ->
             testTask.jvmArgs("-Xmx4096m", "-XX:MaxMetaspaceSize=1024m")
             testTask.maxParallelForks = 1
@@ -113,11 +116,16 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.room.testing)
     testImplementation(libs.mockk)
+    testImplementation(libs.androidx.navigation.testing)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.junit)
     
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.navigation.testing)
     androidTestImplementation(libs.hilt.android.testing)
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.room.testing)

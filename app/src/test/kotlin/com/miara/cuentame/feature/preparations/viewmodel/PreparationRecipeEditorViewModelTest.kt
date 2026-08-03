@@ -11,6 +11,7 @@ import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeSummary
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
@@ -20,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
@@ -272,6 +274,83 @@ class PreparationRecipeEditorViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+    }
+
+    @Test
+    fun `post-initialization retry - preserves fields and restores Ready state`() = runTest {
+        val ingredient = createIngredient("i1", "Ing 1")
+        val ingredientsFlow = MutableStateFlow(listOf(ingredient))
+        val recipesFlow = MutableStateFlow(emptyList<PreparationRecipeSummary>())
+        
+        every { ingredientRepository.observeIngredients(restaurantId, false) } returns ingredientsFlow
+        every { preparationRecipeRepository.observeRecipes(restaurantId, false) } returns recipesFlow
+        
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+        
+        // Enter some unsaved data
+        viewModel.onRecipeNameChanged("Unsaved Name")
+        viewModel.onYieldQuantityChanged("50")
+        
+        // Simulate failure after initialization
+        ingredientsFlow.value = emptyList() // Trigger emission
+        // Force a failure in the next collection cycle
+        every { ingredientRepository.observeIngredients(restaurantId, false) } returns flow {
+            throw RuntimeException("Async failure")
+        }
+        
+        // We need to trigger a new collection. The current collectLatest is still running.
+        // Actually, in the current implementation, if the Flow itself throws, collectLatest will catch it in the launch block.
+        
+        // Let's re-mock for retry
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        assertThat(viewModel.uiState.value.recipeName).isEqualTo("Unsaved Name")
+        
+        // Now mock success for retry
+        every { ingredientRepository.observeIngredients(restaurantId, false) } returns flowOf(listOf(ingredient))
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+        assertThat(viewModel.uiState.value.recipeName).isEqualTo("Unsaved Name")
+        assertThat(viewModel.uiState.value.yieldQuantity).isEqualTo("50")
+    }
+
+    @Test
+    fun `initial unit-option failure triggers LoadError and prevents initialization`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(createIngredient("i1", "Ing 1")))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        
+        // Simulate unit options failure
+        coEvery { ingredientRepository.getUnitOptions(recipe.outputIngredientId, false) } throws RuntimeException("Unit options failed")
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+        
+        // Retry
+        val options = listOf(createUnitOption("o1", "i1"))
+        coEvery { ingredientRepository.getUnitOptions(recipe.outputIngredientId, false) } returns options
+        
+        viewModel.onRetry()
+        advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.EditReady)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(options)
     }
 
     private fun createIngredient(id: String, name: String) = Ingredient(

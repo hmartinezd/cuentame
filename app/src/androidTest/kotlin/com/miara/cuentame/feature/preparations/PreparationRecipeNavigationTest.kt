@@ -62,13 +62,13 @@ class PreparationRecipeNavigationTest {
             
             composeTestRule.onNodeWithTag("preparation_recipe_editor_screen").assertIsDisplayed()
             
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("preparation_back_button").performClick()
             composeTestRule.onNodeWithTag("preparation_recipe_list_screen").assertIsDisplayed()
         }
     }
 
     private fun waitForHome() {
-        composeTestRule.waitUntil(60000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
