@@ -139,8 +139,16 @@ class PreparationRecipeUiTest {
             composeTestRule.onNodeWithText("Onion").assertExists()
             composeTestRule.onNodeWithText("5 Unit").assertExists()
 
-            // Verify Recipe Name default
-            assertEquals("Onion Soup", recipe!!.name)
+            // 8. Verify Database Graph Exact Assertions
+            assertEquals(com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus.DRAFT.name, recipe!!.status)
+            assertEquals("Onion Soup", recipe.name)
+            assertEquals(0, BigDecimal("10").compareTo(recipe.standardYieldQuantity))
+            assertEquals("o-out1", recipe.yieldUnitOptionId)
+            assertEquals(1, components.size)
+            assertEquals("i1", components[0].componentIngredientId)
+            assertEquals("o-i1", components[0].unitOptionId)
+            assertEquals(0, BigDecimal("5").compareTo(components[0].quantityEntered))
+            assertEquals(0, components[0].sortOrder)
         }
     }
 

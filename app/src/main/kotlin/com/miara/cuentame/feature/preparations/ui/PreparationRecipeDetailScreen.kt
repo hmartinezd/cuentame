@@ -55,7 +55,8 @@ fun PreparationRecipeDetailRoute(
         onMoveToDraft = viewModel::onMoveToDraft,
         onArchive = viewModel::onArchive,
         onRestoreToDraft = viewModel::onRestoreToDraft,
-        onClearError = viewModel::clearInlineError
+        onClearError = viewModel::clearInlineError,
+        onRetry = viewModel::onRetry
     )
 }
 
@@ -69,8 +70,10 @@ fun PreparationRecipeDetailScreen(
     onMoveToDraft: () -> Unit,
     onArchive: () -> Unit,
     onRestoreToDraft: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onRetry: () -> Unit
 ) {
+    val loadState = uiState.loadState
     val recipe = uiState.recipe
     val status = recipe?.status
 
@@ -99,20 +102,56 @@ fun PreparationRecipeDetailScreen(
             )
         }
     ) { padding ->
-        when {
-            uiState.isLoading -> {
+        when (loadState) {
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
-            uiState.error != null || recipe == null -> {
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.RecipeNotFound -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (uiState.error is NoSuchElementException) stringResource(R.string.error_recipe_not_found)
-                                   else stringResource(R.string.error_load_recipe_failed),
+                            text = stringResource(R.string.error_recipe_not_found),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_detail_not_found")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.LoadError -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val message = when (loadState.message) {
+                            is UiMessage.Resource -> stringResource(loadState.message.id, *loadState.message.args.toTypedArray())
+                            is UiMessage.PlainTextInternalOnly -> loadState.message.value
+                        }
+                        Text(
+                            text = message,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.testTag("recipe_detail_load_error")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onRetry, modifier = Modifier.testTag("recipe_detail_retry")) {
+                            Text(stringResource(R.string.action_retry_desc))
+                        }
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.InvalidRoute -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.error_generic),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_detail_invalid_route")
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         TextButton(onClick = onBackClick) {
@@ -122,81 +161,83 @@ fun PreparationRecipeDetailScreen(
                 }
             }
             else -> {
-                Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    uiState.inlineError?.let { message ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.fillMaxWidth().testTag("recipe_detail_inline_error")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                if (recipe != null) {
+                    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                        uiState.inlineError?.let { message ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.fillMaxWidth().testTag("recipe_detail_inline_error")
                             ) {
-                                val text = when (message) {
-                                    is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
-                                    is UiMessage.PlainTextInternalOnly -> message.value
-                                }
-                                Text(
-                                    text = text,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                TextButton(onClick = onClearError, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer)) {
-                                    Text(stringResource(android.R.string.ok))
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val text = when (message) {
+                                        is UiMessage.Resource -> stringResource(message.id, *message.args.toTypedArray())
+                                        is UiMessage.PlainTextInternalOnly -> message.value
+                                    }
+                                    Text(
+                                        text = text,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    TextButton(onClick = onClearError, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer)) {
+                                        Text(stringResource(android.R.string.ok))
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        item {
-                            DetailHeader(recipe, uiState.outputIngredientName, uiState.yieldUnitLabel)
-                        }
-
-                        item {
-                            Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
-                        }
-
-                        items(recipe.components.sortedBy { it.sortOrder }) { component ->
-                            val ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value
-                            val unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value
-                            
-                            ListItem(
-                                headlineContent = { Text(ingredientName) },
-                                supportingContent = {
-                                    Text("${Formatters.formatQuantity(component.quantityEntered)} $unitLabel")
-                                }
-                            )
-                            HorizontalDivider()
-                        }
-
-                        if (!recipe.notes.isNullOrBlank()) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
                             item {
-                                Column {
-                                    Text(stringResource(R.string.notes), style = MaterialTheme.typography.titleMedium)
-                                    Text(recipe.notes, style = MaterialTheme.typography.bodyMedium)
+                                DetailHeader(recipe, uiState.outputIngredientName, uiState.yieldUnitLabel)
+                            }
+
+                            item {
+                                Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
+                            }
+
+                            items(recipe.components.sortedBy { it.sortOrder }) { component ->
+                                val ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value
+                                val unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value
+                                
+                                ListItem(
+                                    headlineContent = { Text(ingredientName) },
+                                    supportingContent = {
+                                        Text("${Formatters.formatQuantity(component.quantityEntered)} $unitLabel")
+                                    }
+                                )
+                                HorizontalDivider()
+                            }
+
+                            if (!recipe.notes.isNullOrBlank()) {
+                                item {
+                                    Column {
+                                        Text(stringResource(R.string.notes), style = MaterialTheme.typography.titleMedium)
+                                        Text(recipe.notes, style = MaterialTheme.typography.bodyMedium)
+                                    }
                                 }
+                            }
+
+                            item {
+                                AuditInfo(recipe)
                             }
                         }
 
-                        item {
-                            AuditInfo(recipe)
-                        }
+                        ActionButtons(
+                            status = status,
+                            isOperating = uiState.isOperating,
+                            onActivateClick = { showActivateConfirm = true },
+                            onDraftClick = { showDraftConfirm = true },
+                            onArchiveClick = { showArchiveConfirm = true },
+                            onRestoreClick = { showRestoreConfirm = true }
+                        )
                     }
-
-                    ActionButtons(
-                        status = status,
-                        isOperating = uiState.isOperating,
-                        onActivateClick = { showActivateConfirm = true },
-                        onDraftClick = { showDraftConfirm = true },
-                        onArchiveClick = { showArchiveConfirm = true },
-                        onRestoreClick = { showRestoreConfirm = true }
-                    )
                 }
             }
         }

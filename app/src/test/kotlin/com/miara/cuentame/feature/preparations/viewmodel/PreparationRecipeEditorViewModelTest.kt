@@ -17,6 +17,7 @@ import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeU
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -180,9 +181,10 @@ class PreparationRecipeEditorViewModelTest {
     }
 
     @Test
-    fun `edit mode - non-draft recipe navigates to detail`() = runTest {
+    fun `edit mode - non-draft recipe navigates to detail exactly once`() = runTest {
         val recipe = createRecipe("rec1", "i1").copy(status = PreparationRecipeStatus.ACTIVE)
-        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        val recipeFlow = MutableStateFlow(recipe)
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns recipeFlow
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
         every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
 
@@ -195,8 +197,81 @@ class PreparationRecipeEditorViewModelTest {
         val job = launch { viewModel.events.collect { events.add(it) } }
         advanceUntilIdle()
 
-        assertThat(events).contains(PreparationRecipeEditorEvent.NavigateToDetail(recipe.id))
+        // Emit again
+        recipeFlow.value = recipe.copy(updatedAt = Instant.now())
+        advanceUntilIdle()
+
+        assertThat(events.filterIsInstance<PreparationRecipeEditorEvent.NavigateToDetail>()).hasSize(1)
         job.cancel()
+    }
+
+    @Test
+    fun `output unit-option latest-selection-wins`() = runTest {
+        val ingredientA = createIngredient("iA", "Ing A")
+        val ingredientB = createIngredient("iB", "Ing B")
+        val optionsA = listOf(createUnitOption("oA", "iA"))
+        val optionsB = listOf(createUnitOption("oB", "iB"))
+
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("iA"), false) } coAnswers {
+            delay(1000)
+            optionsA
+        }
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("iB"), false) } returns optionsB
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        advanceUntilIdle()
+
+        viewModel.onOutputIngredientSelected(ingredientA)
+        testScheduler.advanceTimeBy(100)
+        viewModel.onOutputIngredientSelected(ingredientB)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedOutputIngredient).isEqualTo(ingredientB)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+        
+        // Advance more to let A finish
+        testScheduler.advanceTimeBy(2000)
+        advanceUntilIdle()
+
+        // Still B
+        assertThat(viewModel.uiState.value.selectedOutputIngredient).isEqualTo(ingredientB)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+    }
+
+    @Test
+    fun `onRetry clears error and restarts loadJob`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } throws RuntimeException("Load failed")
+        
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, SavedStateHandle()
+        )
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
+    }
+
+    @Test
+    fun `missing recipeId in route results in CreateReady state`() = runTest {
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to ""))
+        )
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
     }
 
     private fun createIngredient(id: String, name: String) = Ingredient(

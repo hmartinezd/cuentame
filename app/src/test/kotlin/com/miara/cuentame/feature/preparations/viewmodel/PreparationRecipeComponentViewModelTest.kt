@@ -109,11 +109,98 @@ class PreparationRecipeComponentViewModelTest {
         )
         advanceUntilIdle()
 
+        assertThat(viewModel.uiState.value.mode).isInstanceOf(PreparationRecipeComponentMode.Edit::class.java)
         viewModel.onQuantityChanged("10")
         viewModel.onSave()
         advanceUntilIdle()
 
         coVerify { preparationRecipeRepository.saveComponent(match { it.sortOrder == 5 }) }
+    }
+
+    @Test
+    fun `ingredient selection latest-selection-wins`() = runTest {
+        val recipe = createRecipe("rec1", "out1")
+        val ingredientA = createIngredient("iA", "Ing A")
+        val ingredientB = createIngredient("iB", "Ing B")
+        val optionsA = listOf(createUnitOption("oA", "iA"))
+        val optionsB = listOf(createUnitOption("oB", "iB"))
+
+        every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(recipe)
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns listOf(ingredientA, ingredientB)
+        coEvery { ingredientRepository.getUnitOptions(ingredientA.id, false) } coAnswers {
+            kotlinx.coroutines.delay(1000)
+            optionsA
+        }
+        coEvery { ingredientRepository.getUnitOptions(ingredientB.id, false) } returns optionsB
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onIngredientSelected(ingredientA)
+        testScheduler.advanceTimeBy(100)
+        viewModel.onIngredientSelected(ingredientB)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedIngredient).isEqualTo(ingredientB)
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+        
+        testScheduler.advanceTimeBy(2000)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.availableUnitOptions).isEqualTo(optionsB)
+    }
+
+    @Test
+    fun `missing recipeId leads to InvalidRoute state`() = runTest {
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to ""))
+        )
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.InvalidRoute)
+    }
+
+    @Test
+    fun `parent recipe not draft leads to ParentNotEditable state and navigation event`() = runTest {
+        val recipe = createRecipe("rec1", "out1").copy(status = PreparationRecipeStatus.ACTIVE)
+        every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(recipe)
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        
+        val events = mutableListOf<PreparationRecipeComponentEvent>()
+        backgroundScope.launch { viewModel.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.ParentNotEditable)
+        assertThat(events).contains(PreparationRecipeComponentEvent.NavigateToDetail(recipe.id))
+    }
+
+    @Test
+    fun `onRetry reloads data after failure`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } throws RuntimeException("Error")
+
+        val viewModel = PreparationRecipeComponentViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        every { preparationRecipeRepository.observeRecipe(any()) } returns flowOf(createRecipe("rec1", "out1"))
+        coEvery { ingredientRepository.getIngredients(any(), any()) } returns emptyList()
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
     }
 
     private fun createComponent(id: String, ingId: String, sortOrder: Int) = PreparationRecipeComponent(

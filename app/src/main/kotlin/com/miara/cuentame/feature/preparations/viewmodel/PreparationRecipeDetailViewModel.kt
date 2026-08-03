@@ -22,8 +22,15 @@ sealed interface PreparationRecipeDetailEvent {
     data object LifecycleUpdated : PreparationRecipeDetailEvent
 }
 
+sealed interface RecipeDetailLoadResult {
+    data object Loading : RecipeDetailLoadResult
+    data class Success(val recipe: PreparationRecipe) : RecipeDetailLoadResult
+    data object NotFound : RecipeDetailLoadResult
+    data class Failure(val error: Throwable) : RecipeDetailLoadResult
+}
+
 data class PreparationRecipeDetailUiState(
-    val isLoading: Boolean = true,
+    val loadState: PreparationScreenLoadState = PreparationScreenLoadState.Loading,
     val isOperating: Boolean = false,
     val recipe: PreparationRecipe? = null,
     val outputIngredientName: String = "",
@@ -41,46 +48,79 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val recipeId = PreparationRecipeId(savedStateHandle.get<String>("recipeId")!!)
+    private val recipeId = savedStateHandle.get<String>("recipeId")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { PreparationRecipeId(it) }
 
+    private val _retryTrigger = MutableStateFlow(0)
     private val _isOperating = MutableStateFlow(false)
     private val _inlineError = MutableStateFlow<UiMessage?>(null)
 
     private val _events = Channel<PreparationRecipeDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val _loadResult = _retryTrigger.flatMapLatest {
+        val rId = recipeId
+        if (rId == null) {
+            flowOf(RecipeDetailLoadResult.NotFound)
+        } else {
+            preparationRecipeRepository.observeRecipe(rId)
+                .map<PreparationRecipe?, RecipeDetailLoadResult> { recipe ->
+                    if (recipe == null) RecipeDetailLoadResult.NotFound
+                    else RecipeDetailLoadResult.Success(recipe)
+                }
+                .onStart { emit(RecipeDetailLoadResult.Loading) }
+                .catch { e -> emit(RecipeDetailLoadResult.Failure(e)) }
+        }
+    }
+
     val uiState: StateFlow<PreparationRecipeDetailUiState> = combine(
-        preparationRecipeRepository.observeRecipe(recipeId),
+        _loadResult,
         _isOperating,
         _inlineError
-    ) { recipe, isOperating, inlineError ->
-        if (recipe == null) {
-            PreparationRecipeDetailUiState(isLoading = false, error = NoSuchElementException("Recipe not found"))
-        } else {
-            val outputIngredient = ingredientRepository.getById(recipe.outputIngredientId)
-            val yieldUnitOption = recipe.yieldUnitOptionId?.let { ingredientRepository.getUnitOptions(recipe.outputIngredientId, true).find { o -> o.id == it } }
-            
-            val componentNames = mutableMapOf<PreparationRecipeComponentId, String>()
-            val componentUnitLabels = mutableMapOf<PreparationRecipeComponentId, String>()
-            
-            for (comp in recipe.components) {
-                componentNames[comp.id] = ingredientRepository.getById(comp.componentIngredientId)?.name ?: comp.componentIngredientId.value
-                componentUnitLabels[comp.id] = ingredientRepository.getUnitOptions(comp.componentIngredientId, true).find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value
+    ) { result, isOperating, inlineError ->
+        when (result) {
+            is RecipeDetailLoadResult.Loading -> {
+                PreparationRecipeDetailUiState(loadState = PreparationScreenLoadState.Loading, isOperating = isOperating)
             }
+            is RecipeDetailLoadResult.NotFound -> {
+                PreparationRecipeDetailUiState(loadState = PreparationScreenLoadState.RecipeNotFound, isOperating = isOperating)
+            }
+            is RecipeDetailLoadResult.Failure -> {
+                PreparationRecipeDetailUiState(
+                    loadState = PreparationScreenLoadState.LoadError(result.error.toPreparationRecipeUserMessage()),
+                    isOperating = isOperating,
+                    error = result.error
+                )
+            }
+            is RecipeDetailLoadResult.Success -> {
+                val recipe = result.recipe
+                val outputIngredient = try { ingredientRepository.getById(recipe.outputIngredientId) } catch (_: Exception) { null }
+                val yieldUnitOption = recipe.yieldUnitOptionId?.let { 
+                    try { ingredientRepository.getUnitOptions(recipe.outputIngredientId, true).find { o -> o.id == it } } catch (_: Exception) { null }
+                }
+                
+                val componentNames = mutableMapOf<PreparationRecipeComponentId, String>()
+                val componentUnitLabels = mutableMapOf<PreparationRecipeComponentId, String>()
+                
+                for (comp in recipe.components) {
+                    componentNames[comp.id] = try { ingredientRepository.getById(comp.componentIngredientId)?.name ?: comp.componentIngredientId.value } catch (_: Exception) { comp.componentIngredientId.value }
+                    componentUnitLabels[comp.id] = try { ingredientRepository.getUnitOptions(comp.componentIngredientId, true).find { it.id == comp.unitOptionId }?.displayName ?: comp.unitOptionId.value } catch (_: Exception) { comp.unitOptionId.value }
+                }
 
-            PreparationRecipeDetailUiState(
-                isLoading = false,
-                isOperating = isOperating,
-                recipe = recipe,
-                outputIngredientName = outputIngredient?.name ?: "",
-                yieldUnitLabel = yieldUnitOption?.displayName ?: "",
-                componentNames = componentNames,
-                componentUnitLabels = componentUnitLabels,
-                inlineError = inlineError
-            )
+                PreparationRecipeDetailUiState(
+                    loadState = PreparationScreenLoadState.EditReady,
+                    isOperating = isOperating,
+                    recipe = recipe,
+                    outputIngredientName = outputIngredient?.name ?: "",
+                    yieldUnitLabel = yieldUnitOption?.displayName ?: "",
+                    componentNames = componentNames,
+                    componentUnitLabels = componentUnitLabels,
+                    inlineError = inlineError
+                )
+            }
         }
-    }.catch { e ->
-        emit(PreparationRecipeDetailUiState(isLoading = false, error = e))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -88,25 +128,34 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     )
 
     fun onActivate() {
-        performOperation { preparationRecipeRepository.activate(recipeId) }
+        val rId = recipeId ?: return
+        performOperation { preparationRecipeRepository.activate(rId) }
     }
 
     fun onMoveToDraft() {
-        performOperation(navigateToEditor = true) { preparationRecipeRepository.moveToDraft(recipeId) }
+        val rId = recipeId ?: return
+        performOperation(navigateToEditor = true) { preparationRecipeRepository.moveToDraft(rId) }
     }
 
     fun onArchive() {
-        performOperation { preparationRecipeRepository.archive(recipeId) }
+        val rId = recipeId ?: return
+        performOperation { preparationRecipeRepository.archive(rId) }
     }
 
     fun onRestoreToDraft() {
-        performOperation(navigateToEditor = true) { preparationRecipeRepository.restoreToDraft(recipeId) }
+        val rId = recipeId ?: return
+        performOperation(navigateToEditor = true) { preparationRecipeRepository.restoreToDraft(rId) }
+    }
+
+    fun onRetry() {
+        _retryTrigger.value += 1
     }
 
     private fun performOperation(
         navigateToEditor: Boolean = false,
         operation: suspend () -> Unit
     ) {
+        val rId = recipeId ?: return
         if (_isOperating.value) return
         _isOperating.value = true
         _inlineError.value = null
@@ -114,7 +163,7 @@ class PreparationRecipeDetailViewModel @Inject constructor(
             try {
                 operation()
                 if (navigateToEditor) {
-                    _events.send(PreparationRecipeDetailEvent.NavigateToEditor(recipeId))
+                    _events.send(PreparationRecipeDetailEvent.NavigateToEditor(rId))
                 } else {
                     _events.send(PreparationRecipeDetailEvent.LifecycleUpdated)
                 }

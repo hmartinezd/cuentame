@@ -131,18 +131,56 @@ class PreparationRecipeListViewModelTest {
     }
 
     @Test
-    fun `onRetry increments retry trigger and refreshes observation`() = runTest {
-        every { preparationRecipeRepository.observeRecipes(restaurantId, false) } returns flowOf(emptyList())
+    fun `onRetry increments retry trigger and refreshes observation after failure`() = runTest {
+        val recipes = listOf(createSummary("rec1", "R1", "I1", PreparationRecipeStatus.ACTIVE))
+        var callCount = 0
+        every { preparationRecipeRepository.observeRecipes(restaurantId, false) } answers {
+            callCount++
+            if (callCount == 1) kotlinx.coroutines.flow.flow { throw RuntimeException("Fail") }
+            else flowOf(recipes)
+        }
 
         viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository)
         backgroundScope.launch { viewModel.uiState.collect() }
         advanceUntilIdle()
 
+        assertThat(viewModel.uiState.value.error).isNotNull()
+
         viewModel.onRetry()
         advanceUntilIdle()
 
-        // Incremented trigger should cause flatMapLatest to re-subscribe
+        assertThat(viewModel.uiState.value.error).isNull()
+        assertThat(viewModel.uiState.value.recipes).isEqualTo(recipes)
         io.mockk.verify(exactly = 2) { preparationRecipeRepository.observeRecipes(restaurantId, false) }
+    }
+
+    @Test
+    fun `disabling includeArchived while ARCHIVED status is selected clears status filter`() = runTest {
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository)
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        viewModel.onStatusFilterChanged(PreparationRecipeStatus.ARCHIVED)
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.selectedStatus).isEqualTo(PreparationRecipeStatus.ARCHIVED)
+        assertThat(viewModel.uiState.value.includeArchived).isTrue()
+
+        viewModel.onIncludeArchivedToggled(false)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedStatus).isNull()
+        assertThat(viewModel.uiState.value.includeArchived).isFalse()
+    }
+
+    @Test
+    fun `restaurant absent leads to failure state`() = runTest {
+        every { restaurantRepository.observeRestaurant() } returns flowOf(null)
+        viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository)
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.error).isInstanceOf(RestaurantNotConfiguredException::class.java)
     }
 
     private fun createSummary(id: String, name: String, ingName: String, status: PreparationRecipeStatus) = PreparationRecipeSummary(

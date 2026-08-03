@@ -21,6 +21,14 @@ data class PreparationRecipeListUiState(
     val error: Throwable? = null
 )
 
+sealed interface RecipeListLoadResult {
+    data object Loading : RecipeListLoadResult
+    data class Success(val recipes: List<PreparationRecipeSummary>) : RecipeListLoadResult
+    data class Failure(val error: Throwable) : RecipeListLoadResult
+}
+
+class RestaurantNotConfiguredException : Exception("Restaurant not configured")
+
 @HiltViewModel
 class PreparationRecipeListViewModel @Inject constructor(
     private val preparationRecipeRepository: PreparationRecipeRepository,
@@ -33,44 +41,76 @@ class PreparationRecipeListViewModel @Inject constructor(
     private val _retryTrigger = MutableStateFlow(0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val _recipes = combine(
+    private val _loadResult = combine(
         restaurantRepository.observeRestaurant(),
         _includeArchived,
         _retryTrigger
-    ) { restaurant, includeArchived, _ ->
-        restaurant to includeArchived
-    }.flatMapLatest { (restaurant, includeArchived) ->
-        if (restaurant == null) flowOf(emptyList())
-        else preparationRecipeRepository.observeRecipes(restaurant.id, includeArchived)
+    ) { restaurant, includeArchived, retry ->
+        Triple(restaurant, includeArchived, retry)
+    }.flatMapLatest { (restaurant, includeArchived, _) ->
+        if (restaurant == null) {
+            flowOf(RecipeListLoadResult.Failure(RestaurantNotConfiguredException()))
+        } else {
+            preparationRecipeRepository
+                .observeRecipes(restaurant.id, includeArchived)
+                .map<List<PreparationRecipeSummary>, RecipeListLoadResult> {
+                    RecipeListLoadResult.Success(it)
+                }
+                .onStart {
+                    emit(RecipeListLoadResult.Loading)
+                }
+                .catch { error ->
+                    emit(RecipeListLoadResult.Failure(error))
+                }
+        }
     }
 
     val uiState: StateFlow<PreparationRecipeListUiState> = combine(
-        _recipes,
+        _loadResult,
         _searchQuery,
         _selectedStatus,
         _includeArchived
-    ) { recipes, query, status, includeArchived ->
-        val filteredRecipes = recipes.filter { recipe ->
-            val matchesQuery = if (query.isBlank()) true
-            else {
-                recipe.recipeName.contains(query, ignoreCase = true) ||
-                        recipe.outputIngredientName.contains(query, ignoreCase = true)
+    ) { result, query, status, includeArchived ->
+        when (result) {
+            is RecipeListLoadResult.Loading -> {
+                PreparationRecipeListUiState(
+                    isLoading = true,
+                    searchQuery = query,
+                    selectedStatus = status,
+                    includeArchived = includeArchived
+                )
             }
-            val matchesStatus = if (status == null) true
-            else recipe.status == status
+            is RecipeListLoadResult.Failure -> {
+                PreparationRecipeListUiState(
+                    isLoading = false,
+                    searchQuery = query,
+                    selectedStatus = status,
+                    includeArchived = includeArchived,
+                    error = result.error
+                )
+            }
+            is RecipeListLoadResult.Success -> {
+                val filteredRecipes = result.recipes.filter { recipe ->
+                    val matchesQuery = if (query.isBlank()) true
+                    else {
+                        recipe.recipeName.contains(query, ignoreCase = true) ||
+                                recipe.outputIngredientName.contains(query, ignoreCase = true)
+                    }
+                    val matchesStatus = if (status == null) true
+                    else recipe.status == status
 
-            matchesQuery && matchesStatus
+                    matchesQuery && matchesStatus
+                }
+
+                PreparationRecipeListUiState(
+                    isLoading = false,
+                    searchQuery = query,
+                    selectedStatus = status,
+                    includeArchived = includeArchived,
+                    recipes = filteredRecipes
+                )
+            }
         }
-
-        PreparationRecipeListUiState(
-            isLoading = false,
-            searchQuery = query,
-            selectedStatus = status,
-            includeArchived = includeArchived,
-            recipes = filteredRecipes
-        )
-    }.catch { e ->
-        emit(PreparationRecipeListUiState(isLoading = false, error = e))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -90,6 +130,9 @@ class PreparationRecipeListViewModel @Inject constructor(
 
     fun onIncludeArchivedToggled(includeArchived: Boolean) {
         _includeArchived.value = includeArchived
+        if (!includeArchived && _selectedStatus.value == PreparationRecipeStatus.ARCHIVED) {
+            _selectedStatus.value = null
+        }
     }
 
     fun onRetry() {

@@ -22,7 +22,6 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeComponent
-import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditorEvent
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditorUiState
@@ -52,14 +51,6 @@ fun PreparationRecipeEditorRoute(
         }
     }
 
-    // Requirement 8: If the recipe changes to ACTIVE or ARCHIVED, navigate to its detail screen
-    LaunchedEffect(uiState.recipe?.status) {
-        val status = uiState.recipe?.status
-        if (status != null && status != PreparationRecipeStatus.DRAFT) {
-            onNavigateToDetail(uiState.recipe!!.id)
-        }
-    }
-
     PreparationRecipeEditorScreen(
         uiState = uiState,
         onBackClick = onBack,
@@ -73,7 +64,8 @@ fun PreparationRecipeEditorRoute(
         onEditComponent = { compId -> uiState.recipe?.let { onEditComponent(it.id, compId) } },
         onRemoveComponent = viewModel::onRemoveComponent,
         onMoveComponentUp = viewModel::onMoveComponentUp,
-        onMoveComponentDown = viewModel::onMoveComponentDown
+        onMoveComponentDown = viewModel::onMoveComponentDown,
+        onRetry = viewModel::onRetry
     )
 }
 
@@ -93,10 +85,11 @@ fun PreparationRecipeEditorScreen(
     onRemoveComponent: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentUp: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentDown: (PreparationRecipeComponentId) -> Unit,
-    onRetry: () -> Unit = {}
+    onRetry: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
-    val isEditing = uiState.recipe != null
+    val loadState = uiState.loadState
+    val isEditing = loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady
 
     Scaffold(
         modifier = Modifier.testTag("preparation_recipe_editor_screen"),
@@ -114,44 +107,63 @@ fun PreparationRecipeEditorScreen(
                     }
                 },
                 actions = {
-                    TextButton(
-                        onClick = {
-                            focusManager.clearFocus()
-                            onSaveClick()
-                        },
-                        enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
-                        modifier = Modifier.testTag("recipe_editor_save")
-                    ) {
-                        if (uiState.isSaving) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(stringResource(R.string.action_save))
+                    if (loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.CreateReady || 
+                        loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady) {
+                        TextButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                onSaveClick()
+                            },
+                            enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
+                            modifier = Modifier.testTag("recipe_editor_save")
+                        ) {
+                            if (uiState.isSaving) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.action_save))
+                            }
                         }
                     }
                 }
             )
         }
     ) { padding ->
-        when {
-            uiState.isLoading -> {
+        when (loadState) {
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
-            uiState.error != null -> {
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.RecipeNotFound -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (uiState.error is NoSuchElementException) stringResource(R.string.error_recipe_not_found)
-                                   else stringResource(R.string.error_load_recipe_failed),
+                            text = stringResource(R.string.error_recipe_not_found),
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.testTag("recipe_editor_load_error")
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        if (uiState.error !is NoSuchElementException) {
-                            Button(onClick = onRetry, modifier = Modifier.testTag("recipe_editor_retry")) {
-                                Text(stringResource(R.string.action_retry_desc))
-                            }
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.LoadError -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val message = when (loadState.message) {
+                            is UiMessage.Resource -> stringResource(loadState.message.id, *loadState.message.args.toTypedArray())
+                            is UiMessage.PlainTextInternalOnly -> loadState.message.value
+                        }
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_editor_load_error")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onRetry, modifier = Modifier.testTag("recipe_editor_retry")) {
+                            Text(stringResource(R.string.action_retry_desc))
                         }
                         TextButton(onClick = onBackClick) {
                             Text(stringResource(R.string.action_back))
@@ -159,7 +171,30 @@ fun PreparationRecipeEditorScreen(
                     }
                 }
             }
-            else -> {
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.InvalidRoute -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.error_generic), // Or a specific invalid route message
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.testTag("recipe_editor_invalid_route")
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.ComponentNotFound,
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.ParentNotEditable -> {
+                // Not expected on Editor screen, but must be exhaustive
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.error_generic))
+                }
+            }
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.CreateReady,
+            com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentPadding = PaddingValues(16.dp),

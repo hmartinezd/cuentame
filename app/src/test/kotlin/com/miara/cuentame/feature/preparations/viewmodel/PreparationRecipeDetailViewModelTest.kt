@@ -58,7 +58,7 @@ class PreparationRecipeDetailViewModelTest {
         )
         backgroundScope.launch { viewModel.uiState.collect() }
         
-        viewModel.uiState.filter { !it.isLoading }.first()
+        viewModel.uiState.filter { it.loadState !is PreparationScreenLoadState.Loading }.first()
 
         assertThat(viewModel.uiState.value.recipe).isEqualTo(recipe)
         assertThat(viewModel.uiState.value.outputIngredientName).isEqualTo("Output Name")
@@ -105,6 +105,44 @@ class PreparationRecipeDetailViewModelTest {
 
         advanceUntilIdle()
         coVerify(exactly = 1) { preparationRecipeRepository.activate(any()) }
+    }
+
+    @Test
+    fun `onRetry refreshes observation after failure`() = runTest {
+        val recipeId = PreparationRecipeId("rec1")
+        var callCount = 0
+        every { preparationRecipeRepository.observeRecipe(recipeId) } answers {
+            callCount++
+            if (callCount == 1) kotlinx.coroutines.flow.flow { throw RuntimeException("Fail") }
+            else flowOf(createRecipe("rec1", "out1"))
+        }
+
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isInstanceOf(PreparationScreenLoadState.LoadError::class.java)
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.EditReady)
+        assertThat(viewModel.uiState.value.recipe).isNotNull()
+    }
+
+    @Test
+    fun `missing recipeId leads to RecipeNotFound state`() = runTest {
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, 
+            SavedStateHandle(mapOf("recipeId" to ""))
+        )
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.RecipeNotFound)
     }
 
     private fun createRecipe(id: String, outputId: String) = PreparationRecipe(

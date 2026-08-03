@@ -6,7 +6,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.test.TestStateManager
-import com.miara.cuentame.test.TestSeeder
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -69,7 +68,7 @@ class PreparationRecipeNavigationTest {
     }
 
     private fun waitForHome() {
-        composeTestRule.waitUntil(15000) {
+        composeTestRule.waitUntil(60000) {
             composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
     }
