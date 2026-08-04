@@ -7,6 +7,8 @@ import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.WasteEventId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
+import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.ProductionBatchId
@@ -100,4 +102,19 @@ object AppRoutes {
         batchId: ProductionBatchId
     ): String =
         "production/batches/${encoder.encode(batchId.value)}"
+
+    fun inventoryActivity(
+        ingredientId: IngredientId? = null,
+        areaId: InventoryAreaId? = null
+    ): String {
+        val params = mutableListOf<String>()
+        ingredientId?.let { params.add("ingredientId=${encoder.encode(it.value)}") }
+        areaId?.let { params.add("areaId=${encoder.encode(it.value)}") }
+        return "inventory/activity" + if (params.isNotEmpty()) "?${params.joinToString("&")}" else ""
+    }
+
+    fun inventoryActivityDetail(
+        movementId: InventoryMovementId
+    ): String =
+        "inventory/activity/${encoder.encode(movementId.value)}"
 }

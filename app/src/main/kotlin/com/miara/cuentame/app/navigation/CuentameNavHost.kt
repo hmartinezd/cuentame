@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
+import com.miara.cuentame.feature.activity.navigation.activityGraph
 import com.miara.cuentame.feature.areas.navigation.areasGraph
 import com.miara.cuentame.feature.categories.navigation.categoriesGraph
 import com.miara.cuentame.feature.counts.navigation.countsGraph
@@ -31,6 +32,7 @@ fun CuentameNavHost(
         modifier = modifier
     ) {
         homeGraph(navController)
+        activityGraph(navController)
         ingredientsGraph(navController)
         countsGraph(navController)
         purchasesGraph(navController)
@@ -39,7 +41,7 @@ fun CuentameNavHost(
         settingsGraph(navController, onBackClick)
         preparationsGraph(navController, onBackClick)
         productionGraph(navController, onBackClick)
-        areasGraph()
+        areasGraph(navController)
         categoriesGraph()
         suppliersGraph(navController)
     }

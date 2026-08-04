@@ -65,6 +65,7 @@ import java.util.Locale
 fun HomeRoute(
     onLogWaste: () -> Unit,
     onViewWaste: () -> Unit,
+    onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
@@ -81,6 +82,7 @@ fun HomeRoute(
         onRetry = viewModel::onRetry,
         onLogWaste = onLogWaste,
         onViewWaste = onViewWaste,
+        onViewActivity = onViewActivity,
         onNewPurchase = onNewPurchase,
         onStartCount = onStartCount,
         onViewReports = onViewReports,
@@ -98,6 +100,7 @@ fun HomeScreen(
     onRetry: () -> Unit,
     onLogWaste: () -> Unit,
     onViewWaste: () -> Unit,
+    onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
@@ -146,6 +149,7 @@ fun HomeScreen(
                     onRetry = onRetry,
                     onLogWaste = onLogWaste,
                     onViewWaste = onViewWaste,
+                    onViewActivity = onViewActivity,
                     onNewPurchase = onNewPurchase,
                     onStartCount = onStartCount,
                     onViewReports = onViewReports,
@@ -164,6 +168,7 @@ private fun DashboardContent(
     onRetry: () -> Unit,
     onLogWaste: () -> Unit,
     onViewWaste: () -> Unit,
+    onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
@@ -238,7 +243,7 @@ private fun DashboardContent(
         }
 
         item {
-            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewPreparations, onViewProduction)
+            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewActivity, onViewPreparations, onViewProduction)
         }
 
         item {
@@ -462,6 +467,7 @@ private fun QuickActionsSection(
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
     onViewWasteHistory: () -> Unit,
+    onViewActivity: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewProduction: () -> Unit
 ) {
@@ -479,6 +485,7 @@ private fun QuickActionsSection(
             QuickActionButton(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), onViewProduction, Modifier.weight(1f).testTag("open_production_batches_button"))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.History, stringResource(R.string.inventory_activity_title), onViewActivity, Modifier.weight(1f).testTag("open_inventory_activity_button"))
             QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.weight(1f).testTag("view_reports_button"))
         }
     }

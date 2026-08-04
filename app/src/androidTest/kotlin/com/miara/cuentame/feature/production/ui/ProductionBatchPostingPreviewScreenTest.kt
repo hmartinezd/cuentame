@@ -7,6 +7,8 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchPreviewUiState
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchScreenState
+import org.junit.Assert.assertTrue
+import androidx.compose.runtime.mutableStateOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +28,7 @@ class ProductionBatchPostingPreviewScreenTest {
             preview = mockkPreview() // We need a non-null preview for Ready state
         )
 
-        var dismissCalled = false
+        var dismissCount = 0
 
         composeTestRule.setContent {
             ProductionBatchPostingPreviewScreen(
@@ -34,7 +36,7 @@ class ProductionBatchPostingPreviewScreenTest {
                 onBackClick = {},
                 onPostClick = {},
                 onRetry = {},
-                onClearError = { dismissCalled = true }
+                onClearError = { dismissCount++ }
             )
         }
 
@@ -43,12 +45,24 @@ class ProductionBatchPostingPreviewScreenTest {
             .assertIsDisplayed()
             .performClick()
 
-        assert(dismissCalled)
+        org.junit.Assert.assertEquals(1, dismissCount)
     }
 
     @Test
     fun failureStateTags_areUniqueAndPresent() {
-        val states = listOf(
+        val state = mutableStateOf<ProductionBatchScreenState>(ProductionBatchScreenState.InvalidRoute)
+
+        composeTestRule.setContent {
+            ProductionBatchPostingPreviewScreen(
+                uiState = ProductionBatchPreviewUiState(screenState = state.value),
+                onBackClick = {},
+                onPostClick = {},
+                onRetry = {},
+                onClearError = {}
+            )
+        }
+
+        val testStates = listOf(
             ProductionBatchScreenState.InvalidRoute to "production_preview_invalid_route",
             ProductionBatchScreenState.BatchNotFound to "production_preview_batch_not_found",
             ProductionBatchScreenState.ComponentNotFound to "production_preview_component_not_found",
@@ -56,17 +70,8 @@ class ProductionBatchPostingPreviewScreenTest {
             ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic)) to "production_preview_load_error"
         )
 
-        states.forEach { (state, tag) ->
-            composeTestRule.setContent {
-                ProductionBatchPostingPreviewScreen(
-                    uiState = ProductionBatchPreviewUiState(screenState = state),
-                    onBackClick = {},
-                    onPostClick = {},
-                    onRetry = {},
-                    onClearError = {}
-                )
-            }
-
+        testStates.forEach { (s, tag) ->
+            state.value = s
             composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
         }
     }

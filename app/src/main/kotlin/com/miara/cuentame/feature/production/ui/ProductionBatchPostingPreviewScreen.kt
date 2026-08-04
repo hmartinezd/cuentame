@@ -197,7 +197,24 @@ fun ProductionBatchPostingPreviewScreen(
                 }
             }
             ProductionBatchScreenState.Ready -> {
-                val preview = uiState.preview ?: return@Scaffold
+                val preview = uiState.preview
+                if (preview == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .testTag("production_preview_invalid_ready_state"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = stringResource(R.string.error_generic))
+                            Button(onClick = onBackClick) {
+                                Text(stringResource(R.string.action_back))
+                            }
+                        }
+                    }
+                    return@Scaffold
+                }
                 
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                     if (uiState.inlineError != null) {

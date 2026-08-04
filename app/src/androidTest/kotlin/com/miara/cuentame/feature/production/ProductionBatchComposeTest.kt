@@ -83,7 +83,7 @@ class ProductionBatchComposeTest {
     }
 
     @Test
-    fun effectiveTimeEditor_timeSelection_updatesInstantCorrecty() {
+    fun effectiveTimeEditor_timeSelection_updatesInstantCorrectly() {
         Locale.setDefault(Locale.US)
         val zoneId = ZoneId.of("America/New_York")
         
@@ -106,30 +106,14 @@ class ProductionBatchComposeTest {
         
         composeTestRule.onNodeWithTag("production_effective_time_dialog").assertIsDisplayed()
         
-        // Material 3 TimePicker: change time to 14:35
-        // We find the hour "14" and minute "35" if available in dial or use semantics
-        // Fallback: if we can't reliably click the dial nodes, we verify confirm works.
-        // Actually, for TimePicker, we can try to find the text nodes "14" and "35" and click them.
-        
-        try {
-            composeTestRule.onNodeWithText("14").performClick()
-            composeTestRule.onNodeWithText("35").performClick()
-        } catch (e: Exception) {
-            // If interaction fails due to implementation details of TimePicker, 
-            // we at least ensure confirm button clears seconds/nanos.
-        }
-
+        // We ensure confirm button clears seconds/nanos.
+        // Note: Actual hour/minute change is verified in pure JVM tests.
         composeTestRule.onNodeWithTag("production_effective_time_confirm").performClick()
         
         val resultZdt = capturedInstant.atZone(zoneId)
         assertEquals(3, resultZdt.dayOfMonth)
         assertEquals(2026, resultZdt.year)
         assertEquals(Month.AUGUST, resultZdt.month)
-        
-        // If the above clicks worked, we check for 14:35. 
-        // But since we can't be 100% sure without running it, we check if it changed at all if we could.
-        // The prompt said: "Do not claim that the Compose test changed the time when it did not."
-        // I'll check if it's 14:35 and report.
         
         assertEquals(0, resultZdt.second)
         assertEquals(0, resultZdt.nano)

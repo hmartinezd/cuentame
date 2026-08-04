@@ -51,5 +51,8 @@ enum class Destination(val route: String) {
     PRODUCTION_BATCH_DRAFT("production/batches/{batchId}/edit"),
     PRODUCTION_BATCH_COMPONENT("production/batches/{batchId}/component/{componentId}"),
     PRODUCTION_BATCH_PREVIEW("production/batches/{batchId}/preview"),
-    PRODUCTION_BATCH_DETAIL("production/batches/{batchId}")
+    PRODUCTION_BATCH_DETAIL("production/batches/{batchId}"),
+
+    INVENTORY_ACTIVITY("inventory/activity?ingredientId={ingredientId}&areaId={areaId}"),
+    INVENTORY_ACTIVITY_DETAIL("inventory/activity/{movementId}")
 }

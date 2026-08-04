@@ -147,4 +147,83 @@ interface InventoryMovementDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM inventory_movements WHERE sourceDocumentType = :type AND sourceDocumentId = :docId AND sourceOperationId = :opId LIMIT 1)")
     suspend fun existsBySourceOperation(type: String, docId: String, opId: String): Boolean
+
+    @Query("""
+        SELECT 
+            im.*,
+            i.name as ingredientName,
+            ia.name as areaName,
+            u.symbol as baseUnitSymbol,
+            s.name as sourcePurchaseSupplierName,
+            pr.invoiceNumber as sourcePurchaseInvoiceNumber,
+            we.reason as sourceWasteReason,
+            ia_we.name as sourceWasteAreaName,
+            sc.name as sourceStockCountName,
+            pb.recipeNameSnapshot as sourceProductionRecipeName,
+            pb.status as sourceProductionStatus,
+            im_rev.id as reversedByMovementId,
+            im_rev.movementType as reversedByMovementType,
+            im_rev.effectiveAt as reversedByMovementEffectiveAt,
+            im_orig.movementType as reversalOfMovementType,
+            im_orig.effectiveAt as reversalOfMovementEffectiveAt
+        FROM inventory_movements im
+        JOIN ingredients i ON im.ingredientId = i.id AND i.restaurantId = im.restaurantId
+        JOIN units u ON i.baseUnitId = u.id
+        JOIN inventory_areas ia ON im.areaId = ia.id AND ia.restaurantId = im.restaurantId
+        LEFT JOIN purchase_receipts pr ON im.sourceDocumentType = 'PURCHASE_RECEIPT' AND im.sourceDocumentId = pr.id AND pr.restaurantId = im.restaurantId
+        LEFT JOIN suppliers s ON pr.supplierId = s.id AND s.restaurantId = pr.restaurantId
+        LEFT JOIN waste_events we ON im.sourceDocumentType = 'WASTE_EVENT' AND im.sourceDocumentId = we.id AND we.restaurantId = im.restaurantId
+        LEFT JOIN inventory_areas ia_we ON we.areaId = ia_we.id AND ia_we.restaurantId = we.restaurantId
+        LEFT JOIN stock_counts sc ON im.sourceDocumentType = 'STOCK_COUNT' AND im.sourceDocumentId = sc.id AND sc.restaurantId = im.restaurantId
+        LEFT JOIN production_batches pb ON im.sourceDocumentType = 'PRODUCTION_BATCH' AND im.sourceDocumentId = pb.id AND pb.restaurantId = im.restaurantId
+        LEFT JOIN inventory_movements im_rev ON im.id = im_rev.reversalOfMovementId AND im_rev.restaurantId = im.restaurantId
+        LEFT JOIN inventory_movements im_orig ON im.reversalOfMovementId = im_orig.id AND im_orig.restaurantId = im.restaurantId
+        WHERE im.restaurantId = :restaurantId
+        AND im.effectiveAt >= :startInclusive
+        AND im.effectiveAt < :endExclusive
+        AND (:ingredientId IS NULL OR im.ingredientId = :ingredientId)
+        AND (:areaId IS NULL OR im.areaId = :areaId)
+        ORDER BY im.effectiveAt DESC, im.createdAt DESC, im.id DESC
+    """)
+    fun observeInventoryActivityRows(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long,
+        ingredientId: String? = null,
+        areaId: String? = null
+    ): Flow<List<com.miara.cuentame.core.database.model.InventoryActivityRow>>
+
+    @Query("""
+        SELECT 
+            im.*,
+            i.name as ingredientName,
+            ia.name as areaName,
+            u.symbol as baseUnitSymbol,
+            s.name as sourcePurchaseSupplierName,
+            pr.invoiceNumber as sourcePurchaseInvoiceNumber,
+            we.reason as sourceWasteReason,
+            ia_we.name as sourceWasteAreaName,
+            sc.name as sourceStockCountName,
+            pb.recipeNameSnapshot as sourceProductionRecipeName,
+            pb.status as sourceProductionStatus,
+            im_rev.id as reversedByMovementId,
+            im_rev.movementType as reversedByMovementType,
+            im_rev.effectiveAt as reversedByMovementEffectiveAt,
+            im_orig.movementType as reversalOfMovementType,
+            im_orig.effectiveAt as reversalOfMovementEffectiveAt
+        FROM inventory_movements im
+        JOIN ingredients i ON im.ingredientId = i.id AND i.restaurantId = im.restaurantId
+        JOIN units u ON i.baseUnitId = u.id
+        JOIN inventory_areas ia ON im.areaId = ia.id AND ia.restaurantId = im.restaurantId
+        LEFT JOIN purchase_receipts pr ON im.sourceDocumentType = 'PURCHASE_RECEIPT' AND im.sourceDocumentId = pr.id AND pr.restaurantId = im.restaurantId
+        LEFT JOIN suppliers s ON pr.supplierId = s.id AND s.restaurantId = pr.restaurantId
+        LEFT JOIN waste_events we ON im.sourceDocumentType = 'WASTE_EVENT' AND im.sourceDocumentId = we.id AND we.restaurantId = im.restaurantId
+        LEFT JOIN inventory_areas ia_we ON we.areaId = ia_we.id AND ia_we.restaurantId = we.restaurantId
+        LEFT JOIN stock_counts sc ON im.sourceDocumentType = 'STOCK_COUNT' AND im.sourceDocumentId = sc.id AND sc.restaurantId = im.restaurantId
+        LEFT JOIN production_batches pb ON im.sourceDocumentType = 'PRODUCTION_BATCH' AND im.sourceDocumentId = pb.id AND pb.restaurantId = im.restaurantId
+        LEFT JOIN inventory_movements im_rev ON im.id = im_rev.reversalOfMovementId AND im_rev.restaurantId = im.restaurantId
+        LEFT JOIN inventory_movements im_orig ON im.reversalOfMovementId = im_orig.id AND im_orig.restaurantId = im.restaurantId
+        WHERE im.id = :movementId
+    """)
+    suspend fun getInventoryActivityRow(movementId: String): com.miara.cuentame.core.database.model.InventoryActivityRow?
 }

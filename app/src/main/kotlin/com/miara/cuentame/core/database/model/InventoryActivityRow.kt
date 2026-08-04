@@ -1,0 +1,34 @@
+package com.miara.cuentame.core.database.model
+
+import androidx.room.Embedded
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import java.time.Instant
+
+data class InventoryActivityRow(
+    @Embedded val movement: InventoryMovementEntity,
+    
+    val ingredientName: String,
+    val areaName: String,
+    val baseUnitSymbol: String,
+    
+    // Source document info
+    val sourcePurchaseSupplierName: String? = null,
+    val sourcePurchaseInvoiceNumber: String? = null,
+    
+    val sourceWasteReason: String? = null,
+    val sourceWasteAreaName: String? = null,
+    
+    val sourceStockCountName: String? = null,
+    
+    val sourceProductionRecipeName: String? = null,
+    val sourceProductionStatus: String? = null,
+
+    // Reversal info
+    val reversedByMovementId: String? = null,
+    val reversedByMovementType: InventoryMovementType? = null,
+    val reversedByMovementEffectiveAt: Instant? = null,
+    
+    val reversalOfMovementType: InventoryMovementType? = null,
+    val reversalOfMovementEffectiveAt: Instant? = null
+)

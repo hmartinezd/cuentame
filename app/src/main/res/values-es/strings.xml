@@ -684,6 +684,45 @@
     <string name="production_quantity_base_format">%1$s base</string>
     <string name="choose_effective_date">Elegir fecha efectiva</string>
     <string name="choose_effective_time">Elegir hora efectiva</string>
+
+    <!-- Inventory Activity -->
+    <string name="inventory_activity_title">Actividad de Inventario</string>
+    <string name="inventory_activity_search_hint">Buscar actividad…</string>
+    <string name="inventory_activity_filter_title">Filtrar Actividad</string>
+    <string name="inventory_activity_summary_title">Resumen de Actividad</string>
+    <string name="inventory_activity_summary_movements">Movimientos</string>
+    <string name="inventory_activity_summary_incoming">Entradas</string>
+    <string name="inventory_activity_summary_outgoing">Salidas</string>
+    <string name="inventory_activity_summary_reversals">Reversiones</string>
+    <string name="inventory_activity_summary_value_added">Valor Añadido</string>
+    <string name="inventory_activity_summary_value_removed">Valor Retirado</string>
+    <string name="inventory_activity_summary_quantity_in">Cantidad Entrante</string>
+    <string name="inventory_activity_summary_quantity_out">Cantidad Saliente</string>
+    <string name="inventory_activity_summary_quantity_net">Cantidad Neta</string>
+    <string name="inventory_activity_value_incomplete">Algunos valores de movimiento no están disponibles</string>
+    <string name="inventory_activity_empty_state">Aún no hay actividad de inventario</string>
+    <string name="inventory_activity_empty_desc">Aquí aparecerán las compras, mermas, conteos y producción publicados.</string>
+    <string name="inventory_activity_filtered_empty_state">Ninguna actividad coincide con estos filtros</string>
+    <string name="inventory_activity_reset_filters">Restablecer Filtros</string>
+    <string name="inventory_activity_reversed">Revertido</string>
+    <string name="inventory_activity_reversal">Reversión</string>
+    <string name="inventory_activity_purchase">Compra</string>
+    <string name="inventory_activity_waste">Merma</string>
+    <string name="inventory_activity_stock_count">Conteo de Inventario</string>
+    <string name="inventory_activity_production_consumption">Consumo de Producción</string>
+    <string name="inventory_activity_production_output">Salida de Producción</string>
+    <string name="inventory_activity_other">Otra Actividad</string>
+    <string name="inventory_activity_view_details">Ver detalles de la actividad</string>
+    <string name="inventory_activity_open_source">Abrir documento de origen</string>
+    <string name="inventory_activity_view_original">Ver movimiento original</string>
+    <string name="inventory_activity_view_reversal">Ver reversión</string>
+    <string name="inventory_activity_source_unavailable">Origen no disponible</string>
+    <string name="inventory_activity_original_unavailable">Movimiento original no disponible</string>
+    <string name="inventory_activity_reversal_unavailable">Reversión no disponible</string>
+    <string name="inventory_activity_invalid_route">Ruta de actividad no válida</string>
+    <string name="inventory_activity_not_found">Actividad no encontrada</string>
+    <string name="ingredient_view_activity">Ver actividad de inventario</string>
+    <string name="area_view_activity">Ver actividad</string>
 </resources>
 
 
