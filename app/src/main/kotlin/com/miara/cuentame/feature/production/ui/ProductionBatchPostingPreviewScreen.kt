@@ -80,7 +80,8 @@ fun ProductionBatchPostingPreviewRoute(
         uiState = uiState,
         onBackClick = onBack,
         onPostClick = viewModel::onPost,
-        onRetry = viewModel::onRetry
+        onRetry = viewModel::onRetry,
+        onClearError = viewModel::clearInlineError
     )
 }
 
@@ -90,7 +91,8 @@ fun ProductionBatchPostingPreviewScreen(
     uiState: ProductionBatchPreviewUiState,
     onBackClick: () -> Unit,
     onPostClick: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onClearError: () -> Unit
 ) {
     var showPostConfirm by remember { mutableStateOf(false) }
     var showNegativeConfirm by remember { mutableStateOf(false) }
@@ -123,7 +125,7 @@ fun ProductionBatchPostingPreviewScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = stringResource(R.string.state_error_desc))
+                        Text(text = uiState.screenState.message.toDisplayText())
                         Button(onClick = onRetry, modifier = Modifier.testTag("production_preview_retry")) {
                             Text(stringResource(R.string.action_retry_desc))
                         }
@@ -139,7 +141,7 @@ fun ProductionBatchPostingPreviewScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = stringResource(R.string.error_invalid_count_route))
+                        Text(text = stringResource(R.string.error_invalid_production_route))
                         Button(onClick = onBackClick) {
                             Text(stringResource(R.string.action_back))
                         }
@@ -162,10 +164,70 @@ fun ProductionBatchPostingPreviewScreen(
                     }
                 }
             }
+            ProductionBatchScreenState.ComponentNotFound -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .testTag("production_preview_component_not_found"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = stringResource(R.string.error_component_not_found))
+                        Button(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            ProductionBatchScreenState.ParentNotEditable -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .testTag("production_preview_parent_not_editable"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = stringResource(R.string.error_parent_not_editable))
+                        Button(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
             ProductionBatchScreenState.Ready -> {
                 val preview = uiState.preview ?: return@Scaffold
                 
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    if (uiState.inlineError != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("production_preview_inline_error")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = uiState.inlineError.toDisplayText(),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(
+                                    onClick = onClearError,
+                                    modifier = Modifier.testTag("production_preview_inline_error_dismiss")
+                                ) {
+                                    Text(stringResource(R.string.action_dismiss))
+                                }
+                            }
+                        }
+                    }
+
                     if (uiState.blockers.isNotEmpty()) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
@@ -228,7 +290,6 @@ fun ProductionBatchPostingPreviewScreen(
                     }
                 }
             }
-            else -> {}
         }
     }
 

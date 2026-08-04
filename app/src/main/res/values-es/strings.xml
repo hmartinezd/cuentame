@@ -413,6 +413,9 @@
     <string name="unknown_area">Área desconocida</string>
     <string name="unknown_unit">Unidad desconocida</string>
     <string name="error_invalid_count_route">No pudimos abrir este conteo de inventario. Es posible que el conteo o el área ya no estén disponibles.</string>
+    <string name="error_invalid_production_route">Pantalla de producción no válida.</string>
+    <string name="error_parent_not_editable">Este elemento ya no es editable.</string>
+    <string name="action_dismiss">Descartar</string>
     <string name="error_count_not_found">Conteo de inventario no encontrado</string>
     <string name="error_count_area_not_found">Área de inventario no encontrada para este conteo</string>
     <string name="error_area_ownership_mismatch">El área no pertenece a este conteo</string>

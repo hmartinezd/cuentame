@@ -148,9 +148,9 @@ fun UnitSelector(
 fun ProductionEffectiveTimeEditor(
     effectiveAt: Instant,
     onEffectiveAtChanged: (Instant) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault()
 ) {
-    val zoneId = java.time.ZoneId.systemDefault()
     val localDateTime = java.time.LocalDateTime.ofInstant(effectiveAt, zoneId)
     
     val localDate = localDateTime.toLocalDate()

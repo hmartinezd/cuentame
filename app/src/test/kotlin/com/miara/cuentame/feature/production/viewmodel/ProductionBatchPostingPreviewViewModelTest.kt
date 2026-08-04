@@ -318,6 +318,120 @@ class ProductionBatchPostingPreviewViewModelTest {
     }
 
     @Test
+    fun `typed posting failure sets inlineError`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        
+        val failure = ProductionBatchValidationFailure.ComponentCostUnavailable
+        coEvery { productionBatchRepository.post(any()) } throws ProductionBatchValidationException(listOf(failure))
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
+        viewModel.onPost()
+        runCurrent()
+        
+        val state = viewModel.uiState.value
+        assertEquals(ProductionBatchScreenState.Ready, state.screenState)
+        assertFalse(state.isPosting)
+        assertNotNull(state.inlineError)
+        // Verify inlineError mapped correctly (this depends on toUserMessage() implementation)
+        // For now we just verify it's not null and is a Resource if failure has one.
+    }
+
+    @Test
+    fun `unknown posting failure sets generic inlineError`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        coEvery { productionBatchRepository.post(any()) } throws RuntimeException("Unknown error")
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
+        viewModel.onPost()
+        runCurrent()
+        
+        val state = viewModel.uiState.value
+        assertEquals(ProductionBatchScreenState.Ready, state.screenState)
+        assertEquals(com.miara.cuentame.R.string.error_generic, (state.inlineError as UiMessage.Resource).id)
+        assertFalse(state.isPosting)
+    }
+
+    @Test
+    fun `clearInlineError clears the error`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        coEvery { productionBatchRepository.post(any()) } throws RuntimeException("Error")
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
+        viewModel.onPost()
+        runCurrent()
+        assertNotNull(viewModel.uiState.value.inlineError)
+        
+        viewModel.clearInlineError()
+        assertNull(viewModel.uiState.value.inlineError)
+        assertEquals(ProductionBatchScreenState.Ready, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `retry posting after failure`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        
+        // 1st attempt fails
+        coEvery { productionBatchRepository.post(any()) } throws RuntimeException("First failure")
+
+        val events = mutableListOf<ProductionBatchPreviewEvent>()
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        
+        viewModel.onPost()
+        runCurrent()
+        assertNotNull(viewModel.uiState.value.inlineError)
+        assertEquals(0, events.size)
+
+        // 2nd attempt succeeds
+        coEvery { productionBatchRepository.post(any()) } returns Unit
+        viewModel.onPost()
+        runCurrent()
+        
+        assertNull(viewModel.uiState.value.inlineError)
+        assertEquals(1, events.size)
+        assertTrue(events[0] is ProductionBatchPreviewEvent.Posted)
+        coVerify(exactly = 2) { productionBatchRepository.post(any()) }
+        
+        job.cancel()
+    }
+
+    @Test
     fun `retry after lookup failure leads to Ready`() = runTest {
         val unitOption = mockk<IngredientUnitOption> {
             every { id } returns unitOptionId

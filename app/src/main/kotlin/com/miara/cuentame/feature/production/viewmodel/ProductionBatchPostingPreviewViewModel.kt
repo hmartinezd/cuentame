@@ -119,7 +119,12 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
         val state = _uiState.value
         if (state.isPosting || batchId == null || state.preview == null || state.blockers.isNotEmpty()) return
 
-        _uiState.update { it.copy(isPosting = true, inlineError = null) }
+        _uiState.update { 
+            it.copy(
+                isPosting = true, 
+                inlineError = null
+            ) 
+        }
         viewModelScope.launch {
             try {
                 productionBatchRepository.post(batchId)
@@ -133,6 +138,12 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
             } finally {
                 _uiState.update { it.copy(isPosting = false) }
             }
+        }
+    }
+
+    fun clearInlineError() {
+        _uiState.update {
+            it.copy(inlineError = null)
         }
     }
 
