@@ -676,6 +676,9 @@
     <string name="not_available">Not available</string>
     <string name="production_status">Production status</string>
     <string name="production_quantity_entered_and_base">%1$s entered (%2$s base)</string>
+    <string name="production_quantity_with_base">%1$s (%2$s base)</string>
+    <string name="production_currency_per_base">%1$s per base unit</string>
+    <string name="production_quantity_base_format">%1$s base</string>
     <string name="choose_effective_date">Choose effective date</string>
     <string name="choose_effective_time">Choose effective time</string>
 </resources>

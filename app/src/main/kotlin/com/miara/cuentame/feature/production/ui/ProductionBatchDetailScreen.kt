@@ -239,17 +239,17 @@ private fun DetailHeader(uiState: ProductionBatchDetailUiState) {
             
             DetailRow(
                 stringResource(R.string.standard_yield), 
-                "${Formatters.formatQuantity(batch.recipeStandardYieldQuantitySnapshot)} (${Formatters.formatQuantity(batch.recipeStandardYieldBaseSnapshot)} base)"
+                stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(batch.recipeStandardYieldQuantitySnapshot), Formatters.formatQuantity(batch.recipeStandardYieldBaseSnapshot))
             )
 
             DetailRow(
                 stringResource(R.string.expected_output), 
-                "${Formatters.formatQuantity(batch.expectedOutputQuantityEntered, uiState.outputUnitLabel)} (${Formatters.formatQuantity(batch.expectedOutputQuantityBase)} base)"
+                stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(batch.expectedOutputQuantityEntered, uiState.outputUnitLabel), Formatters.formatQuantity(batch.expectedOutputQuantityBase))
             )
 
             DetailRow(
                 stringResource(R.string.actual_output), 
-                "${Formatters.formatQuantity(batch.actualOutputQuantityEntered, uiState.outputUnitLabel)} (${Formatters.formatQuantity(batch.actualOutputQuantityBase)} base)"
+                stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(batch.actualOutputQuantityEntered, uiState.outputUnitLabel), Formatters.formatQuantity(batch.actualOutputQuantityBase))
             )
             
             if (batch.hasManualOutputQuantityOverride) {
@@ -263,7 +263,7 @@ private fun DetailHeader(uiState: ProductionBatchDetailUiState) {
             
             DetailRow(
                 stringResource(R.string.output_unit_cost),
-                batch.outputUnitCostBaseSnapshot?.let { Formatters.formatCurrency(it, uiState.currencyCode) + " base" } ?: stringResource(R.string.not_available)
+                batch.outputUnitCostBaseSnapshot?.let { stringResource(R.string.production_currency_per_base, Formatters.formatCurrency(it, uiState.currencyCode)) } ?: stringResource(R.string.not_available)
             )
 
             if (batch.notes != null) {
@@ -287,9 +287,9 @@ private fun ComponentDetailItem(
         supportingContent = {
             Column {
                 Text(text = stringResource(R.string.area_label) + ": $areaName")
-                Text(text = stringResource(R.string.production_recipe_snapshot) + ": ${Formatters.formatQuantity(component.recipeQuantityEnteredSnapshot, recipeUnitLabel)} (${Formatters.formatQuantity(component.recipeQuantityBaseSnapshot)} " + stringResource(R.string.production_quantity_base) + ")")
-                Text(text = stringResource(R.string.expected_quantity) + ": ${Formatters.formatQuantity(component.expectedQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.expectedQuantityBase)} " + stringResource(R.string.production_quantity_base) + ")")
-                Text(text = stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} " + stringResource(R.string.production_quantity_base) + ")")
+                Text(text = stringResource(R.string.production_recipe_snapshot) + ": " + stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(component.recipeQuantityEnteredSnapshot, recipeUnitLabel), Formatters.formatQuantity(component.recipeQuantityBaseSnapshot)))
+                Text(text = stringResource(R.string.expected_quantity) + ": " + stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(component.expectedQuantityEntered, unitLabel), Formatters.formatQuantity(component.expectedQuantityBase)))
+                Text(text = stringResource(R.string.actual_output) + ": " + stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(component.actualQuantityEntered, unitLabel), Formatters.formatQuantity(component.actualQuantityBase)))
                 
                 if (component.hasManualQuantityOverride) {
                     Text(text = stringResource(R.string.manually_overridden), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
@@ -308,7 +308,7 @@ private fun ComponentDetailItem(
                     Text(stringResource(R.string.not_available), style = MaterialTheme.typography.labelSmall)
                 }
                 if (component.unitCostBaseSnapshot != null) {
-                    Text(Formatters.formatCurrency(component.unitCostBaseSnapshot, currencyCode) + " base", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.production_currency_per_base, Formatters.formatCurrency(component.unitCostBaseSnapshot, currencyCode)), style = MaterialTheme.typography.labelSmall)
                 } else {
                     Text(stringResource(R.string.production_unit_cost_unavailable), style = MaterialTheme.typography.labelSmall)
                 }

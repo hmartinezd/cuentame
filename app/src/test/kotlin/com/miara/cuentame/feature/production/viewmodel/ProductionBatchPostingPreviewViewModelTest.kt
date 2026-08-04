@@ -156,12 +156,18 @@ class ProductionBatchPostingPreviewViewModelTest {
             blockers = listOf(PostingBlocker.RECIPE_NOT_ACTIVE),
             components = listOf(createComponentPreview().copy(createsNegativeBalance = true, costUnavailable = true))
         )
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
 
         coEvery { productionBatchRepository.getBatch(any()) } returns batch
         coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns preview
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
 
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertTrue(state.blockers.isNotEmpty())
@@ -185,11 +191,17 @@ class ProductionBatchPostingPreviewViewModelTest {
     @Test
     fun `onPost does nothing when blockers are present`() = runTest {
         val preview = createPreview(blockers = listOf(PostingBlocker.RECIPE_NOT_ACTIVE))
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
         coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
         coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns preview
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
 
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
 
         viewModel.onPost()
 
@@ -199,9 +211,13 @@ class ProductionBatchPostingPreviewViewModelTest {
 
     @Test
     fun `duplicate post call ignored while posting`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
         coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
         coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
         
         val postCompletable = CompletableDeferred<Unit>()
         coEvery { productionBatchRepository.post(any()) } coAnswers {
@@ -209,6 +225,8 @@ class ProductionBatchPostingPreviewViewModelTest {
         }
 
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
 
         launch { viewModel.onPost() }
         runCurrent()
@@ -224,13 +242,20 @@ class ProductionBatchPostingPreviewViewModelTest {
 
     @Test
     fun `posting success emits event`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
         coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
         coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
         coEvery { productionBatchRepository.post(any()) } returns Unit
 
         val events = mutableListOf<ProductionBatchPreviewEvent>()
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
         val job = launch { viewModel.events.collect { events.add(it) } }
         
         viewModel.onPost()
@@ -245,15 +270,77 @@ class ProductionBatchPostingPreviewViewModelTest {
 
     @Test
     fun `rethrows CancellationException on post`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
         coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
         coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
         coEvery { productionBatchRepository.post(any()) } throws CancellationException()
 
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        
         viewModel.onPost()
         runCurrent()
         // Should not crash and isPosting should be reset by finally block
         assertFalse(viewModel.uiState.value.isPosting)
+    }
+
+    @Test
+    fun `output unit missing sets LoadError`() = runTest {
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.screenState is ProductionBatchScreenState.LoadError)
+        val error = (viewModel.uiState.value.screenState as ProductionBatchScreenState.LoadError).message
+        assertEquals(com.miara.cuentame.R.string.error_generic, (error as UiMessage.Resource).id)
+    }
+
+    @Test
+    fun `output unit lookup throws sets LoadError`() = runTest {
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } throws RuntimeException("Lookup failed")
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.screenState is ProductionBatchScreenState.LoadError)
+    }
+
+    @Test
+    fun `retry after lookup failure leads to Ready`() = runTest {
+        val unitOption = mockk<IngredientUnitOption> {
+            every { id } returns unitOptionId
+            every { displayName } returns "Kg"
+        }
+        coEvery { productionBatchRepository.getBatch(any()) } returns createBatch()
+        coEvery { productionBatchRepository.calculatePostingPreview(any()) } returns createPreview()
+        
+        // 1st attempt fails
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } throws RuntimeException("First failure")
+
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.screenState is ProductionBatchScreenState.LoadError)
+
+        // 2nd attempt succeeds
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        viewModel.onRetry()
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(ProductionBatchScreenState.Ready, viewModel.uiState.value.screenState)
+        assertEquals("Kg", viewModel.uiState.value.outputUnitLabel)
     }
 }

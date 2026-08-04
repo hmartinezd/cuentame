@@ -104,7 +104,6 @@ class ProductionBatchComponentViewModel @Inject constructor(
                     }
 
                     productionBatchRepository.observeBatch(batchId).collectLatest { batch ->
-                        kotlinx.coroutines.yield()
                         if (batch == null) {
                             _uiState.update { it.copy(screenState = ProductionBatchScreenState.BatchNotFound) }
                             return@collectLatest
@@ -123,20 +122,20 @@ class ProductionBatchComponentViewModel @Inject constructor(
 
                         val ingredient = ingredientRepository.getById(component.componentIngredientId)
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_INGREDIENT"))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                                 return@collectLatest
                             }
 
                         val unitOptions = ingredientRepository.getUnitOptions(component.componentIngredientId, includeArchived = true)
                         val currentUnit = unitOptions.find { it.id == component.unitOptionId }
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_CURRENT_UNIT"))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                                 return@collectLatest
                             }
                         
                         val recipeUnit = unitOptions.find { it.id == component.recipeUnitOptionIdSnapshot }
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_RECIPE_UNIT"))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                                 return@collectLatest
                             }
 
@@ -144,7 +143,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
                         val sourceArea = component.sourceAreaId?.let { inventoryAreaRepository.getById(it) }
                         
                         if (component.sourceAreaId != null && sourceArea == null) {
-                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_SOURCE_AREA"))) }
+                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                             return@collectLatest
                         }
 
@@ -186,7 +185,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.saved))) }
+                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                 }
             }
         }
@@ -277,7 +276,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
             } catch (e: ProductionBatchValidationException) {
                 _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.saved)) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
@@ -336,7 +335,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
             } catch (e: ProductionBatchValidationException) {
                 _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.saved)) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }

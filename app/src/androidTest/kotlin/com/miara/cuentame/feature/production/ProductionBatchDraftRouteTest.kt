@@ -1,7 +1,8 @@
 package com.miara.cuentame.feature.production
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.common.ids.*
@@ -11,6 +12,7 @@ import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -26,7 +28,7 @@ class ProductionBatchDraftRouteTest {
     var hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -52,6 +54,14 @@ class ProductionBatchDraftRouteTest {
             database.ingredientDao().insert(IngredientEntity("i1", restaurantId, "Ing", "ing", null, "u1", "a1", null, null, null, true, 0, 0, null))
             database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("o1", "i1", "Unit", "u", "u1", BigDecimal.ONE, true, true, true, true, 0, 0, null))
 
+            database.preparationRecipeDao().insert(PreparationRecipeEntity(
+                id = "rec1", restaurantId = restaurantId, outputIngredientId = "i1",
+                name = "Recipe", normalizedName = "recipe",
+                standardYieldQuantity = BigDecimal.TEN, standardYieldQuantityBase = BigDecimal.TEN,
+                yieldUnitOptionId = "o1", status = "ACTIVE", notes = null,
+                createdAt = 0, updatedAt = 0, archivedAt = null
+            ))
+
             database.productionBatchDao().insert(ProductionBatchEntity(
                 id = batchId, restaurantId = restaurantId, recipeId = "rec1",
                 recipeNameSnapshot = "Recipe", outputIngredientId = "i1",
@@ -67,35 +77,52 @@ class ProductionBatchDraftRouteTest {
 
             preferencesRepository.setAppLocaleTag("en")
             preferencesRepository.setOnboardingCompleted(true)
+
+            assertNotNull(database.preparationRecipeDao().getById("rec1"))
         }
     }
 
     @Test
     fun reviewGuard_dirtyForm_blocksNavigation() {
-        navigateToDraft()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            navigateToDraft()
 
-        // Make form dirty
-        composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
-        
-        // Try Review
-        composeTestRule.onNodeWithTag("production_batch_review").assertIsNotEnabled()
+            // Make form dirty
+            composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
+            
+            // Try Review
+            composeTestRule.onNodeWithTag("production_batch_review").assertIsNotEnabled()
+        }
     }
 
     @Test
     fun reviewGuard_cleanForm_allowsNavigation() {
-        navigateToDraft()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            navigateToDraft()
 
-        // Form is clean initially
-        composeTestRule.onNodeWithTag("production_batch_review").assertIsEnabled().performClick()
-        
-        // Check if we are on Preview screen
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithTag("production_batch_preview_screen").fetchSemanticsNodes().isNotEmpty()
+            // Form is clean initially
+            composeTestRule.onNodeWithTag("production_batch_review").assertIsEnabled().performClick()
+            
+            // Check if we are on Preview screen
+            composeTestRule.waitUntil(5000) {
+                composeTestRule.onAllNodesWithTag("production_batch_preview_screen").fetchSemanticsNodes().isNotEmpty()
+            }
         }
     }
 
     private fun navigateToDraft() {
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithTag("open_production_batches_button").performScrollTo().performClick()
-        composeTestRule.onNodeWithText("Recipe").performClick() // Click the batch in the list
+        
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("production_batch_list_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("production_batch_item_$batchId").performClick()
+        
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithTag("production_batch_draft_screen").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

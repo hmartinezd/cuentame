@@ -89,6 +89,10 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
                     val preview = productionBatchRepository.calculatePostingPreview(batchId)
                     val unitOptions = ingredientRepository.getUnitOptions(batch.outputIngredientId, includeArchived = true)
                     val outputUnit = unitOptions.find { it.id == batch.outputUnitOptionId }
+                        ?: run {
+                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                            return@collectLatest
+                        }
                     
                     _uiState.update {
                         it.copy(
@@ -96,7 +100,7 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
                             batch = batch,
                             preview = preview,
                             currencyCode = restaurant.currencyCode,
-                            outputUnitLabel = outputUnit?.displayName ?: "",
+                            outputUnitLabel = outputUnit.displayName,
                             blockers = preview.blockers.map { b -> b.toUserMessage() },
                             hasNegativeBalances = preview.components.any { c -> c.createsNegativeBalance },
                             hasUnavailableCosts = preview.components.any { c -> c.costUnavailable }

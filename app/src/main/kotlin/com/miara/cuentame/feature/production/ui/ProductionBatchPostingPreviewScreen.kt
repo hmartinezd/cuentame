@@ -115,11 +115,49 @@ fun ProductionBatchPostingPreviewScreen(
                 }
             }
             is ProductionBatchScreenState.LoadError -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .testTag("production_preview_load_error"),
+                    contentAlignment = Alignment.Center
+                ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = stringResource(R.string.state_error_desc))
-                        Button(onClick = onRetry) {
+                        Button(onClick = onRetry, modifier = Modifier.testTag("production_preview_retry")) {
                             Text(stringResource(R.string.action_retry_desc))
+                        }
+                    }
+                }
+            }
+            ProductionBatchScreenState.InvalidRoute -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .testTag("production_preview_invalid_route"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = stringResource(R.string.error_invalid_count_route))
+                        Button(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    }
+                }
+            }
+            ProductionBatchScreenState.BatchNotFound -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .testTag("production_preview_batch_not_found"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = stringResource(R.string.error_batch_not_found))
+                        Button(onClick = onBackClick) {
+                            Text(stringResource(R.string.action_back))
                         }
                     }
                 }
@@ -143,11 +181,11 @@ fun ProductionBatchPostingPreviewScreen(
                         }
                     } else if (uiState.hasNegativeBalances) {
                         Surface(
-                            color = MaterialTheme.colorScheme.warningContainer,
+                            color = MaterialTheme.colorScheme.errorContainer,
                             modifier = Modifier.fillMaxWidth().testTag("production_negative_balance_warning")
                         ) {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = null)
+                                Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.negative_balance_warning))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(text = stringResource(R.string.negative_inventory_warning), style = MaterialTheme.typography.bodyMedium)
                             }
@@ -282,14 +320,14 @@ private fun PreviewHeader(
             if (batch != null) {
                 DetailRow(
                     stringResource(R.string.expected_output), 
-                    stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(batch.expectedOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(batch.expectedOutputQuantityBase))
+                    stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(batch.expectedOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(batch.expectedOutputQuantityBase))
                 )
                 DetailRow(
                     stringResource(R.string.actual_output), 
-                    stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(batch.actualOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(preview.actualOutputQuantityBase))
+                    stringResource(R.string.production_quantity_with_base, Formatters.formatQuantity(batch.actualOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(preview.actualOutputQuantityBase))
                 )
             } else {
-                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(preview.actualOutputQuantityBase)} ${stringResource(R.string.production_quantity_base)}")
+                DetailRow(stringResource(R.string.actual_output), stringResource(R.string.production_quantity_base_format, Formatters.formatQuantity(preview.actualOutputQuantityBase)))
             }
 
             DetailRow(
@@ -299,7 +337,7 @@ private fun PreviewHeader(
             )
             DetailRow(
                 stringResource(R.string.output_unit_cost), 
-                preview.outputUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) + " base" } ?: stringResource(R.string.not_available),
+                preview.outputUnitCostBase?.let { stringResource(R.string.production_currency_per_base, Formatters.formatCurrency(it, currencyCode)) } ?: stringResource(R.string.not_available),
                 modifier = Modifier.testTag("production_preview_output_unit_cost")
             )
             
@@ -322,8 +360,8 @@ private fun PreviewComponentItem(
             Column {
                 Text(stringResource(R.string.area_label) + ": ${component.sourceAreaName}")
                 Text(stringResource(R.string.quantity) + ": " + stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(component.actualQuantityEntered, component.unitOptionLabel), Formatters.formatQuantity(component.actualQuantityBase)))
-                Text(stringResource(R.string.current_balance) + ": ${Formatters.formatQuantity(component.currentAreaBalanceBase)} " + stringResource(R.string.production_quantity_base))
-                Text(stringResource(R.string.remaining_balance) + ": ${Formatters.formatQuantity(component.remainingAreaBalanceBase)} " + stringResource(R.string.production_quantity_base))
+                Text(stringResource(R.string.current_balance) + ": " + stringResource(R.string.production_quantity_base_format, Formatters.formatQuantity(component.currentAreaBalanceBase)))
+                Text(stringResource(R.string.remaining_balance) + ": " + stringResource(R.string.production_quantity_base_format, Formatters.formatQuantity(component.remainingAreaBalanceBase)))
                 
                 if (component.createsNegativeBalance) {
                     Text(stringResource(R.string.negative_balance_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
@@ -336,7 +374,7 @@ private fun PreviewComponentItem(
                     Text(stringResource(R.string.production_cost_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 } else {
                     Text(text = component.totalCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_available), fontWeight = FontWeight.Bold)
-                    Text(text = component.averageUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) + " base" } ?: "", style = MaterialTheme.typography.labelSmall)
+                    Text(text = component.averageUnitCostBase?.let { stringResource(R.string.production_currency_per_base, Formatters.formatCurrency(it, currencyCode)) } ?: "", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -350,8 +388,3 @@ private fun DetailRow(label: String, value: String, modifier: Modifier = Modifie
         Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
-
-// Add warningContainer to MaterialTheme if not present or use local
-private val ColorScheme.warningContainer: androidx.compose.ui.graphics.Color
-    @Composable
-    get() = androidx.compose.ui.graphics.Color(0xFFFFF4E5) // Generic warning color

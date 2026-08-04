@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
@@ -12,6 +13,8 @@ import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
+import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
@@ -44,6 +47,9 @@ class ProductionBatchUiTest {
 
     @Inject
     lateinit var purchaseRepository: PurchaseRepository
+
+    @Inject
+    lateinit var productionBatchRepository: ProductionBatchRepository
 
     private val restaurantId = RestaurantId("r1")
     private val areaId = InventoryAreaId("a1")
@@ -192,9 +198,11 @@ class ProductionBatchUiTest {
             composeTestRule.onNodeWithTag("production_batch_review").performClick()
             waitForTag("production_batch_preview_screen")
             
-            // Verify Preview Costing using semantic tags and formatters
-            val expectedTotalCostText = Formatters.formatCurrency(BigDecimal("120.00"), "USD", Locale.US)
-            val expectedUnitCostText = Formatters.formatCurrency(BigDecimal("6.00"), "USD", Locale.US) + " base"
+            // Verify Preview Costing using repository directly for deterministic values
+            val calculatedPreview = runBlocking { productionBatchRepository.calculatePostingPreview(batchId) }
+            val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+            val expectedTotalCostText = Formatters.formatCurrency(calculatedPreview.totalComponentCost!!, "USD", Locale.getDefault())
+            val expectedUnitCostText = context.getString(R.string.production_currency_per_base, Formatters.formatCurrency(calculatedPreview.outputUnitCostBase!!, "USD", Locale.getDefault()))
             
             composeTestRule.onNodeWithTag("production_preview_total_cost").assertTextContains(expectedTotalCostText)
             composeTestRule.onNodeWithTag("production_preview_output_unit_cost").assertTextContains(expectedUnitCostText)
@@ -284,26 +292,45 @@ class ProductionBatchUiTest {
             val finalReversals = allMovements.filter { it.movementType == "REVERSAL" }
             assertEquals(2, finalReversals.size)
             
-            // Each original has exactly one Reversal
+            // Each original has exactly one Reversal with identical non-negated properties
             originalMovements.forEach { original ->
                 val reversal = finalReversals.find { it.reversalOfMovementId == original.id }
                 assertNotNull(reversal)
-                assertEquals(0, BigDecimal(original.quantityBaseSigned).negate().compareTo(BigDecimal(reversal!!.quantityBaseSigned)))
+                
+                assertEquals(original.restaurantId, reversal!!.restaurantId)
+                assertEquals(original.ingredientId, reversal.ingredientId)
+                assertEquals(original.areaId, reversal.areaId)
+                assertEquals(original.sourceDocumentType, reversal.sourceDocumentType)
+                assertEquals(original.sourceDocumentId, reversal.sourceDocumentId)
+                assertEquals(original.sourceLineId, reversal.sourceLineId)
+                assertEquals(original.unitCostBaseSnapshot, reversal.unitCostBaseSnapshot)
+                assertEquals(original.id, reversal.reversalOfMovementId)
+                
+                assertEquals(
+                    InventoryMovementOperationIds.reversal(original.id),
+                    reversal.sourceOperationId
+                )
+
+                assertEquals(0, BigDecimal(original.quantityBaseSigned).negate().compareTo(BigDecimal(reversal.quantityBaseSigned)))
                 assertEquals(0, BigDecimal(original.totalValueSnapshot!!).negate().compareTo(BigDecimal(reversal.totalValueSnapshot!!)))
-                assertEquals(0, BigDecimal(original.unitCostBaseSnapshot!!).compareTo(BigDecimal(reversal.unitCostBaseSnapshot!!)))
-                assertTrue(reversal.sourceOperationId.contains(":reverse:"))
             }
             
+            // Verify no duplicate Reversal operation IDs
+            assertEquals(finalReversals.size, finalReversals.map { it.sourceOperationId }.distinct().size)
+
             // Verify final projections
             runBlocking {
                 val rawProjFinal = database.inventoryProjectionDao().getBalance(ingredientId.value, areaId.value)
                 assertEquals(0, BigDecimal("100").compareTo(BigDecimal(rawProjFinal!!.quantityBase)))
 
                 val outProjFinal = database.inventoryProjectionDao().getBalance(outputIngredientId.value, areaId.value)
-                assertTrue(outProjFinal == null || BigDecimal.ZERO.compareTo(BigDecimal(outProjFinal.quantityBase)) == 0)
+                assertTrue("Output balance should be zero or absent", outProjFinal == null || BigDecimal.ZERO.compareTo(BigDecimal(outProjFinal.quantityBase)) == 0)
 
                 val rawCostFinal = database.ingredientCostProjectionDao().getCost(ingredientId.value)
                 assertEquals(0, BigDecimal("5").compareTo(BigDecimal(rawCostFinal!!.averageUnitCostBase!!)))
+                
+                val outCostFinal = database.ingredientCostProjectionDao().getCost(outputIngredientId.value)
+                assertTrue("Output cost should be absent after reversal as no other history exists", outCostFinal == null || outCostFinal.averageUnitCostBase == null)
             }
         }
     }

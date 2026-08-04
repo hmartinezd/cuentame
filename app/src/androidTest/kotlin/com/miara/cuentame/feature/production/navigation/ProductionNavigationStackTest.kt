@@ -92,7 +92,6 @@ class ProductionNavigationStackTest {
         val batchId = ProductionBatchId("b1")
         
         composeTestRule.runOnUiThread {
-            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(Destination.PRODUCTION_BATCH_CREATE.route)
         }
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_CREATE.route)
@@ -118,7 +117,6 @@ class ProductionNavigationStackTest {
         val batchId = ProductionBatchId("b1")
         
         composeTestRule.runOnUiThread {
-            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDraft(batchId))
             navController.navigate(AppRoutes.productionBatchPreview(batchId))
         }
@@ -146,7 +144,6 @@ class ProductionNavigationStackTest {
         val batchId = ProductionBatchId("b1")
         
         composeTestRule.runOnUiThread {
-            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDraft(batchId))
         }
 
@@ -168,7 +165,6 @@ class ProductionNavigationStackTest {
     fun detailRedirectsToDraft_whenDraftStatus() {
         val batchId = ProductionBatchId("b1")
         composeTestRule.runOnUiThread {
-            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDetail(batchId))
         }
         

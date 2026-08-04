@@ -197,7 +197,10 @@ fun ProductionEffectiveTimeEditor(
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
-                    IconButton(onClick = { showDatePicker = true }) {
+                    IconButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.testTag("production_effective_date_button")
+                    ) {
                         Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.choose_effective_date))
                     }
                 }
@@ -220,7 +223,10 @@ fun ProductionEffectiveTimeEditor(
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
-                    IconButton(onClick = { showTimePicker = true }) {
+                    IconButton(
+                        onClick = { showTimePicker = true },
+                        modifier = Modifier.testTag("production_effective_time_button")
+                    ) {
                         Icon(Icons.Default.Timer, contentDescription = stringResource(R.string.choose_effective_time))
                     }
                 }
@@ -230,20 +236,24 @@ fun ProductionEffectiveTimeEditor(
 
     if (showDatePicker) {
         DatePickerDialog(
+            modifier = Modifier.testTag("production_effective_date_dialog"),
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        onEffectiveAtChanged(
-                            calculateEffectiveAtWithNewDate(
-                                millis = millis,
-                                currentEffectiveAt = effectiveAt,
-                                zoneId = zoneId
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onEffectiveAtChanged(
+                                calculateEffectiveAtWithNewDate(
+                                    millis = millis,
+                                    currentEffectiveAt = effectiveAt,
+                                    zoneId = zoneId
+                                )
                             )
-                        )
-                    }
-                    showDatePicker = false
-                }) {
+                        }
+                        showDatePicker = false
+                    },
+                    modifier = Modifier.testTag("production_effective_date_confirm")
+                ) {
                     Text(stringResource(R.string.action_confirm))
                 }
             },
@@ -267,7 +277,11 @@ fun ProductionEffectiveTimeEditor(
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
                 tonalElevation = 6.dp,
-                modifier = Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).height(androidx.compose.foundation.layout.IntrinsicSize.Min).background(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface)
+                modifier = Modifier
+                    .width(androidx.compose.foundation.layout.IntrinsicSize.Min)
+                    .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
+                    .background(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface)
+                    .testTag("production_effective_time_dialog")
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -286,17 +300,20 @@ fun ProductionEffectiveTimeEditor(
                         TextButton(onClick = { showTimePicker = false }) {
                             Text(stringResource(R.string.action_back))
                         }
-                        TextButton(onClick = {
-                            onEffectiveAtChanged(
-                                calculateEffectiveAtWithNewTime(
-                                    hour = timePickerState.hour,
-                                    minute = timePickerState.minute,
-                                    currentEffectiveAt = effectiveAt,
-                                    zoneId = zoneId
+                        TextButton(
+                            onClick = {
+                                onEffectiveAtChanged(
+                                    calculateEffectiveAtWithNewTime(
+                                        hour = timePickerState.hour,
+                                        minute = timePickerState.minute,
+                                        currentEffectiveAt = effectiveAt,
+                                        zoneId = zoneId
+                                    )
                                 )
-                            )
-                            showTimePicker = false
-                        }) {
+                                showTimePicker = false
+                            },
+                            modifier = Modifier.testTag("production_effective_time_confirm")
+                        ) {
                             Text(stringResource(R.string.action_confirm))
                         }
                     }

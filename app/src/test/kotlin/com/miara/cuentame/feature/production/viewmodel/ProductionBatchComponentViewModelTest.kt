@@ -477,4 +477,61 @@ class ProductionBatchComponentViewModelTest {
         assertNull(state.inlineError)
         assertFalse(state.isSaving)
     }
+
+    @Test
+    fun `loading failure sets screenState to LoadError with error_generic`() = runTest {
+        coEvery { restaurantRepository.getRestaurant() } throws RuntimeException("DB error")
+        
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.screenState is ProductionBatchScreenState.LoadError)
+        val error = (state.screenState as ProductionBatchScreenState.LoadError).message
+        assertEquals(com.miara.cuentame.R.string.error_generic, (error as UiMessage.Resource).id)
+    }
+
+    @Test
+    fun `save failure sets inlineError to error_generic and preserves form values`() = runTest {
+        setupReadyState()
+        val viewModel = createViewModel()
+
+        viewModel.onQuantityChanged("10.5")
+        viewModel.onNotesChanged("Modified notes")
+        
+        coEvery { productionBatchRepository.updateComponent(any()) } throws RuntimeException("Network error")
+        
+        viewModel.onSave()
+        runCurrent()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSaving)
+        assertEquals("10.5", state.actualQuantity)
+        assertEquals("Modified notes", state.notes)
+        assertEquals(com.miara.cuentame.R.string.error_generic, (state.inlineError as UiMessage.Resource).id)
+        assertNotEquals(com.miara.cuentame.R.string.saved, (state.inlineError as UiMessage.Resource).id)
+    }
+
+    @Test
+    fun `reset failure sets inlineError to error_generic and preserves manual values`() = runTest {
+        setupReadyState()
+        val viewModel = createViewModel()
+
+        viewModel.onQuantityChanged("20")
+        viewModel.onOverrideQuantity()
+        
+        coEvery { productionBatchRepository.resetComponentToExpected(any(), any()) } throws RuntimeException("Logic error")
+        
+        viewModel.onResetToRecipe()
+        runCurrent()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSaving)
+        assertEquals("20", state.actualQuantity)
+        assertTrue(state.hasManualOverride)
+        assertEquals(com.miara.cuentame.R.string.error_generic, (state.inlineError as UiMessage.Resource).id)
+    }
 }
