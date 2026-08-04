@@ -65,3 +65,7 @@ fun List<ProductionBatchValidationFailure>.toUserMessage(): UiMessage {
     
     return prioritized.first().toUserMessage()
 }
+
+fun Throwable.toUserMessage(): UiMessage {
+    return UiMessage.Resource(R.string.error_generic)
+}

@@ -30,6 +30,7 @@ data class ProductionBatchPreviewUiState(
     val batch: ProductionBatch? = null,
     val preview: ProductionBatchPostingPreview? = null,
     val currencyCode: String = "",
+    val outputUnitLabel: String = "",
     
     val blockers: List<UiMessage> = emptyList(),
     val hasNegativeBalances: Boolean = false,
@@ -41,6 +42,7 @@ data class ProductionBatchPreviewUiState(
 @HiltViewModel
 class ProductionBatchPostingPreviewViewModel @Inject constructor(
     private val productionBatchRepository: ProductionBatchRepository,
+    private val ingredientRepository: com.miara.cuentame.core.domain.repository.IngredientRepository,
     private val restaurantRepository: RestaurantRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -85,6 +87,8 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
                     }
 
                     val preview = productionBatchRepository.calculatePostingPreview(batchId)
+                    val unitOptions = ingredientRepository.getUnitOptions(batch.outputIngredientId, includeArchived = true)
+                    val outputUnit = unitOptions.find { it.id == batch.outputUnitOptionId }
                     
                     _uiState.update {
                         it.copy(
@@ -92,6 +96,7 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
                             batch = batch,
                             preview = preview,
                             currencyCode = restaurant.currencyCode,
+                            outputUnitLabel = outputUnit?.displayName ?: "",
                             blockers = preview.blockers.map { b -> b.toUserMessage() },
                             hasNegativeBalances = preview.components.any { c -> c.createsNegativeBalance },
                             hasUnavailableCosts = preview.components.any { c -> c.costUnavailable }
@@ -118,9 +123,11 @@ class ProductionBatchPostingPreviewViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: com.miara.cuentame.core.domain.validation.ProductionBatchValidationException) {
-                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isPosting = false) }
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isPosting = false) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
+            } finally {
+                _uiState.update { it.copy(isPosting = false) }
             }
         }
     }

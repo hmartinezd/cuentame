@@ -85,22 +85,7 @@ class ProductionNavigationStackTest {
         assertThat(backStack.any { it.destination.route == Destination.PRODUCTION_BATCH_PREVIEW.route }).isFalse()
     }
 
-    @Test
-    fun draftExternalStatusChange_replacesDraftWithDetail() {
-        val batchId = ProductionBatchId("b1")
-        
-        composeTestRule.runOnUiThread {
-            navController.navigate(AppRoutes.productionBatchDraft(batchId))
-        }
 
-        composeTestRule.runOnUiThread {
-            navController.replaceProductionDraftWithDetail(batchId)
-        }
-
-        assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_DETAIL.route)
-        val backStack = navController.currentBackStack.value
-        assertThat(backStack.any { it.destination.route == Destination.PRODUCTION_BATCH_DRAFT.route }).isFalse()
-    }
 
     @Test
     fun list_create_draft_backToList() {
@@ -109,17 +94,23 @@ class ProductionNavigationStackTest {
         composeTestRule.runOnUiThread {
             navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(Destination.PRODUCTION_BATCH_CREATE.route)
+        }
+        assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_CREATE.route)
+
+        composeTestRule.runOnUiThread {
             navController.replaceProductionCreateWithDraft(batchId)
         }
         
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_DRAFT.route)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_CREATE.route }).isEqualTo(0)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DRAFT.route }).isEqualTo(1)
         
         composeTestRule.runOnUiThread {
             navController.popBackStack()
         }
         
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_LIST.route)
-        assertThat(navController.currentBackStack.value.size).isEqualTo(2) // Host + List
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_LIST.route }).isEqualTo(1)
     }
 
     @Test
@@ -130,10 +121,18 @@ class ProductionNavigationStackTest {
             navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDraft(batchId))
             navController.navigate(AppRoutes.productionBatchPreview(batchId))
+        }
+        assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_PREVIEW.route)
+
+        composeTestRule.runOnUiThread {
             navController.replaceProductionPreviewWithDetail(batchId)
         }
         
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_DETAIL.route)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DRAFT.route }).isEqualTo(0)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_PREVIEW.route }).isEqualTo(0)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DETAIL.route }).isEqualTo(1)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_LIST.route }).isEqualTo(1)
         
         composeTestRule.runOnUiThread {
             navController.popBackStack()
@@ -143,29 +142,21 @@ class ProductionNavigationStackTest {
     }
 
     @Test
-    fun deleteDraft_returnsToList() {
+    fun draftExternalStatusChange_replacesDraftWithDetail() {
         val batchId = ProductionBatchId("b1")
         
         composeTestRule.runOnUiThread {
             navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDraft(batchId))
         }
-        
-        composeTestRule.runOnUiThread {
-            navController.popBackStack()
-        }
-        
-        assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_LIST.route)
-    }
 
-    @Test
-    fun list_postedDetail_backToList() {
-        val batchId = ProductionBatchId("b1")
         composeTestRule.runOnUiThread {
-            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
-            navController.navigate(AppRoutes.productionBatchDetail(batchId))
+            navController.replaceProductionDraftWithDetail(batchId)
         }
+
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_DETAIL.route)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DRAFT.route }).isEqualTo(0)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DETAIL.route }).isEqualTo(1)
         
         composeTestRule.runOnUiThread {
             navController.popBackStack()
@@ -177,6 +168,7 @@ class ProductionNavigationStackTest {
     fun detailRedirectsToDraft_whenDraftStatus() {
         val batchId = ProductionBatchId("b1")
         composeTestRule.runOnUiThread {
+            navController.navigate(Destination.PRODUCTION_BATCH_LIST.route)
             navController.navigate(AppRoutes.productionBatchDetail(batchId))
         }
         
@@ -185,7 +177,12 @@ class ProductionNavigationStackTest {
         }
         
         assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_DRAFT.route)
-        val backStack = navController.currentBackStack.value
-        assertThat(backStack.any { it.destination.route == Destination.PRODUCTION_BATCH_DETAIL.route }).isFalse()
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DETAIL.route }).isEqualTo(0)
+        assertThat(navController.currentBackStack.value.count { it.destination.route == Destination.PRODUCTION_BATCH_DRAFT.route }).isEqualTo(1)
+        
+        composeTestRule.runOnUiThread {
+            navController.popBackStack()
+        }
+        assertThat(navController.currentDestination?.route).isEqualTo(Destination.PRODUCTION_BATCH_LIST.route)
     }
 }

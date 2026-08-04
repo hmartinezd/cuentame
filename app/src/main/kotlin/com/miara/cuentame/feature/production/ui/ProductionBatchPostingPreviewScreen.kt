@@ -134,7 +134,8 @@ fun ProductionBatchPostingPreviewScreen(
                             PreviewHeader(
                                 preview = preview,
                                 batch = uiState.batch,
-                                currencyCode = uiState.currencyCode
+                                currencyCode = uiState.currencyCode,
+                                outputUnitLabel = uiState.outputUnitLabel
                             )
                         }
 
@@ -202,10 +203,11 @@ fun ProductionBatchPostingPreviewScreen(
     if (showNegativeConfirm) {
         AlertDialog(
             onDismissRequest = { showNegativeConfirm = false },
+            modifier = Modifier.testTag("production_negative_balance_confirmation"),
             title = { Text(stringResource(R.string.negative_balance_warning)) },
             text = {
                 Text(
-                    text = "One or more component balances will become negative. Inventory will still be posted. Continue?",
+                    text = stringResource(R.string.production_negative_balance_continue),
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Bold
                 )
@@ -231,7 +233,8 @@ fun ProductionBatchPostingPreviewScreen(
 private fun PreviewHeader(
     preview: com.miara.cuentame.core.domain.repository.ProductionBatchPostingPreview,
     batch: com.miara.cuentame.core.model.inventory.ProductionBatch?,
-    currencyCode: String
+    currencyCode: String,
+    outputUnitLabel: String
 ) {
     val zoneId = java.time.ZoneId.systemDefault()
     val formatter = remember { java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM) }
@@ -248,14 +251,28 @@ private fun PreviewHeader(
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (batch != null) {
-                DetailRow(stringResource(R.string.expected_output), "${Formatters.formatQuantity(batch.expectedOutputQuantityEntered)} entered (${Formatters.formatQuantity(batch.expectedOutputQuantityBase)} base)")
-                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(batch.actualOutputQuantityEntered)} entered (${Formatters.formatQuantity(preview.actualOutputQuantityBase)} base)")
+                DetailRow(
+                    stringResource(R.string.expected_output), 
+                    stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(batch.expectedOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(batch.expectedOutputQuantityBase))
+                )
+                DetailRow(
+                    stringResource(R.string.actual_output), 
+                    stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(batch.actualOutputQuantityEntered, outputUnitLabel), Formatters.formatQuantity(preview.actualOutputQuantityBase))
+                )
             } else {
-                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(preview.actualOutputQuantityBase)} base")
+                DetailRow(stringResource(R.string.actual_output), "${Formatters.formatQuantity(preview.actualOutputQuantityBase)} ${stringResource(R.string.production_quantity_base)}")
             }
 
-            DetailRow(stringResource(R.string.total_component_cost), preview.totalComponentCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable))
-            DetailRow(stringResource(R.string.output_unit_cost), preview.outputUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable))
+            DetailRow(
+                stringResource(R.string.total_component_cost), 
+                preview.totalComponentCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_available),
+                modifier = Modifier.testTag("production_preview_total_cost")
+            )
+            DetailRow(
+                stringResource(R.string.output_unit_cost), 
+                preview.outputUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) + " base" } ?: stringResource(R.string.not_available),
+                modifier = Modifier.testTag("production_preview_output_unit_cost")
+            )
             
             if (preview.yieldVariancePercent != null) {
                 DetailRow(stringResource(R.string.yield_variance), Formatters.formatPercent(preview.yieldVariancePercent, java.util.Locale.getDefault()))
@@ -275,9 +292,9 @@ private fun PreviewComponentItem(
         supportingContent = {
             Column {
                 Text(stringResource(R.string.area_label) + ": ${component.sourceAreaName}")
-                Text(stringResource(R.string.quantity) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, component.unitOptionLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} base)")
-                Text(stringResource(R.string.current_balance) + ": ${Formatters.formatQuantity(component.currentAreaBalanceBase)}")
-                Text(stringResource(R.string.remaining_balance) + ": ${Formatters.formatQuantity(component.remainingAreaBalanceBase)}")
+                Text(stringResource(R.string.quantity) + ": " + stringResource(R.string.production_quantity_entered_and_base, Formatters.formatQuantity(component.actualQuantityEntered, component.unitOptionLabel), Formatters.formatQuantity(component.actualQuantityBase)))
+                Text(stringResource(R.string.current_balance) + ": ${Formatters.formatQuantity(component.currentAreaBalanceBase)} " + stringResource(R.string.production_quantity_base))
+                Text(stringResource(R.string.remaining_balance) + ": ${Formatters.formatQuantity(component.remainingAreaBalanceBase)} " + stringResource(R.string.production_quantity_base))
                 
                 if (component.createsNegativeBalance) {
                     Text(stringResource(R.string.negative_balance_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
@@ -287,9 +304,9 @@ private fun PreviewComponentItem(
         trailingContent = {
             Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                 if (component.costUnavailable) {
-                    Text(stringResource(R.string.component_cost_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.production_cost_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 } else {
-                    Text(text = component.totalCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_applicable), fontWeight = FontWeight.Bold)
+                    Text(text = component.totalCost?.let { Formatters.formatCurrency(it, currencyCode) } ?: stringResource(R.string.not_available), fontWeight = FontWeight.Bold)
                     Text(text = component.averageUnitCostBase?.let { Formatters.formatCurrency(it, currencyCode) + " base" } ?: "", style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -298,8 +315,8 @@ private fun PreviewComponentItem(
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun DetailRow(label: String, value: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
         Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }

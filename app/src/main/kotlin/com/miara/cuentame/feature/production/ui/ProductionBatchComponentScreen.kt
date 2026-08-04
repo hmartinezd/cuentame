@@ -139,7 +139,14 @@ fun ProductionBatchComponentScreen(
                             modifier = Modifier.fillMaxWidth().testTag("production_component_quantity_field"),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             isError = uiState.quantityError,
-                            supportingText = { Text(stringResource(R.string.manually_overridden)) }
+                            supportingText = {
+                                val error = uiState.quantityErrorMessage?.toDisplayText()
+                                if (error != null) {
+                                    Text(error)
+                                } else {
+                                    Text(stringResource(R.string.manually_overridden))
+                                }
+                            }
                         )
 
                         TextButton(onClick = onResetToRecipe, modifier = Modifier.testTag("production_component_reset")) {

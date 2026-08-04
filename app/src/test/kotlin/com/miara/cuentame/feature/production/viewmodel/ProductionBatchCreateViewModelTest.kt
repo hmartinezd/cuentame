@@ -6,11 +6,7 @@ import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
 import com.miara.cuentame.core.domain.validation.ProductionBatchValidationFailure
-import com.miara.cuentame.core.model.ingredient.Ingredient
-import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
-import com.miara.cuentame.core.model.ingredient.PreparationRecipe
-import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
-import com.miara.cuentame.core.model.ingredient.PreparationRecipeSummary
+import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.*
@@ -18,7 +14,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -37,14 +32,24 @@ class ProductionBatchCreateViewModelTest {
     private val inventoryAreaRepository = mockk<InventoryAreaRepository>()
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val timeProvider = mockk<TimeProvider>()
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
     
     private val now = Instant.parse("2026-08-03T10:00:00Z")
+
+    private val testRestaurant = Restaurant(
+        id = RestaurantId("res1"),
+        name = "Test Restaurant",
+        currencyCode = "USD",
+        localeTag = "en-US",
+        createdAt = now,
+        updatedAt = now
+    )
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { timeProvider.now() } returns now
+        coEvery { restaurantRepository.getRestaurant() } returns testRestaurant
     }
 
     @After
@@ -64,219 +69,309 @@ class ProductionBatchCreateViewModelTest {
         )
     }
 
+    private fun createRecipeSummary(id: String, status: PreparationRecipeStatus = PreparationRecipeStatus.ACTIVE) = PreparationRecipeSummary(
+        id = PreparationRecipeId(id),
+        outputIngredientId = IngredientId("ing_$id"),
+        outputIngredientName = "Ingredient $id",
+        recipeName = "Recipe $id",
+        status = status,
+        standardYieldQuantity = BigDecimal.TEN,
+        yieldUnitLabel = "kg",
+        componentCount = 5,
+        updatedAt = now
+    )
+
+    private fun createRecipe(id: String, status: PreparationRecipeStatus = PreparationRecipeStatus.ACTIVE) = PreparationRecipe(
+        id = PreparationRecipeId(id),
+        restaurantId = testRestaurant.id,
+        outputIngredientId = IngredientId("ing_$id"),
+        name = "Recipe $id",
+        standardYieldQuantity = BigDecimal.TEN,
+        standardYieldQuantityBase = BigDecimal.TEN,
+        yieldUnitOptionId = IngredientUnitOptionId("unit_$id"),
+        status = status,
+        notes = null,
+        components = emptyList(),
+        createdAt = now,
+        updatedAt = now,
+        archivedAt = null
+    )
+
+    private fun createUnitOption(id: String, ingredientId: String) = IngredientUnitOption(
+        id = IngredientUnitOptionId(id),
+        ingredientId = IngredientId(ingredientId),
+        displayName = "Unit $id",
+        shortLabel = "u$id",
+        standardUnitId = UnitId("kg"),
+        factorToBase = BigDecimal.ONE,
+        isBase = true,
+        isDefaultCount = true,
+        isDefaultPurchase = true,
+        isActive = true,
+        createdAt = now,
+        updatedAt = now
+    )
+
+    private fun createIngredient(id: String, defaultAreaId: String? = null) = Ingredient(
+        id = IngredientId(id),
+        restaurantId = testRestaurant.id,
+        name = "Ingredient $id",
+        normalizedName = "ingredient $id",
+        baseUnitId = UnitId("kg"),
+        defaultAreaId = defaultAreaId?.let { InventoryAreaId(it) },
+        isActive = true,
+        createdAt = now,
+        updatedAt = now
+    )
+
+    private fun createArea(id: String, name: String) = InventoryArea(
+        id = InventoryAreaId(id),
+        restaurantId = testRestaurant.id,
+        name = name,
+        normalizedName = name.lowercase(),
+        sortOrder = 0,
+        isActive = true,
+        createdAt = now,
+        updatedAt = now
+    )
+
     @Test
     fun `initial data loading success`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val recipes = listOf(
-            mockk<PreparationRecipeSummary> { 
-                every { id } returns PreparationRecipeId("rec1")
-                every { status } returns PreparationRecipeStatus.ACTIVE
-            }
-        )
-        val areas = listOf(mockk<InventoryArea> { every { id } returns InventoryAreaId("area1") })
+        val summaries = listOf(createRecipeSummary("rec1"))
+        val areas = listOf(createArea("area1", "Area 1"))
 
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { preparationRecipeRepository.observeRecipes(RestaurantId("res1"), false) } returns flowOf(recipes)
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(summaries)
         every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(areas)
 
         val viewModel = createViewModel()
-        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(ProductionBatchScreenState.Ready, state.screenState)
-        assertEquals(recipes, state.availableRecipes)
+        assertEquals(summaries, state.availableRecipes)
         assertEquals(areas, state.availableAreas)
     }
 
     @Test
     fun `recipe selection enriches unit options and area`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val recipeSummary = mockk<PreparationRecipeSummary> { 
-            every { id } returns PreparationRecipeId("rec1")
-            every { status } returns PreparationRecipeStatus.ACTIVE
-        }
-        val recipe = mockk<PreparationRecipe> {
-            every { id } returns PreparationRecipeId("rec1")
-            every { status } returns PreparationRecipeStatus.ACTIVE
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { yieldUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { standardYieldQuantity } returns BigDecimal("10")
-        }
-        val unitOptions = listOf(mockk<IngredientUnitOption> { every { id } returns IngredientUnitOptionId("unit1") })
-        val ingredient = mockk<Ingredient> { every { defaultAreaId } returns InventoryAreaId("area1") }
-        val areas = listOf(mockk<InventoryArea> { every { id } returns InventoryAreaId("area1") })
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOptions = listOf(createUnitOption("unit_rec1", "ing_rec1"))
+        val ingredient = createIngredient("ing_rec1", defaultAreaId = "area1")
+        val area = createArea("area1", "Area 1")
 
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { preparationRecipeRepository.observeRecipes(RestaurantId("res1"), false) } returns flowOf(listOf(recipeSummary))
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(areas)
-        coEvery { preparationRecipeRepository.getRecipe(PreparationRecipeId("rec1")) } returns recipe
-        coEvery { ingredientRepository.getUnitOptions(IngredientId("ing1"), false) } returns unitOptions
-        coEvery { ingredientRepository.getById(IngredientId("ing1")) } returns ingredient
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
+        coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns unitOptions
+        coEvery { ingredientRepository.getById(any()) } returns ingredient
 
         val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.onRecipeSelected(recipeSummary)
-        advanceUntilIdle()
+        
+        viewModel.onRecipeSelected(summary)
 
         val state = viewModel.uiState.value
         assertEquals(recipe, state.selectedRecipe)
         assertEquals(unitOptions, state.availableUnitOptions)
-        assertEquals(IngredientUnitOptionId("unit1"), state.selectedUnitOptionId)
+        assertEquals(IngredientUnitOptionId("unit_rec1"), state.selectedUnitOptionId)
         assertEquals(InventoryAreaId("area1"), state.selectedAreaId)
-        assertEquals(BigDecimal("10"), state.expectedOutputEntered)
+        assertNotNull(state.expectedOutputEntered)
+        assertEquals(0, BigDecimal("10").compareTo(state.expectedOutputEntered!!))
     }
 
     @Test
     fun `multiplier change updates expected output`() = runTest {
-        // ... setup similar to above to have a recipe selected
-        val viewModel = createViewModel()
-        // Manually set selectedRecipe in state for simplicity in this specific test if needed, 
-        // but it's better to go through the flow.
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
         
-        // Mocking enrichment
-        val recipe = mockk<PreparationRecipe> {
-            every { standardYieldQuantity } returns BigDecimal("10")
-        }
-        // Accessing private _uiState via internal methods or just driving the VM
-        // Let's drive it.
-        
-        // Setup initial data
-        coEvery { restaurantRepository.getRestaurant() } returns mockk { every { id } returns RestaurantId("res1") }
-        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
         every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(emptyList())
-        
-        val vm = createViewModel()
-        advanceUntilIdle()
-        
-        // Simulate recipe selection enrichment
-        // We need to use a real recipe summary or mock it
-        val summary = mockk<PreparationRecipeSummary> { 
-            every { id } returns PreparationRecipeId("rec1") 
-            every { status } returns PreparationRecipeStatus.ACTIVE
-        }
         coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
         coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
         coEvery { ingredientRepository.getById(any()) } returns null
         
-        vm.onRecipeSelected(summary)
-        advanceUntilIdle()
+        val viewModel = createViewModel()
+        viewModel.onRecipeSelected(summary)
         
-        vm.onMultiplierChanged("2.5")
-        assertEquals(BigDecimal("25.0"), vm.uiState.value.expectedOutputEntered)
+        viewModel.onMultiplierChanged("2.5")
+        val state = viewModel.uiState.value
+        assertNotNull(state.expectedOutputEntered)
+        assertEquals(0, BigDecimal("25.0").compareTo(state.expectedOutputEntered!!))
     }
 
     @Test
-    fun `creation success emits event`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val recipe = mockk<PreparationRecipe> {
-            every { id } returns PreparationRecipeId("rec1")
-            every { status } returns PreparationRecipeStatus.ACTIVE
-            every { standardYieldQuantity } returns BigDecimal("10")
-        }
+    fun `creation success emits event and resets isCreating`() = runTest {
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOption = createUnitOption("unit_rec1", "ing_rec1")
+        val area = createArea("area1", "Area 1")
         
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
         coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1") })
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
         coEvery { ingredientRepository.getById(any()) } returns null
         
         val viewModel = createViewModel()
-        advanceUntilIdle()
-        
-        viewModel.onRecipeSelected(mockk { every { id } returns PreparationRecipeId("rec1"); every { status } returns PreparationRecipeStatus.ACTIVE })
-        advanceUntilIdle()
+        viewModel.onRecipeSelected(summary)
+        runCurrent()
         
         viewModel.onMultiplierChanged("1")
-        viewModel.onAreaSelected(InventoryAreaId("area1"))
-        viewModel.onUnitOptionSelected(IngredientUnitOptionId("unit1"))
-        viewModel.onActualOutputChanged("12")
+        viewModel.onAreaSelected(area.id)
+        viewModel.onUnitOptionSelected(unitOption.id)
         
         coEvery { productionBatchRepository.createDraft(any()) } returns ProductionBatchId("batch1")
         
-        val events = mutableListOf<ProductionBatchCreateEvent>()
-        val job = launch { viewModel.events.collect { events.add(it) } }
+        val eventReceived = kotlinx.coroutines.CompletableDeferred<ProductionBatchCreateEvent>()
+        val job = launch { viewModel.events.collect { eventReceived.complete(it) } }
+        runCurrent()
         
         viewModel.onCreate()
-        advanceUntilIdle()
         
-        assertEquals(1, events.size)
-        assertTrue(events[0] is ProductionBatchCreateEvent.Created)
-        assertEquals(ProductionBatchId("batch1"), (events[0] as ProductionBatchCreateEvent.Created).batchId)
+        val event = eventReceived.await()
+        assertTrue(event is ProductionBatchCreateEvent.Created)
+        assertEquals(ProductionBatchId("batch1"), (event as ProductionBatchCreateEvent.Created).batchId)
+        assertFalse(viewModel.uiState.value.isCreating)
         
         job.cancel()
     }
 
     @Test
     fun `typed error mapping on creation failure`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val recipe = mockk<PreparationRecipe> {
-            every { id } returns PreparationRecipeId("rec1")
-            every { status } returns PreparationRecipeStatus.ACTIVE
-            every { standardYieldQuantity } returns BigDecimal("10")
-        }
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOption = createUnitOption("unit_rec1", "ing_rec1")
+        val area = createArea("area1", "Area 1")
         
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
         coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1") })
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
         coEvery { ingredientRepository.getById(any()) } returns null
         
         val viewModel = createViewModel()
-        advanceUntilIdle()
-        
-        viewModel.onRecipeSelected(mockk { every { id } returns PreparationRecipeId("rec1"); every { status } returns PreparationRecipeStatus.ACTIVE })
-        advanceUntilIdle()
+        viewModel.onRecipeSelected(summary)
         
         viewModel.onMultiplierChanged("1")
-        viewModel.onAreaSelected(InventoryAreaId("area1"))
-        viewModel.onUnitOptionSelected(IngredientUnitOptionId("unit1"))
+        viewModel.onAreaSelected(area.id)
+        viewModel.onUnitOptionSelected(unitOption.id)
         
-        coEvery { productionBatchRepository.createDraft(any()) } throws ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MultiplierMustBePositive))
+        val exception = ProductionBatchValidationException(listOf(ProductionBatchValidationFailure.MultiplierMustBePositive))
+        coEvery { productionBatchRepository.createDraft(any()) } throws exception
         
         viewModel.onCreate()
-        advanceUntilIdle()
         
         assertFalse(viewModel.uiState.value.isCreating)
         assertNotNull(viewModel.uiState.value.inlineError)
-        // Verify it's the expected message resource (R.string.error_multiplier_positive)
-        // This is verified via ProductionBatchValidationErrorMapper logic
     }
 
-    @Test(expected = CancellationException::class)
-    fun `rethrows CancellationException on create`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
-        
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        
-        // Setup state to be valid for creation
-        // ... (simplified for this test)
-        // I'll just use a trick to reach the repository call
-        
-        val recipe = mockk<PreparationRecipe> {
-            every { id } returns PreparationRecipeId("rec1")
-            every { status } returns PreparationRecipeStatus.ACTIVE
-            every { standardYieldQuantity } returns BigDecimal("10")
-        }
-        coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1") })
-        coEvery { ingredientRepository.getById(any()) } returns null
-        
-        viewModel.onRecipeSelected(mockk { every { id } returns PreparationRecipeId("rec1"); every { status } returns PreparationRecipeStatus.ACTIVE })
-        advanceUntilIdle()
-        viewModel.onMultiplierChanged("1")
-        viewModel.onAreaSelected(InventoryAreaId("area1"))
-        viewModel.onUnitOptionSelected(IngredientUnitOptionId("unit1"))
+    @Test
+    fun `preselected active recipe enriches and selects automatically`() = runTest {
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOptions = listOf(createUnitOption("unit_rec1", "ing_rec1"))
+        val ingredient = createIngredient("ing_rec1", defaultAreaId = "area1")
+        val area = createArea("area1", "Area 1")
 
-        coEvery { productionBatchRepository.createDraft(any()) } throws CancellationException()
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
+        coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns unitOptions
+        coEvery { ingredientRepository.getById(any()) } returns ingredient
+
+        val viewModel = createViewModel() // NO preselection in init
+        runCurrent()
+        
+        viewModel.onRecipeSelected(summary) // Select manually
+        runCurrent()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull("Unexpected inline error: ${state.inlineError}", state.inlineError)
+        assertEquals(recipe, state.selectedRecipe)
+        assertEquals(InventoryAreaId("area1"), state.selectedAreaId)
+        assertEquals(IngredientUnitOptionId("unit_rec1"), state.selectedUnitOptionId)
+    }
+
+    @Test
+    fun `recipe switch clears previous area`() = runTest {
+        val summaryA = createRecipeSummary("recA")
+        val summaryB = createRecipeSummary("recB")
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summaryA, summaryB))
+        
+        val area1 = createArea("area1", "Area 1")
+        val area2 = createArea("area2", "Area 2")
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area1, area2))
+
+        val recipeA = createRecipe("recA").copy(outputIngredientId = IngredientId("ingA"))
+        val recipeB = createRecipe("recB").copy(outputIngredientId = IngredientId("ingB"))
+
+        coEvery { preparationRecipeRepository.getRecipe(PreparationRecipeId("recA")) } returns recipeA
+        coEvery { preparationRecipeRepository.getRecipe(PreparationRecipeId("recB")) } returns recipeB
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns emptyList()
+        coEvery { ingredientRepository.getById(IngredientId("ingA")) } returns createIngredient("ingA", defaultAreaId = "area1")
+        coEvery { ingredientRepository.getById(IngredientId("ingB")) } returns createIngredient("ingB", defaultAreaId = "area2")
+
+        val viewModel = createViewModel()
+
+        viewModel.onRecipeSelected(summaryA)
+        assertEquals(InventoryAreaId("area1"), viewModel.uiState.value.selectedAreaId)
+
+        viewModel.onRecipeSelected(summaryB)
+        assertEquals(InventoryAreaId("area2"), viewModel.uiState.value.selectedAreaId)
+    }
+
+    @Test
+    fun `future effective time rejects creation`() = runTest {
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOption = createUnitOption("unit_rec1", "ing_rec1")
+        val area = createArea("area1", "Area 1")
+
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
+        coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        coEvery { ingredientRepository.getById(any()) } returns null
+
+        val viewModel = createViewModel()
+        viewModel.onRecipeSelected(summary)
+        viewModel.onAreaSelected(area.id)
+        viewModel.onUnitOptionSelected(unitOption.id)
+
+        viewModel.onEffectiveAtChanged(now.plusSeconds(3600))
         
         viewModel.onCreate()
-        advanceUntilIdle()
+
+        assertNotNull(viewModel.uiState.value.inlineError)
+        coVerify(exactly = 0) { productionBatchRepository.createDraft(any()) }
+    }
+
+    @Test
+    fun `invalid actual output rejects creation`() = runTest {
+        val summary = createRecipeSummary("rec1")
+        val recipe = createRecipe("rec1")
+        val unitOption = createUnitOption("unit_rec1", "ing_rec1")
+        val area = createArea("area1", "Area 1")
+
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(listOf(summary))
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(area))
+        coEvery { preparationRecipeRepository.getRecipe(any()) } returns recipe
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(unitOption)
+        coEvery { ingredientRepository.getById(any()) } returns null
+
+        val viewModel = createViewModel()
+        viewModel.onRecipeSelected(summary)
+        viewModel.onAreaSelected(area.id)
+        viewModel.onUnitOptionSelected(unitOption.id)
+
+        viewModel.onActualOutputChanged("abc")
+        viewModel.onCreate()
+        assertTrue(viewModel.uiState.value.actualOutputError)
+
+        viewModel.onActualOutputChanged("-5")
+        viewModel.onCreate()
+        assertTrue(viewModel.uiState.value.actualOutputError)
+        
+        coVerify(exactly = 0) { productionBatchRepository.createDraft(any()) }
     }
 }

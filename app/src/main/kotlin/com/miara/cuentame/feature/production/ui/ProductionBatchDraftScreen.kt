@@ -63,7 +63,7 @@ fun ProductionBatchDraftRoute(
         onBackClick = onBack,
         onSaveClick = viewModel::onSave,
         onDeleteClick = viewModel::onDelete,
-        onReviewClick = { uiState.batch?.let { onReview(it.id) } },
+        onReviewClick = viewModel::onReview,
         onMultiplierChanged = viewModel::onMultiplierChanged,
         onAreaSelected = viewModel::onAreaSelected,
         onUnitOptionSelected = viewModel::onUnitOptionSelected,
@@ -107,7 +107,11 @@ fun ProductionBatchDraftScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.testTag("production_batch_delete")) {
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier.testTag("production_batch_delete"),
+                        enabled = !uiState.isSaving && !uiState.isDeleting
+                    ) {
                         Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
                     }
                 }
@@ -159,8 +163,8 @@ fun ProductionBatchDraftScreen(
                         items(batch.components.sortedBy { it.sortOrder }, key = { it.id.value }) { component ->
                             ComponentItem(
                                 component = component,
-                                ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value,
-                                unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value,
+                                ingredientName = uiState.componentNames[component.id] ?: stringResource(R.string.not_available),
+                                unitLabel = uiState.componentUnitLabels[component.id] ?: stringResource(R.string.not_available),
                                 recipeUnitLabel = uiState.componentRecipeUnitLabels[component.id] ?: "",
                                 areaName = uiState.componentAreaNames[component.id],
                                 onClick = { onComponentClick(component.id) }
@@ -173,6 +177,7 @@ fun ProductionBatchDraftScreen(
                         onSave = onSaveClick,
                         onReview = onReviewClick,
                         isSaving = uiState.isSaving,
+                        isDeleting = uiState.isDeleting,
                         hasUnsavedChanges = uiState.hasUnsavedChanges
                     )
                 }
@@ -347,6 +352,7 @@ private fun ActionButtons(
     onSave: () -> Unit,
     onReview: () -> Unit,
     isSaving: Boolean,
+    isDeleting: Boolean,
     hasUnsavedChanges: Boolean
 ) {
     Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
@@ -360,14 +366,18 @@ private fun ActionButtons(
                 )
             }
             Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f).testTag("production_batch_save"), enabled = !isSaving) {
+                OutlinedButton(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f).testTag("production_batch_save"),
+                    enabled = !isSaving && !isDeleting
+                ) {
                     if (isSaving) CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     else Text(stringResource(R.string.action_save))
                 }
                 Button(
                     onClick = onReview,
                     modifier = Modifier.weight(1f).testTag("production_batch_review"),
-                    enabled = !isSaving && !hasUnsavedChanges
+                    enabled = !isSaving && !isDeleting && !hasUnsavedChanges
                 ) {
                     Text(stringResource(R.string.review_and_post))
                 }

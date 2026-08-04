@@ -310,8 +310,10 @@ class ProductionBatchCreateViewModel @Inject constructor(
                         notes = state.notes.trim().ifBlank { null }
                     )
                 )
+                _uiState.update { it.copy(isCreating = false) }
                 _events.send(ProductionBatchCreateEvent.Created(batchId))
             } catch (e: CancellationException) {
+                _uiState.update { it.copy(isCreating = false) }
                 throw e
             } catch (e: ProductionBatchValidationException) {
                 _uiState.update { it.copy(isCreating = false, inlineError = e.failures.toUserMessage()) }

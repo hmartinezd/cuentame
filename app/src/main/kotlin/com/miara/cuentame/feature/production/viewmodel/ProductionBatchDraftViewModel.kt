@@ -394,9 +394,11 @@ class ProductionBatchDraftViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ProductionBatchValidationException) {
-                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isDeleting = false) }
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isDeleting = false) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
+            } finally {
+                _uiState.update { it.copy(isDeleting = false) }
             }
         }
     }

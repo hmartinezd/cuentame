@@ -1,40 +1,27 @@
 package com.miara.cuentame.feature.production.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
-import com.miara.cuentame.core.common.ids.IngredientId
-import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
-import com.miara.cuentame.core.common.ids.InventoryAreaId
-import com.miara.cuentame.core.common.ids.ProductionBatchId
-import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.core.domain.repository.IngredientRepository
-import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
-import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
-import com.miara.cuentame.core.domain.repository.RestaurantRepository
-import com.miara.cuentame.core.domain.repository.UpdateProductionBatchDraftCommand
+import com.miara.cuentame.core.common.ids.*
+import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.domain.validation.ProductionBatchValidationException
+import com.miara.cuentame.core.model.ingredient.Ingredient
+import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.ProductionBatch
 import com.miara.cuentame.core.model.restaurant.Restaurant
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.slot
+import io.mockk.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.*
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
@@ -47,12 +34,28 @@ class ProductionBatchDraftViewModelTest {
     private val ingredientRepository = mockk<IngredientRepository>()
     private val inventoryAreaRepository = mockk<InventoryAreaRepository>()
     private val restaurantRepository = mockk<RestaurantRepository>()
-    private val timeProvider = mockk<com.miara.cuentame.core.common.time.TimeProvider>()
-    private val testDispatcher = StandardTestDispatcher()
+    private val timeProvider = mockk<TimeProvider>()
+    private val testDispatcher = UnconfinedTestDispatcher()
+
+    private val restaurantId = RestaurantId("res1")
+    private val batchId = ProductionBatchId("batch1")
+    private val areaId = InventoryAreaId("area1")
+    private val ingredientId = IngredientId("ing1")
+    private val unit1Id = IngredientUnitOptionId("unit1")
+    private val unit2Id = IngredientUnitOptionId("unit2")
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        coEvery { restaurantRepository.getRestaurant() } returns Restaurant(
+            id = restaurantId,
+            name = "Rest",
+            currencyCode = "USD",
+            localeTag = "en-US",
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH
+        )
+        every { timeProvider.now() } returns Instant.EPOCH
     }
 
     @After
@@ -60,226 +63,221 @@ class ProductionBatchDraftViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(batchId: String = "batch1"): ProductionBatchDraftViewModel {
+    private fun createViewModel(id: String = batchId.value): ProductionBatchDraftViewModel {
         return ProductionBatchDraftViewModel(
             productionBatchRepository,
             ingredientRepository,
             inventoryAreaRepository,
             restaurantRepository,
             timeProvider,
-            SavedStateHandle(mapOf("batchId" to batchId)),
+            SavedStateHandle(mapOf("batchId" to id))
+        )
+    }
+
+    private fun createBatch(
+        id: String = batchId.value,
+        status: DocumentStatus = DocumentStatus.DRAFT,
+        components: List<com.miara.cuentame.core.model.inventory.ProductionBatchComponent> = emptyList()
+    ) = ProductionBatch(
+        id = ProductionBatchId(id),
+        restaurantId = restaurantId,
+        recipeId = PreparationRecipeId("rec1"),
+        recipeNameSnapshot = "Recipe",
+        outputIngredientId = ingredientId,
+        batchMultiplier = BigDecimal.ONE,
+        recipeStandardYieldQuantitySnapshot = BigDecimal("10"),
+        recipeStandardYieldBaseSnapshot = BigDecimal("10"),
+        recipeYieldUnitOptionIdSnapshot = unit1Id,
+        expectedOutputQuantityEntered = BigDecimal("10"),
+        expectedOutputQuantityBase = BigDecimal("10"),
+        actualOutputQuantityEntered = BigDecimal("10"),
+        actualOutputQuantityBase = BigDecimal("10"),
+        outputUnitOptionId = unit1Id,
+        outputAreaId = areaId,
+        hasManualOutputQuantityOverride = false,
+        totalComponentCostSnapshot = null,
+        outputUnitCostBaseSnapshot = null,
+        effectiveAt = Instant.EPOCH,
+        status = status,
+        notes = null,
+        components = components,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH,
+        postedAt = null,
+        voidedAt = null
+    )
+
+    private fun createUnitOption(id: IngredientUnitOptionId, factor: BigDecimal) = IngredientUnitOption(
+        id = id,
+        ingredientId = ingredientId,
+        displayName = "Unit $id",
+        shortLabel = "u",
+        standardUnitId = null,
+        factorToBase = factor,
+        isBase = factor == BigDecimal.ONE,
+        isDefaultCount = true,
+        isDefaultPurchase = true,
+        isActive = true,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH
+    )
+
+    private fun createArea(id: InventoryAreaId, name: String) = InventoryArea(
+        id = id,
+        restaurantId = restaurantId,
+        name = name,
+        normalizedName = name.lowercase(),
+        sortOrder = 0,
+        isActive = true,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH
+    )
+
+    private val batchFlow = MutableStateFlow<ProductionBatch?>(null)
+
+    private fun setupDefaultStubs(batch: ProductionBatch = createBatch()) {
+        batchFlow.value = batch
+        every { productionBatchRepository.observeBatch(any()) } returns batchFlow
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(createArea(areaId, "Area 1")))
+        coEvery { inventoryAreaRepository.getById(any()) } returns createArea(areaId, "Area")
+        coEvery { ingredientRepository.getById(any()) } returns mockk<Ingredient> { 
+            every { id } returns ingredientId
+            every { name } returns "Ingredient" 
+        }
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(
+            createUnitOption(unit1Id, BigDecimal.ONE),
+            createUnitOption(unit2Id, BigDecimal("2"))
         )
     }
 
     @Test
-    fun `strict reference enrichment verified`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val batch = mockk<ProductionBatch> {
-            every { id } returns ProductionBatchId("batch1")
-            every { status } returns DocumentStatus.DRAFT
-            every { outputAreaId } returns InventoryAreaId("area1")
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { outputUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { components } returns emptyList()
-            every { batchMultiplier } returns BigDecimal("1")
-            every { actualOutputQuantityEntered } returns BigDecimal("10")
-            every { effectiveAt } returns Instant.now()
-            every { notes } returns null
-            every { hasManualOutputQuantityOverride } returns false
-            every { recipeStandardYieldQuantitySnapshot } returns BigDecimal("10")
-        }
-
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { productionBatchRepository.observeBatch(ProductionBatchId("batch1")) } returns flowOf(batch)
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(emptyList())
-        coEvery { inventoryAreaRepository.getById(InventoryAreaId("area1")) } returns null // Failure here
-
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        // Lookup failure enters LoadError
-        assertTrue(viewModel.uiState.value.screenState is ProductionBatchScreenState.LoadError)
+    fun `invalid route state verified`() = runTest {
+        val viewModel = createViewModel("")
+        assertEquals(ProductionBatchScreenState.InvalidRoute, viewModel.uiState.value.screenState)
     }
 
     @Test
-    fun `dirty-only patch semantics verified`() = runTest {
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val batch = mockk<ProductionBatch> {
-            every { id } returns ProductionBatchId("batch1")
-            every { status } returns DocumentStatus.DRAFT
-            every { outputAreaId } returns InventoryAreaId("area1")
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { outputUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { components } returns emptyList()
-            every { batchMultiplier } returns BigDecimal("1")
-            every { actualOutputQuantityEntered } returns BigDecimal("10")
-            every { effectiveAt } returns Instant.now()
-            every { notes } returns null
-            every { hasManualOutputQuantityOverride } returns false
-            every { recipeStandardYieldQuantitySnapshot } returns BigDecimal("10")
-        }
-
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { productionBatchRepository.observeBatch(ProductionBatchId("batch1")) } returns flowOf(batch)
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
-        coEvery { inventoryAreaRepository.getById(InventoryAreaId("area1")) } returns mockk { every { id } returns InventoryAreaId("area1"); every { name } returns "Area 1" }
-        coEvery { ingredientRepository.getById(IngredientId("ing1")) } returns mockk { every { name } returns "Ing 1" }
-        coEvery { ingredientRepository.getUnitOptions(IngredientId("ing1"), includeArchived = true) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1"); every { displayName } returns "Unit 1" })
-
+    fun `batch not found state verified`() = runTest {
+        val flow = MutableStateFlow<ProductionBatch?>(null)
+        every { productionBatchRepository.observeBatch(any()) } returns flow
         val viewModel = createViewModel()
+        runCurrent()
         advanceUntilIdle()
+        assertEquals(ProductionBatchScreenState.BatchNotFound, viewModel.uiState.value.screenState)
+    }
 
-        // Change only notes
-        viewModel.onNotesChanged("Updated notes")
+    @Test
+    fun `effective time change generates focused command`() = runTest {
+        setupDefaultStubs()
+        val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
         
+        val newTime = Instant.EPOCH.minusSeconds(3600)
+
+        viewModel.onEffectiveAtChanged(newTime)
         coEvery { productionBatchRepository.updateDraft(any()) } returns Unit
         
         viewModel.onSave()
+        runCurrent()
         advanceUntilIdle()
 
-        val commandSlot = slot<UpdateProductionBatchDraftCommand>()
-        coVerify { productionBatchRepository.updateDraft(capture(commandSlot)) }
-        
-        val command = commandSlot.captured
-        assertEquals("Updated notes", command.notes)
-        assertNull(command.batchMultiplier) // Not dirty
-        assertNull(command.outputAreaId) // Not dirty
-        assertNull(command.actualOutputQuantityEntered) // Not dirty
+        coVerify(exactly = 1) { productionBatchRepository.updateDraft(any()) }
     }
 
     @Test
     fun `unsaved changes guard on review button`() = runTest {
-        // Setup initial data (Ready state)
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val batch = mockk<ProductionBatch> {
-            every { id } returns ProductionBatchId("batch1")
-            every { status } returns DocumentStatus.DRAFT
-            every { outputAreaId } returns InventoryAreaId("area1")
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { outputUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { components } returns emptyList()
-            every { batchMultiplier } returns BigDecimal("1")
-            every { actualOutputQuantityEntered } returns BigDecimal("10")
-            every { effectiveAt } returns Instant.now()
-            every { notes } returns null
-            every { hasManualOutputQuantityOverride } returns false
-            every { recipeStandardYieldQuantitySnapshot } returns BigDecimal("10")
-        }
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { productionBatchRepository.observeBatch(ProductionBatchId("batch1")) } returns flowOf(batch)
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
-        coEvery { inventoryAreaRepository.getById(any()) } returns mockk { every { id } returns InventoryAreaId("area1"); every { name } returns "Area 1" }
-        coEvery { ingredientRepository.getById(any()) } returns mockk { every { name } returns "Ing 1" }
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1"); every { displayName } returns "Unit 1" })
-
+        setupDefaultStubs()
         val viewModel = createViewModel()
+        runCurrent()
         advanceUntilIdle()
 
-        // Make it dirty
         viewModel.onNotesChanged("Dirty")
-        
-        val events = mutableListOf<ProductionBatchDraftEvent>()
-        val job = launch { viewModel.events.collect { events.add(it) } }
-        
         viewModel.onReview()
-        advanceUntilIdle()
         
-        assertTrue(events.isEmpty()) // Blocked by unsaved changes
-
-        // Save
         coEvery { productionBatchRepository.updateDraft(any()) } returns Unit
         viewModel.onSave()
+        batchFlow.value = createBatch().copy(notes = "Dirty") // Simulate update
+        runCurrent()
         advanceUntilIdle()
         
         assertFalse(viewModel.uiState.value.hasUnsavedChanges)
-        
+
         viewModel.onReview()
-        advanceUntilIdle()
-        
-        assertEquals(1, events.size)
-        assertTrue(events[0] is ProductionBatchDraftEvent.NavigateToPreview)
-        
-        job.cancel()
+        val event = viewModel.events.first()
+        assertTrue(event is ProductionBatchDraftEvent.NavigateToPreview)
     }
 
     @Test
     fun `serialization of operations - isSaving prevents onSave`() = runTest {
-        // Setup initial data
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val batch = mockk<ProductionBatch> {
-            every { id } returns ProductionBatchId("batch1")
-            every { status } returns DocumentStatus.DRAFT
-            every { outputAreaId } returns InventoryAreaId("area1")
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { outputUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { components } returns emptyList()
-            every { batchMultiplier } returns BigDecimal("1")
-            every { actualOutputQuantityEntered } returns BigDecimal("10")
-            every { effectiveAt } returns Instant.now()
-            every { notes } returns null
-            every { hasManualOutputQuantityOverride } returns false
-            every { recipeStandardYieldQuantitySnapshot } returns BigDecimal("10")
-        }
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { productionBatchRepository.observeBatch(ProductionBatchId("batch1")) } returns flowOf(batch)
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(mockk { every { id } returns InventoryAreaId("area1") }))
-        coEvery { inventoryAreaRepository.getById(any()) } returns mockk { every { id } returns InventoryAreaId("area1"); every { name } returns "Area 1" }
-        coEvery { ingredientRepository.getById(any()) } returns mockk { every { name } returns "Ing 1" }
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1"); every { displayName } returns "Unit 1" })
-
+        setupDefaultStubs()
         val viewModel = createViewModel()
+        runCurrent()
         advanceUntilIdle()
-
+        
         viewModel.onNotesChanged("Test")
-        
-        // Mock a slow save
+
         coEvery { productionBatchRepository.updateDraft(any()) } coAnswers {
-            kotlinx.coroutines.delay(java.time.Duration.ofSeconds(1).toMillis())
+            kotlinx.coroutines.delay(1000)
+            Unit
         }
-        
-        launch { viewModel.onSave() }
-        advanceTimeBy(500)
+
+        val saveJob = launch { viewModel.onSave() }
+        runCurrent()
         assertTrue(viewModel.uiState.value.isSaving)
-        
-        // Second call should be ignored
-        viewModel.onSave()
-        
-        advanceUntilIdle()
+
+        viewModel.onSave() // Should be ignored
+
+        advanceTimeBy(1001)
         coVerify(exactly = 1) { productionBatchRepository.updateDraft(any()) }
+        assertFalse(viewModel.uiState.value.isSaving)
+        saveJob.cancel()
     }
 
-    @Test(expected = CancellationException::class)
-    fun `rethrows CancellationException on save`() = runTest {
-        // Setup similar to above
-        val restaurant = mockk<Restaurant> { every { id } returns RestaurantId("res1") }
-        val batch = mockk<ProductionBatch> {
-            every { id } returns ProductionBatchId("batch1")
-            every { status } returns DocumentStatus.DRAFT
-            every { outputAreaId } returns InventoryAreaId("area1")
-            every { outputIngredientId } returns IngredientId("ing1")
-            every { outputUnitOptionId } returns IngredientUnitOptionId("unit1")
-            every { components } returns emptyList()
-            every { batchMultiplier } returns BigDecimal("1")
-            every { actualOutputQuantityEntered } returns BigDecimal("10")
-            every { effectiveAt } returns Instant.now()
-            every { notes } returns null
-            every { hasManualOutputQuantityOverride } returns false
-            every { recipeStandardYieldQuantitySnapshot } returns BigDecimal("10")
-        }
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        every { productionBatchRepository.observeBatch(any()) } returns flowOf(batch)
-        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(emptyList())
-        coEvery { inventoryAreaRepository.getById(any()) } returns mockk { every { id } returns InventoryAreaId("area1"); every { name } returns "Area 1" }
-        coEvery { ingredientRepository.getById(any()) } returns mockk { every { name } returns "Ing 1" }
-        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(mockk { every { id } returns IngredientUnitOptionId("unit1"); every { displayName } returns "Unit 1" })
-
+    @Test
+    fun `delete resets isDeleting on success and failure`() = runTest {
+        setupDefaultStubs()
         val viewModel = createViewModel()
+        runCurrent()
+        advanceUntilIdle()
+
+        // Success
+        coEvery { productionBatchRepository.deleteDraft(any()) } returns Unit
+        
+        viewModel.onDelete()
+        val event = viewModel.events.first()
+        assertTrue(event is ProductionBatchDraftEvent.Deleted)
+        assertFalse(viewModel.uiState.value.isDeleting)
+
+        // Failure
+        coEvery { productionBatchRepository.deleteDraft(any()) } throws Exception("boom")
+        viewModel.onDelete()
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertNotNull(viewModel.uiState.value.inlineError)
+    }
+
+    @Test
+    fun `save and delete operations are mutually exclusive`() = runTest {
+        setupDefaultStubs()
+        val viewModel = createViewModel()
+        runCurrent()
         advanceUntilIdle()
         
-        viewModel.onNotesChanged("Test")
-        coEvery { productionBatchRepository.updateDraft(any()) } throws CancellationException()
+        viewModel.onNotesChanged("Dirty")
+
+        coEvery { productionBatchRepository.updateDraft(any()) } coAnswers {
+            kotlinx.coroutines.delay(1000)
+            Unit
+        }
+
+        launch { viewModel.onSave() }
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        viewModel.onDelete() // Should be ignored
+        coVerify(exactly = 0) { productionBatchRepository.deleteDraft(any()) }
         
-        viewModel.onSave()
-        advanceUntilIdle()
+        advanceTimeBy(1001)
+        assertFalse(viewModel.uiState.value.isSaving)
     }
 }

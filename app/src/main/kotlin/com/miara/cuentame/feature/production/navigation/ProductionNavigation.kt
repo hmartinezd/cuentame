@@ -43,7 +43,7 @@ internal fun NavController.replaceProductionPreviewWithDetail(
     batchId: ProductionBatchId
 ) {
     navigate(AppRoutes.productionBatchDetail(batchId)) {
-        popUpTo(Destination.PRODUCTION_BATCH_PREVIEW.route) {
+        popUpTo(Destination.PRODUCTION_BATCH_DRAFT.route) {
             inclusive = true
         }
         launchSingleTop = true

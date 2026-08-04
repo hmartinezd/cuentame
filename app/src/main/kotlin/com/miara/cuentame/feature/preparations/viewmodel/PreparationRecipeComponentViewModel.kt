@@ -220,7 +220,8 @@ class PreparationRecipeComponentViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 availableUnitOptions = unitOptions,
-                                selectedUnitOptionId = if (it.selectedUnitOptionId !in unitOptions.map { o -> o.id }) null else it.selectedUnitOptionId
+                                selectedUnitOptionId = if (it.selectedUnitOptionId !in unitOptions.map { o -> o.id }) null else it.selectedUnitOptionId,
+                                inlineError = null
                             )
                         }
                     }

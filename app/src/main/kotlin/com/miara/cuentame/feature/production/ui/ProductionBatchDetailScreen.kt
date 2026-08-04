@@ -140,10 +140,10 @@ fun ProductionBatchDetailScreen(
                         items(batch.components.sortedBy { it.sortOrder }, key = { it.id.value }) { component ->
                             ComponentDetailItem(
                                 component = component,
-                                ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value,
-                                unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value,
+                                ingredientName = uiState.componentNames[component.id] ?: stringResource(R.string.not_available),
+                                unitLabel = uiState.componentUnitLabels[component.id] ?: stringResource(R.string.not_available),
                                 recipeUnitLabel = uiState.componentRecipeUnitLabels[component.id] ?: "",
-                                areaName = uiState.componentAreaNames[component.id] ?: component.sourceAreaId?.value ?: "",
+                                areaName = uiState.componentAreaNames[component.id] ?: stringResource(R.string.not_available),
                                 currencyCode = uiState.currencyCode
                             )
                             HorizontalDivider()
@@ -198,7 +198,10 @@ fun ProductionBatchDetailScreen(
             title = { Text(stringResource(R.string.void_production_batch)) },
             text = { Text(stringResource(R.string.voiding_warning)) },
             confirmButton = {
-                TextButton(onClick = { onVoidClick(); showVoidConfirm = false }) {
+                TextButton(
+                    onClick = { onVoidClick(); showVoidConfirm = false },
+                    modifier = Modifier.testTag("production_void_confirm")
+                ) {
                     Text(stringResource(R.string.action_confirm))
                 }
             },
@@ -253,13 +256,15 @@ private fun DetailHeader(uiState: ProductionBatchDetailUiState) {
                 Text(text = stringResource(R.string.manually_overridden), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
             }
 
-            if (batch.totalComponentCostSnapshot != null) {
-                DetailRow(stringResource(R.string.total_component_cost), Formatters.formatCurrency(batch.totalComponentCostSnapshot, uiState.currencyCode))
-            }
+            DetailRow(
+                stringResource(R.string.total_component_cost),
+                batch.totalComponentCostSnapshot?.let { Formatters.formatCurrency(it, uiState.currencyCode) } ?: stringResource(R.string.not_available)
+            )
             
-            if (batch.outputUnitCostBaseSnapshot != null) {
-                DetailRow(stringResource(R.string.output_unit_cost), Formatters.formatCurrency(batch.outputUnitCostBaseSnapshot, uiState.currencyCode) + " base")
-            }
+            DetailRow(
+                stringResource(R.string.output_unit_cost),
+                batch.outputUnitCostBaseSnapshot?.let { Formatters.formatCurrency(it, uiState.currencyCode) + " base" } ?: stringResource(R.string.not_available)
+            )
 
             if (batch.notes != null) {
                 Text(text = stringResource(R.string.notes) + ": ${batch.notes}", style = MaterialTheme.typography.bodySmall)
@@ -282,9 +287,9 @@ private fun ComponentDetailItem(
         supportingContent = {
             Column {
                 Text(text = stringResource(R.string.area_label) + ": $areaName")
-                Text(text = "Recipe snapshot: ${Formatters.formatQuantity(component.recipeQuantityEnteredSnapshot, recipeUnitLabel)} (${Formatters.formatQuantity(component.recipeQuantityBaseSnapshot)} base)")
-                Text(text = stringResource(R.string.expected_quantity) + ": ${Formatters.formatQuantity(component.expectedQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.expectedQuantityBase)} base)")
-                Text(text = stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} base)")
+                Text(text = stringResource(R.string.production_recipe_snapshot) + ": ${Formatters.formatQuantity(component.recipeQuantityEnteredSnapshot, recipeUnitLabel)} (${Formatters.formatQuantity(component.recipeQuantityBaseSnapshot)} " + stringResource(R.string.production_quantity_base) + ")")
+                Text(text = stringResource(R.string.expected_quantity) + ": ${Formatters.formatQuantity(component.expectedQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.expectedQuantityBase)} " + stringResource(R.string.production_quantity_base) + ")")
+                Text(text = stringResource(R.string.actual_output) + ": ${Formatters.formatQuantity(component.actualQuantityEntered, unitLabel)} (${Formatters.formatQuantity(component.actualQuantityBase)} " + stringResource(R.string.production_quantity_base) + ")")
                 
                 if (component.hasManualQuantityOverride) {
                     Text(text = stringResource(R.string.manually_overridden), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
@@ -299,9 +304,13 @@ private fun ComponentDetailItem(
             Column(horizontalAlignment = Alignment.End) {
                 if (component.totalCostSnapshot != null) {
                     Text(Formatters.formatCurrency(component.totalCostSnapshot, currencyCode), fontWeight = FontWeight.Bold)
+                } else {
+                    Text(stringResource(R.string.not_available), style = MaterialTheme.typography.labelSmall)
                 }
                 if (component.unitCostBaseSnapshot != null) {
                     Text(Formatters.formatCurrency(component.unitCostBaseSnapshot, currencyCode) + " base", style = MaterialTheme.typography.labelSmall)
+                } else {
+                    Text(stringResource(R.string.production_unit_cost_unavailable), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

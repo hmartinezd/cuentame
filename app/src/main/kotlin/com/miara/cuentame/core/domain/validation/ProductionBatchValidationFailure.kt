@@ -32,6 +32,42 @@ sealed interface ProductionBatchValidationFailure {
     data object ComponentCostUnavailable : ProductionBatchValidationFailure
     data object MovementHistoryConflict : ProductionBatchValidationFailure
     data object RestrictedByArchive : ProductionBatchValidationFailure
+
+    companion object {
+        val ALL_FAILURES = listOf(
+            RestaurantMismatch,
+            RecipeNotFound,
+            RecipeNotActive,
+            RecipeHasNoYield,
+            RecipeHasNoComponents,
+            MultiplierMustBePositive,
+            EffectiveTimeInFuture,
+            OutputIngredientNotFound,
+            OutputIngredientInactive,
+            OutputAreaNotFound,
+            OutputAreaInactive,
+            OutputUnitOptionNotFound,
+            OutputUnitOptionInactive,
+            ActualOutputMustBePositive,
+            BatchNotFound,
+            BatchNotDraft,
+            ComponentNotFound,
+            ComponentIngredientNotFound,
+            ComponentIngredientInactive,
+            ComponentIngredientRestaurantMismatch,
+            ComponentQuantityMustBePositive,
+            InvalidUnitFactor,
+            SourceAreaNotFound,
+            SourceAreaInactive,
+            SourceAreaRestaurantMismatch,
+            ComponentUnitOptionNotFound,
+            ComponentUnitOptionInactive,
+            ComponentUnitOptionMismatch,
+            ComponentCostUnavailable,
+            MovementHistoryConflict,
+            RestrictedByArchive
+        )
+    }
 }
 
 class ProductionBatchValidationException(val failures: List<ProductionBatchValidationFailure>) : Exception(failures.joinToString())

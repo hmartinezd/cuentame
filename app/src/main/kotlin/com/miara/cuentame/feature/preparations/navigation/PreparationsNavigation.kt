@@ -14,7 +14,6 @@ import com.miara.cuentame.feature.preparations.ui.PreparationRecipeEditorRoute
 import com.miara.cuentame.feature.preparations.ui.PreparationRecipeListRoute
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.presentation.navigation.Destination
-import com.miara.cuentame.feature.production.navigation.navigateToProductionBatchList
 
 fun NavController.navigateToPreparationRecipeList() {
     this.navigate(Destination.PREPARATION_RECIPE_LIST.route)
@@ -62,7 +61,7 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeListRoute(
             onBackClick = onBackClick,
             onCreateRecipe = { navController.navigate(Destination.PREPARATION_RECIPE_CREATE.route) },
-            onViewProduction = { navController.navigateToProductionBatchList() },
+            onViewProduction = { navController.navigate(Destination.PRODUCTION_BATCH_LIST.route) },
             onRecipeClick = { id, status ->
                 val route = if (status == PreparationRecipeStatus.DRAFT) {
                     AppRoutes.preparationRecipeDraft(id)

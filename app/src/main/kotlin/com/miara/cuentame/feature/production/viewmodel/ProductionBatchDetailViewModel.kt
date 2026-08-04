@@ -171,9 +171,8 @@ class ProductionBatchDetailViewModel @Inject constructor(
                             )
                         }
                     }
-                } catch (e: CancellationException) {
-                    throw e
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
                 }
             }
@@ -187,12 +186,11 @@ class ProductionBatchDetailViewModel @Inject constructor(
             try {
                 productionBatchRepository.void(batchId)
                 // Observation will handle status change
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: ProductionBatchValidationException) {
-                _uiState.update { it.copy(inlineError = e.failures.toUserMessage(), isOperating = false) }
+                _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic), isOperating = false) }
+                if (e is CancellationException) throw e
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
             } finally {
                 _uiState.update { it.copy(isOperating = false) }
             }

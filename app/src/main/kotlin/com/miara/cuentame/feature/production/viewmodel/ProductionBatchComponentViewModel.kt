@@ -52,6 +52,7 @@ data class ProductionBatchComponentUiState(
     val hasManualOverride: Boolean = false,
     
     val quantityError: Boolean = false,
+    val quantityErrorMessage: UiMessage? = null,
     val inlineError: UiMessage? = null
 )
 
@@ -103,6 +104,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
                     }
 
                     productionBatchRepository.observeBatch(batchId).collectLatest { batch ->
+                        kotlinx.coroutines.yield()
                         if (batch == null) {
                             _uiState.update { it.copy(screenState = ProductionBatchScreenState.BatchNotFound) }
                             return@collectLatest
@@ -121,20 +123,20 @@ class ProductionBatchComponentViewModel @Inject constructor(
 
                         val ingredient = ingredientRepository.getById(component.componentIngredientId)
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_INGREDIENT"))) }
                                 return@collectLatest
                             }
 
                         val unitOptions = ingredientRepository.getUnitOptions(component.componentIngredientId, includeArchived = true)
                         val currentUnit = unitOptions.find { it.id == component.unitOptionId }
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_CURRENT_UNIT"))) }
                                 return@collectLatest
                             }
                         
                         val recipeUnit = unitOptions.find { it.id == component.recipeUnitOptionIdSnapshot }
                             ?: run {
-                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                                _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_RECIPE_UNIT"))) }
                                 return@collectLatest
                             }
 
@@ -142,7 +144,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
                         val sourceArea = component.sourceAreaId?.let { inventoryAreaRepository.getById(it) }
                         
                         if (component.sourceAreaId != null && sourceArea == null) {
-                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                            _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.PlainTextInternalOnly("MISSING_SOURCE_AREA"))) }
                             return@collectLatest
                         }
 
@@ -184,7 +186,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.error_generic))) }
+                    _uiState.update { it.copy(screenState = ProductionBatchScreenState.LoadError(UiMessage.Resource(R.string.saved))) }
                 }
             }
         }
@@ -196,10 +198,17 @@ class ProductionBatchComponentViewModel @Inject constructor(
 
     fun onUnitOptionSelected(optionId: IngredientUnitOptionId) {
         val state = _uiState.value
-        val oldOption = state.availableUnitOptions.find { it.id == state.selectedUnitOptionId }
-        val newOption = state.availableUnitOptions.find { it.id == optionId }
+        val available = state.availableUnitOptions.find { it.id == optionId }
         
-        if (oldOption != null && newOption != null && oldOption.id != newOption.id) {
+        if (available == null) {
+            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_unit_option_not_found)) }
+            return
+        }
+
+        val oldOption = state.availableUnitOptions.find { it.id == state.selectedUnitOptionId }
+        val newOption = available
+        
+        if (oldOption != null && oldOption.id != newOption.id) {
             val currentEntered = try { BigDecimal(state.actualQuantity) } catch (e: Exception) { BigDecimal.ZERO }
             val baseQty = currentEntered.multiply(oldOption.factorToBase, MathContext.DECIMAL128)
             val newEntered = baseQty.divide(newOption.factorToBase, MathContext.DECIMAL128)
@@ -209,15 +218,22 @@ class ProductionBatchComponentViewModel @Inject constructor(
                 actualQuantity = newEntered.stripTrailingZeros().toPlainString(),
                 unitDirty = true,
                 quantityDirty = true,
-                hasManualOverride = true
+                hasManualOverride = true,
+                inlineError = null
             ) }
         } else {
-            _uiState.update { it.copy(selectedUnitOptionId = optionId, unitDirty = true) }
+            _uiState.update { it.copy(selectedUnitOptionId = optionId, unitDirty = true, inlineError = null) }
         }
     }
 
     fun onQuantityChanged(quantity: String) {
-        _uiState.update { it.copy(actualQuantity = quantity, quantityDirty = true) }
+        _uiState.update { it.copy(
+            actualQuantity = quantity,
+            quantityDirty = true,
+            quantityError = false,
+            quantityErrorMessage = null,
+            inlineError = null
+        ) }
     }
 
     fun onNotesChanged(notes: String) {
@@ -235,23 +251,33 @@ class ProductionBatchComponentViewModel @Inject constructor(
             try {
                 productionBatchRepository.resetComponentToExpected(batchId, componentId)
                 val updatedBatch = productionBatchRepository.getBatch(batchId)
-                val updatedComponent = updatedBatch?.components?.find { it.id == componentId }
-                
-                if (updatedComponent != null) {
-                    _uiState.update { it.copy(
-                        actualQuantity = updatedComponent.actualQuantityEntered.toPlainString(),
-                        selectedUnitOptionId = updatedComponent.unitOptionId,
-                        hasManualOverride = false,
-                        quantityDirty = false,
-                        unitDirty = false
-                    ) }
+                if (updatedBatch == null) {
+                    _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_batch_not_found)) }
+                    return@launch
                 }
+                val updatedComponent = updatedBatch.components.find { it.id == componentId }
+                if (updatedComponent == null) {
+                    _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_component_not_found)) }
+                    return@launch
+                }
+                
+                _uiState.update { it.copy(
+                    component = updatedComponent,
+                    actualQuantity = updatedComponent.actualQuantityEntered.toPlainString(),
+                    selectedUnitOptionId = updatedComponent.unitOptionId,
+                    hasManualOverride = updatedComponent.hasManualQuantityOverride,
+                    quantityDirty = false,
+                    unitDirty = false,
+                    quantityError = false,
+                    quantityErrorMessage = null,
+                    inlineError = null
+                ) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ProductionBatchValidationException) {
                 _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.saved)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
@@ -263,16 +289,30 @@ class ProductionBatchComponentViewModel @Inject constructor(
         if (state.isSaving || batchId == null || componentId == null) return
 
         val parsedQuantity = if (state.quantityDirty || state.unitDirty) {
-            state.actualQuantity.trim().takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
+            val trimmed = state.actualQuantity.trim()
+            if (trimmed.isEmpty()) {
+                _uiState.update { it.copy(quantityError = true, quantityErrorMessage = UiMessage.Resource(R.string.error_quantity_required)) }
+                return
+            }
+            val parsed = trimmed.toBigDecimalOrNull()
+            if (parsed == null) {
+                _uiState.update { it.copy(quantityError = true, quantityErrorMessage = UiMessage.Resource(R.string.error_invalid_decimal)) }
+                return
+            }
+            if (parsed <= BigDecimal.ZERO) {
+                _uiState.update { it.copy(quantityError = true, quantityErrorMessage = UiMessage.Resource(R.string.error_quantity_positive)) }
+                return
+            }
+            parsed
         } else null
 
         if (state.quantityDirty || state.unitDirty) {
-            if (parsedQuantity == null || parsedQuantity <= BigDecimal.ZERO) {
-                _uiState.update { it.copy(quantityError = true, inlineError = UiMessage.Resource(R.string.error_quantity_positive)) }
-                return
-            }
             if (state.selectedUnitOptionId == null) {
                 _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_unit_required)) }
+                return
+            }
+            if (state.availableUnitOptions.none { it.id == state.selectedUnitOptionId }) {
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_unit_option_not_found)) }
                 return
             }
         }
@@ -296,7 +336,7 @@ class ProductionBatchComponentViewModel @Inject constructor(
             } catch (e: ProductionBatchValidationException) {
                 _uiState.update { it.copy(inlineError = e.failures.toUserMessage()) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.saved)) }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }

@@ -9,7 +9,7 @@ import org.junit.Test
 class ProductionBatchValidationErrorMapperTest {
 
     @Test
-    fun `maps all failures to correct strings`() {
+    fun `maps all failures to correct strings and covers entire hierarchy`() {
         val mapping = mapOf(
             ProductionBatchValidationFailure.RestaurantMismatch to R.string.error_no_restaurant,
             ProductionBatchValidationFailure.RecipeNotFound to R.string.error_recipe_not_found,
@@ -44,10 +44,22 @@ class ProductionBatchValidationErrorMapperTest {
             ProductionBatchValidationFailure.RestrictedByArchive to R.string.error_restricted_by_archive
         )
 
+        assertEquals(
+            "Mapper test is missing failures from domain ALL_FAILURES",
+            ProductionBatchValidationFailure.ALL_FAILURES.toSet(),
+            mapping.keys
+        )
+
         mapping.forEach { (failure, expectedRes) ->
             val message = failure.toUserMessage() as UiMessage.Resource
             assertEquals("Mismatch for $failure", expectedRes, message.id)
         }
+    }
+
+    @Test
+    fun `empty list returns generic error`() {
+        val message = emptyList<ProductionBatchValidationFailure>().toUserMessage() as UiMessage.Resource
+        assertEquals(R.string.error_generic, message.id)
     }
 
     @Test
@@ -69,5 +81,11 @@ class ProductionBatchValidationErrorMapperTest {
         )
         val message = failures.toUserMessage() as UiMessage.Resource
         assertEquals(R.string.error_restricted_by_archive, message.id)
+    }
+
+    @Test
+    fun `unknown Throwable returns generic error`() {
+        val message = RuntimeException("Unknown").toUserMessage() as UiMessage.Resource
+        assertEquals(R.string.error_generic, message.id)
     }
 }

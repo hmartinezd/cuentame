@@ -42,11 +42,18 @@ fun ProductionStatusBadge(
         )
     }
 
+    val tag = when (status) {
+        DocumentStatus.DRAFT -> "production_status_draft"
+        DocumentStatus.POSTED -> "production_status_posted"
+        DocumentStatus.VOIDED -> "production_status_voided"
+    }
+
     Text(
         text = stringResource(textRes),
         style = MaterialTheme.typography.labelSmall,
         color = color,
         modifier = modifier
+            .testTag(tag)
             .background(bgColor, MaterialTheme.shapes.extraSmall)
             .padding(horizontal = 4.dp, vertical = 2.dp)
     )
@@ -146,8 +153,14 @@ fun ProductionEffectiveTimeEditor(
     val zoneId = java.time.ZoneId.systemDefault()
     val localDateTime = java.time.LocalDateTime.ofInstant(effectiveAt, zoneId)
     
+    val localDate = localDateTime.toLocalDate()
+    val initialDatePickerMillis = localDate
+        .atStartOfDay(java.time.ZoneOffset.UTC)
+        .toInstant()
+        .toEpochMilli()
+
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = effectiveAt.toEpochMilli()
+        initialSelectedDateMillis = initialDatePickerMillis
     )
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -185,7 +198,7 @@ fun ProductionEffectiveTimeEditor(
                         )
                     }
                     IconButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Default.DateRange, contentDescription = null)
+                        Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.choose_effective_date))
                     }
                 }
                 
@@ -208,7 +221,7 @@ fun ProductionEffectiveTimeEditor(
                         )
                     }
                     IconButton(onClick = { showTimePicker = true }) {
-                        Icon(Icons.Default.Timer, contentDescription = null)
+                        Icon(Icons.Default.Timer, contentDescription = stringResource(R.string.choose_effective_time))
                     }
                 }
             }
@@ -221,9 +234,13 @@ fun ProductionEffectiveTimeEditor(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val newDate = java.time.Instant.ofEpochMilli(millis).atZone(zoneId).toLocalDate()
-                        val newDateTime = java.time.LocalDateTime.of(newDate, localDateTime.toLocalTime())
-                        onEffectiveAtChanged(newDateTime.atZone(zoneId).toInstant())
+                        onEffectiveAtChanged(
+                            calculateEffectiveAtWithNewDate(
+                                millis = millis,
+                                currentEffectiveAt = effectiveAt,
+                                zoneId = zoneId
+                            )
+                        )
                     }
                     showDatePicker = false
                 }) {
@@ -270,8 +287,14 @@ fun ProductionEffectiveTimeEditor(
                             Text(stringResource(R.string.action_back))
                         }
                         TextButton(onClick = {
-                            val newDateTime = java.time.LocalDateTime.of(localDateTime.toLocalDate(), java.time.LocalTime.of(timePickerState.hour, timePickerState.minute))
-                            onEffectiveAtChanged(newDateTime.atZone(zoneId).toInstant())
+                            onEffectiveAtChanged(
+                                calculateEffectiveAtWithNewTime(
+                                    hour = timePickerState.hour,
+                                    minute = timePickerState.minute,
+                                    currentEffectiveAt = effectiveAt,
+                                    zoneId = zoneId
+                                )
+                            )
                             showTimePicker = false
                         }) {
                             Text(stringResource(R.string.action_confirm))
@@ -281,4 +304,30 @@ fun ProductionEffectiveTimeEditor(
             }
         }
     }
+}
+
+internal fun calculateEffectiveAtWithNewDate(
+    millis: Long,
+    currentEffectiveAt: Instant,
+    zoneId: java.time.ZoneId
+): Instant {
+    val selectedDate = Instant.ofEpochMilli(millis)
+        .atZone(java.time.ZoneOffset.UTC)
+        .toLocalDate()
+    val currentTime = currentEffectiveAt.atZone(zoneId).toLocalTime()
+    val updatedLocalDateTime = java.time.LocalDateTime.of(selectedDate, currentTime)
+        .withSecond(0).withNano(0)
+    return updatedLocalDateTime.atZone(zoneId).toInstant()
+}
+
+internal fun calculateEffectiveAtWithNewTime(
+    hour: Int,
+    minute: Int,
+    currentEffectiveAt: Instant,
+    zoneId: java.time.ZoneId
+): Instant {
+    val currentDate = currentEffectiveAt.atZone(zoneId).toLocalDate()
+    val updatedLocalDateTime = java.time.LocalDateTime.of(currentDate, java.time.LocalTime.of(hour, minute))
+        .withSecond(0).withNano(0)
+    return updatedLocalDateTime.atZone(zoneId).toInstant()
 }
