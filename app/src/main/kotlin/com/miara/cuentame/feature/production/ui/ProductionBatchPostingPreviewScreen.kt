@@ -1,14 +1,43 @@
 package com.miara.cuentame.feature.production.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -22,9 +51,9 @@ import com.miara.cuentame.core.common.ids.ProductionBatchId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.ProductionBatchComponentPostingPreview
 import com.miara.cuentame.core.presentation.ui.toDisplayText
+import com.miara.cuentame.feature.production.viewmodel.ProductionBatchPostingPreviewViewModel
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchPreviewEvent
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchPreviewUiState
-import com.miara.cuentame.feature.production.viewmodel.ProductionBatchPostingPreviewViewModel
 import com.miara.cuentame.feature.production.viewmodel.ProductionBatchScreenState
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -79,7 +108,7 @@ fun ProductionBatchPostingPreviewScreen(
             )
         }
     ) { padding ->
-        when (val screenState = uiState.screenState) {
+        when (uiState.screenState) {
             ProductionBatchScreenState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -236,8 +265,8 @@ private fun PreviewHeader(
     currencyCode: String,
     outputUnitLabel: String
 ) {
-    val zoneId = java.time.ZoneId.systemDefault()
-    val formatter = remember { java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM) }
+    val zoneId = ZoneId.systemDefault()
+    val formatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM) }
     
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -302,7 +331,7 @@ private fun PreviewComponentItem(
             }
         },
         trailingContent = {
-            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+            Column(horizontalAlignment = Alignment.End) {
                 if (component.costUnavailable) {
                     Text(stringResource(R.string.production_cost_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 } else {
