@@ -113,7 +113,7 @@ class RoomInventoryActivityRepository @Inject constructor(
             )
             SourceDocumentType.WASTE_EVENT.name -> InventoryActivitySourceInfo.Waste(
                 reason = sourceWasteReason?.let { reason ->
-                    runCatching { WasteReason.valueOf(reason) }.getOrNull()
+                    WasteReason.valueOf(reason)
                 },
                 sourceAreaName = sourceWasteAreaName,
                 isResolved = sourceWasteResolvedId != null
@@ -125,7 +125,7 @@ class RoomInventoryActivityRepository @Inject constructor(
             SourceDocumentType.PRODUCTION_BATCH.name -> InventoryActivitySourceInfo.Production(
                 recipeName = sourceProductionRecipeName,
                 status = sourceProductionStatus?.let { status ->
-                    runCatching { DocumentStatus.valueOf(status) }.getOrNull()
+                    DocumentStatus.valueOf(status)
                 },
                 isResolved = sourceProductionResolvedId != null
             )

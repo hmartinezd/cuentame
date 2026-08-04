@@ -63,8 +63,12 @@ fun InventoryActivityDetailScreen(
     onOpenMovement: (InventoryMovementId) -> Unit,
     onRetry: () -> Unit
 ) {
+    val detailTag = (uiState as? InventoryActivityDetailScreenState.Ready)?.let {
+        "inventory_activity_detail_movement_${it.item.movement.id.value}"
+    } ?: "inventory_activity_detail_screen"
+
     Scaffold(
-        modifier = Modifier.testTag("inventory_activity_detail_screen"),
+        modifier = Modifier.testTag(detailTag),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inventory_activity_view_details)) },

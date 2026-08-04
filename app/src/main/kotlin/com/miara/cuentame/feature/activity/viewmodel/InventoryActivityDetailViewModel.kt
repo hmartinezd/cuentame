@@ -34,7 +34,7 @@ sealed interface InventoryActivityDetailScreenState {
 class InventoryActivityDetailViewModel @Inject constructor(
     private val activityRepository: InventoryActivityRepository,
     private val restaurantRepository: RestaurantRepository,
-    private val textResolver: InventoryActivityTextResolver,
+    val textResolver: InventoryActivityTextResolver,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -88,6 +88,4 @@ class InventoryActivityDetailViewModel @Inject constructor(
     fun onRetry() {
         retryTrigger.value += 1
     }
-
-    fun getTextResolver(): InventoryActivityTextResolver = textResolver
 }

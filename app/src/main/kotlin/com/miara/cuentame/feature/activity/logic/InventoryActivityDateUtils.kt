@@ -31,20 +31,45 @@ object InventoryActivityDateUtils {
         today: LocalDate,
         zoneId: ZoneId
     ): InventoryActivityInterval {
-        val (startDate, endDateInclusive) = when (this) {
-            InventoryActivityDateRange.Last7Days -> today.minusDays(6) to today
-            InventoryActivityDateRange.Last30Days -> today.minusDays(29) to today
-            InventoryActivityDateRange.Last90Days -> today.minusDays(89) to today
+        val startDate: LocalDate
+        val effectiveEndDateInclusive: LocalDate
+
+        when (this) {
+            InventoryActivityDateRange.Last7Days -> {
+                startDate = today.minusDays(6)
+                effectiveEndDateInclusive = today
+            }
+
+            InventoryActivityDateRange.Last30Days -> {
+                startDate = today.minusDays(29)
+                effectiveEndDateInclusive = today
+            }
+
+            InventoryActivityDateRange.Last90Days -> {
+                startDate = today.minusDays(89)
+                effectiveEndDateInclusive = today
+            }
+
             is InventoryActivityDateRange.Custom -> {
-                // Clamp end date to today if it's in the future
-                val clampedEnd = if (endDateInclusive.isAfter(today)) today else endDateInclusive
-                startDate to clampedEnd
+                startDate = this.startDate
+                effectiveEndDateInclusive =
+                    this.endDateInclusive.coerceAtMost(today)
             }
         }
-        
-        val startInclusive = startDate.atStartOfDay(zoneId).toInstant()
-        val endExclusive = endDateInclusive.plusDays(1).atStartOfDay(zoneId).toInstant()
-        
-        return InventoryActivityInterval(startInclusive, endExclusive)
+
+        require(!startDate.isAfter(effectiveEndDateInclusive)) {
+            "Activity start date must not be after its effective end date."
+        }
+
+        return InventoryActivityInterval(
+            startInclusive =
+            startDate.atStartOfDay(zoneId).toInstant(),
+
+            endExclusive =
+            effectiveEndDateInclusive
+                .plusDays(1)
+                .atStartOfDay(zoneId)
+                .toInstant()
+        )
     }
 }

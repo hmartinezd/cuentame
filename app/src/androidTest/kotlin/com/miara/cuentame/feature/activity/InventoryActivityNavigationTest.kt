@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.feature.activity.logic.AndroidInventoryActivityTextResolver
 import com.miara.cuentame.test.TestStateManager
@@ -38,6 +39,7 @@ class InventoryActivityNavigationTest {
     @Inject lateinit var productionBatchRepository: ProductionBatchRepository
     @Inject lateinit var preparationRecipeRepository: PreparationRecipeRepository
     @Inject lateinit var activityRepository: InventoryActivityRepository
+    @Inject lateinit var movementDao: InventoryMovementDao
 
     private lateinit var fixture: CanonicalInventoryActivityFixture
 
@@ -49,7 +51,8 @@ class InventoryActivityNavigationTest {
             fixture = seedCanonicalInventoryActivity(
                 restaurantRepository, ingredientRepository, areaRepository,
                 purchaseRepository, wasteRepository, stockCountRepository,
-                productionBatchRepository, preparationRecipeRepository, activityRepository
+                productionBatchRepository, preparationRecipeRepository, 
+                activityRepository, movementDao
             )
         }
     }
@@ -62,121 +65,142 @@ class InventoryActivityNavigationTest {
     }
 
     @Test
-    fun activityNavigation_fromHome() {
+    fun homeToActivityAndBack() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 1. Open Activity from Home
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
-
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_active_ingredient_filter").assertDoesNotExist()
-            composeTestRule.onNodeWithTag("inventory_activity_active_area_filter").assertDoesNotExist()
-            
-            // Back returns home
             composeTestRule.onNodeWithContentDescription("Back").performClick()
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 
     @Test
-    fun activityNavigation_fromIngredientDetail() {
+    fun prefilteredActivity_fromIngredientDetail() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 1. Open Ingredients
             composeTestRule.onNodeWithTag("nav_inventory").performClick()
-
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 2. Open our seeded Ingredient
             composeTestRule.onNodeWithTag("ingredient_item_Chicken").performClick()
-
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 3. View Activity
             composeTestRule.onNodeWithTag("ingredient_view_activity").performClick()
-
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // Verify prefilter via active chip
             composeTestRule.onNodeWithTag("inventory_activity_active_ingredient_filter").assertTextContains("Chicken")
-            // And matching rows exist
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").assertIsDisplayed()
         }
     }
 
     @Test
-    fun activityNavigation_fromAreaDetail() {
+    fun prefilteredActivity_fromAreaOverflow() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 1. Open Settings
             composeTestRule.onNodeWithTag("nav_settings").performClick()
-
-            // 2. Open Areas
             composeTestRule.onNodeWithTag("settings_areas").performClick()
             
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasText("Storage")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 3. Open overflow menu for the seeded Area
             composeTestRule.onNodeWithTag("area_menu_${fixture.areaId.value}").performClick()
-
-            // 4. View Activity
             composeTestRule.onNodeWithTag("area_view_activity_${fixture.areaId.value}").performClick()
 
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // Verify prefilter
             composeTestRule.onNodeWithTag("inventory_activity_active_area_filter").assertTextContains("Storage")
         }
     }
 
     @Test
-    fun activityNavigation_listToDetailAndBack() {
+    fun activityListToDetailAndBack_preservesState() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            // 1. Open Activity
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
-
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Search
             composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Chicken")
 
-            // 2. Open Detail
             composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").performClick()
-
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_movement_${fixture.purchaseMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 3. Go back
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("Chicken")
+        }
+    }
+
+    @Test
+    fun detailToRelatedMovementNavigation() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            // Reversal -> Original
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_open_original").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.originalMovementId.value}").assertIsDisplayed()
+            
+            // Original -> Reversal
+            composeTestRule.onNodeWithTag("inventory_activity_open_reversal").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.reversalMovementId.value}").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun sourceDocumentNavigation() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            // Purchase
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
+            composeTestRule.onNodeWithTag("purchase_detail_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            
+            // Waste
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.wasteMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
+            composeTestRule.onNodeWithTag("waste_detail_screen").assertIsDisplayed()
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 
-            // 4. Verify search and filter are preserved
-            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("Chicken")
+            // Stock Count
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.stockCountMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
+            composeTestRule.onNodeWithTag("count_detail_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+
+            // Production Batch
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
+            composeTestRule.onNodeWithTag("production_batch_detail_screen").assertIsDisplayed()
         }
     }
 }

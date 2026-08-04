@@ -63,12 +63,40 @@ class InventoryActivityDateUtilsTest {
     }
 
     @Test
-    fun `Custom range clamps future end date to today`() {
+    fun `datePickerMillisToLocalDate conversion boundary across timezones`() {
+        // Selection: August 15, 2026
+        val targetDate = LocalDate.of(2026, 8, 15)
+        val millis = targetDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+        val zones = listOf(
+            ZoneOffset.UTC,
+            ZoneId.of("America/New_York"),
+            ZoneId.of("America/Los_Angeles"),
+            ZoneId.of("Europe/Madrid"),
+            ZoneId.of("Asia/Tokyo")
+        )
+
+        zones.forEach { zone ->
+            val converted = InventoryActivityDateUtils.datePickerMillisToLocalDate(millis)
+            assertThat(converted).isEqualTo(targetDate)
+            
+            val backToMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(converted)
+            assertThat(backToMillis).isEqualTo(millis)
+        }
+    }
+
+    @Test
+    fun `Custom range clamps future end date to today exactly`() {
+        // today = August 4, 2026
+        // selected end = August 10, 2026
+        // effective end = August 4, 2026
+        // endExclusive = local start of August 5, 2026
         val start = LocalDate.of(2026, 8, 1)
-        val end = LocalDate.of(2026, 8, 10) // In the future relative to 2026-08-04
+        val end = LocalDate.of(2026, 8, 10)
         val interval = InventoryActivityDateRange.Custom(start, end).toInterval(today, zoneUtc)
         
-        assertThat(interval.endExclusive).isEqualTo(today.plusDays(1).atStartOfDay(zoneUtc).toInstant())
+        val expectedEndExclusive = LocalDate.of(2026, 8, 5).atStartOfDay(zoneUtc).toInstant()
+        assertThat(interval.endExclusive).isEqualTo(expectedEndExclusive)
     }
 
     @Test

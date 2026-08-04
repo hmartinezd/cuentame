@@ -19,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import java.util.Locale
 
 @RunWith(AndroidJUnit4::class)
@@ -54,7 +55,8 @@ class InventoryActivityComposeTest {
                         availableAreas = emptyList(),
                         currencyCode = "USD",
                         localeTag = "en-US",
-                        activeFilterCount = 0
+                        activeFilterCount = 0,
+                        today = LocalDate.of(2026, 8, 4)
                     ),
                     searchQuery = "",
                     onSearchQueryChange = {},
@@ -116,7 +118,8 @@ class InventoryActivityComposeTest {
                         availableAreas = emptyList(),
                         currencyCode = "USD",
                         localeTag = "en-US",
-                        activeFilterCount = 0
+                        activeFilterCount = 0,
+                        today = LocalDate.of(2026, 8, 4)
                     ),
                     searchQuery = "",
                     onSearchQueryChange = {},

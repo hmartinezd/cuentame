@@ -1,31 +1,20 @@
 package com.miara.cuentame.feature.activity.navigation
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.miara.cuentame.core.common.ids.ProductionBatchId
-import com.miara.cuentame.core.common.ids.PurchaseReceiptId
-import com.miara.cuentame.core.common.ids.StockCountId
-import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
 import com.miara.cuentame.feature.activity.ui.InventoryActivityDetailRoute
 import com.miara.cuentame.feature.activity.ui.InventoryActivityListRoute
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailViewModel
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListViewModel
-
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
-import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
-import javax.inject.Inject
-
-// This would ideally be a separate class or handled differently if we can't inject into a file-level function easily.
-// But for now, we can use hiltViewModel() inside the composables to get the resolver if needed, 
-// OR just get it from the entry point.
 
 fun NavGraphBuilder.activityGraph(navController: NavHostController) {
     composable(
@@ -43,9 +32,12 @@ fun NavGraphBuilder.activityGraph(navController: NavHostController) {
             }
         )
     ) {
-        val resolver = hiltViewModel<InventoryActivityListViewModel>().getTextResolver() // I'll add this getter
-        CompositionLocalProvider(LocalInventoryActivityTextResolver provides resolver) {
+        val viewModel = hiltViewModel<InventoryActivityListViewModel>()
+        CompositionLocalProvider(
+            LocalInventoryActivityTextResolver provides viewModel.textResolver
+        ) {
             InventoryActivityListRoute(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onActivityDetail = { movementId ->
                     navController.navigate(AppRoutes.inventoryActivityDetail(movementId))
@@ -60,9 +52,12 @@ fun NavGraphBuilder.activityGraph(navController: NavHostController) {
             navArgument("movementId") { type = NavType.StringType }
         )
     ) {
-        val resolver = hiltViewModel<InventoryActivityDetailViewModel>().getTextResolver() // I'll add this getter
-        CompositionLocalProvider(LocalInventoryActivityTextResolver provides resolver) {
+        val viewModel = hiltViewModel<InventoryActivityDetailViewModel>()
+        CompositionLocalProvider(
+            LocalInventoryActivityTextResolver provides viewModel.textResolver
+        ) {
             InventoryActivityDetailRoute(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onOpenSource = { target ->
                     when (target) {

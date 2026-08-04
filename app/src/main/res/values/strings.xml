@@ -746,4 +746,12 @@
     <string name="restore_recovery_success_message">Your previous data was restored.</string>
     <string name="restore_recovery_required_title">Manual Recovery Required</string>
     <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
+    <string name="inventory_activity_filter_ingredient_unavailable">Ingredient unavailable</string>
+    <string name="inventory_activity_filter_area_unavailable">Area unavailable</string>
+    <string name="inventory_activity_filter_date_range">Date range</string>
+    <string name="inventory_activity_filter_direction">Direction</string>
+    <string name="inventory_activity_filter_apply">Apply filters</string>
+    <string name="inventory_activity_filter_cancel">Cancel</string>
+    <string name="inventory_activity_filter_categories">Categories</string>
+    <string name="inventory_activity_filter_include_reversals">Include Reversals</string>
 </resources>

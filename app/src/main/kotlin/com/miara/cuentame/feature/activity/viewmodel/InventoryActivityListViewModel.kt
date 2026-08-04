@@ -39,7 +39,8 @@ sealed interface InventoryActivityListScreenState {
         val availableAreas: List<AreaFilterOption>,
         val currencyCode: String,
         val localeTag: String,
-        val activeFilterCount: Int
+        val activeFilterCount: Int,
+        val today: LocalDate
     ) : InventoryActivityListScreenState
     data class LoadError(val message: UiMessage) : InventoryActivityListScreenState
 }
@@ -53,7 +54,7 @@ class InventoryActivityListViewModel @Inject constructor(
     private val ingredientRepository: IngredientRepository,
     private val areaRepository: InventoryAreaRepository,
     private val restaurantRepository: RestaurantRepository,
-    private val textResolver: InventoryActivityTextResolver,
+    val textResolver: InventoryActivityTextResolver,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -189,7 +190,8 @@ class InventoryActivityListViewModel @Inject constructor(
                         availableAreas = areas.map { AreaFilterOption(it.id, it.name) },
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
-                        activeFilterCount = filters.countActive()
+                        activeFilterCount = filters.countActive(),
+                        today = today
                     )
                 }
             }
@@ -220,8 +222,6 @@ class InventoryActivityListViewModel @Inject constructor(
     fun onRetry() {
         retryTrigger.value += 1
     }
-
-    fun getTextResolver(): InventoryActivityTextResolver = textResolver
 
     private fun calculateSummary(items: List<InventoryActivityItem>): InventoryActivitySummary {
         val incoming = items.count { it.movement.quantityBaseSigned > BigDecimal.ZERO }

@@ -160,6 +160,7 @@ fun InventoryActivityListScreen(
             filters = uiState.filters,
             availableIngredients = uiState.availableIngredients,
             availableAreas = uiState.availableAreas,
+            today = uiState.today,
             onDismiss = { showFilters = false },
             onApply = { 
                 onFilterChange(it)
@@ -179,6 +180,7 @@ private fun InventoryActivityFilterSheet(
     filters: InventoryActivityFilters,
     availableIngredients: List<com.miara.cuentame.feature.activity.viewmodel.IngredientFilterOption>,
     availableAreas: List<com.miara.cuentame.feature.activity.viewmodel.AreaFilterOption>,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onApply: (InventoryActivityFilters) -> Unit,
     onReset: () -> Unit
@@ -210,13 +212,13 @@ private fun InventoryActivityFilterSheet(
             }
 
             // Date Range
-            Text(stringResource(R.string.field_time), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.inventory_activity_filter_date_range), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     InventoryActivityDateRange.Last7Days to stringResource(R.string.range_7_days_label),
                     InventoryActivityDateRange.Last30Days to stringResource(R.string.range_30_days_label),
                     InventoryActivityDateRange.Last90Days to stringResource(R.string.range_90_days_label),
-                    InventoryActivityDateRange.Custom(LocalDate.now(), LocalDate.now()) to stringResource(R.string.inventory_activity_filter_date_custom)
+                    InventoryActivityDateRange.Custom(today, today) to stringResource(R.string.inventory_activity_filter_date_custom)
                 ).forEach { (range, label) ->
                     val isCustom = range is InventoryActivityDateRange.Custom
                     val isSelected = if (isCustom) currentFilters.dateRange is InventoryActivityDateRange.Custom else currentFilters.dateRange == range
@@ -239,8 +241,9 @@ private fun InventoryActivityFilterSheet(
                     if (showCustomPicker) {
                         val initialRange = currentFilters.dateRange as? InventoryActivityDateRange.Custom
                         CustomDateRangeDialog(
-                            initialStartDate = initialRange?.startDate ?: LocalDate.now(),
-                            initialEndDate = initialRange?.endDateInclusive ?: LocalDate.now(),
+                            initialStartDate = initialRange?.startDate ?: today,
+                            initialEndDate = initialRange?.endDateInclusive ?: today,
+                            today = today,
                             onDismiss = { showCustomPicker = false },
                             onConfirm = { start, end ->
                                 currentFilters = currentFilters.copy(dateRange = InventoryActivityDateRange.Custom(start, end))
@@ -314,7 +317,7 @@ private fun InventoryActivityFilterSheet(
             }
 
             // Direction
-            Text(stringResource(R.string.status_label), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.inventory_activity_filter_direction), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 InventoryActivityDirection.entries.forEach { dir ->
                     FilterChip(
@@ -333,7 +336,7 @@ private fun InventoryActivityFilterSheet(
             }
 
             // Categories
-            Text(stringResource(R.string.category), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.inventory_activity_filter_categories), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val resolver = LocalInventoryActivityTextResolver.current
                 InventoryActivityCategory.entries.forEach { cat ->
@@ -355,7 +358,7 @@ private fun InventoryActivityFilterSheet(
 
             // Reversals
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.inventory_activity_reversal), modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.inventory_activity_filter_include_reversals), modifier = Modifier.weight(1f))
                 Switch(
                     checked = currentFilters.includeReversals,
                     onCheckedChange = { currentFilters = currentFilters.copy(includeReversals = it) },
@@ -369,7 +372,7 @@ private fun InventoryActivityFilterSheet(
                 onClick = { onApply(currentFilters) },
                 modifier = Modifier.fillMaxWidth().testTag("inventory_activity_filter_apply")
             ) {
-                Text(stringResource(R.string.action_save))
+                Text(stringResource(R.string.inventory_activity_filter_apply))
             }
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -613,12 +616,20 @@ private fun FilteredEmptyActivityState(onResetFilters: () -> Unit, modifier: Mod
 private fun CustomDateRangeDialog(
     initialStartDate: LocalDate,
     initialEndDate: LocalDate,
+    today: LocalDate,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate, LocalDate) -> Unit
 ) {
     val dateRangePickerState = rememberDateRangePickerState(
         initialSelectedStartDateMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(initialStartDate),
-        initialSelectedEndDateMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(initialEndDate)
+        initialSelectedEndDateMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(initialEndDate),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return InventoryActivityDateUtils.datePickerMillisToLocalDate(utcTimeMillis)
+                    .isAfter(today)
+                    .not()
+            }
+        }
     )
 
     val errorMessage = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
@@ -711,7 +722,8 @@ private fun ActiveFiltersRow(
         }
 
         if (filters.ingredientId != null) {
-            val name = availableIngredients.find { it.id == filters.ingredientId }?.name ?: filters.ingredientId.value
+            val name = availableIngredients.find { it.id == filters.ingredientId }?.name 
+                ?: stringResource(R.string.inventory_activity_filter_ingredient_unavailable)
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_ingredient_filter, name),
                 onClear = { onFilterChange(filters.copy(ingredientId = null)) },
@@ -720,7 +732,8 @@ private fun ActiveFiltersRow(
         }
 
         if (filters.areaId != null) {
-            val name = availableAreas.find { it.id == filters.areaId }?.name ?: filters.areaId.value
+            val name = availableAreas.find { it.id == filters.areaId }?.name 
+                ?: stringResource(R.string.inventory_activity_filter_area_unavailable)
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_area_filter, name),
                 onClear = { onFilterChange(filters.copy(areaId = null)) },
@@ -744,19 +757,29 @@ private fun ActiveFilterChip(
     onClear: () -> Unit,
     testTag: String
 ) {
-    InputChip(
-        selected = true,
-        onClick = {},
-        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        trailingIcon = {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = stringResource(R.string.action_remove),
-                modifier = Modifier.size(16.dp).clickable { onClear() }
-            )
-        },
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.small,
         modifier = Modifier.testTag(testTag)
-    )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall)
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+                onClick = onClear,
+                modifier = Modifier.size(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = stringResource(R.string.action_remove),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
