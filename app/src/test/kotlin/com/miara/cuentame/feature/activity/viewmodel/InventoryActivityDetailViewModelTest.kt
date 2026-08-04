@@ -9,6 +9,7 @@ import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -30,6 +31,7 @@ class InventoryActivityDetailViewModelTest {
 
     private val activityRepository = mockk<InventoryActivityRepository>()
     private val restaurantRepository = mockk<RestaurantRepository>()
+    private val textResolver = mockk<InventoryActivityTextResolver>()
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private val restaurant = Restaurant(
@@ -56,14 +58,14 @@ class InventoryActivityDetailViewModelTest {
         val handle = SavedStateHandle().apply {
             if (movementId != null) set("movementId", movementId)
         }
-        return InventoryActivityDetailViewModel(activityRepository, restaurantRepository, handle)
+        return InventoryActivityDetailViewModel(activityRepository, restaurantRepository, textResolver, handle)
     }
 
     @Test
     fun `loads item successfully`() = runTest {
         val movementId = "m1"
         val item = createItem(movementId)
-        coEvery { activityRepository.getActivityItem(InventoryMovementId(movementId)) } returns item
+        coEvery { activityRepository.getActivityItem(restaurant.id, InventoryMovementId(movementId)) } returns item
         every { activityRepository.resolveSourceTarget(item) } returns InventoryActivitySourceTarget.Unavailable
 
         val viewModel = createViewModel(movementId)
@@ -77,7 +79,7 @@ class InventoryActivityDetailViewModelTest {
     @Test
     fun `emits MovementNotFound when item does not exist`() = runTest {
         val movementId = "m1"
-        coEvery { activityRepository.getActivityItem(InventoryMovementId(movementId)) } returns null
+        coEvery { activityRepository.getActivityItem(restaurant.id, InventoryMovementId(movementId)) } returns null
 
         val viewModel = createViewModel(movementId)
 

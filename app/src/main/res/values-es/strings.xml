@@ -27,7 +27,6 @@
     <string name="onboarding_welcome_desc">Cuéntame es su gestor de inventario local. Rastree todo sin conexión, con control total sobre sus datos.</string>
     <string name="onboarding_welcome_note">No se preocupe, puede cambiar sus ajustes más tarde.</string>
     <string name="onboarding_setup_action">Configurar restaurante</string>
-
     <string name="onboarding_restaurant_title">Detalles del Restaurante</string>
     <string name="onboarding_restaurant_desc">Cuéntenos un poco sobre su negocio.</string>
     <string name="onboarding_field_name">Nombre del Restaurante</string>
@@ -35,18 +34,15 @@
     <string name="onboarding_field_language">Idioma de la Aplicación</string>
     <string name="onboarding_currency_note">La moneda se utiliza para calcular el valor total del inventario.</string>
     <string name="onboarding_language_note">Puede cambiar el idioma en cualquier momento en los Ajustes.</string>
-
     <string name="onboarding_areas_title">Áreas de Inventario</string>
     <string name="onboarding_areas_desc">¿Dónde guarda sus artículos? Seleccione los que apliquen o añada los suyos.</string>
     <string name="onboarding_add_area">Añadir área personalizada</string>
     <string name="onboarding_area_required">Se requiere al menos un área.</string>
     <string name="onboarding_areas_selection_empty">Por favor, seleccione al menos un área de almacenamiento.</string>
-
     <string name="onboarding_categories_title">Categorías de Ingredientes</string>
     <string name="onboarding_categories_desc">Organice sus artículos en grupos. Esto ayuda con los reportes y conteos.</string>
     <string name="onboarding_add_category">Añadir categoría personalizada</string>
     <string name="onboarding_category_recommend">Recomendamos usar categorías para organizar mejor su inventario.</string>
-
     <string name="onboarding_review_title">Revisar Configuración</string>
     <string name="onboarding_finish_action">Finalizar configuración</string>
 
@@ -57,7 +53,6 @@
     <string name="template_area_bar">Bar</string>
     <string name="template_area_prep">Área de preparación</string>
     <string name="template_area_line">Línea de cocina</string>
-
     <string name="template_cat_meat">Carnes</string>
     <string name="template_cat_seafood">Mariscos</string>
     <string name="template_cat_dairy">Lácteos</string>
@@ -69,6 +64,39 @@
     <string name="template_cat_cleaning">Productos de limpieza</string>
     <string name="template_cat_other">Otros</string>
 
+    <!-- Generic Actions & Labels -->
+    <string name="action_next">Continuar</string>
+    <string name="action_back">Volver</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_save">Guardar Cambios</string>
+    <string name="action_add">Añadir</string>
+    <string name="action_remove">Eliminar</string>
+    <string name="action_archive">Archivar</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="action_search">Buscar…</string>
+    <string name="action_dismiss">Descartar</string>
+    <string name="action_retry_desc">Reintentar</string>
+    <string name="optional">Opcional</string>
+    <string name="all">Todos</string>
+    <string name="notes">Notas</string>
+    <string name="not_available">No disponible</string>
+    <string name="not_applicable">N/D</string>
+    <string name="status_label">Estado</string>
+
+    <!-- Generic Statuses -->
+    <string name="status_draft">Borrador</string>
+    <string name="status_posted">Publicado</string>
+    <string name="status_voided">Anulado</string>
+    <string name="status_completed">Completado</string>
+    <string name="status_active">Activa</string>
+    <string name="status_archived">Archivada</string>
+    <string name="status_in_progress">En progreso</string>
+
+    <!-- Activity Statuses -->
+    <string name="activity_status_posted">Publicado</string>
+    <string name="activity_status_voided">Anulado</string>
+    <string name="activity_status_completed">Completado</string>
+
     <!-- Settings -->
     <string name="settings_restaurant">Perfil del Restaurante</string>
     <string name="settings_areas">Áreas de Inventario</string>
@@ -78,24 +106,11 @@
     <string name="settings_about">Acerca de</string>
     <string name="settings_theme">Tema</string>
     <string name="settings_dynamic_color">Color Dinámico</string>
-
     <string name="theme_system">Predeterminado del sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
-
     <string name="lang_en">Inglés</string>
     <string name="lang_es">Español</string>
-
-    <string name="action_next">Continuar</string>
-    <string name="action_back">Volver</string>
-    <string name="action_edit">Editar</string>
-    <string name="action_save">Guardar Cambios</string>
-    <string name="action_add">Añadir</string>
-    <string name="action_remove">Eliminar</string>
-    <string name="action_archive">Archivar</string>
-    <string name="action_confirm">Confirmar</string>
-    <string name="optional">Opcional</string>
-
     <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
     <string name="about_version">Versión %s</string>
 
@@ -112,13 +127,13 @@
     <string name="error_draft_save">Error al guardar el borrador</string>
     <string name="error_overlapping_area">El área %1$s ya está incluida en otro conteo en borrador</string>
     <string name="error_no_restaurant">Restaurante no configurado</string>
+    <string name="error_unit_option_used_by_recipe">Esta unidad es utilizada por una receta no archivada y no se puede archivar.</string>
+    <string name="error_unit_option_used_by_recipe_comp">Esta unidad es utilizada como componente en una receta y no se puede archivar.</string>
 
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
     <string name="state_empty_desc">Nada que mostrar todavía.</string>
     <string name="state_error_desc">Algo salió mal.</string>
-    <string name="action_retry_desc">Reintentar</string>
-    <string name="status_label">Estado</string>
 
     <!-- Dashboard & Reports -->
     <string name="dashboard_title">Panel de Control</string>
@@ -166,7 +181,6 @@
     <string name="no_recent_activity">Sin actividad reciente</string>
     <string name="comparison_new">Nuevo</string>
     <string name="comparison_no_change">Sin cambios</string>
-    <string name="not_applicable">N/D</string>
     <string name="activity_type_purchase">Compra</string>
     <string name="activity_type_waste">Merma</string>
     <string name="activity_type_stock_count">Conteo</string>
@@ -184,14 +198,10 @@
     <string name="setup_required_desc">Por favor, complete la configuración del restaurante para ver el panel de control.</string>
     <string name="dashboard_error_title">Error del Panel</string>
     <string name="dashboard_error_desc">No pudimos cargar los datos del panel. Inténtalo de nuevo.</string>
-    <string name="activity_status_posted">Publicado</string>
-    <string name="activity_status_voided">Anulado</string>
-    <string name="activity_status_completed">Completado</string>
     <string name="from_previous_period">vs periodo anterior</string>
     <string name="items_count_format">%1$d artículos</string>
     <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
     <string name="activity_description_no_value">%1$s: %2$s. %3$s el %4$s</string>
-
     <string name="reports_inventory_semantics">%1$s. Valor: %2$s. Ingredientes valorados: %3$s. Cobertura: %4$s. Costos faltantes: %5$d</string>
     <string name="reports_comparison_semantics">%1$s. Actual: %2$s. Anterior: %3$s. Cambio: %4$s. %5$s %6$s</string>
     <string name="reports_alerts_semantics">Alertas: %1$d saldos negativos, %2$d costos faltantes, %3$d sin opciones de unidad</string>
@@ -221,12 +231,11 @@
     <string name="updating_report">Actualizando informe</string>
     <string name="updating_dashboard">Actualizando panel</string>
     <string name="refresh_error_message">No se pudo actualizar el informe. Se muestran los resultados anteriores.</string>
-    <string name="refresh_error_dashboard">No se pudo actualizar el panel. Se muestran los resultados anteriores.</string>
+    <string name="refresh_error_dashboard">No se pudo actualizar el panel. Se muestran los resultados de %2$s.</string>
     <string name="refresh_context_updating">Se muestran los resultados de %1$s mientras se actualiza el informe de %2$s.</string>
     <string name="refresh_context_error">No se pudo actualizar el informe de %1$s. Se muestran los resultados de %2$s.</string>
     <string name="refresh_context_updating_dashboard">Se muestra el panel de %1$s mientras se actualiza para %2$s.</string>
     <string name="refresh_context_error_dashboard">No se pudo actualizar el panel de %1$s. Se muestran los resultados de %2$s.</string>
-
     <string name="inventory_row_semantics">%1$s. Cantidad: %2$s. Costo: %3$s. Valor: %4$s</string>
     <string name="inventory_row_missing_cost_warning">. Falta costo actual</string>
     <string name="inventory_row_negative_areas_warning">. %1$d saldos de área negativos</string>
@@ -278,7 +287,6 @@
     <string name="default_count_label">Defecto para conteo</string>
     <string name="default_purchase_label">Defecto para compra</string>
     <string name="action_more_options">Acciones para %1$s</string>
-
     <string name="desc_set_default_count">Marcar %1$s como unidad por defecto para conteo</string>
     <string name="desc_set_default_purchase">Marcar %1$s como unidad por defecto para compra</string>
     <string name="desc_edit_option">Editar %1$s</string>
@@ -320,9 +328,6 @@
     <string name="voiding_warning">¿Anular esta compra? Los movimientos de inventario se revertirán y el recibo permanecerá en el historial.</string>
     <string name="delete_draft_confirm">¿Eliminar esta compra en borrador? Esta acción elimina el borrador no publicado y sus líneas.</string>
     <string name="no_supplier">Sin Proveedor</string>
-    <string name="status_draft">Borrador</string>
-    <string name="status_posted">Publicado</string>
-    <string name="status_voided">Anulado</string>
     <string name="purchase_items_count">%1$d artículos</string>
     <string name="posted_at">Publicado el: %1$s</string>
     <string name="voided_at">Anulado el: %1$s</string>
@@ -332,16 +337,11 @@
     <string name="delete_line_desc">Eliminar línea de compra para %1$s</string>
     <string name="post_purchase_desc">Publicar compra con fecha %1$s</string>
     <string name="archive_supplier_desc">Archivar proveedor %1$s</string>
-    <string name="action_search">Buscar…</string>
-    <string name="notes">Notas</string>
-    <string name="all">Todos</string>
     <string name="no_unit_options">No hay unidades adicionales definidas</string>
     <string name="archive_ingredient_confirmation">¿Está seguro de que desea archivar %1$s? Ya no aparecerá en nuevas compras o conteos.</string>
-
     <string name="dim_mass">Masa</string>
     <string name="dim_volume">Volumen</string>
     <string name="dim_count">Unidades</string>
-
     <string name="error_ingredient_not_found">Ingrediente no encontrado</string>
     <string name="error_base_unit_immutable">La unidad base no se puede cambiar después de la creación</string>
     <string name="error_duplicate_ingredient">Ya existe un ingrediente con este nombre</string>
@@ -386,10 +386,8 @@
     <string name="count_name_placeholder">Ejemplo: Inventario mensual</string>
     <string name="count_default_name">Inventario — %1$s</string>
     <string name="count_review_title">Revisión de Ajustes</string>
-    <string name="status_completed">Completado</string>
     <string name="count_by_area">Conteo por área</string>
     <string name="not_started">No iniciado</string>
-    <string name="status_in_progress">En progreso</string>
     <string name="area_completed">Área completada</string>
     <string name="reopen_area">Reabrir área</string>
     <string name="pending_item">Pendiente</string>
@@ -415,7 +413,6 @@
     <string name="error_invalid_count_route">No pudimos abrir este conteo de inventario. Es posible que el conteo o el área ya no estén disponibles.</string>
     <string name="error_invalid_production_route">Pantalla de producción no válida.</string>
     <string name="error_parent_not_editable">Este elemento ya no es editable.</string>
-    <string name="action_dismiss">Descartar</string>
     <string name="error_count_not_found">Conteo de inventario no encontrado</string>
     <string name="error_count_area_not_found">Área de inventario no encontrada para este conteo</string>
     <string name="error_area_ownership_mismatch">El área no pertenece a este conteo</string>
@@ -426,7 +423,7 @@
     <string name="review_error">Error al generar la revisión de ajustes</string>
     <string name="inventory_changed_warning">El inventario cambió mientras el conteo estaba abierto</string>
     <string name="archived_nonzero_warning">Ingrediente archivado con saldo distinto de cero</string>
-    <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explícitamente afectan el inventario.</string>
+    <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explitamente afectan el inventario.</string>
     <string name="complete_count_desc">Se crearán ajustes de inventario. El conteo pasará a ser de solo lectura. Se pueden crear saldos iniciales para artículos sin historial previo en el área.</string>
     <string name="void_count_desc">Los movimientos originales permanecen en el historial. Los movimientos de reversión restaurarán el efecto de inventario anterior. El conteo sigue siendo visible como ANULADO.</string>
     <string name="delete_draft_desc">¿Eliminar este borrador de conteo? Esta action elimina el borrador no publicado y sus líneas.</string>
@@ -461,78 +458,6 @@
     <string name="original_movement">Movimiento Original</string>
     <string name="reversal_movement">Movimiento de Reversión</string>
 
-    <string name="settings_data_backup_section">Datos y copia de seguridad</string>
-    <string name="create_backup_title">Crear copia de seguridad</string>
-    <string name="create_backup_desc">Crea una copia completa de sus datos locales de Cuentame que usted elige dónde guardar.</string>
-    <string name="backup_waiting_for_destination">Esperando destino…</string>
-    <string name="backup_creating">Creando copia de seguridad…</string>
-    <string name="backup_validating">Validando copia de seguridad…</string>
-    <string name="backup_success_message">Copia de seguridad creada con éxito.</string>
-    <string name="backup_error_message">Error al crear la copia de seguridad: %1$s</string>
-    <string name="backup_cancelled_message">Creación de copia de seguridad cancelada.</string>
-    <string name="backup_error_destination">Destino no disponible.</string>
-    <string name="backup_error_permission">Permiso denegado.</string>
-    <string name="backup_error_storage">Espacio insuficiente.</string>
-    <string name="backup_error_serialization">Error al serializar los datos.</string>
-    <string name="backup_error_database">Error al leer la base de datos.</string>
-    <string name="backup_error_attachment_missing">Falta el adjunto: %1$s</string>
-    <string name="backup_error_attachment_unreadable">Adjunto ilegible: %1$s</string>
-    <string name="backup_error_checksum">Error de suma de comprobación: %1$s</string>
-    <string name="backup_error_validation">Error al validar el archivo: %1$s</string>
-    <string name="backup_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles. Elimine los adjuntos de los registros antes de crear una copia de seguridad.</string>
-    <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
-    <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
-
-    <string name="restore_backup_title">Restaurar copia de seguridad</string>
-    <string name="restore_backup_desc">Inspeccionar y restaurar datos desde un archivo de copia de seguridad de Cuéntame.</string>
-    <string name="restore_inspecting">Inspeccionando copia de seguridad…</string>
-    <string name="restore_preview_title">Vista Previa de la Copia</string>
-    <string name="restore_preview_restaurant">Restaurante: %1$s</string>
-    <string name="restore_preview_created_at">Creada el: %1$s</string>
-    <string name="restore_preview_format">Versión de formato: %1$d</string>
-    <string name="restore_preview_schema">Versión de esquema: %1$d</string>
-    <string name="restore_preview_locale">Idioma: %1$s</string>
-    <string name="restore_preview_records">Registros: %1$d tablas encontradas</string>
-    <string name="restore_preview_attachments">Adjuntos: %1$d archivos (%2$s)</string>
-    <string name="restore_preview_attachments_unsupported">Esta copia de seguridad contiene archivos adjuntos que no son compatibles en esta versión. La restauración está desactivada.</string>
-    <string name="restore_preview_read_only_note">Confirmar la restauración reemplazará los datos actuales del dispositivo con el contenido de esta copia.</string>
-    <string name="restore_error_title">Error de Restauración</string>
-    <string name="restore_error_message">No se pudo inspeccionar la copia de seguridad: %1$s</string>
-    <string name="restore_error_invalid_zip">Archivo ZIP no válido.</string>
-    <string name="restore_error_missing_core">Faltan datos requeridos de la copia de seguridad.</string>
-    <string name="restore_error_checksum">Error en la comprobación de integridad de datos.</string>
-    <string name="restore_error_incompatible">Formato o esquema de copia de seguridad incompatible.</string>
-    <string name="restore_error_limit">La copia de seguridad excede los límites de seguridad.</string>
-    <string name="restore_error_integrity_generic">Error en la comprobación de consistencia lógica.</string>
-    <string name="restore_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles con la Función de Copia de Seguridad y Restauración. Elimine los adjuntos o espere a una versión futura antes de continuar.</string>
-    <string name="restore_error_database_failed">Error al restaurar la base de datos.</string>
-    <string name="restore_error_preferences_failed">Error al restaurar los ajustes.</string>
-    <string name="restore_error_preparation_failed">Error en la preparación de la restauración.</string>
-    <string name="restore_error_final_verification_failed">Error en la verificación final.</string>
-    <string name="restore_action_choose_another">Elegir otro archivo</string>
-    <string name="restore_action_restore">Restaurar ahora</string>
-    <string name="restore_action_confirm">Borrar y Restaurar</string>
-    <string name="restore_applying">Restaurando datos…</string>
-    <string name="restore_applying_title">Restaurando Copia</string>
-    <string name="restore_confirm_title">Confirmar Restauración</string>
-    <string name="restore_confirm_message">Esto reemplazará TODOS los ingredientes e historial actuales. Los archivos adjuntos NO se reemplazan en esta versión. Esta acción no se puede deshacer manualmente. Si la restauración falla, la aplicación intentará volver al estado actual.</string>
-    <string name="restore_phase_staging">Validando copia de seguridad…</string>
-    <string name="restore_phase_staged">Preparando restauración…</string>
-    <string name="restore_phase_preparing">Preparando reversión del sistema…</string>
-    <string name="restore_phase_database">Restaurando tablas de datos…</string>
-    <string name="restore_phase_attachments">Restaurando archivos adjuntos…</string>
-    <string name="restore_phase_preferences">Restaurando ajustes…</string>
-    <string name="restore_phase_finalizing">Finalizando…</string>
-    <string name="restore_phase_rolling_back">Restaurando estado anterior…</string>
-    <string name="restore_success_title">Restauración Exitosa</string>
-    <string name="restore_success_message">Se restauraron con éxito los datos de %1$s. Se actualizaron %2$d registros.</string>
-
-    <string name="restore_recovery_success_title">Recuperación completada</string>
-    <string name="restore_recovery_success_message">Se restauraron los datos anteriores.</string>
-
-    <string name="restore_recovery_required_title">Se requiere recuperación manual</string>
-    <string name="restore_recovery_required_message">La operación de restauración se interrumpió y el sistema no pudo revertir los cambios automáticamente. Por favor, contacte con soporte o intente restaurar de nuevo con una copia válida.</string>
-
     <!-- Waste Reasons -->
     <string name="reason_expired">Expirado</string>
     <string name="reason_spoiled">Dañado / Descompuesto</string>
@@ -558,8 +483,7 @@
     <string name="error_reason_required">Se requiere una razón de merma válida</string>
     <string name="error_future_effective_time">La fecha de merma no puede ser futura</string>
     <string name="error_attachment_unavailable">La foto adjunta ya no está disponible</string>
-    <string name="error_unit_option_used_by_recipe">Esta unidad es utilizada por una receta no archivada y no se puede archivar.</string>
-    <string name="error_unit_option_used_by_recipe_comp">Esta unidad es utilizada como componente en una receta y no se puede archivar.</string>
+
     <!-- Preparation Recipes -->
     <string name="preparation_recipes">Recetas de preparación</string>
     <string name="new_preparation_recipe">Nueva receta de preparación</string>
@@ -576,8 +500,6 @@
     <string name="move_recipe_to_draft">Mover receta a Borrador</string>
     <string name="archive_recipe">Archivar receta</string>
     <string name="restore_recipe">Restaurar receta</string>
-    <string name="status_active">Activa</string>
-    <string name="status_archived">Archivada</string>
     <string name="no_preparation_recipes">No hay recetas de preparación</string>
     <string name="no_recipes_match_filters">No hay recetas que coincidan con estos filtros</string>
     <string name="circular_recipe_warning">Esta receta crearía una dependencia de preparación circular.</string>
@@ -676,7 +598,6 @@
     <string name="production_recipe_snapshot">Resumen de cantidad de receta</string>
     <string name="production_cost_unavailable">Costo no disponible</string>
     <string name="production_unit_cost_unavailable">Costo unitario no disponible</string>
-    <string name="not_available">No disponible</string>
     <string name="production_status">Estado de producción</string>
     <string name="production_quantity_entered_and_base">%1$s ingresado (%2$s base)</string>
     <string name="production_quantity_with_base">%1$s (%2$s base)</string>
@@ -742,6 +663,87 @@
     <string name="inventory_activity_detail_total_value">Valor total</string>
     <string name="ingredient_view_activity">Ver actividad de inventario</string>
     <string name="area_view_activity">Ver actividad</string>
+    <string name="inventory_activity_date_range">Rango de fechas</string>
+    <string name="inventory_activity_direction">Dirección</string>
+    <string name="inventory_activity_include_reversals">Incluir Reversiones</string>
+    <string name="inventory_activity_apply_filters">Aplicar filtros</string>
+    <string name="inventory_activity_detail_created_time">Hora de creación</string>
+    <string name="inventory_activity_detail_effective_time">Hora efectiva</string>
+    <string name="inventory_activity_row_content_description">%1$s. %2$s. Área: %3$s. Cantidad: %4$s. Efectivo: %5$s. Origen: %6$s. %7$s</string>
+    <string name="inventory_activity_filtered_empty_reset">Restablecer filtros</string>
+    <string name="inventory_activity_active_filters">Filtros activos</string>
+    <string name="inventory_activity_active_ingredient_filter">Ingrediente: %1$s</string>
+    <string name="inventory_activity_active_area_filter">Área: %1$s</string>
+    <string name="inventory_activity_active_date_filter">Fecha: %1$s</string>
+    <string name="inventory_activity_active_search">Búsqueda: %1$s</string>
+
+    <!-- Backup & Restore -->
+    <string name="settings_data_backup_section">Datos y copia de seguridad</string>
+    <string name="create_backup_title">Crear copia de seguridad</string>
+    <string name="create_backup_desc">Crea una copia completa de sus datos locales de Cuentame que usted elige dónde guardar.</string>
+    <string name="backup_waiting_for_destination">Esperando destino…</string>
+    <string name="backup_creating">Creando copia de seguridad…</string>
+    <string name="backup_validating">Validating backup…</string>
+    <string name="backup_success_message">Copia de seguridad creada con éxito.</string>
+    <string name="backup_error_message">Error al crear la copia de seguridad: %1$s</string>
+    <string name="backup_cancelled_message">Creación de copia de seguridad cancelada.</string>
+    <string name="backup_error_destination">Destino no disponible.</string>
+    <string name="backup_error_permission">Permiso denegado.</string>
+    <string name="backup_error_storage">Espacio insuficiente.</string>
+    <string name="backup_error_serialization">Error al serializar los datos.</string>
+    <string name="backup_error_database">Error al leer la base de datos.</string>
+    <string name="backup_error_attachment_missing">Falta el adjunto: %1$s</string>
+    <string name="backup_error_attachment_unreadable">Adjunto ilegible: %1$s</string>
+    <string name="backup_error_checksum">Error de suma de comprobación: %1$s</string>
+    <string name="backup_error_validation">Error al validar el archivo: %1$s</string>
+    <string name="backup_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles. Elimine los adjuntos de los registros antes de crear una copia de seguridad.</string>
+    <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
+    <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
+    <string name="restore_backup_title">Restaurar copia de seguridad</string>
+    <string name="restore_backup_desc">Inspeccionar y restaurar datos desde un archivo de copia de seguridad de Cuéntame.</string>
+    <string name="restore_inspecting">Inspeccionando copia de seguridad…</string>
+    <string name="restore_preview_title">Vista Previa de la Copia</string>
+    <string name="restore_preview_restaurant">Restaurante: %1$s</string>
+    <string name="restore_preview_created_at">Creada el: %1$s</string>
+    <string name="restore_preview_format">Versión de formato: %1$d</string>
+    <string name="restore_preview_schema">Versión de esquema: %1$d</string>
+    <string name="restore_preview_locale">Idioma: %1$s</string>
+    <string name="restore_preview_records">Registros: %1$d tablas encontradas</string>
+    <string name="restore_preview_attachments">Adjuntos: %1$d archivos (%2$s)</string>
+    <string name="restore_preview_attachments_unsupported">Esta copia de seguridad contiene archivos adjuntos que no son compatibles en esta versión. La restauración está desactivada.</string>
+    <string name="restore_preview_read_only_note">Confirmar la restauración reemplazará los datos actuales del dispositivo con el contenido de esta copia.</string>
+    <string name="restore_error_title">Error de Restauración</string>
+    <string name="restore_error_message">No se pudo inspeccionar la copia de seguridad: %1$s</string>
+    <string name="restore_error_invalid_zip">Archivo ZIP no válido.</string>
+    <string name="restore_error_missing_core">Faltan datos requeridos de la copia de seguridad.</string>
+    <string name="restore_error_checksum">Error en la comprobación de integridad de datos.</string>
+    <string name="restore_error_incompatible">Formato o esquema de copia de seguridad incompatible.</string>
+    <string name="restore_error_limit">La copia de seguridad excede los límites de seguridad.</string>
+    <string name="restore_error_integrity_generic">Error en la comprobación de consistencia lógica.</string>
+    <string name="restore_error_attachments_unsupported">Los archivos adjuntos aún no son compatibles con la Función de Copia de Seguridad y Restauración. Elimine los adjuntos o espere a una versión futura antes de continuar.</string>
+    <string name="restore_error_database_failed">Error al restaurar la base de datos.</string>
+    <string name="restore_error_preferences_failed">Error al restaurar los ajustes.</string>
+    <string name="restore_error_preparation_failed">Error en la preparación de la restauración.</string>
+    <string name="restore_error_final_verification_failed">Error en la verificación final.</string>
+    <string name="restore_action_choose_another">Elegir otro archivo</string>
+    <string name="restore_action_restore">Restaurar ahora</string>
+    <string name="restore_action_confirm">Borrar y Restaurar</string>
+    <string name="restore_applying">Restaurando datos…</string>
+    <string name="restore_applying_title">Restaurando Copia</string>
+    <string name="restore_confirm_title">Confirmar Restauración</string>
+    <string name="restore_confirm_message">Esto reemplazará TODOS los ingredientes e historial actuales. Los archivos adjuntos NO se reemplazan en esta versión. Esta acción no se puede deshacer manualmente. Si la restauración falla, la aplicación intentará volver al estado actual.</string>
+    <string name="restore_phase_staging">Validando copia de seguridad…</string>
+    <string name="restore_phase_staged">Preparando restauración…</string>
+    <string name="restore_phase_preparing">Preparando reversión del sistema…</string>
+    <string name="restore_phase_database">Restaurando tablas de datos…</string>
+    <string name="restore_phase_attachments">Restaurando archivos adjuntos…</string>
+    <string name="restore_phase_preferences">Restaurando ajustes…</string>
+    <string name="restore_phase_finalizing">Finalizando…</string>
+    <string name="restore_phase_rolling_back">Restoring previous state…</string>
+    <string name="restore_success_title">Restauración Exitosa</string>
+    <string name="restore_success_message">Se restauraron con éxito los datos de %1$s. Se actualizaron %2$d registros.</string>
+    <string name="restore_recovery_success_title">Recuperación completada</string>
+    <string name="restore_recovery_success_message">Your previous data was restored.</string>
+    <string name="restore_recovery_required_title">Manual Recovery Required</string>
+    <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
 </resources>
-
-

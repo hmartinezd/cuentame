@@ -25,10 +25,11 @@ import com.miara.cuentame.core.model.inventory.InventoryActivityCategory
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
+import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailScreenState
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailViewModel
-import com.miara.cuentame.feature.reports.ui.DetailReportError
-import com.miara.cuentame.feature.reports.ui.DetailReportLoading
+import com.miara.cuentame.core.presentation.ui.DetailReportError
+import com.miara.cuentame.core.presentation.ui.DetailReportLoading
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -131,8 +132,13 @@ private fun InventoryActivityDetailContent(
     onOpenMovement: (InventoryMovementId) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val resolver = LocalInventoryActivityTextResolver.current
     val locale = remember(localeTag) { java.util.Locale.forLanguageTag(localeTag) }
-    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).withLocale(locale) }
+    val dateTimeFormatter = remember(locale) { 
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+            .withZone(ZoneId.systemDefault())
+            .withLocale(locale) 
+    }
     
     Column(
         modifier = modifier
@@ -144,7 +150,7 @@ private fun InventoryActivityDetailContent(
         // Header
         Column {
             Text(item.ingredientName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("${item.movement.movementType.toInventoryActivityCategory().toDisplayText()} • ${item.areaName}", style = MaterialTheme.typography.titleMedium)
+            Text("${resolver.categoryText(item.movement.movementType.toInventoryActivityCategory())} \u2022 ${item.areaName}", style = MaterialTheme.typography.titleMedium)
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -161,15 +167,15 @@ private fun InventoryActivityDetailContent(
                     value = item.movement.totalValueSnapshot?.let { Formatters.formatCurrency(it.abs(), currencyCode, locale) } ?: stringResource(R.string.not_available),
                     valueColor = item.movement.totalValueSnapshot?.let { 
                         if (it > BigDecimal.ZERO) MaterialTheme.colorScheme.primary 
-                        else if (it < BigDecimal.ZERO) MaterialTheme.colorScheme.error 
+                        else if (it < BigDecimal.ZERO) MaterialTheme.colorScheme.secondary
                         else MaterialTheme.colorScheme.onSurface 
                     } ?: MaterialTheme.colorScheme.onSurface
                 )
 
                 HorizontalDivider()
 
-                DetailRow(stringResource(R.string.effective_time), dateTimeFormatter.format(item.movement.effectiveAt))
-                DetailRow(stringResource(R.string.audit_created).substringBefore(":"), dateTimeFormatter.format(item.movement.createdAt))
+                DetailRow(stringResource(R.string.inventory_activity_detail_effective_time), dateTimeFormatter.format(item.movement.effectiveAt))
+                DetailRow(stringResource(R.string.inventory_activity_detail_created_time), dateTimeFormatter.format(item.movement.createdAt))
             }
         }
 
@@ -177,8 +183,8 @@ private fun InventoryActivityDetailContent(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.inventory_activity_source_document), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-                Text(item.sourceInfo.toDisplayTitle(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                item.sourceInfo.toDisplaySubtitle()?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                Text(resolver.sourceTitle(item.sourceInfo), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                resolver.sourceSubtitle(item.sourceInfo)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
                 if (sourceTarget !is InventoryActivitySourceTarget.Unavailable) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -261,7 +267,12 @@ private fun RelatedMovementCard(
     testTag: String,
     locale: java.util.Locale
 ) {
-    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).withLocale(locale) }
+    val resolver = LocalInventoryActivityTextResolver.current
+    val dateTimeFormatter = remember(locale) { 
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+            .withZone(ZoneId.systemDefault())
+            .withLocale(locale) 
+    }
     
     OutlinedCard(
         onClick = onClick,
@@ -270,7 +281,7 @@ private fun RelatedMovementCard(
         ListItem(
             headlineContent = { Text(title) },
             supportingContent = { 
-                Text("${related.category.toDisplayText()} • ${dateTimeFormatter.format(related.effectiveAt)}")
+                Text("${resolver.categoryText(related.category)} \u2022 ${dateTimeFormatter.format(related.effectiveAt)}")
             },
             trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
             colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)

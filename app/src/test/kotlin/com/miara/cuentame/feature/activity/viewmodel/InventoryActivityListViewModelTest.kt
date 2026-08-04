@@ -12,14 +12,17 @@ import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -36,6 +39,7 @@ class InventoryActivityListViewModelTest {
     private val ingredientRepository = mockk<IngredientRepository>()
     private val areaRepository = mockk<InventoryAreaRepository>()
     private val restaurantRepository = mockk<RestaurantRepository>()
+    private val textResolver = SimpleInventoryActivityTextResolver()
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private val restaurant = Restaurant(
@@ -53,6 +57,7 @@ class InventoryActivityListViewModelTest {
         every { restaurantRepository.observeRestaurant() } returns flowOf(restaurant)
         every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
         every { areaRepository.observeAllAreas() } returns flowOf(emptyList())
+        every { activityRepository.observeActivity(any()) } returns flowOf(emptyList())
     }
 
     @After
@@ -66,6 +71,7 @@ class InventoryActivityListViewModelTest {
             ingredientRepository,
             areaRepository,
             restaurantRepository,
+            textResolver,
             handle
         )
     }
@@ -74,6 +80,7 @@ class InventoryActivityListViewModelTest {
     fun `initial state is Loading`() = runTest {
         every { restaurantRepository.observeRestaurant() } returns flowOf(null)
         val viewModel = createViewModel()
+        // No collector started yet, so it should be initial Loading
         assertThat(viewModel.uiState.value).isEqualTo(InventoryActivityListScreenState.Loading)
     }
 
@@ -86,9 +93,10 @@ class InventoryActivityListViewModelTest {
         every { activityRepository.observeActivity(any()) } returns flowOf(items)
 
         val viewModel = createViewModel()
-        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.uiState.collect { }
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
         }
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state.summary.movementCount).isEqualTo(2)
@@ -97,7 +105,6 @@ class InventoryActivityListViewModelTest {
         assertThat(state.summary.valueAdded).isEqualTo(BigDecimal("20.0"))
         assertThat(state.summary.valueRemoved).isEqualTo(BigDecimal("10.0"))
         assertThat(state.summary.valueCoverage).isEqualTo(InventoryActivityValueCoverage.COMPLETE)
-        collectJob.cancel()
     }
 
     @Test
@@ -110,41 +117,75 @@ class InventoryActivityListViewModelTest {
         every { activityRepository.observeActivity(any()) } returns itemsFlow
         
         val viewModel = createViewModel()
-        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.uiState.collect { }
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
         }
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state.summary.quantitySummary).isNotNull()
         assertThat(state.summary.quantitySummary!!.netQuantity).isEqualTo(BigDecimal("15.0"))
 
         // Add second ingredient
-        val item3 = createItem("m3", BigDecimal("1.0"), ingredientId = IngredientId("ing2"))
-        itemsFlow.value = listOf(item1, item2, item3)
+        itemsFlow.value = listOf(item1, item2, createItem("m3", BigDecimal("1.0"), ingredientId = IngredientId("ing2")))
+        advanceUntilIdle()
         
         val state2 = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state2.summary.quantitySummary).isNull()
-        
-        collectJob.cancel()
     }
 
     @Test
     fun `reset clears filters and search`() = runTest {
-        every { activityRepository.observeActivity(any()) } returns flowOf(emptyList())
         val viewModel = createViewModel()
-        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.uiState.collect { }
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
         }
+        advanceUntilIdle()
 
         viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.IN))
         viewModel.onSearchQueryChange("test")
+        advanceUntilIdle()
         
         viewModel.resetFilters()
+        advanceUntilIdle()
         
         assertThat(viewModel.filters.value).isEqualTo(InventoryActivityFilters())
         assertThat(viewModel.searchQuery.value).isEmpty()
+    }
+
+    @Test
+    fun `defensively parses malformed categories`() = runTest {
+        val handle = SavedStateHandle(mapOf("categories" to listOf("INVALID", "PURCHASE")))
+        val viewModel = createViewModel(handle)
         
-        collectJob.cancel()
+        assertThat(viewModel.filters.value.categories).containsExactly(InventoryActivityCategory.PURCHASE)
+    }
+
+    @Test
+    fun `search matches localized text`() = runTest {
+        val item = createItem("m1", BigDecimal("10.0")).copy(
+            sourceInfo = InventoryActivitySourceInfo.Waste(WasteReason.SPOILED, "Storage", true)
+        )
+        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(item))
+        
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // "Spoiled" in our simple resolver
+        viewModel.onSearchQueryChange("Spoiled")
+        advanceUntilIdle()
+        
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(state.items).hasSize(1)
+
+        viewModel.onSearchQueryChange("Unknown")
+        advanceUntilIdle()
+        
+        val stateEmpty = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(stateEmpty.items).isEmpty()
     }
 
     private fun createItem(
@@ -178,4 +219,18 @@ class InventoryActivityListViewModelTest {
         reversalOfDisplay = null,
         reversedByDisplay = null
     )
+
+    private class SimpleInventoryActivityTextResolver : InventoryActivityTextResolver {
+        override fun categoryText(category: InventoryActivityCategory): String = category.name
+        override fun sourceTitle(info: InventoryActivitySourceInfo): String = when (info) {
+            is InventoryActivitySourceInfo.Purchase -> "Purchase from ${info.supplierName}"
+            is InventoryActivitySourceInfo.Waste -> "Waste - ${info.reason}"
+            is InventoryActivitySourceInfo.StockCount -> info.countName ?: "Count"
+            is InventoryActivitySourceInfo.Production -> "Production - ${info.recipeName}"
+            is InventoryActivitySourceInfo.Other -> "Other"
+        }
+        override fun sourceSubtitle(info: InventoryActivitySourceInfo): String? = null
+        override fun wasteReasonText(reason: WasteReason): String = reason.name.lowercase().replaceFirstChar { it.uppercase() }
+        override fun productionStatusText(status: DocumentStatus): String = status.name
+    }
 }

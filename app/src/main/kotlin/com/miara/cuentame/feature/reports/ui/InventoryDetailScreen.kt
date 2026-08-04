@@ -27,6 +27,10 @@ import com.miara.cuentame.feature.reports.viewmodel.DetailReportScreenState
 import com.miara.cuentame.feature.reports.viewmodel.InventoryDetailViewModel
 import java.util.*
 
+import com.miara.cuentame.core.presentation.ui.DetailReportError
+import com.miara.cuentame.core.presentation.ui.DetailReportLoading
+import com.miara.cuentame.core.presentation.ui.DetailReportSetupRequired
+import com.miara.cuentame.core.presentation.ui.SummaryMetric
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
 import com.miara.cuentame.core.presentation.ui.RefreshIndicator

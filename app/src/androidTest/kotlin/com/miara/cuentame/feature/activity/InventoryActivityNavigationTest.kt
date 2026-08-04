@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.feature.activity.logic.AndroidInventoryActivityTextResolver
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -26,14 +28,29 @@ class InventoryActivityNavigationTest {
     @get:Rule(order = 1)
     val composeTestRule = createEmptyComposeRule()
 
-    @Inject
-    lateinit var testStateManager: TestStateManager
+    @Inject lateinit var testStateManager: TestStateManager
+    @Inject lateinit var restaurantRepository: RestaurantRepository
+    @Inject lateinit var ingredientRepository: IngredientRepository
+    @Inject lateinit var areaRepository: InventoryAreaRepository
+    @Inject lateinit var purchaseRepository: PurchaseRepository
+    @Inject lateinit var wasteRepository: WasteRepository
+    @Inject lateinit var stockCountRepository: StockCountRepository
+    @Inject lateinit var productionBatchRepository: ProductionBatchRepository
+    @Inject lateinit var preparationRecipeRepository: PreparationRecipeRepository
+    @Inject lateinit var activityRepository: InventoryActivityRepository
+
+    private lateinit var fixture: CanonicalInventoryActivityFixture
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
             testStateManager.seedBaseline()
+            fixture = seedCanonicalInventoryActivity(
+                restaurantRepository, ingredientRepository, areaRepository,
+                purchaseRepository, wasteRepository, stockCountRepository,
+                productionBatchRepository, preparationRecipeRepository, activityRepository
+            )
         }
     }
 
@@ -59,6 +76,12 @@ class InventoryActivityNavigationTest {
             }
 
             composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_active_ingredient_filter").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("inventory_activity_active_area_filter").assertDoesNotExist()
+            
+            // Back returns home
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
 
@@ -76,7 +99,7 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 2. Open an Ingredient (Chicken seeded)
+            // 2. Open our seeded Ingredient
             composeTestRule.onNodeWithTag("ingredient_item_Chicken").performClick()
 
             composeTestRule.waitUntil(15000) {
@@ -90,9 +113,10 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // Verify prefilter
-            composeTestRule.onNodeWithTag("inventory_activity_filter_ingredient").assertTextContains("Chicken")
-            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
+            // Verify prefilter via active chip
+            composeTestRule.onNodeWithTag("inventory_activity_active_ingredient_filter").assertTextContains("Chicken")
+            // And matching rows exist
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").assertIsDisplayed()
         }
     }
 
@@ -108,20 +132,23 @@ class InventoryActivityNavigationTest {
 
             // 2. Open Areas
             composeTestRule.onNodeWithTag("settings_areas").performClick()
+            
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasText("Storage")).fetchSemanticsNodes().isNotEmpty()
+            }
 
-            // 3. Open an Area (Kitchen seeded)
-            composeTestRule.onNodeWithText("Kitchen").performClick()
+            // 3. Open overflow menu for the seeded Area
+            composeTestRule.onNodeWithTag("area_menu_${fixture.areaId.value}").performClick()
 
             // 4. View Activity
-            composeTestRule.onNodeWithTag("area_view_activity").performClick()
+            composeTestRule.onNodeWithTag("area_view_activity_${fixture.areaId.value}").performClick()
 
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
             // Verify prefilter
-            composeTestRule.onNodeWithTag("inventory_activity_filter_area").assertTextContains("Kitchen")
-            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_active_area_filter").assertTextContains("Storage")
         }
     }
 
@@ -136,14 +163,10 @@ class InventoryActivityNavigationTest {
             }
             
             // Search
-            composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Tomato")
+            composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Chicken")
 
             // 2. Open Detail
-            composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).onFirst().performClick() // Need a better way to find items
-            // Actually, let's use a simpler check for now if I can't find a good matcher for prefix test tags
-            // composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_", substring = true)).onFirst().performClick()
-            // Try this instead:
-            // composeTestRule.onNode(hasTestTag("inventory_activity_row_").and(hasAnyChild(hasText("Tomato")))).performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").performClick()
 
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -152,8 +175,8 @@ class InventoryActivityNavigationTest {
             // 3. Go back
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 
-            // 4. Verify search is preserved
-            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextContains("Tomato")
+            // 4. Verify search and filter are preserved
+            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("Chicken")
         }
     }
 }

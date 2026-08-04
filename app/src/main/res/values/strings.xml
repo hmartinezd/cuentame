@@ -27,7 +27,6 @@
     <string name="onboarding_welcome_desc">Cuentame is your local-first restaurant inventory manager. Track everything offline, with full control over your data.</string>
     <string name="onboarding_welcome_note">Don\'t worry, you can change your settings later.</string>
     <string name="onboarding_setup_action">Set up restaurant</string>
-
     <string name="onboarding_restaurant_title">Restaurant Details</string>
     <string name="onboarding_restaurant_desc">Tell us a bit about your business.</string>
     <string name="onboarding_field_name">Restaurant Name</string>
@@ -35,18 +34,15 @@
     <string name="onboarding_field_language">Application Language</string>
     <string name="onboarding_currency_note">Currency is used for calculating total inventory value.</string>
     <string name="onboarding_language_note">You can change the language at any time in Settings.</string>
-
     <string name="onboarding_areas_title">Inventory Areas</string>
     <string name="onboarding_areas_desc">Where do you store your items? Select the ones that apply or add your own.</string>
     <string name="onboarding_add_area">Add custom area</string>
     <string name="onboarding_area_required">At least one area is required.</string>
     <string name="onboarding_areas_selection_empty">Please select at least one storage area.</string>
-
     <string name="onboarding_categories_title">Ingredient Categories</string>
     <string name="onboarding_categories_desc">Organize your items into groups. This helps with reporting and counting.</string>
     <string name="onboarding_add_category">Add custom category</string>
     <string name="onboarding_category_recommend">We recommend using categories to organize your inventory better.</string>
-
     <string name="onboarding_review_title">Review Setup</string>
     <string name="onboarding_finish_action">Finish setup</string>
 
@@ -57,7 +53,6 @@
     <string name="template_area_bar">Bar</string>
     <string name="template_area_prep">Prep Area</string>
     <string name="template_area_line">Kitchen Line</string>
-
     <string name="template_cat_meat">Meat</string>
     <string name="template_cat_seafood">Seafood</string>
     <string name="template_cat_dairy">Dairy</string>
@@ -69,6 +64,43 @@
     <string name="template_cat_cleaning">Cleaning Supplies</string>
     <string name="template_cat_other">Other</string>
 
+    <!-- Generic Actions & Labels -->
+    <string name="action_next">Continue</string>
+    <string name="action_back">Back</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_save">Save Changes</string>
+    <string name="action_add">Add</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_search">Search…</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_retry_desc">Retry</string>
+    <string name="optional">Optional</string>
+    <string name="all">All</string>
+    <string name="notes">Notes</string>
+    <string name="not_available">Not available</string>
+    <string name="not_applicable">N/A</string>
+    <string name="status_label">Status</string>
+
+    <!-- Generic Statuses -->
+    <string name="status_draft">Draft</string>
+    <string name="status_posted">Posted</string>
+    <string name="status_voided">Voided</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_active">Active</string>
+    <string name="status_archived">Archived</string>
+    <string name="status_in_progress">In Progress</string>
+    <string name="not_started">Not Started</string>
+    <string name="area_completed">Area Completed</string>
+    <string name="pending_item">Pending</string>
+    <string name="counted_item">Counted</string>
+
+    <!-- Activity Statuses (Legacy/Dashboard references) -->
+    <string name="activity_status_posted">Posted</string>
+    <string name="activity_status_voided">Voided</string>
+    <string name="activity_status_completed">Completed</string>
+
     <!-- Settings -->
     <string name="settings_restaurant">Restaurant Profile</string>
     <string name="settings_areas">Inventory Areas</string>
@@ -78,24 +110,11 @@
     <string name="settings_about">About</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_dynamic_color">Dynamic Color</string>
-
     <string name="theme_system">System Default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
-
     <string name="lang_en">English</string>
     <string name="lang_es">Español</string>
-
-    <string name="action_next">Continue</string>
-    <string name="action_back">Back</string>
-    <string name="action_edit">Edit</string>
-    <string name="action_save">Save Changes</string>
-    <string name="action_add">Add</string>
-    <string name="action_remove">Remove</string>
-    <string name="action_archive">Archive</string>
-    <string name="action_confirm">Confirm</string>
-    <string name="optional">Optional</string>
-
     <string name="about_desc">Cuentame is a local-only inventory management solution. All your data stays on this device.</string>
     <string name="about_version">Version %s</string>
 
@@ -119,8 +138,6 @@
     <string name="state_loading_desc">Loading…</string>
     <string name="state_empty_desc">Nothing to show yet.</string>
     <string name="state_error_desc">Something went wrong.</string>
-    <string name="action_retry_desc">Retry</string>
-    <string name="status_label">Status</string>
 
     <!-- Dashboard & Reports -->
     <string name="dashboard_title">Dashboard</string>
@@ -168,7 +185,6 @@
     <string name="no_recent_activity">No recent activity</string>
     <string name="comparison_new">New</string>
     <string name="comparison_no_change">No change</string>
-    <string name="not_applicable">N/A</string>
     <string name="activity_type_purchase">Purchase</string>
     <string name="activity_type_waste">Waste</string>
     <string name="activity_type_stock_count">Stock count</string>
@@ -186,14 +202,10 @@
     <string name="setup_required_desc">Please complete the restaurant setup to view the dashboard.</string>
     <string name="dashboard_error_title">Dashboard Error</string>
     <string name="dashboard_error_desc">We couldn\'t load the dashboard data. Please try again.</string>
-    <string name="activity_status_posted">Posted</string>
-    <string name="activity_status_voided">Voided</string>
-    <string name="activity_status_completed">Completed</string>
     <string name="from_previous_period">vs previous period</string>
     <string name="items_count_format">%1$d items</string>
     <string name="activity_description_format">%1$s: %2$s. %3$s, %4$s. %5$s</string>
     <string name="activity_description_no_value">%1$s: %2$s. %3$s, %4$s</string>
-
     <string name="reports_inventory_semantics">%1$s. Value: %2$s. Valued ingredients: %3$s. Coverage: %4$s. Missing costs: %5$d</string>
     <string name="reports_comparison_semantics">%1$s. Current: %2$s. Previous: %3$s. Change: %4$s. %5$s %6$s</string>
     <string name="reports_alerts_semantics">Alerts: %1$d negative balances, %2$d missing costs, %3$d missing unit options</string>
@@ -228,7 +240,6 @@
     <string name="refresh_context_error">The %1$s report could not be updated. Showing the %2$s results.</string>
     <string name="refresh_context_updating_dashboard">Showing %1$s dashboard while updating for %2$s.</string>
     <string name="refresh_context_error_dashboard">The %1$s dashboard could not be updated. Showing %2$s results.</string>
-
     <string name="inventory_row_semantics">%1$s. Quantity: %2$s. Cost: %3$s. Value: %4$s</string>
     <string name="inventory_row_missing_cost_warning">. Missing current cost</string>
     <string name="inventory_row_negative_areas_warning">. %1$d negative area balances</string>
@@ -280,7 +291,6 @@
     <string name="default_count_label">Default Count</string>
     <string name="default_purchase_label">Default Purchase</string>
     <string name="action_more_options">Actions for %1$s</string>
-
     <string name="desc_set_default_count">Set %1$s as default count unit</string>
     <string name="desc_set_default_purchase">Set %1$s as default purchase unit</string>
     <string name="desc_edit_option">Edit %1$s</string>
@@ -322,9 +332,6 @@
     <string name="voiding_warning">Void this purchase? Inventory movements will be reversed, and the receipt will remain in history.</string>
     <string name="delete_draft_confirm">Delete this draft purchase? This action removes the unpublished draft and its lines.</string>
     <string name="no_supplier">No Supplier</string>
-    <string name="status_draft">Draft</string>
-    <string name="status_posted">Posted</string>
-    <string name="status_voided">Voided</string>
     <string name="purchase_items_count">%1$d items</string>
     <string name="posted_at">Posted at: %1$s</string>
     <string name="voided_at">Voided at: %1$s</string>
@@ -334,16 +341,11 @@
     <string name="delete_line_desc">Delete purchase line for %1$s</string>
     <string name="post_purchase_desc">Post purchase dated %1$s</string>
     <string name="archive_supplier_desc">Archive supplier %1$s</string>
-    <string name="action_search">Search…</string>
-    <string name="notes">Notes</string>
-    <string name="all">All</string>
     <string name="no_unit_options">No additional units defined</string>
     <string name="archive_ingredient_confirmation">Are you sure you want to archive %1$s? It will no longer appear in new purchases or counts.</string>
-
     <string name="dim_mass">Mass</string>
     <string name="dim_volume">Volume</string>
     <string name="dim_count">Count</string>
-
     <string name="error_ingredient_not_found">Ingredient not found</string>
     <string name="error_base_unit_immutable">The base unit cannot be changed after creation</string>
     <string name="error_duplicate_ingredient">An ingredient with this name already exists</string>
@@ -388,14 +390,8 @@
     <string name="count_name_placeholder">Example: Monthly Inventory</string>
     <string name="count_default_name">Inventory Count — %1$s</string>
     <string name="count_review_title">Adjustment Review</string>
-    <string name="status_completed">Completed</string>
     <string name="count_by_area">Count by Area</string>
-    <string name="not_started">Not Started</string>
-    <string name="status_in_progress">In Progress</string>
-    <string name="area_completed">Area Completed</string>
     <string name="reopen_area">Reopen Area</string>
-    <string name="pending_item">Pending</string>
-    <string name="counted_item">Counted</string>
     <string name="expected_quantity">Expected Quantity</string>
     <string name="expected_quantity_format">Expected: %1$s %2$s</string>
     <string name="counted_quantity">Counted Quantity</string>
@@ -417,7 +413,6 @@
     <string name="error_invalid_count_route">We couldn\'t open this inventory count. The count or area may no longer be available.</string>
     <string name="error_invalid_production_route">Invalid production screen.</string>
     <string name="error_parent_not_editable">This item is no longer editable.</string>
-    <string name="action_dismiss">Dismiss</string>
     <string name="error_count_not_found">Stock count not found</string>
     <string name="error_count_area_not_found">Inventory area not found for this count</string>
     <string name="error_area_ownership_mismatch">Area does not belong to this count</string>
@@ -463,78 +458,6 @@
     <string name="original_movement">Original Movement</string>
     <string name="reversal_movement">Reversal Movement</string>
 
-    <string name="settings_data_backup_section">Data and backup</string>
-    <string name="create_backup_title">Create backup</string>
-    <string name="create_backup_desc">Creates a complete copy of your local Cuentame data that you choose where to save.</string>
-    <string name="backup_waiting_for_destination">Waiting for destination…</string>
-    <string name="backup_creating">Creating backup…</string>
-    <string name="backup_validating">Validating backup…</string>
-    <string name="backup_success_message">Backup created successfully.</string>
-    <string name="backup_error_message">Backup creation failed: %1$s</string>
-    <string name="backup_cancelled_message">Backup creation cancelled.</string>
-    <string name="backup_error_destination">Destination unavailable.</string>
-    <string name="backup_error_permission">Permission denied.</string>
-    <string name="backup_error_storage">Insufficient storage.</string>
-    <string name="backup_error_serialization">Failed to serialize data.</string>
-    <string name="backup_error_database">Failed to read database.</string>
-    <string name="backup_error_attachment_missing">Missing attachment: %1$s</string>
-    <string name="backup_error_attachment_unreadable">Unreadable attachment: %1$s</string>
-    <string name="backup_error_checksum">Checksum failure: %1$s</string>
-    <string name="backup_error_validation">Archive validation failed: %1$s</string>
-    <string name="backup_error_attachments_unsupported">Attachments are not supported yet. Please remove attachments from records before creating a backup.</string>
-    <string name="backup_error_unsupported">Unsupported persistent data.</string>
-    <string name="backup_error_unknown">An unknown error occurred: %1$s</string>
-
-    <string name="restore_backup_title">Restore backup</string>
-    <string name="restore_backup_desc">Inspect and restore data from a Cuentame backup file.</string>
-    <string name="restore_inspecting">Inspecting backup…</string>
-    <string name="restore_preview_title">Backup Preview</string>
-    <string name="restore_preview_restaurant">Restaurant: %1$s</string>
-    <string name="restore_preview_created_at">Created at: %1$s</string>
-    <string name="restore_preview_format">Format version: %1$d</string>
-    <string name="restore_preview_schema">Schema version: %1$d</string>
-    <string name="restore_preview_locale">Language: %1$s</string>
-    <string name="restore_preview_records">Records: %1$d tables found</string>
-    <string name="restore_preview_attachments">Attachments: %1$d files (%2$s)</string>
-    <string name="restore_preview_attachments_unsupported">This backup contains attachments which are not supported in this version. Restoration is disabled.</string>
-    <string name="restore_preview_read_only_note">Confirming restore will replace current device data with this backup content.</string>
-    <string name="restore_error_title">Restore Error</string>
-    <string name="restore_error_message">Could not inspect backup: %1$s</string>
-    <string name="restore_error_invalid_zip">Invalid ZIP archive.</string>
-    <string name="restore_error_missing_core">Missing required backup data.</string>
-    <string name="restore_error_checksum">Data integrity check failed.</string>
-    <string name="restore_error_incompatible">Incompatible backup format or schema.</string>
-    <string name="restore_error_limit">Backup exceeds safety limits.</string>
-    <string name="restore_error_integrity_generic">Logical consistency check failed.</string>
-    <string name="restore_error_attachments_unsupported">Attachments are not supported by Backup and Restore yet. Remove the attachments or wait for a future version before continuing.</string>
-    <string name="restore_error_database_failed">Database restore failed.</string>
-    <string name="restore_error_preferences_failed">Preferences restore failed.</string>
-    <string name="restore_error_preparation_failed">Restore preparation failed.</string>
-    <string name="restore_error_final_verification_failed">Final verification failed.</string>
-    <string name="restore_action_choose_another">Choose another file</string>
-    <string name="restore_action_restore">Restore now</string>
-    <string name="restore_action_confirm">Erase and Restore</string>
-    <string name="restore_applying">Restoring data…</string>
-    <string name="restore_applying_title">Restoring Backup</string>
-    <string name="restore_confirm_title">Confirm Restore</string>
-    <string name="restore_confirm_message">This will replace ALL current inventory and history. Attachments are NOT replaced in this version. This action cannot be undone manually. If the restore fails, the app will attempt to roll back to the current state.</string>
-    <string name="restore_phase_staging">Validating backup…</string>
-    <string name="restore_phase_staged">Preparing restore…</string>
-    <string name="restore_phase_preparing">Preparing system rollback…</string>
-    <string name="restore_phase_database">Restoring data tables…</string>
-    <string name="restore_phase_attachments">Restoring attachment files…</string>
-    <string name="restore_phase_preferences">Restoring settings…</string>
-    <string name="restore_phase_finalizing">Finalizing…</string>
-    <string name="restore_phase_rolling_back">Restoring previous state…</string>
-    <string name="restore_success_title">Restore Successful</string>
-    <string name="restore_success_message">Successfully restored data for %1$s. %2$d records were updated.</string>
-
-    <string name="restore_recovery_success_title">Recovery completed</string>
-    <string name="restore_recovery_success_message">Your previous data was restored.</string>
-
-    <string name="restore_recovery_required_title">Manual Recovery Required</string>
-    <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
-
     <!-- Waste Reasons -->
     <string name="reason_expired">Expired</string>
     <string name="reason_spoiled">Spoiled</string>
@@ -560,6 +483,7 @@
     <string name="error_reason_required">A valid waste reason is required</string>
     <string name="error_future_effective_time">Waste effective time cannot be in the future</string>
     <string name="error_attachment_unavailable">The attached photo is no longer available</string>
+
     <!-- Preparation Recipes -->
     <string name="preparation_recipes">Preparation recipes</string>
     <string name="new_preparation_recipe">New preparation recipe</string>
@@ -576,8 +500,6 @@
     <string name="move_recipe_to_draft">Move recipe to Draft</string>
     <string name="archive_recipe">Archive recipe</string>
     <string name="restore_recipe">Restore recipe</string>
-    <string name="status_active">Active</string>
-    <string name="status_archived">Archived</string>
     <string name="no_preparation_recipes">No preparation recipes</string>
     <string name="no_recipes_match_filters">No recipes match these filters</string>
     <string name="circular_recipe_warning">This recipe would create a circular preparation dependency.</string>
@@ -676,7 +598,6 @@
     <string name="production_recipe_snapshot">Recipe quantity snapshot</string>
     <string name="production_cost_unavailable">Cost unavailable</string>
     <string name="production_unit_cost_unavailable">Unit cost unavailable</string>
-    <string name="not_available">Not available</string>
     <string name="production_status">Production status</string>
     <string name="production_quantity_entered_and_base">%1$s entered (%2$s base)</string>
     <string name="production_quantity_with_base">%1$s (%2$s base)</string>
@@ -742,6 +663,87 @@
     <string name="inventory_activity_detail_total_value">Total value</string>
     <string name="ingredient_view_activity">View inventory activity</string>
     <string name="area_view_activity">View activity</string>
+    <string name="inventory_activity_date_range">Date range</string>
+    <string name="inventory_activity_direction">Direction</string>
+    <string name="inventory_activity_include_reversals">Include Reversals</string>
+    <string name="inventory_activity_apply_filters">Apply filters</string>
+    <string name="inventory_activity_detail_created_time">Created time</string>
+    <string name="inventory_activity_detail_effective_time">Effective time</string>
+    <string name="inventory_activity_row_content_description">%1$s. %2$s. Area: %3$s. Quantity: %4$s. Effective: %5$s. Source: %6$s. %7$s</string>
+    <string name="inventory_activity_filtered_empty_reset">Reset filters</string>
+    <string name="inventory_activity_active_filters">Active filters</string>
+    <string name="inventory_activity_active_ingredient_filter">Ingredient: %1$s</string>
+    <string name="inventory_activity_active_area_filter">Area: %1$s</string>
+    <string name="inventory_activity_active_date_filter">Date: %1$s</string>
+    <string name="inventory_activity_active_search">Search: %1$s</string>
+
+    <!-- Backup & Restore -->
+    <string name="settings_data_backup_section">Data and backup</string>
+    <string name="create_backup_title">Create backup</string>
+    <string name="create_backup_desc">Creates a complete copy of your local Cuentame data that you choose where to save.</string>
+    <string name="backup_waiting_for_destination">Waiting for destination…</string>
+    <string name="backup_creating">Creating backup…</string>
+    <string name="backup_validating">Validating backup…</string>
+    <string name="backup_success_message">Backup created successfully.</string>
+    <string name="backup_error_message">Backup creation failed: %1$s</string>
+    <string name="backup_cancelled_message">Backup creation cancelled.</string>
+    <string name="backup_error_destination">Destination unavailable.</string>
+    <string name="backup_error_permission">Permission denied.</string>
+    <string name="backup_error_storage">Insufficient storage.</string>
+    <string name="backup_error_serialization">Failed to serialize data.</string>
+    <string name="backup_error_database">Failed to read database.</string>
+    <string name="backup_error_attachment_missing">Missing attachment: %1$s</string>
+    <string name="backup_error_attachment_unreadable">Unreadable attachment: %1$s</string>
+    <string name="backup_error_checksum">Checksum failure: %1$s</string>
+    <string name="backup_error_validation">Archive validation failed: %1$s</string>
+    <string name="backup_error_attachments_unsupported">Attachments are not supported yet. Please remove attachments from records before creating a backup.</string>
+    <string name="backup_error_unsupported">Unsupported persistent data.</string>
+    <string name="backup_error_unknown">An unknown error occurred: %1$s</string>
+    <string name="restore_backup_title">Restore backup</string>
+    <string name="restore_backup_desc">Inspect and restore data from a Cuentame backup file.</string>
+    <string name="restore_inspecting">Inspecting backup…</string>
+    <string name="restore_preview_title">Backup Preview</string>
+    <string name="restore_preview_restaurant">Restaurant: %1$s</string>
+    <string name="restore_preview_created_at">Created at: %1$s</string>
+    <string name="restore_preview_format">Format version: %1$d</string>
+    <string name="restore_preview_schema">Schema version: %1$d</string>
+    <string name="restore_preview_locale">Language: %1$s</string>
+    <string name="restore_preview_records">Records: %1$d tables found</string>
+    <string name="restore_preview_attachments">Attachments: %1$d files (%2$s)</string>
+    <string name="restore_preview_attachments_unsupported">This backup contains attachments which are not supported in this version. Restoration is disabled.</string>
+    <string name="restore_preview_read_only_note">Confirming restore will replace current device data with this backup content.</string>
+    <string name="restore_error_title">Restore Error</string>
+    <string name="restore_error_message">Could not inspect backup: %1$s</string>
+    <string name="restore_error_invalid_zip">Invalid ZIP archive.</string>
+    <string name="restore_error_missing_core">Missing required backup data.</string>
+    <string name="restore_error_checksum">Data integrity check failed.</string>
+    <string name="restore_error_incompatible">Incompatible backup format or schema.</string>
+    <string name="restore_error_limit">Backup exceeds safety limits.</string>
+    <string name="restore_error_integrity_generic">Logical consistency check failed.</string>
+    <string name="restore_error_attachments_unsupported">Attachments are not supported by Backup and Restore yet. Remove the attachments or wait for a future version before continuing.</string>
+    <string name="restore_error_database_failed">Database restore failed.</string>
+    <string name="restore_error_preferences_failed">Preferences restore failed.</string>
+    <string name="restore_error_preparation_failed">Restore preparation failed.</string>
+    <string name="restore_error_final_verification_failed">Final verification failed.</string>
+    <string name="restore_action_choose_another">Choose another file</string>
+    <string name="restore_action_restore">Restore now</string>
+    <string name="restore_action_confirm">Erase and Restore</string>
+    <string name="restore_applying">Restoring data…</string>
+    <string name="restore_applying_title">Restoring Backup</string>
+    <string name="restore_confirm_title">Confirm Restore</string>
+    <string name="restore_confirm_message">This will replace ALL current inventory and history. Attachments are NOT replaced in this version. This action cannot be undone manually. If the restore fails, the app will attempt to roll back to the current state.</string>
+    <string name="restore_phase_staging">Validating backup…</string>
+    <string name="restore_phase_staged">Preparing restore…</string>
+    <string name="restore_phase_preparing">Preparing system rollback…</string>
+    <string name="restore_phase_database">Restoring data tables…</string>
+    <string name="restore_phase_attachments">Restoring attachment files…</string>
+    <string name="restore_phase_preferences">Restoring settings…</string>
+    <string name="restore_phase_finalizing">Finalizing…</string>
+    <string name="restore_phase_rolling_back">Restoring previous state…</string>
+    <string name="restore_success_title">Restore Successful</string>
+    <string name="restore_success_message">Successfully restored data for %1$s. %2$d records were updated.</string>
+    <string name="restore_recovery_success_title">Recovery completed</string>
+    <string name="restore_recovery_success_message">Your previous data was restored.</string>
+    <string name="restore_recovery_required_title">Manual Recovery Required</string>
+    <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
 </resources>
-
-

@@ -24,7 +24,7 @@ fun ProductionStatusBadge(
     status: DocumentStatus,
     modifier: Modifier = Modifier
 ) {
-    val (textRes, color, bgColor) = when (status) {
+    val triple = when (status) {
         DocumentStatus.DRAFT -> Triple(
             R.string.status_draft,
             MaterialTheme.colorScheme.onSecondaryContainer,
@@ -41,6 +41,9 @@ fun ProductionStatusBadge(
             MaterialTheme.colorScheme.errorContainer
         )
     }
+    val textRes = triple.first
+    val color = triple.second
+    val bgColor = triple.third
 
     val tag = when (status) {
         DocumentStatus.DRAFT -> "production_status_draft"

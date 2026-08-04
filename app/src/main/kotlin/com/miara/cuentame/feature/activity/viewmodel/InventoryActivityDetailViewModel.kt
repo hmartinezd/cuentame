@@ -10,6 +10,7 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.presentation.ui.UiMessage
+import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -33,6 +34,7 @@ sealed interface InventoryActivityDetailScreenState {
 class InventoryActivityDetailViewModel @Inject constructor(
     private val activityRepository: InventoryActivityRepository,
     private val restaurantRepository: RestaurantRepository,
+    private val textResolver: InventoryActivityTextResolver,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -63,7 +65,7 @@ class InventoryActivityDetailViewModel @Inject constructor(
                         return@collect
                     }
 
-                    val item = activityRepository.getActivityItem(movementId)
+                    val item = activityRepository.getActivityItem(restaurant.id, movementId)
                     if (item == null) {
                         _uiState.value = InventoryActivityDetailScreenState.MovementNotFound
                     } else {
@@ -86,4 +88,6 @@ class InventoryActivityDetailViewModel @Inject constructor(
     fun onRetry() {
         retryTrigger.value += 1
     }
+
+    fun getTextResolver(): InventoryActivityTextResolver = textResolver
 }

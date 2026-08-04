@@ -231,7 +231,8 @@ interface InventoryMovementDao {
         LEFT JOIN production_batches pb ON im.sourceDocumentType = 'PRODUCTION_BATCH' AND im.sourceDocumentId = pb.id AND pb.restaurantId = im.restaurantId
         LEFT JOIN inventory_movements im_rev ON im.id = im_rev.reversalOfMovementId AND im_rev.restaurantId = im.restaurantId
         LEFT JOIN inventory_movements im_orig ON im.reversalOfMovementId = im_orig.id AND im_orig.restaurantId = im.restaurantId
-        WHERE im.id = :movementId
+        WHERE im.restaurantId = :restaurantId
+        AND im.id = :movementId
     """)
-    suspend fun getInventoryActivityRow(movementId: String): com.miara.cuentame.core.database.model.InventoryActivityRow?
+    suspend fun getInventoryActivityRow(restaurantId: String, movementId: String): com.miara.cuentame.core.database.model.InventoryActivityRow?
 }

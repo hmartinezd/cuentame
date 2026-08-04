@@ -32,7 +32,7 @@ sealed interface InventoryActivitySourceInfo {
     ) : InventoryActivitySourceInfo
 
     data class Waste(
-        val reason: String?,
+        val reason: WasteReason?,
         val sourceAreaName: String?,
         val isResolved: Boolean
     ) : InventoryActivitySourceInfo
@@ -44,7 +44,7 @@ sealed interface InventoryActivitySourceInfo {
 
     data class Production(
         val recipeName: String?,
-        val status: String?, // Using String? to avoid cyclic dependency if DocumentStatus is not available here, but I should check what it is.
+        val status: DocumentStatus?,
         val isResolved: Boolean
     ) : InventoryActivitySourceInfo
 
@@ -110,8 +110,7 @@ data class InventoryActivityFilters(
     val areaId: InventoryAreaId? = null,
     val categories: Set<InventoryActivityCategory> = InventoryActivityCategory.entries.toSet(),
     val direction: InventoryActivityDirection = InventoryActivityDirection.ALL,
-    val includeReversals: Boolean = true,
-    val searchQuery: String = ""
+    val includeReversals: Boolean = true
 )
 
 data class InventoryActivityQuery(

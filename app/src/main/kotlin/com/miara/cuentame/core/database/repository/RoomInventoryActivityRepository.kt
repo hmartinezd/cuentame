@@ -2,6 +2,7 @@ package com.miara.cuentame.core.database.repository
 
 import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.common.ids.WasteEventId
 import com.miara.cuentame.core.common.ids.ProductionBatchId
@@ -9,6 +10,7 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.model.InventoryActivityRow
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
+import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryActivityCategory
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivityQuery
@@ -17,6 +19,7 @@ import com.miara.cuentame.core.model.inventory.InventoryActivitySourceInfo
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.WasteReason
 import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -41,8 +44,14 @@ class RoomInventoryActivityRepository @Inject constructor(
         }
     }
 
-    override suspend fun getActivityItem(movementId: InventoryMovementId): InventoryActivityItem? {
-        return movementDao.getInventoryActivityRow(movementId.value)?.toActivityItem()
+    override suspend fun getActivityItem(
+        restaurantId: RestaurantId,
+        movementId: InventoryMovementId
+    ): InventoryActivityItem? {
+        return movementDao.getInventoryActivityRow(
+            restaurantId = restaurantId.value,
+            movementId = movementId.value
+        )?.toActivityItem()
     }
 
     override fun resolveSourceTarget(item: InventoryActivityItem): InventoryActivitySourceTarget {
@@ -103,7 +112,9 @@ class RoomInventoryActivityRepository @Inject constructor(
                 isResolved = sourcePurchaseResolvedId != null
             )
             SourceDocumentType.WASTE_EVENT.name -> InventoryActivitySourceInfo.Waste(
-                reason = sourceWasteReason,
+                reason = sourceWasteReason?.let { reason ->
+                    runCatching { WasteReason.valueOf(reason) }.getOrNull()
+                },
                 sourceAreaName = sourceWasteAreaName,
                 isResolved = sourceWasteResolvedId != null
             )
@@ -113,7 +124,9 @@ class RoomInventoryActivityRepository @Inject constructor(
             )
             SourceDocumentType.PRODUCTION_BATCH.name -> InventoryActivitySourceInfo.Production(
                 recipeName = sourceProductionRecipeName,
-                status = sourceProductionStatus,
+                status = sourceProductionStatus?.let { status ->
+                    runCatching { DocumentStatus.valueOf(status) }.getOrNull()
+                },
                 isResolved = sourceProductionResolvedId != null
             )
             else -> InventoryActivitySourceInfo.Other(

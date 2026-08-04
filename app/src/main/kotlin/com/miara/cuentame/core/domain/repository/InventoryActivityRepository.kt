@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.domain.repository
 
 import com.miara.cuentame.core.common.ids.InventoryMovementId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivityQuery
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
@@ -12,6 +13,7 @@ interface InventoryActivityRepository {
     ): Flow<List<InventoryActivityItem>>
 
     suspend fun getActivityItem(
+        restaurantId: RestaurantId,
         movementId: InventoryMovementId
     ): InventoryActivityItem?
 

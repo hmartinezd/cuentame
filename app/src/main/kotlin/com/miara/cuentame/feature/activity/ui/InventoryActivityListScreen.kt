@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
@@ -29,12 +30,14 @@ import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
+import com.miara.cuentame.feature.activity.logic.InventoryActivityDateUtils
+import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListScreenState
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListViewModel
-import com.miara.cuentame.feature.reports.ui.DetailReportError
-import com.miara.cuentame.feature.reports.ui.DetailReportLoading
-import com.miara.cuentame.feature.reports.ui.DetailReportSetupRequired
-import com.miara.cuentame.feature.reports.ui.SummaryMetric
+import com.miara.cuentame.core.presentation.ui.DetailReportError
+import com.miara.cuentame.core.presentation.ui.DetailReportLoading
+import com.miara.cuentame.core.presentation.ui.DetailReportSetupRequired
+import com.miara.cuentame.core.presentation.ui.SummaryMetric
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -59,7 +62,7 @@ fun InventoryActivityListRoute(
         onBackClick = onBack,
         onActivityClick = onActivityDetail,
         onRetry = viewModel::onRetry,
-        onResetFilters = { viewModel.onFilterChange(InventoryActivityFilters()) }
+        onResetFilters = viewModel::resetFilters
     )
 }
 
@@ -115,6 +118,18 @@ fun InventoryActivityListScreen(
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true
             )
+
+            if (uiState is InventoryActivityListScreenState.Ready) {
+                ActiveFiltersRow(
+                    filters = uiState.filters,
+                    availableIngredients = uiState.availableIngredients,
+                    availableAreas = uiState.availableAreas,
+                    searchQuery = searchQuery,
+                    onFilterChange = onFilterChange,
+                    onSearchQueryChange = onSearchQueryChange,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
 
             when (uiState) {
                 InventoryActivityListScreenState.Loading -> DetailReportLoading("inventory_activity_loading")
@@ -320,6 +335,7 @@ private fun InventoryActivityFilterSheet(
             // Categories
             Text(stringResource(R.string.category), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val resolver = LocalInventoryActivityTextResolver.current
                 InventoryActivityCategory.entries.forEach { cat ->
                     FilterChip(
                         selected = currentFilters.categories.contains(cat),
@@ -331,7 +347,7 @@ private fun InventoryActivityFilterSheet(
                             }
                             currentFilters = currentFilters.copy(categories = newCats)
                         },
-                        label = { Text(cat.toDisplayText()) },
+                        label = { Text(resolver.categoryText(cat)) },
                         modifier = Modifier.testTag("inventory_activity_filter_category_${cat.name}")
                     )
                 }
@@ -440,7 +456,7 @@ private fun SummarySection(
                     stringResource(R.string.inventory_activity_summary_value_removed), 
                     valueRemovedText, 
                     testTag = "inventory_activity_value_removed",
-                    color = MaterialTheme.colorScheme.error,
+                    color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -474,17 +490,39 @@ private fun ActivityRow(
     locale: java.util.Locale,
     onClick: () -> Unit
 ) {
-    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault()).withLocale(locale) }
+    val resolver = LocalInventoryActivityTextResolver.current
+    val dateTimeFormatter = remember(locale) { 
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+            .withZone(ZoneId.systemDefault())
+            .withLocale(locale) 
+    }
     
-    val categoryText = item.movement.movementType.toInventoryActivityCategory().toDisplayText()
+    val categoryText = resolver.categoryText(item.movement.movementType.toInventoryActivityCategory())
     val quantityText = formatSignedQuantity(item.movement.quantityBaseSigned, item.baseUnitSymbol)
     val dateText = dateTimeFormatter.format(item.movement.effectiveAt)
-    val sourceTitle = item.sourceInfo.toDisplayTitle()
-    val sourceSubtitle = item.sourceInfo.toDisplaySubtitle()
-    val reversalText = if (item.reversedByMovementId != null) stringResource(R.string.inventory_activity_reversed) else if (item.movement.movementType == com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL) stringResource(R.string.inventory_activity_reversal) else ""
-    val valueText = item.movement.totalValueSnapshot?.let { Formatters.formatCurrency(it.abs(), currencyCode, locale) } ?: ""
+    val sourceTitle = resolver.sourceTitle(item.sourceInfo)
+    val sourceSubtitle = resolver.sourceSubtitle(item.sourceInfo)
+    
+    val reversalLabel = if (item.reversedByMovementId != null) {
+        stringResource(R.string.inventory_activity_reversed)
+    } else if (item.movement.movementType == com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL) {
+        stringResource(R.string.inventory_activity_reversal)
+    } else null
 
-    val semanticContentDescription = "$categoryText, ${item.ingredientName}, ${item.areaName}, $quantityText, $dateText, $sourceTitle" + (sourceSubtitle?.let { ", $it" } ?: "") + (if (reversalText.isNotEmpty()) ", $reversalText" else "") + (if (valueText.isNotEmpty()) ", $valueText" else "")
+    val valueText = item.movement.totalValueSnapshot?.let { 
+        Formatters.formatCurrency(it.abs(), currencyCode, locale) 
+    } ?: ""
+
+    val semanticContentDescription = stringResource(
+        R.string.inventory_activity_row_content_description,
+        categoryText,
+        item.ingredientName,
+        item.areaName,
+        quantityText,
+        dateText,
+        sourceTitle,
+        sourceSubtitle ?: ""
+    ) + (if (reversalLabel != null) ". $reversalLabel" else "") + (if (valueText.isNotEmpty()) ". $valueText" else "")
 
     ListItem(
         modifier = Modifier
@@ -494,19 +532,29 @@ private fun ActivityRow(
                 contentDescription = semanticContentDescription
             },
         headlineContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, 
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(item.ingredientName, fontWeight = FontWeight.Bold)
-                if (item.reversedByMovementId != null) {
-                    SuggestionChip(onClick = {}, label = { Text(stringResource(R.string.inventory_activity_reversed)) }, modifier = Modifier.height(24.dp))
-                }
-                if (item.movement.movementType == com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL) {
-                    SuggestionChip(onClick = {}, label = { Text(stringResource(R.string.inventory_activity_reversal)) }, modifier = Modifier.height(24.dp))
+                if (reversalLabel != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.height(20.dp)
+                    ) {
+                        Text(
+                            text = reversalLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         },
         supportingContent = {
             Column {
-                Text("${categoryText} • ${item.areaName}")
+                Text("${categoryText} \u2022 ${item.areaName}")
                 Text(sourceTitle, style = MaterialTheme.typography.bodySmall)
                 sourceSubtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Text(dateText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
@@ -515,7 +563,7 @@ private fun ActivityRow(
         trailingContent = {
             Column(horizontalAlignment = Alignment.End) {
                 val quantity = item.movement.quantityBaseSigned
-                val color = if (quantity > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else if (quantity < BigDecimal.ZERO) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                val color = if (quantity > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 
                 Text(
                     text = quantityText,
@@ -550,8 +598,11 @@ private fun FilteredEmptyActivityState(onResetFilters: () -> Unit, modifier: Mod
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(stringResource(R.string.inventory_activity_filtered_empty_state), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onResetFilters) {
-                Text(stringResource(R.string.inventory_activity_reset_filters))
+            Button(
+                onClick = onResetFilters,
+                modifier = Modifier.testTag("inventory_activity_filtered_empty_reset")
+            ) {
+                Text(stringResource(R.string.inventory_activity_filtered_empty_reset))
             }
         }
     }
@@ -566,9 +617,22 @@ private fun CustomDateRangeDialog(
     onConfirm: (LocalDate, LocalDate) -> Unit
 ) {
     val dateRangePickerState = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = initialStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-        initialSelectedEndDateMillis = initialEndDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        initialSelectedStartDateMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(initialStartDate),
+        initialSelectedEndDateMillis = InventoryActivityDateUtils.localDateToDatePickerMillis(initialEndDate)
     )
+
+    val errorMessage = remember(dateRangePickerState.selectedStartDateMillis, dateRangePickerState.selectedEndDateMillis) {
+        val startMillis = dateRangePickerState.selectedStartDateMillis
+        val endMillis = dateRangePickerState.selectedEndDateMillis
+        if (startMillis != null && endMillis != null) {
+            val start = InventoryActivityDateUtils.datePickerMillisToLocalDate(startMillis)
+            val end = InventoryActivityDateUtils.datePickerMillisToLocalDate(endMillis)
+            if (start.isAfter(end)) {
+                return@remember R.string.inventory_activity_custom_date_error
+            }
+        }
+        null
+    }
 
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -578,15 +642,15 @@ private fun CustomDateRangeDialog(
                     val startMillis = dateRangePickerState.selectedStartDateMillis
                     val endMillis = dateRangePickerState.selectedEndDateMillis
                     if (startMillis != null && endMillis != null) {
-                        val start = Instant.ofEpochMilli(startMillis).atZone(ZoneId.systemDefault()).toLocalDate()
-                        val end = Instant.ofEpochMilli(endMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val start = InventoryActivityDateUtils.datePickerMillisToLocalDate(startMillis)
+                        val end = InventoryActivityDateUtils.datePickerMillisToLocalDate(endMillis)
                         if (start.isAfter(end)) {
-                            // Handled by DateRangePickerState validation usually, but defensively:
                             return@TextButton
                         }
                         onConfirm(start, end)
                     }
                 },
+                enabled = errorMessage == null && dateRangePickerState.selectedStartDateMillis != null && dateRangePickerState.selectedEndDateMillis != null,
                 modifier = Modifier.testTag("inventory_activity_custom_date_confirm")
             ) {
                 Text(stringResource(R.string.inventory_activity_custom_date_confirm))
@@ -599,15 +663,109 @@ private fun CustomDateRangeDialog(
         },
         modifier = Modifier.testTag("inventory_activity_custom_date_dialog")
     ) {
-        DateRangePicker(
-            state = dateRangePickerState,
-            title = { Text(stringResource(R.string.inventory_activity_custom_date_dialog), modifier = Modifier.padding(16.dp)) },
-            modifier = Modifier.weight(1f)
-        )
+        Column {
+            DateRangePicker(
+                state = dateRangePickerState,
+                title = { Text(stringResource(R.string.inventory_activity_custom_date_dialog), modifier = Modifier.padding(16.dp)) },
+                modifier = Modifier.weight(1f)
+            )
+            errorMessage?.let {
+                Text(
+                    text = stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(16.dp).testTag("inventory_activity_custom_date_error")
+                )
+            }
+        }
     }
 }
 
 private fun formatSignedQuantity(quantity: BigDecimal, unitSymbol: String): String {
     val prefix = if (quantity > BigDecimal.ZERO) "+" else if (quantity < BigDecimal.ZERO) "\u2212" else ""
     return "$prefix${Formatters.formatQuantity(quantity.abs(), unitSymbol)}"
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ActiveFiltersRow(
+    filters: InventoryActivityFilters,
+    availableIngredients: List<com.miara.cuentame.feature.activity.viewmodel.IngredientFilterOption>,
+    availableAreas: List<com.miara.cuentame.feature.activity.viewmodel.AreaFilterOption>,
+    searchQuery: String,
+    onFilterChange: (InventoryActivityFilters) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.testTag("inventory_activity_active_filters"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (searchQuery.isNotBlank()) {
+            ActiveFilterChip(
+                label = stringResource(R.string.inventory_activity_active_search, searchQuery),
+                onClear = { onSearchQueryChange("") },
+                testTag = "inventory_activity_active_search"
+            )
+        }
+
+        if (filters.ingredientId != null) {
+            val name = availableIngredients.find { it.id == filters.ingredientId }?.name ?: filters.ingredientId.value
+            ActiveFilterChip(
+                label = stringResource(R.string.inventory_activity_active_ingredient_filter, name),
+                onClear = { onFilterChange(filters.copy(ingredientId = null)) },
+                testTag = "inventory_activity_active_ingredient_filter"
+            )
+        }
+
+        if (filters.areaId != null) {
+            val name = availableAreas.find { it.id == filters.areaId }?.name ?: filters.areaId.value
+            ActiveFilterChip(
+                label = stringResource(R.string.inventory_activity_active_area_filter, name),
+                onClear = { onFilterChange(filters.copy(areaId = null)) },
+                testTag = "inventory_activity_active_area_filter"
+            )
+        }
+
+        if (filters.dateRange != InventoryActivityDateRange.Last30Days) {
+            ActiveFilterChip(
+                label = stringResource(R.string.inventory_activity_active_date_filter, formatDateRangeLabel(filters.dateRange)),
+                onClear = { onFilterChange(filters.copy(dateRange = InventoryActivityDateRange.Last30Days)) },
+                testTag = "inventory_activity_active_date_filter"
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveFilterChip(
+    label: String,
+    onClear: () -> Unit,
+    testTag: String
+) {
+    InputChip(
+        selected = true,
+        onClick = {},
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        trailingIcon = {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = stringResource(R.string.action_remove),
+                modifier = Modifier.size(16.dp).clickable { onClear() }
+            )
+        },
+        modifier = Modifier.testTag(testTag)
+    )
+}
+
+@Composable
+private fun formatDateRangeLabel(range: InventoryActivityDateRange): String = when (range) {
+    InventoryActivityDateRange.Last7Days -> stringResource(R.string.range_7_days_label)
+    InventoryActivityDateRange.Last30Days -> stringResource(R.string.range_30_days_label)
+    InventoryActivityDateRange.Last90Days -> stringResource(R.string.range_90_days_label)
+    is InventoryActivityDateRange.Custom -> {
+        val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        "${formatter.format(range.startDate)} \u2212 ${formatter.format(range.endDateInclusive)}"
+    }
 }

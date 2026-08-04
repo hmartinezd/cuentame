@@ -1,13 +1,17 @@
 package com.miara.cuentame.feature.activity.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.inventory.*
+import com.miara.cuentame.feature.activity.logic.AndroidInventoryActivityTextResolver
+import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailScreenState
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListScreenState
 import org.junit.Rule
@@ -23,6 +27,9 @@ class InventoryActivityComposeTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val resolver = AndroidInventoryActivityTextResolver(context)
+
     @Test
     fun summary_displaysAllMetrics() {
         val summary = InventoryActivitySummary(
@@ -37,25 +44,27 @@ class InventoryActivityComposeTest {
         )
 
         composeTestRule.setContent {
-            InventoryActivityListScreen(
-                uiState = InventoryActivityListScreenState.Ready(
-                    items = emptyList(),
-                    summary = summary,
-                    filters = InventoryActivityFilters(),
-                    availableIngredients = emptyList(),
-                    availableAreas = emptyList(),
-                    currencyCode = "USD",
-                    localeTag = "en-US",
-                    activeFilterCount = 0
-                ),
-                searchQuery = "",
-                onSearchQueryChange = {},
-                onFilterChange = {},
-                onBackClick = {},
-                onActivityClick = {},
-                onRetry = {},
-                onResetFilters = {}
-            )
+            CompositionLocalProvider(LocalInventoryActivityTextResolver provides resolver) {
+                InventoryActivityListScreen(
+                    uiState = InventoryActivityListScreenState.Ready(
+                        items = emptyList(),
+                        summary = summary,
+                        filters = InventoryActivityFilters(),
+                        availableIngredients = emptyList(),
+                        availableAreas = emptyList(),
+                        currencyCode = "USD",
+                        localeTag = "en-US",
+                        activeFilterCount = 0
+                    ),
+                    searchQuery = "",
+                    onSearchQueryChange = {},
+                    onFilterChange = {},
+                    onBackClick = {},
+                    onActivityClick = {},
+                    onRetry = {},
+                    onResetFilters = {}
+                )
+            }
         }
 
         val expectedLocale = Locale.forLanguageTag("en-US")
@@ -97,32 +106,35 @@ class InventoryActivityComposeTest {
         )
 
         composeTestRule.setContent {
-            InventoryActivityListScreen(
-                uiState = InventoryActivityListScreenState.Ready(
-                    items = listOf(item),
-                    summary = mockSummary(),
-                    filters = InventoryActivityFilters(),
-                    availableIngredients = emptyList(),
-                    availableAreas = emptyList(),
-                    currencyCode = "USD",
-                    localeTag = "en-US",
-                    activeFilterCount = 0
-                ),
-                searchQuery = "",
-                onSearchQueryChange = {},
-                onFilterChange = {},
-                onBackClick = {},
-                onActivityClick = {},
-                onRetry = {},
-                onResetFilters = {}
-            )
+            CompositionLocalProvider(LocalInventoryActivityTextResolver provides resolver) {
+                InventoryActivityListScreen(
+                    uiState = InventoryActivityListScreenState.Ready(
+                        items = listOf(item),
+                        summary = mockSummary(),
+                        filters = InventoryActivityFilters(),
+                        availableIngredients = emptyList(),
+                        availableAreas = emptyList(),
+                        currencyCode = "USD",
+                        localeTag = "en-US",
+                        activeFilterCount = 0
+                    ),
+                    searchQuery = "",
+                    onSearchQueryChange = {},
+                    onFilterChange = {},
+                    onBackClick = {},
+                    onActivityClick = {},
+                    onRetry = {},
+                    onResetFilters = {}
+                )
+            }
         }
 
         composeTestRule.onNodeWithTag("inventory_activity_row_m1").assertExists()
         composeTestRule.onNodeWithText("Tomato").assertIsDisplayed()
         composeTestRule.onNodeWithText("Kitchen", substring = true).assertIsDisplayed()
-        // localized string now
-        // composeTestRule.onNodeWithText("Purchase from US Foods").assertIsDisplayed()
+        
+        val expectedTitle = resolver.sourceTitle(item.sourceInfo)
+        composeTestRule.onNodeWithText(expectedTitle).assertIsDisplayed()
         composeTestRule.onNodeWithText("+10 kg").assertIsDisplayed()
     }
 
@@ -136,18 +148,20 @@ class InventoryActivityComposeTest {
         )
 
         composeTestRule.setContent {
-            InventoryActivityDetailScreen(
-                uiState = InventoryActivityDetailScreenState.Ready(
-                    item = item,
-                    sourceTarget = InventoryActivitySourceTarget.Unavailable,
-                    currencyCode = "USD",
-                    localeTag = "en-US"
-                ),
-                onBackClick = {},
-                onOpenSource = {},
-                onOpenMovement = {},
-                onRetry = {}
-            )
+            CompositionLocalProvider(LocalInventoryActivityTextResolver provides resolver) {
+                InventoryActivityDetailScreen(
+                    uiState = InventoryActivityDetailScreenState.Ready(
+                        item = item,
+                        sourceTarget = InventoryActivitySourceTarget.Unavailable,
+                        currencyCode = "USD",
+                        localeTag = "en-US"
+                    ),
+                    onBackClick = {},
+                    onOpenSource = {},
+                    onOpenMovement = {},
+                    onRetry = {}
+                )
+            }
         }
 
         // Check unit cost row
@@ -192,4 +206,9 @@ class InventoryActivityComposeTest {
     )
 
     private fun mockSummary() = InventoryActivitySummary(0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, InventoryActivityValueCoverage.NONE, null)
+
+    private fun formatSignedQuantity(quantity: BigDecimal, unitSymbol: String): String {
+        val prefix = if (quantity > BigDecimal.ZERO) "+" else if (quantity < BigDecimal.ZERO) "\u2212" else ""
+        return "$prefix${Formatters.formatQuantity(quantity.abs(), unitSymbol)}"
+    }
 }

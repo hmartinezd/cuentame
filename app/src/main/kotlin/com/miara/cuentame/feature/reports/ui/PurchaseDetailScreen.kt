@@ -30,6 +30,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.*
 
+import com.miara.cuentame.core.presentation.ui.DetailReportError
+import com.miara.cuentame.core.presentation.ui.DetailReportLoading
+import com.miara.cuentame.core.presentation.ui.DetailReportSetupRequired
+import com.miara.cuentame.core.presentation.ui.SummaryMetric
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
 import com.miara.cuentame.core.presentation.ui.RefreshIndicator

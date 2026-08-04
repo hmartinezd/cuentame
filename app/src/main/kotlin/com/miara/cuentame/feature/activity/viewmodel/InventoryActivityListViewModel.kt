@@ -10,6 +10,8 @@ import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
 import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.feature.activity.logic.InventoryActivityDateUtils.toInterval
+import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +24,7 @@ import java.math.MathContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 
 sealed interface InventoryActivityListScreenState {
@@ -50,6 +53,7 @@ class InventoryActivityListViewModel @Inject constructor(
     private val ingredientRepository: IngredientRepository,
     private val areaRepository: InventoryAreaRepository,
     private val restaurantRepository: RestaurantRepository,
+    private val textResolver: InventoryActivityTextResolver,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -61,8 +65,12 @@ class InventoryActivityListViewModel @Inject constructor(
 
     private fun restoreFilters(): InventoryActivityFilters {
         val kind = savedStateHandle.get<String>("dateRangeKind")
-        val customStart = savedStateHandle.get<String>("customStartDate")?.let { LocalDate.parse(it) }
-        val customEnd = savedStateHandle.get<String>("customEndDate")?.let { LocalDate.parse(it) }
+        val customStart = savedStateHandle.get<String>("customStartDate")?.let { 
+            runCatching { LocalDate.parse(it) }.getOrNull()
+        }
+        val customEnd = savedStateHandle.get<String>("customEndDate")?.let {
+            runCatching { LocalDate.parse(it) }.getOrNull()
+        }
         
         val dateRange = when (kind) {
             "Last7Days" -> InventoryActivityDateRange.Last7Days
@@ -83,12 +91,14 @@ class InventoryActivityListViewModel @Inject constructor(
             ?.let { InventoryAreaId(it) }
 
         val categoryNames = savedStateHandle.get<List<String>>("categories")
-        val categories = categoryNames?.map { InventoryActivityCategory.valueOf(it) }?.toSet()
-            ?: InventoryActivityCategory.entries.toSet()
+        val categories = categoryNames?.mapNotNull { name ->
+            runCatching { InventoryActivityCategory.valueOf(name) }.getOrNull()
+        }?.toSet()?.takeIf { it.isNotEmpty() } ?: InventoryActivityCategory.entries.toSet()
 
         val directionName = savedStateHandle.get<String>("direction")
-        val direction = directionName?.let { InventoryActivityDirection.valueOf(it) }
-            ?: InventoryActivityDirection.ALL
+        val direction = directionName?.let { name ->
+            runCatching { InventoryActivityDirection.valueOf(name) }.getOrNull()
+        } ?: InventoryActivityDirection.ALL
 
         val includeReversals = savedStateHandle.get<Boolean>("includeReversals") ?: true
 
@@ -138,15 +148,18 @@ class InventoryActivityListViewModel @Inject constructor(
             flowOf(InventoryActivityListScreenState.SetupRequired)
         } else {
             val zoneId = ZoneId.systemDefault()
-            val (start, end) = filters.dateRange.toInterval(zoneId)
+            val today = LocalDate.now(zoneId)
+            val interval = filters.dateRange.toInterval(today, zoneId)
             val query = InventoryActivityQuery(
                 restaurantId = restaurant.id,
-                startInclusive = start,
-                endExclusive = end,
+                startInclusive = interval.startInclusive,
+                endExclusive = interval.endExclusive,
                 ingredientId = filters.ingredientId,
                 areaId = filters.areaId
             )
             
+            val locale = Locale.forLanguageTag(restaurant.localeTag)
+
             combine(
                 activityRepository.observeActivity(query),
                 ingredientRepository.observeIngredients(restaurant.id, includeArchived = true),
@@ -160,7 +173,7 @@ class InventoryActivityListViewModel @Inject constructor(
                         InventoryActivityDirection.OUT -> item.movement.quantityBaseSigned < BigDecimal.ZERO
                     }
                     val matchesReversal = filters.includeReversals || item.movement.movementType != InventoryMovementType.REVERSAL
-                    val matchesSearch = search.isBlank() || item.matches(search)
+                    val matchesSearch = search.isBlank() || item.matches(search, textResolver, locale)
                     
                     matchesCategory && matchesDirection && matchesReversal && matchesSearch
                 }
@@ -207,6 +220,8 @@ class InventoryActivityListViewModel @Inject constructor(
     fun onRetry() {
         retryTrigger.value += 1
     }
+
+    fun getTextResolver(): InventoryActivityTextResolver = textResolver
 
     private fun calculateSummary(items: List<InventoryActivityItem>): InventoryActivitySummary {
         val incoming = items.count { it.movement.quantityBaseSigned > BigDecimal.ZERO }
@@ -265,20 +280,39 @@ class InventoryActivityListViewModel @Inject constructor(
         )
     }
 
-    private fun InventoryActivityItem.matches(query: String): Boolean {
-        val normalized = query.trim().lowercase()
-        return ingredientName.lowercase().contains(normalized) ||
-                areaName.lowercase().contains(normalized) ||
-                sourceInfo.toTitleMatch(normalized) ||
-                movement.movementType.toInventoryActivityCategory().name.lowercase().contains(normalized)
+    private fun InventoryActivityItem.matches(query: String, resolver: InventoryActivityTextResolver, locale: Locale): Boolean {
+        val normalized = query.trim().lowercase(locale)
+        val catText = resolver.categoryText(movement.movementType.toInventoryActivityCategory()).lowercase(locale)
+        val title = resolver.sourceTitle(sourceInfo).lowercase(locale)
+        val subtitle = resolver.sourceSubtitle(sourceInfo)?.lowercase(locale)
+        
+        return ingredientName.lowercase(locale).contains(normalized) ||
+                areaName.lowercase(locale).contains(normalized) ||
+                catText.contains(normalized) ||
+                title.contains(normalized) ||
+                subtitle?.contains(normalized) == true ||
+                matchSourceDetails(normalized, locale, resolver)
     }
 
-    private fun InventoryActivitySourceInfo.toTitleMatch(query: String): Boolean = when (this) {
-        is InventoryActivitySourceInfo.Purchase -> supplierName?.lowercase()?.contains(query) == true || invoiceNumber?.lowercase()?.contains(query) == true
-        is InventoryActivitySourceInfo.Waste -> reason?.lowercase()?.contains(query) == true || sourceAreaName?.lowercase()?.contains(query) == true
-        is InventoryActivitySourceInfo.StockCount -> countName?.lowercase()?.contains(query) == true
-        is InventoryActivitySourceInfo.Production -> recipeName?.lowercase()?.contains(query) == true || status?.lowercase()?.contains(query) == true
-        is InventoryActivitySourceInfo.Other -> sourceDocumentType.name.lowercase().contains(query)
+    private fun InventoryActivityItem.matchSourceDetails(query: String, locale: Locale, resolver: InventoryActivityTextResolver): Boolean {
+        return when (val info = sourceInfo) {
+            is InventoryActivitySourceInfo.Purchase -> {
+                info.supplierName?.lowercase(locale)?.contains(query) == true ||
+                info.invoiceNumber?.lowercase(locale)?.contains(query) == true
+            }
+            is InventoryActivitySourceInfo.Waste -> {
+                info.reason?.let { resolver.wasteReasonText(it).lowercase(locale) }?.contains(query) == true ||
+                info.sourceAreaName?.lowercase(locale)?.contains(query) == true
+            }
+            is InventoryActivitySourceInfo.StockCount -> {
+                info.countName?.lowercase(locale)?.contains(query) == true
+            }
+            is InventoryActivitySourceInfo.Production -> {
+                info.recipeName?.lowercase(locale)?.contains(query) == true ||
+                info.status?.let { resolver.productionStatusText(it).lowercase(locale) }?.contains(query) == true
+            }
+            is InventoryActivitySourceInfo.Other -> false
+        }
     }
 
     private fun InventoryActivityFilters.isDefault(): Boolean {
@@ -299,21 +333,5 @@ class InventoryActivityListViewModel @Inject constructor(
         if (direction != InventoryActivityDirection.ALL) count++
         if (!includeReversals) count++
         return count
-    }
-
-    private fun InventoryActivityDateRange.toInterval(zoneId: ZoneId): Pair<Instant, Instant> {
-        val now = LocalDate.now(zoneId)
-        val (startDate, endDateInclusive) = when (this) {
-            InventoryActivityDateRange.Last7Days -> now.minusDays(6) to now
-            InventoryActivityDateRange.Last30Days -> now.minusDays(29) to now
-            InventoryActivityDateRange.Last90Days -> now.minusDays(89) to now
-            is InventoryActivityDateRange.Custom -> {
-                val end = if (endDateInclusive.isAfter(now)) now else endDateInclusive
-                startDate to end
-            }
-        }
-        val startInclusive = startDate.atStartOfDay(zoneId).toInstant()
-        val endExclusive = endDateInclusive.plusDays(1).atStartOfDay(zoneId).toInstant()
-        return startInclusive to endExclusive
     }
 }

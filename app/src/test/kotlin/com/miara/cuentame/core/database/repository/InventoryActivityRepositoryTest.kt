@@ -2,13 +2,16 @@ package com.miara.cuentame.core.database.repository
 
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.InventoryMovementId
+import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.model.InventoryActivityRow
+import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceInfo
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.WasteReason
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -30,10 +33,11 @@ class InventoryActivityRepositoryTest {
     @Test
     fun `getActivityItem maps row to domain correctly`() = runBlocking {
         val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
         val row = InventoryActivityRow(
             movement = InventoryMovementEntity(
                 id = movementId,
-                restaurantId = "rest-1",
+                restaurantId = restaurantId.value,
                 ingredientId = "ing-1",
                 areaId = "area-1",
                 movementType = InventoryMovementType.PURCHASE.name,
@@ -55,36 +59,74 @@ class InventoryActivityRepositoryTest {
             sourcePurchaseInvoiceNumber = "INV-1"
         )
 
-        coEvery { movementDao.getInventoryActivityRow(movementId) } returns row
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
-        val result = repository.getActivityItem(InventoryMovementId(movementId))
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
 
         assertThat(result).isNotNull()
         assertThat(result!!.movement.quantityBaseSigned).isEqualTo(BigDecimal("10.5"))
         assertThat(result.ingredientName).isEqualTo("Ingredient 1")
         
-        // Repository should no longer generate strings
         assertThat(result.sourceInfo).isInstanceOf(InventoryActivitySourceInfo.Purchase::class.java)
         val info = result.sourceInfo as InventoryActivitySourceInfo.Purchase
         assertThat(info.supplierName).isEqualTo("Supplier 1")
         assertThat(info.invoiceNumber).isEqualTo("INV-1")
-        assertThat(info.isResolved).isFalse() // markers not set in this test row
+        assertThat(info.isResolved).isFalse()
+    }
+
+    @Test
+    fun `getActivityItem maps waste reason correctly`() = runBlocking {
+        val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
+        val row = createActivityRow(movementId, SourceDocumentType.WASTE_EVENT, "w1").copy(
+            sourceWasteReason = WasteReason.SPOILED.name
+        )
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
+
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))!!
+        val info = result.sourceInfo as InventoryActivitySourceInfo.Waste
+        assertThat(info.reason).isEqualTo(WasteReason.SPOILED)
+    }
+
+    @Test
+    fun `getActivityItem maps production status correctly`() = runBlocking {
+        val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
+        val row = createActivityRow(movementId, SourceDocumentType.PRODUCTION_BATCH, "b1").copy(
+            sourceProductionStatus = DocumentStatus.POSTED.name
+        )
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
+
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))!!
+        val info = result.sourceInfo as InventoryActivitySourceInfo.Production
+        assertThat(info.status).isEqualTo(DocumentStatus.POSTED)
+    }
+
+    @Test
+    fun `getActivityItem returns null for other restaurant`() = runBlocking {
+        val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns null
+
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNull()
     }
 
     @Test
     fun `resolveSourceTarget returns typed target only when resolved`() = runBlocking {
         val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
         val row = createActivityRow(movementId, SourceDocumentType.PURCHASE_RECEIPT, "p1")
         
         // Unresolved
-        coEvery { movementDao.getInventoryActivityRow(movementId) } returns row
-        val itemUnresolved = repository.getActivityItem(InventoryMovementId(movementId))!!
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
+        val itemUnresolved = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))!!
         assertThat(repository.resolveSourceTarget(itemUnresolved)).isEqualTo(InventoryActivitySourceTarget.Unavailable)
 
         // Resolved
         val resolvedRow = row.copy(sourcePurchaseResolvedId = "p1")
-        coEvery { movementDao.getInventoryActivityRow(movementId) } returns resolvedRow
-        val itemResolved = repository.getActivityItem(InventoryMovementId(movementId))!!
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns resolvedRow
+        val itemResolved = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))!!
         val target = repository.resolveSourceTarget(itemResolved)
         assertThat(target).isInstanceOf(InventoryActivitySourceTarget.Purchase::class.java)
     }
@@ -92,16 +134,17 @@ class InventoryActivityRepositoryTest {
     @Test
     fun `getActivityItem fails on malformed BigDecimal`() = runBlocking {
         val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
         val row = InventoryActivityRow(
             movement = createBaseMovement(movementId).copy(quantityBaseSigned = "invalid"),
             ingredientName = "Ing",
             areaName = "Area",
             baseUnitSymbol = "lb"
         )
-        coEvery { movementDao.getInventoryActivityRow(movementId) } returns row
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
         val exception = try {
-            repository.getActivityItem(InventoryMovementId(movementId))
+            repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
             null
         } catch (e: NumberFormatException) {
             e
