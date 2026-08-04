@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,7 +28,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.inventory.*
-import com.miara.cuentame.core.presentation.ui.toDisplayText
+import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListScreenState
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListViewModel
 import com.miara.cuentame.feature.reports.ui.DetailReportError
@@ -34,6 +36,8 @@ import com.miara.cuentame.feature.reports.ui.DetailReportLoading
 import com.miara.cuentame.feature.reports.ui.DetailReportSetupRequired
 import com.miara.cuentame.feature.reports.ui.SummaryMetric
 import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -123,19 +127,14 @@ fun InventoryActivityListScreen(
                     )
                 }
                 is InventoryActivityListScreenState.Ready -> {
-                    if (uiState.items.isEmpty()) {
-                        FilteredEmptyActivityState(
-                            onResetFilters = onResetFilters,
-                            modifier = Modifier.testTag("inventory_activity_filtered_empty")
-                        )
-                    } else {
-                        InventoryActivityContent(
-                            items = uiState.items,
-                            summary = uiState.summary,
-                            currencyCode = uiState.currencyCode,
-                            onActivityClick = onActivityClick
-                        )
-                    }
+                    InventoryActivityContent(
+                        items = uiState.items,
+                        summary = uiState.summary,
+                        currencyCode = uiState.currencyCode,
+                        localeTag = uiState.localeTag,
+                        onActivityClick = onActivityClick,
+                        onResetFilters = onResetFilters
+                    )
                 }
             }
         }
@@ -201,14 +200,39 @@ private fun InventoryActivityFilterSheet(
                 listOf(
                     InventoryActivityDateRange.Last7Days to stringResource(R.string.range_7_days_label),
                     InventoryActivityDateRange.Last30Days to stringResource(R.string.range_30_days_label),
-                    InventoryActivityDateRange.Last90Days to stringResource(R.string.range_90_days_label)
+                    InventoryActivityDateRange.Last90Days to stringResource(R.string.range_90_days_label),
+                    InventoryActivityDateRange.Custom(LocalDate.now(), LocalDate.now()) to stringResource(R.string.inventory_activity_filter_date_custom)
                 ).forEach { (range, label) ->
+                    val isCustom = range is InventoryActivityDateRange.Custom
+                    val isSelected = if (isCustom) currentFilters.dateRange is InventoryActivityDateRange.Custom else currentFilters.dateRange == range
+                    
+                    var showCustomPicker by remember { mutableStateOf(false) }
+
                     FilterChip(
-                        selected = currentFilters.dateRange == range,
-                        onClick = { currentFilters = currentFilters.copy(dateRange = range) },
+                        selected = isSelected,
+                        onClick = { 
+                            if (isCustom) {
+                                showCustomPicker = true
+                            } else {
+                                currentFilters = currentFilters.copy(dateRange = range)
+                            }
+                        },
                         label = { Text(label) },
-                        modifier = Modifier.testTag("inventory_activity_filter_date_${range.javaClass.simpleName}")
+                        modifier = Modifier.testTag("inventory_activity_filter_date_${if (isCustom) "Custom" else range.javaClass.simpleName}")
                     )
+
+                    if (showCustomPicker) {
+                        val initialRange = currentFilters.dateRange as? InventoryActivityDateRange.Custom
+                        CustomDateRangeDialog(
+                            initialStartDate = initialRange?.startDate ?: LocalDate.now(),
+                            initialEndDate = initialRange?.endDateInclusive ?: LocalDate.now(),
+                            onDismiss = { showCustomPicker = false },
+                            onConfirm = { start, end ->
+                                currentFilters = currentFilters.copy(dateRange = InventoryActivityDateRange.Custom(start, end))
+                                showCustomPicker = false
+                            }
+                        )
+                    }
                 }
             }
 
@@ -342,18 +366,32 @@ private fun InventoryActivityContent(
     items: List<InventoryActivityItem>,
     summary: InventoryActivitySummary,
     currencyCode: String,
-    onActivityClick: (InventoryMovementId) -> Unit
+    localeTag: String,
+    onActivityClick: (InventoryMovementId) -> Unit,
+    onResetFilters: () -> Unit
 ) {
+    val locale = remember(localeTag) { java.util.Locale.forLanguageTag(localeTag) }
+    
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("inventory_activity_list"),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         item {
-            SummarySection(summary, currencyCode)
+            SummarySection(summary, currencyCode, locale)
         }
-        items(items, key = { it.movement.id.value }) { item ->
-            ActivityRow(item, currencyCode, onClick = { onActivityClick(item.movement.id) })
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        
+        if (items.isEmpty()) {
+            item {
+                FilteredEmptyActivityState(
+                    onResetFilters = onResetFilters,
+                    modifier = Modifier.testTag("inventory_activity_filtered_empty").fillParentMaxHeight(0.7f)
+                )
+            }
+        } else {
+            items(items, key = { it.movement.id.value }) { item ->
+                ActivityRow(item, currencyCode, locale, onClick = { onActivityClick(item.movement.id) })
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            }
         }
     }
 }
@@ -361,7 +399,8 @@ private fun InventoryActivityContent(
 @Composable
 private fun SummarySection(
     summary: InventoryActivitySummary,
-    currencyCode: String
+    currencyCode: String,
+    locale: java.util.Locale
 ) {
     Card(
         modifier = Modifier
@@ -381,23 +420,32 @@ private fun SummarySection(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                val valueAddedText = when (summary.valueCoverage) {
+                    InventoryActivityValueCoverage.UNAVAILABLE -> stringResource(R.string.not_available)
+                    else -> Formatters.formatCurrency(summary.valueAdded, currencyCode, locale)
+                }
+                val valueRemovedText = when (summary.valueCoverage) {
+                    InventoryActivityValueCoverage.UNAVAILABLE -> stringResource(R.string.not_available)
+                    else -> Formatters.formatCurrency(summary.valueRemoved, currencyCode, locale)
+                }
+
                 SummaryMetric(
                     stringResource(R.string.inventory_activity_summary_value_added), 
-                    summary.valueAdded?.let { Formatters.formatCurrency(it, currencyCode) } ?: "-", 
+                    valueAddedText, 
                     testTag = "inventory_activity_value_added",
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
                 SummaryMetric(
                     stringResource(R.string.inventory_activity_summary_value_removed), 
-                    summary.valueRemoved?.let { Formatters.formatCurrency(it, currencyCode) } ?: "-", 
+                    valueRemovedText, 
                     testTag = "inventory_activity_value_removed",
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            if (summary.valueAdded == null || summary.valueRemoved == null) {
+            if (summary.valueCoverage == InventoryActivityValueCoverage.PARTIAL || summary.valueCoverage == InventoryActivityValueCoverage.UNAVAILABLE) {
                 Text(
                     stringResource(R.string.inventory_activity_value_incomplete),
                     style = MaterialTheme.typography.labelSmall,
@@ -423,14 +471,28 @@ private fun SummarySection(
 private fun ActivityRow(
     item: InventoryActivityItem,
     currencyCode: String,
+    locale: java.util.Locale,
     onClick: () -> Unit
 ) {
-    val dateTimeFormatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault()) }
+    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault()).withLocale(locale) }
     
+    val categoryText = item.movement.movementType.toInventoryActivityCategory().toDisplayText()
+    val quantityText = formatSignedQuantity(item.movement.quantityBaseSigned, item.baseUnitSymbol)
+    val dateText = dateTimeFormatter.format(item.movement.effectiveAt)
+    val sourceTitle = item.sourceInfo.toDisplayTitle()
+    val sourceSubtitle = item.sourceInfo.toDisplaySubtitle()
+    val reversalText = if (item.reversedByMovementId != null) stringResource(R.string.inventory_activity_reversed) else if (item.movement.movementType == com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL) stringResource(R.string.inventory_activity_reversal) else ""
+    val valueText = item.movement.totalValueSnapshot?.let { Formatters.formatCurrency(it.abs(), currencyCode, locale) } ?: ""
+
+    val semanticContentDescription = "$categoryText, ${item.ingredientName}, ${item.areaName}, $quantityText, $dateText, $sourceTitle" + (sourceSubtitle?.let { ", $it" } ?: "") + (if (reversalText.isNotEmpty()) ", $reversalText" else "") + (if (valueText.isNotEmpty()) ", $valueText" else "")
+
     ListItem(
         modifier = Modifier
             .clickable(onClick = onClick)
-            .testTag("inventory_activity_row_${item.movement.id.value}"),
+            .testTag("inventory_activity_row_${item.movement.id.value}")
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticContentDescription
+            },
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(item.ingredientName, fontWeight = FontWeight.Bold)
@@ -444,9 +506,10 @@ private fun ActivityRow(
         },
         supportingContent = {
             Column {
-                Text("${item.movement.movementType.toActivityCategory().toDisplayText()} • ${item.areaName}")
-                Text(item.sourceDisplay.title, style = MaterialTheme.typography.bodySmall)
-                Text(dateTimeFormatter.format(item.movement.effectiveAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Text("${categoryText} • ${item.areaName}")
+                Text(sourceTitle, style = MaterialTheme.typography.bodySmall)
+                sourceSubtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Text(dateText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
         },
         trailingContent = {
@@ -455,13 +518,13 @@ private fun ActivityRow(
                 val color = if (quantity > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else if (quantity < BigDecimal.ZERO) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                 
                 Text(
-                    text = formatSignedQuantity(quantity, item.baseUnitSymbol),
+                    text = quantityText,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = color
                 )
-                item.movement.totalValueSnapshot?.let { value ->
-                    Text(Formatters.formatCurrency(value.abs(), currencyCode), style = MaterialTheme.typography.labelSmall)
+                if (valueText.isNotEmpty()) {
+                    Text(valueText, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -494,29 +557,57 @@ private fun FilteredEmptyActivityState(onResetFilters: () -> Unit, modifier: Mod
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomDateRangeDialog(
+    initialStartDate: LocalDate,
+    initialEndDate: LocalDate,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalDate, LocalDate) -> Unit
+) {
+    val dateRangePickerState = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = initialStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        initialSelectedEndDateMillis = initialEndDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val startMillis = dateRangePickerState.selectedStartDateMillis
+                    val endMillis = dateRangePickerState.selectedEndDateMillis
+                    if (startMillis != null && endMillis != null) {
+                        val start = Instant.ofEpochMilli(startMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val end = Instant.ofEpochMilli(endMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        if (start.isAfter(end)) {
+                            // Handled by DateRangePickerState validation usually, but defensively:
+                            return@TextButton
+                        }
+                        onConfirm(start, end)
+                    }
+                },
+                modifier = Modifier.testTag("inventory_activity_custom_date_confirm")
+            ) {
+                Text(stringResource(R.string.inventory_activity_custom_date_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_dismiss))
+            }
+        },
+        modifier = Modifier.testTag("inventory_activity_custom_date_dialog")
+    ) {
+        DateRangePicker(
+            state = dateRangePickerState,
+            title = { Text(stringResource(R.string.inventory_activity_custom_date_dialog), modifier = Modifier.padding(16.dp)) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
 private fun formatSignedQuantity(quantity: BigDecimal, unitSymbol: String): String {
     val prefix = if (quantity > BigDecimal.ZERO) "+" else if (quantity < BigDecimal.ZERO) "\u2212" else ""
     return "$prefix${Formatters.formatQuantity(quantity.abs(), unitSymbol)}"
-}
-
-@Composable
-private fun InventoryActivityCategory.toDisplayText(): String = when (this) {
-    InventoryActivityCategory.PURCHASE -> stringResource(R.string.inventory_activity_purchase)
-    InventoryActivityCategory.WASTE -> stringResource(R.string.inventory_activity_waste)
-    InventoryActivityCategory.STOCK_COUNT -> stringResource(R.string.inventory_activity_stock_count)
-    InventoryActivityCategory.PRODUCTION_CONSUMPTION -> stringResource(R.string.inventory_activity_production_consumption)
-    InventoryActivityCategory.PRODUCTION_OUTPUT -> stringResource(R.string.inventory_activity_production_output)
-    InventoryActivityCategory.REVERSAL -> stringResource(R.string.inventory_activity_reversal)
-    InventoryActivityCategory.OTHER -> stringResource(R.string.inventory_activity_other)
-}
-
-private fun com.miara.cuentame.core.model.inventory.InventoryMovementType.toActivityCategory(): InventoryActivityCategory = when (this) {
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PURCHASE -> InventoryActivityCategory.PURCHASE
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.WASTE -> InventoryActivityCategory.WASTE
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
 }

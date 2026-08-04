@@ -13,10 +13,11 @@ import com.miara.cuentame.core.model.inventory.InventoryActivityCategory
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivityQuery
 import com.miara.cuentame.core.model.inventory.InventoryActivityRelatedMovementDisplay
-import com.miara.cuentame.core.model.inventory.InventoryActivitySourceDisplay
+import com.miara.cuentame.core.model.inventory.InventoryActivitySourceInfo
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.ZoneId
@@ -46,6 +47,18 @@ class RoomInventoryActivityRepository @Inject constructor(
 
     override fun resolveSourceTarget(item: InventoryActivityItem): InventoryActivitySourceTarget {
         val movement = item.movement
+        val info = item.sourceInfo
+        
+        val isResolved = when (info) {
+            is InventoryActivitySourceInfo.Purchase -> info.isResolved
+            is InventoryActivitySourceInfo.Waste -> info.isResolved
+            is InventoryActivitySourceInfo.StockCount -> info.isResolved
+            is InventoryActivitySourceInfo.Production -> info.isResolved
+            is InventoryActivitySourceInfo.Other -> false
+        }
+        
+        if (!isResolved) return InventoryActivitySourceTarget.Unavailable
+
         return when (movement.sourceDocumentType) {
             SourceDocumentType.PURCHASE_RECEIPT -> InventoryActivitySourceTarget.Purchase(PurchaseReceiptId(movement.sourceDocumentId))
             SourceDocumentType.WASTE_EVENT -> InventoryActivitySourceTarget.Waste(WasteEventId(movement.sourceDocumentId))
@@ -63,65 +76,49 @@ class RoomInventoryActivityRepository @Inject constructor(
             ingredientName = ingredientName,
             areaName = areaName,
             baseUnitSymbol = baseUnitSymbol,
-            sourceDisplay = toSourceDisplay(),
+            sourceInfo = toSourceInfo(),
             reversedByMovementId = reversedByMovementId?.let { InventoryMovementId(it) },
             reversalOfDisplay = reversalOfMovementType?.let { type ->
                 InventoryActivityRelatedMovementDisplay(
                     movementId = InventoryMovementId(movement.reversalOfMovementId!!),
-                    category = type.toActivityCategory(),
+                    category = type.toInventoryActivityCategory(),
                     effectiveAt = reversalOfMovementEffectiveAt!!
                 )
             },
             reversedByDisplay = reversedByMovementId?.let { id ->
                 InventoryActivityRelatedMovementDisplay(
                     movementId = InventoryMovementId(id),
-                    category = reversedByMovementType!!.toActivityCategory(),
+                    category = reversedByMovementType!!.toInventoryActivityCategory(),
                     effectiveAt = reversedByMovementEffectiveAt!!
                 )
             }
         )
     }
 
-    private fun InventoryActivityRow.toSourceDisplay(): InventoryActivitySourceDisplay {
+    private fun InventoryActivityRow.toSourceInfo(): InventoryActivitySourceInfo {
         return when (movement.sourceDocumentType) {
-            SourceDocumentType.PURCHASE_RECEIPT.name -> InventoryActivitySourceDisplay(
-                title = sourcePurchaseSupplierName?.let { "Purchase from $it" } ?: "Purchase",
-                subtitle = sourcePurchaseInvoiceNumber?.let { "Invoice $it" },
-                status = null
+            SourceDocumentType.PURCHASE_RECEIPT.name -> InventoryActivitySourceInfo.Purchase(
+                supplierName = sourcePurchaseSupplierName,
+                invoiceNumber = sourcePurchaseInvoiceNumber,
+                isResolved = sourcePurchaseResolvedId != null
             )
-            SourceDocumentType.WASTE_EVENT.name -> InventoryActivitySourceDisplay(
-                title = "Waste — ${sourceWasteReason ?: "Reason unavailable"}",
-                subtitle = sourceWasteAreaName,
-                status = null
+            SourceDocumentType.WASTE_EVENT.name -> InventoryActivitySourceInfo.Waste(
+                reason = sourceWasteReason,
+                sourceAreaName = sourceWasteAreaName,
+                isResolved = sourceWasteResolvedId != null
             )
-            SourceDocumentType.STOCK_COUNT.name -> InventoryActivitySourceDisplay(
-                title = sourceStockCountName ?: "Stock count adjustment",
-                subtitle = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-                    .withZone(ZoneId.systemDefault())
-                    .format(movement.toDomain().effectiveAt),
-                status = null
+            SourceDocumentType.STOCK_COUNT.name -> InventoryActivitySourceInfo.StockCount(
+                countName = sourceStockCountName,
+                isResolved = sourceStockCountResolvedId != null
             )
-            SourceDocumentType.PRODUCTION_BATCH.name -> InventoryActivitySourceDisplay(
-                title = "Production — ${sourceProductionRecipeName ?: "Batch"}",
-                subtitle = sourceProductionStatus,
-                status = null // Using subtitle for status as per example "Production — Ground Beef \n Posted"
+            SourceDocumentType.PRODUCTION_BATCH.name -> InventoryActivitySourceInfo.Production(
+                recipeName = sourceProductionRecipeName,
+                status = sourceProductionStatus,
+                isResolved = sourceProductionResolvedId != null
             )
-            else -> InventoryActivitySourceDisplay(
-                title = "Source unavailable",
-                subtitle = null,
-                status = null
+            else -> InventoryActivitySourceInfo.Other(
+                sourceDocumentType = SourceDocumentType.valueOf(movement.sourceDocumentType)
             )
         }
-    }
-
-    private fun InventoryMovementType.toActivityCategory(): InventoryActivityCategory = when (this) {
-        InventoryMovementType.PURCHASE -> InventoryActivityCategory.PURCHASE
-        InventoryMovementType.WASTE -> InventoryActivityCategory.WASTE
-        InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
-        InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
-        InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
-        InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
-        InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
-        InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
     }
 }

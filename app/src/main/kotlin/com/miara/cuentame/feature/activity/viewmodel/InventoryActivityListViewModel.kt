@@ -18,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import java.math.BigDecimal
+import java.math.MathContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,6 +35,7 @@ sealed interface InventoryActivityListScreenState {
         val availableIngredients: List<IngredientFilterOption>,
         val availableAreas: List<AreaFilterOption>,
         val currencyCode: String,
+        val localeTag: String,
         val activeFilterCount: Int
     ) : InventoryActivityListScreenState
     data class LoadError(val message: UiMessage) : InventoryActivityListScreenState
@@ -51,19 +53,74 @@ class InventoryActivityListViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val initialIngredientId = savedStateHandle.get<String>("ingredientId")?.let { IngredientId(it) }
-    private val initialAreaId = savedStateHandle.get<String>("areaId")?.let { InventoryAreaId(it) }
-
-    private val _filters = MutableStateFlow(
-        InventoryActivityFilters(
-            ingredientId = initialIngredientId,
-            areaId = initialAreaId
-        )
-    )
+    private val _filters = MutableStateFlow(restoreFilters())
     val filters: StateFlow<InventoryActivityFilters> = _filters.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
+    private val _searchQuery = MutableStateFlow(savedStateHandle.get<String>("searchQuery") ?: "")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private fun restoreFilters(): InventoryActivityFilters {
+        val kind = savedStateHandle.get<String>("dateRangeKind")
+        val customStart = savedStateHandle.get<String>("customStartDate")?.let { LocalDate.parse(it) }
+        val customEnd = savedStateHandle.get<String>("customEndDate")?.let { LocalDate.parse(it) }
+        
+        val dateRange = when (kind) {
+            "Last7Days" -> InventoryActivityDateRange.Last7Days
+            "Last30Days" -> InventoryActivityDateRange.Last30Days
+            "Last90Days" -> InventoryActivityDateRange.Last90Days
+            "Custom" -> if (customStart != null && customEnd != null) {
+                InventoryActivityDateRange.Custom(customStart, customEnd)
+            } else InventoryActivityDateRange.Last30Days
+            else -> InventoryActivityDateRange.Last30Days
+        }
+
+        val initialIngredientId = savedStateHandle.get<String>("ingredientId")
+            ?.takeIf { it.isNotBlank() && it != "{ingredientId}" }
+            ?.let { IngredientId(it) }
+            
+        val initialAreaId = savedStateHandle.get<String>("areaId")
+            ?.takeIf { it.isNotBlank() && it != "{areaId}" }
+            ?.let { InventoryAreaId(it) }
+
+        val categoryNames = savedStateHandle.get<List<String>>("categories")
+        val categories = categoryNames?.map { InventoryActivityCategory.valueOf(it) }?.toSet()
+            ?: InventoryActivityCategory.entries.toSet()
+
+        val directionName = savedStateHandle.get<String>("direction")
+        val direction = directionName?.let { InventoryActivityDirection.valueOf(it) }
+            ?: InventoryActivityDirection.ALL
+
+        val includeReversals = savedStateHandle.get<Boolean>("includeReversals") ?: true
+
+        return InventoryActivityFilters(
+            dateRange = dateRange,
+            ingredientId = initialIngredientId,
+            areaId = initialAreaId,
+            categories = categories,
+            direction = direction,
+            includeReversals = includeReversals
+        )
+    }
+
+    private fun persistFilters(filters: InventoryActivityFilters) {
+        val kind = when (filters.dateRange) {
+            InventoryActivityDateRange.Last7Days -> "Last7Days"
+            InventoryActivityDateRange.Last30Days -> "Last30Days"
+            InventoryActivityDateRange.Last90Days -> "Last90Days"
+            is InventoryActivityDateRange.Custom -> "Custom"
+        }
+        savedStateHandle["dateRangeKind"] = kind
+        if (filters.dateRange is InventoryActivityDateRange.Custom) {
+            savedStateHandle["customStartDate"] = filters.dateRange.startDate.toString()
+            savedStateHandle["customEndDate"] = filters.dateRange.endDateInclusive.toString()
+        }
+
+        savedStateHandle["ingredientId"] = filters.ingredientId?.value
+        savedStateHandle["areaId"] = filters.areaId?.value
+        savedStateHandle["categories"] = filters.categories.map { it.name }.toList()
+        savedStateHandle["direction"] = filters.direction.name
+        savedStateHandle["includeReversals"] = filters.includeReversals
+    }
 
     private val retryTrigger = MutableStateFlow(0)
 
@@ -96,7 +153,7 @@ class InventoryActivityListViewModel @Inject constructor(
                 areaRepository.observeAllAreas()
             ) { items, ingredients, areas ->
                 val filteredItems = items.filter { item ->
-                    val matchesCategory = filters.categories.contains(item.movement.movementType.toActivityCategory())
+                    val matchesCategory = filters.categories.contains(item.movement.movementType.toInventoryActivityCategory())
                     val matchesDirection = when (filters.direction) {
                         InventoryActivityDirection.ALL -> true
                         InventoryActivityDirection.IN -> item.movement.quantityBaseSigned > BigDecimal.ZERO
@@ -118,6 +175,7 @@ class InventoryActivityListViewModel @Inject constructor(
                         availableIngredients = ingredients.map { IngredientFilterOption(it.id, it.name) },
                         availableAreas = areas.map { AreaFilterOption(it.id, it.name) },
                         currencyCode = restaurant.currencyCode,
+                        localeTag = restaurant.localeTag,
                         activeFilterCount = filters.countActive()
                     )
                 }
@@ -130,10 +188,20 @@ class InventoryActivityListViewModel @Inject constructor(
 
     fun onFilterChange(newFilters: InventoryActivityFilters) {
         _filters.value = newFilters
+        persistFilters(newFilters)
     }
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+        savedStateHandle["searchQuery"] = query
+    }
+
+    fun resetFilters() {
+        val defaultFilters = InventoryActivityFilters()
+        _filters.value = defaultFilters
+        _searchQuery.value = ""
+        persistFilters(defaultFilters)
+        savedStateHandle["searchQuery"] = ""
     }
 
     fun onRetry() {
@@ -147,33 +215,41 @@ class InventoryActivityListViewModel @Inject constructor(
         
         var valueAdded = BigDecimal.ZERO
         var valueRemoved = BigDecimal.ZERO
-        var anyValueUnavailable = false
+        var valuePresentCount = 0
+        
+        val mc = MathContext.DECIMAL128
         
         items.forEach { item ->
             val value = item.movement.totalValueSnapshot
-            if (value == null) {
-                anyValueUnavailable = true
-            } else {
-                if (value > BigDecimal.ZERO) valueAdded += value
-                else if (value < BigDecimal.ZERO) valueRemoved += value.abs()
+            if (value != null) {
+                valuePresentCount++
+                if (value > BigDecimal.ZERO) valueAdded = valueAdded.add(value, mc)
+                else if (value < BigDecimal.ZERO) valueRemoved = valueRemoved.add(value.abs(), mc)
             }
         }
 
-        val distinctIngredients = items.map { it.movement.ingredientId }.distinct()
-        val quantitySummary = if (distinctIngredients.size == 1) {
-            val ingredient = items.first()
+        val coverage = when {
+            items.isEmpty() -> InventoryActivityValueCoverage.NONE
+            valuePresentCount == items.size -> InventoryActivityValueCoverage.COMPLETE
+            valuePresentCount > 0 -> InventoryActivityValueCoverage.PARTIAL
+            else -> InventoryActivityValueCoverage.UNAVAILABLE
+        }
+
+        val distinctIngredientUnits = items.map { it.movement.ingredientId to it.baseUnitSymbol }.distinct()
+        val quantitySummary = if (distinctIngredientUnits.size == 1) {
+            val first = items.first()
             var qIn = BigDecimal.ZERO
             var qOut = BigDecimal.ZERO
             items.forEach { 
-                if (it.movement.quantityBaseSigned > BigDecimal.ZERO) qIn += it.movement.quantityBaseSigned
-                else if (it.movement.quantityBaseSigned < BigDecimal.ZERO) qOut += it.movement.quantityBaseSigned.abs()
+                if (it.movement.quantityBaseSigned > BigDecimal.ZERO) qIn = qIn.add(it.movement.quantityBaseSigned, mc)
+                else if (it.movement.quantityBaseSigned < BigDecimal.ZERO) qOut = qOut.add(it.movement.quantityBaseSigned.abs(), mc)
             }
             InventoryActivityQuantitySummary(
-                ingredientName = ingredient.ingredientName,
-                baseUnitSymbol = ingredient.baseUnitSymbol,
+                ingredientName = first.ingredientName,
+                baseUnitSymbol = first.baseUnitSymbol,
                 quantityIn = qIn,
                 quantityOut = qOut,
-                netQuantity = qIn - qOut
+                netQuantity = qIn.subtract(qOut, mc)
             )
         } else null
 
@@ -182,8 +258,9 @@ class InventoryActivityListViewModel @Inject constructor(
             incomingMovementCount = incoming,
             outgoingMovementCount = outgoing,
             reversalCount = reversals,
-            valueAdded = if (anyValueUnavailable && valueAdded == BigDecimal.ZERO) null else valueAdded,
-            valueRemoved = if (anyValueUnavailable && valueRemoved == BigDecimal.ZERO) null else valueRemoved,
+            valueAdded = valueAdded,
+            valueRemoved = valueRemoved,
+            valueCoverage = coverage,
             quantitySummary = quantitySummary
         )
     }
@@ -192,9 +269,16 @@ class InventoryActivityListViewModel @Inject constructor(
         val normalized = query.trim().lowercase()
         return ingredientName.lowercase().contains(normalized) ||
                 areaName.lowercase().contains(normalized) ||
-                sourceDisplay.title.lowercase().contains(normalized) ||
-                sourceDisplay.subtitle?.lowercase()?.contains(normalized) == true ||
-                movement.movementType.toActivityCategory().name.lowercase().contains(normalized)
+                sourceInfo.toTitleMatch(normalized) ||
+                movement.movementType.toInventoryActivityCategory().name.lowercase().contains(normalized)
+    }
+
+    private fun InventoryActivitySourceInfo.toTitleMatch(query: String): Boolean = when (this) {
+        is InventoryActivitySourceInfo.Purchase -> supplierName?.lowercase()?.contains(query) == true || invoiceNumber?.lowercase()?.contains(query) == true
+        is InventoryActivitySourceInfo.Waste -> reason?.lowercase()?.contains(query) == true || sourceAreaName?.lowercase()?.contains(query) == true
+        is InventoryActivitySourceInfo.StockCount -> countName?.lowercase()?.contains(query) == true
+        is InventoryActivitySourceInfo.Production -> recipeName?.lowercase()?.contains(query) == true || status?.lowercase()?.contains(query) == true
+        is InventoryActivitySourceInfo.Other -> sourceDocumentType.name.lowercase().contains(query)
     }
 
     private fun InventoryActivityFilters.isDefault(): Boolean {
@@ -223,21 +307,13 @@ class InventoryActivityListViewModel @Inject constructor(
             InventoryActivityDateRange.Last7Days -> now.minusDays(6) to now
             InventoryActivityDateRange.Last30Days -> now.minusDays(29) to now
             InventoryActivityDateRange.Last90Days -> now.minusDays(89) to now
-            is InventoryActivityDateRange.Custom -> startDate to endDateInclusive
+            is InventoryActivityDateRange.Custom -> {
+                val end = if (endDateInclusive.isAfter(now)) now else endDateInclusive
+                startDate to end
+            }
         }
         val startInclusive = startDate.atStartOfDay(zoneId).toInstant()
         val endExclusive = endDateInclusive.plusDays(1).atStartOfDay(zoneId).toInstant()
         return startInclusive to endExclusive
-    }
-
-    private fun InventoryMovementType.toActivityCategory(): InventoryActivityCategory = when (this) {
-        InventoryMovementType.PURCHASE -> InventoryActivityCategory.PURCHASE
-        InventoryMovementType.WASTE -> InventoryActivityCategory.WASTE
-        InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
-        InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
-        InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
-        InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
-        InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
-        InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
     }
 }

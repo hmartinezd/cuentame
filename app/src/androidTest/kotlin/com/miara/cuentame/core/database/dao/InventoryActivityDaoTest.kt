@@ -92,15 +92,19 @@ class InventoryActivityDaoTest {
         // Ordered DESC by effectiveAt
         assertThat(rows[0].movement.id).isEqualTo("m4")
         assertThat(rows[0].sourceProductionRecipeName).isEqualTo("Recipe 1")
+        assertThat(rows[0].sourceProductionResolvedId).isEqualTo("b1")
         
         assertThat(rows[1].movement.id).isEqualTo("m3")
         assertThat(rows[1].sourceStockCountName).isEqualTo("Monthly Count")
+        assertThat(rows[1].sourceStockCountResolvedId).isEqualTo("c1")
         
         assertThat(rows[2].movement.id).isEqualTo("m2")
         assertThat(rows[2].sourceWasteReason).isEqualTo("SPOILED")
+        assertThat(rows[2].sourceWasteResolvedId).isEqualTo("w1")
         
         assertThat(rows[3].movement.id).isEqualTo("m1")
         assertThat(rows[3].sourcePurchaseInvoiceNumber).isEqualTo("INV-123")
+        assertThat(rows[3].sourcePurchaseResolvedId).isEqualTo("p1")
         
         // General enrichments
         rows.forEach {
@@ -125,13 +129,13 @@ class InventoryActivityDaoTest {
         // m2 reverses m1
         val m2Row = rows.find { it.movement.id == "m2" }!!
         assertThat(m2Row.reversalOfMovementType).isEqualTo(InventoryMovementType.PURCHASE)
-        assertThat(m2Row.reversalOfMovementEffectiveAt).isEqualTo(1000L)
+        assertThat(m2Row.reversalOfMovementEffectiveAt).isEqualTo(java.time.Instant.ofEpochMilli(1000L))
         
         // m1 is reversed by m2
         val m1Row = rows.find { it.movement.id == "m1" }!!
         assertThat(m1Row.reversedByMovementId).isEqualTo("m2")
         assertThat(m1Row.reversedByMovementType).isEqualTo(InventoryMovementType.REVERSAL)
-        assertThat(m1Row.reversedByMovementEffectiveAt).isEqualTo(1100L)
+        assertThat(m1Row.reversedByMovementEffectiveAt).isEqualTo(java.time.Instant.ofEpochMilli(1100L))
     }
 
     private fun createMovement(id: String, type: InventoryMovementType, srcType: SourceDocumentType, srcId: String, effectiveAt: Long) = InventoryMovementEntity(

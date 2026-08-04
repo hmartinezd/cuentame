@@ -23,7 +23,8 @@ sealed interface InventoryActivityDetailScreenState {
     data class Ready(
         val item: InventoryActivityItem,
         val sourceTarget: InventoryActivitySourceTarget,
-        val currencyCode: String
+        val currencyCode: String,
+        val localeTag: String
     ) : InventoryActivityDetailScreenState
     data class LoadError(val message: UiMessage) : InventoryActivityDetailScreenState
 }
@@ -69,7 +70,8 @@ class InventoryActivityDetailViewModel @Inject constructor(
                         _uiState.value = InventoryActivityDetailScreenState.Ready(
                             item = item,
                             sourceTarget = activityRepository.resolveSourceTarget(item),
-                            currencyCode = restaurant.currencyCode
+                            currencyCode = restaurant.currencyCode,
+                            localeTag = restaurant.localeTag
                         )
                     }
                 } catch (e: CancellationException) {

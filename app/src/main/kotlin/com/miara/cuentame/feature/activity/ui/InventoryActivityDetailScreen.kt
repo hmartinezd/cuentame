@@ -24,12 +24,13 @@ import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.inventory.InventoryActivityCategory
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
-import com.miara.cuentame.core.presentation.ui.toDisplayText
+import com.miara.cuentame.core.model.inventory.toInventoryActivityCategory
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailScreenState
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailViewModel
 import com.miara.cuentame.feature.reports.ui.DetailReportError
 import com.miara.cuentame.feature.reports.ui.DetailReportLoading
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -77,8 +78,14 @@ fun InventoryActivityDetailScreen(
         when (uiState) {
             InventoryActivityDetailScreenState.Loading -> DetailReportLoading("inventory_activity_detail_loading")
             InventoryActivityDetailScreenState.InvalidRoute -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.inventory_activity_invalid_route))
+                Box(modifier = Modifier.fillMaxSize().padding(padding).testTag("inventory_activity_detail_invalid_route"), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(stringResource(R.string.inventory_activity_detail_invalid_route))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onBackClick, modifier = Modifier.testTag("inventory_activity_detail_back")) {
+                            Text(stringResource(R.string.inventory_activity_detail_back))
+                        }
+                    }
                 }
             }
             InventoryActivityDetailScreenState.MovementNotFound -> {
@@ -89,7 +96,13 @@ fun InventoryActivityDetailScreen(
                         .testTag("inventory_activity_detail_not_found"), 
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(stringResource(R.string.inventory_activity_not_found))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(stringResource(R.string.inventory_activity_not_found))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onBackClick, modifier = Modifier.testTag("inventory_activity_detail_back")) {
+                            Text(stringResource(R.string.inventory_activity_detail_back))
+                        }
+                    }
                 }
             }
             is InventoryActivityDetailScreenState.LoadError -> DetailReportError("inventory_activity_detail_error", onRetry)
@@ -98,6 +111,7 @@ fun InventoryActivityDetailScreen(
                     item = uiState.item,
                     sourceTarget = uiState.sourceTarget,
                     currencyCode = uiState.currencyCode,
+                    localeTag = uiState.localeTag,
                     onOpenSource = onOpenSource,
                     onOpenMovement = onOpenMovement,
                     modifier = Modifier.padding(padding)
@@ -112,11 +126,13 @@ private fun InventoryActivityDetailContent(
     item: InventoryActivityItem,
     sourceTarget: InventoryActivitySourceTarget,
     currencyCode: String,
+    localeTag: String,
     onOpenSource: (InventoryActivitySourceTarget) -> Unit,
     onOpenMovement: (InventoryMovementId) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dateTimeFormatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()) }
+    val locale = remember(localeTag) { java.util.Locale.forLanguageTag(localeTag) }
+    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).withLocale(locale) }
     
     Column(
         modifier = modifier
@@ -128,44 +144,41 @@ private fun InventoryActivityDetailContent(
         // Header
         Column {
             Text(item.ingredientName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("${item.movement.movementType.toActivityCategory().toDisplayText()} • ${item.areaName}", style = MaterialTheme.typography.titleMedium)
+            Text("${item.movement.movementType.toInventoryActivityCategory().toDisplayText()} • ${item.areaName}", style = MaterialTheme.typography.titleMedium)
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 DetailRow(stringResource(R.string.quantity), formatSignedQuantity(item.movement.quantityBaseSigned, item.baseUnitSymbol))
                 
-                item.movement.unitCostBaseSnapshot?.let { cost ->
-                    DetailRow(
-                        label = stringResource(R.string.cost_per_base_unit, item.baseUnitSymbol),
-                        value = Formatters.formatCurrency(cost, currencyCode)
-                    )
-                }
+                DetailRow(
+                    label = stringResource(R.string.inventory_activity_detail_unit_cost),
+                    value = item.movement.unitCostBaseSnapshot?.let { Formatters.formatCurrency(it, currencyCode, locale) } ?: stringResource(R.string.not_available)
+                )
 
-                item.movement.totalValueSnapshot?.let { value ->
-                    DetailRow(
-                        label = if (value >= BigDecimal.ZERO) stringResource(R.string.inventory_activity_summary_value_added) else stringResource(R.string.inventory_activity_summary_value_removed),
-                        value = Formatters.formatCurrency(value.abs(), currencyCode),
-                        valueColor = if (value > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else if (value < BigDecimal.ZERO) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                DetailRow(
+                    label = stringResource(R.string.inventory_activity_detail_total_value),
+                    value = item.movement.totalValueSnapshot?.let { Formatters.formatCurrency(it.abs(), currencyCode, locale) } ?: stringResource(R.string.not_available),
+                    valueColor = item.movement.totalValueSnapshot?.let { 
+                        if (it > BigDecimal.ZERO) MaterialTheme.colorScheme.primary 
+                        else if (it < BigDecimal.ZERO) MaterialTheme.colorScheme.error 
+                        else MaterialTheme.colorScheme.onSurface 
+                    } ?: MaterialTheme.colorScheme.onSurface
+                )
 
                 HorizontalDivider()
 
-                DetailRow(stringResource(R.string.effective_date), dateTimeFormatter.format(item.movement.effectiveAt))
-                DetailRow(stringResource(R.string.audit_created, ""), dateTimeFormatter.format(item.movement.createdAt))
+                DetailRow(stringResource(R.string.effective_time), dateTimeFormatter.format(item.movement.effectiveAt))
+                DetailRow(stringResource(R.string.audit_created).substringBefore(":"), dateTimeFormatter.format(item.movement.createdAt))
             }
         }
 
         // Source Document
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.original_movement), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-                Text(item.sourceDisplay.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                item.sourceDisplay.subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                item.sourceDisplay.status?.let { 
-                    SuggestionChip(onClick = {}, label = { Text(it) })
-                }
+                Text(stringResource(R.string.inventory_activity_source_document), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                Text(item.sourceInfo.toDisplayTitle(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                item.sourceInfo.toDisplaySubtitle()?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
                 if (sourceTarget !is InventoryActivitySourceTarget.Unavailable) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -188,22 +201,54 @@ private fun InventoryActivityDetailContent(
         }
 
         // Related Movements (Reversal / Original)
-        item.reversalOfDisplay?.let { related ->
-            RelatedMovementCard(
-                title = stringResource(R.string.inventory_activity_view_original),
-                related = related,
-                onClick = { onOpenMovement(related.movementId) },
-                testTag = "inventory_activity_open_original"
+        if (item.movement.movementType == com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL) {
+            RelatedMovementSection(
+                label = stringResource(R.string.original_movement),
+                display = item.reversalOfDisplay,
+                onOpen = onOpenMovement,
+                unavailableText = stringResource(R.string.inventory_activity_original_unavailable),
+                actionText = stringResource(R.string.inventory_activity_view_original),
+                testTag = "inventory_activity_open_original",
+                locale = locale
+            )
+        } else if (item.reversedByMovementId != null) {
+            RelatedMovementSection(
+                label = stringResource(R.string.reversal_movement),
+                display = item.reversedByDisplay,
+                onOpen = onOpenMovement,
+                unavailableText = stringResource(R.string.inventory_activity_reversal_unavailable),
+                actionText = stringResource(R.string.inventory_activity_view_reversal),
+                testTag = "inventory_activity_open_reversal",
+                locale = locale
             )
         }
+    }
+}
 
-        item.reversedByDisplay?.let { related ->
-            RelatedMovementCard(
-                title = stringResource(R.string.inventory_activity_view_reversal),
-                related = related,
-                onClick = { onOpenMovement(related.movementId) },
-                testTag = "inventory_activity_open_reversal"
-            )
+@Composable
+private fun RelatedMovementSection(
+    label: String,
+    display: com.miara.cuentame.core.model.inventory.InventoryActivityRelatedMovementDisplay?,
+    onOpen: (InventoryMovementId) -> Unit,
+    unavailableText: String,
+    actionText: String,
+    testTag: String,
+    locale: java.util.Locale
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            if (display != null) {
+                RelatedMovementCard(
+                    title = actionText,
+                    related = display,
+                    onClick = { onOpen(display.movementId) },
+                    testTag = testTag,
+                    locale = locale
+                )
+            } else {
+                Text(unavailableText, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
@@ -213,9 +258,10 @@ private fun RelatedMovementCard(
     title: String,
     related: com.miara.cuentame.core.model.inventory.InventoryActivityRelatedMovementDisplay,
     onClick: () -> Unit,
-    testTag: String
+    testTag: String,
+    locale: java.util.Locale
 ) {
-    val dateTimeFormatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()) }
+    val dateTimeFormatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).withLocale(locale) }
     
     OutlinedCard(
         onClick = onClick,
@@ -247,26 +293,4 @@ private fun DetailRow(
 private fun formatSignedQuantity(quantity: BigDecimal, unitSymbol: String): String {
     val prefix = if (quantity > BigDecimal.ZERO) "+" else if (quantity < BigDecimal.ZERO) "\u2212" else ""
     return "$prefix${Formatters.formatQuantity(quantity.abs(), unitSymbol)}"
-}
-
-@Composable
-private fun InventoryActivityCategory.toDisplayText(): String = when (this) {
-    InventoryActivityCategory.PURCHASE -> stringResource(R.string.inventory_activity_purchase)
-    InventoryActivityCategory.WASTE -> stringResource(R.string.inventory_activity_waste)
-    InventoryActivityCategory.STOCK_COUNT -> stringResource(R.string.inventory_activity_stock_count)
-    InventoryActivityCategory.PRODUCTION_CONSUMPTION -> stringResource(R.string.inventory_activity_production_consumption)
-    InventoryActivityCategory.PRODUCTION_OUTPUT -> stringResource(R.string.inventory_activity_production_output)
-    InventoryActivityCategory.REVERSAL -> stringResource(R.string.inventory_activity_reversal)
-    InventoryActivityCategory.OTHER -> stringResource(R.string.inventory_activity_other)
-}
-
-private fun com.miara.cuentame.core.model.inventory.InventoryMovementType.toActivityCategory(): InventoryActivityCategory = when (this) {
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PURCHASE -> InventoryActivityCategory.PURCHASE
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.WASTE -> InventoryActivityCategory.WASTE
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
-    com.miara.cuentame.core.model.inventory.InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
 }

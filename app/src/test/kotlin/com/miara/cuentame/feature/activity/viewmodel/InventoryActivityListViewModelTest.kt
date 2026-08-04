@@ -16,7 +16,9 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -84,6 +86,9 @@ class InventoryActivityListViewModelTest {
         every { activityRepository.observeActivity(any()) } returns flowOf(items)
 
         val viewModel = createViewModel()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
 
         val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state.summary.movementCount).isEqualTo(2)
@@ -91,27 +96,55 @@ class InventoryActivityListViewModelTest {
         assertThat(state.summary.outgoingMovementCount).isEqualTo(1)
         assertThat(state.summary.valueAdded).isEqualTo(BigDecimal("20.0"))
         assertThat(state.summary.valueRemoved).isEqualTo(BigDecimal("10.0"))
+        assertThat(state.summary.valueCoverage).isEqualTo(InventoryActivityValueCoverage.COMPLETE)
+        collectJob.cancel()
     }
 
     @Test
-    fun `quantity summary present only for single ingredient`() = runTest {
+    fun `quantity summary present only for single ingredient and unit`() = runTest {
         val ing1 = IngredientId("ing1")
         val item1 = createItem("m1", BigDecimal("10.0"), ingredientId = ing1)
         val item2 = createItem("m2", BigDecimal("5.0"), ingredientId = ing1)
         
-        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(item1, item2))
+        val itemsFlow = MutableStateFlow(listOf(item1, item2))
+        every { activityRepository.observeActivity(any()) } returns itemsFlow
         
         val viewModel = createViewModel()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+
         val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state.summary.quantitySummary).isNotNull()
         assertThat(state.summary.quantitySummary!!.netQuantity).isEqualTo(BigDecimal("15.0"))
 
         // Add second ingredient
         val item3 = createItem("m3", BigDecimal("1.0"), ingredientId = IngredientId("ing2"))
-        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(item1, item2, item3))
+        itemsFlow.value = listOf(item1, item2, item3)
         
         val state2 = viewModel.uiState.value as InventoryActivityListScreenState.Ready
         assertThat(state2.summary.quantitySummary).isNull()
+        
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `reset clears filters and search`() = runTest {
+        every { activityRepository.observeActivity(any()) } returns flowOf(emptyList())
+        val viewModel = createViewModel()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+
+        viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.IN))
+        viewModel.onSearchQueryChange("test")
+        
+        viewModel.resetFilters()
+        
+        assertThat(viewModel.filters.value).isEqualTo(InventoryActivityFilters())
+        assertThat(viewModel.searchQuery.value).isEmpty()
+        
+        collectJob.cancel()
     }
 
     private fun createItem(
@@ -140,7 +173,7 @@ class InventoryActivityListViewModelTest {
         ingredientName = "Ing",
         areaName = "Area",
         baseUnitSymbol = "lb",
-        sourceDisplay = InventoryActivitySourceDisplay("Title", null, null),
+        sourceInfo = InventoryActivitySourceInfo.Purchase("Supplier", "Inv", true),
         reversedByMovementId = null,
         reversalOfDisplay = null,
         reversedByDisplay = null

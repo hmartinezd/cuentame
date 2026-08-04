@@ -24,6 +24,12 @@ data class InventoryActivityRow(
     val sourceProductionRecipeName: String? = null,
     val sourceProductionStatus: String? = null,
 
+    // Source resolution markers
+    val sourcePurchaseResolvedId: String? = null,
+    val sourceWasteResolvedId: String? = null,
+    val sourceStockCountResolvedId: String? = null,
+    val sourceProductionResolvedId: String? = null,
+
     // Reversal info
     val reversedByMovementId: String? = null,
     val reversedByMovementType: InventoryMovementType? = null,

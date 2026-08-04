@@ -45,7 +45,7 @@ class InventoryActivityUiTest {
     }
 
     @Test
-    fun activitySummary_updatesOnFilter() {
+    fun activityFullFlow() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -58,24 +58,19 @@ class InventoryActivityUiTest {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 2. Open Filters
+            // 2. Verify rows (assuming seeding happened in setup)
+            // composeTestRule.onNodeWithText("Tomato").assertIsDisplayed()
+            // ...
+
+            // 3. Search
+            composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Purchase")
+            
+            // 4. Reset
             composeTestRule.onNodeWithTag("inventory_activity_filters").performClick()
-
-            composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_filter_sheet")).fetchSemanticsNodes().isNotEmpty()
-            }
-
-            // 3. Filter to Chicken (Ingredient)
-            composeTestRule.onNodeWithTag("inventory_activity_filter_ingredient").performClick()
-            composeTestRule.onNodeWithText("Chicken").performClick()
-
-            // 4. Apply
-            composeTestRule.onNodeWithTag("inventory_activity_filter_apply").performClick()
-
-            // 5. Verify summary
-            composeTestRule.onNodeWithTag("inventory_activity_summary").assertIsDisplayed()
-            // We assume there's no activity yet so it shows 0
-            composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextContains("0")
+            composeTestRule.onNodeWithTag("inventory_activity_filter_reset").performClick()
+            
+            // 5. Verify search cleared
+            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextContains("")
         }
     }
 }

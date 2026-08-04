@@ -17,17 +17,52 @@ data class InventoryActivityItem(
     val ingredientName: String,
     val areaName: String,
     val baseUnitSymbol: String,
-    val sourceDisplay: InventoryActivitySourceDisplay,
+    val sourceInfo: InventoryActivitySourceInfo,
     val reversedByMovementId: InventoryMovementId?,
     val reversalOfDisplay: InventoryActivityRelatedMovementDisplay?,
     val reversedByDisplay: InventoryActivityRelatedMovementDisplay?
 )
 
-data class InventoryActivitySourceDisplay(
-    val title: String,
-    val subtitle: String?,
-    val status: String?
-)
+sealed interface InventoryActivitySourceInfo {
+
+    data class Purchase(
+        val supplierName: String?,
+        val invoiceNumber: String?,
+        val isResolved: Boolean
+    ) : InventoryActivitySourceInfo
+
+    data class Waste(
+        val reason: String?,
+        val sourceAreaName: String?,
+        val isResolved: Boolean
+    ) : InventoryActivitySourceInfo
+
+    data class StockCount(
+        val countName: String?,
+        val isResolved: Boolean
+    ) : InventoryActivitySourceInfo
+
+    data class Production(
+        val recipeName: String?,
+        val status: String?, // Using String? to avoid cyclic dependency if DocumentStatus is not available here, but I should check what it is.
+        val isResolved: Boolean
+    ) : InventoryActivitySourceInfo
+
+    data class Other(
+        val sourceDocumentType: SourceDocumentType
+    ) : InventoryActivitySourceInfo
+}
+
+fun InventoryMovementType.toInventoryActivityCategory(): InventoryActivityCategory = when (this) {
+    InventoryMovementType.PURCHASE -> InventoryActivityCategory.PURCHASE
+    InventoryMovementType.WASTE -> InventoryActivityCategory.WASTE
+    InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
+    InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
+    InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
+    InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
+    InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
+    InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
+}
 
 data class InventoryActivityRelatedMovementDisplay(
     val movementId: InventoryMovementId,
@@ -87,13 +122,21 @@ data class InventoryActivityQuery(
     val areaId: InventoryAreaId? = null
 )
 
+enum class InventoryActivityValueCoverage {
+    NONE,
+    COMPLETE,
+    PARTIAL,
+    UNAVAILABLE
+}
+
 data class InventoryActivitySummary(
     val movementCount: Int,
     val incomingMovementCount: Int,
     val outgoingMovementCount: Int,
     val reversalCount: Int,
-    val valueAdded: BigDecimal?,
-    val valueRemoved: BigDecimal?,
+    val valueAdded: BigDecimal,
+    val valueRemoved: BigDecimal,
+    val valueCoverage: InventoryActivityValueCoverage,
     val quantitySummary: InventoryActivityQuantitySummary?
 )
 

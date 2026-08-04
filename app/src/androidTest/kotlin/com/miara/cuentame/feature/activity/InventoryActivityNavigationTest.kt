@@ -90,8 +90,70 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // Verify prefilter (Search bar should be empty but let's assume it works for now)
+            // Verify prefilter
+            composeTestRule.onNodeWithTag("inventory_activity_filter_ingredient").assertTextContains("Chicken")
             composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun activityNavigation_fromAreaDetail() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            // 1. Open Settings
+            composeTestRule.onNodeWithTag("nav_settings").performClick()
+
+            // 2. Open Areas
+            composeTestRule.onNodeWithTag("settings_areas").performClick()
+
+            // 3. Open an Area (Kitchen seeded)
+            composeTestRule.onNodeWithText("Kitchen").performClick()
+
+            // 4. View Activity
+            composeTestRule.onNodeWithTag("area_view_activity").performClick()
+
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            // Verify prefilter
+            composeTestRule.onNodeWithTag("inventory_activity_filter_area").assertTextContains("Kitchen")
+            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun activityNavigation_listToDetailAndBack() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // 1. Open Activity
+            composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
+
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            
+            // Search
+            composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Tomato")
+
+            // 2. Open Detail
+            composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).onFirst().performClick() // Need a better way to find items
+            // Actually, let's use a simpler check for now if I can't find a good matcher for prefix test tags
+            // composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_", substring = true)).onFirst().performClick()
+            // Try this instead:
+            // composeTestRule.onNode(hasTestTag("inventory_activity_row_").and(hasAnyChild(hasText("Tomato")))).performClick()
+
+            composeTestRule.waitUntil(15000) {
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            // 3. Go back
+            composeTestRule.onNodeWithContentDescription("Back").performClick()
+
+            // 4. Verify search is preserved
+            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextContains("Tomato")
         }
     }
 }

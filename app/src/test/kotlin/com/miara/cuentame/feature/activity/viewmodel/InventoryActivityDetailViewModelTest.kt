@@ -71,6 +71,7 @@ class InventoryActivityDetailViewModelTest {
         val state = viewModel.uiState.value as InventoryActivityDetailScreenState.Ready
         assertThat(state.item).isEqualTo(item)
         assertThat(state.currencyCode).isEqualTo("USD")
+        assertThat(state.localeTag).isEqualTo("en-US")
     }
 
     @Test
@@ -104,7 +105,7 @@ class InventoryActivityDetailViewModelTest {
         ingredientName = "Ing",
         areaName = "Area",
         baseUnitSymbol = "lb",
-        sourceDisplay = InventoryActivitySourceDisplay("Title", null, null),
+        sourceInfo = InventoryActivitySourceInfo.Other(SourceDocumentType.PURCHASE_RECEIPT),
         reversedByMovementId = null,
         reversalOfDisplay = null,
         reversedByDisplay = null

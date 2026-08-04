@@ -19,8 +19,16 @@ fun NavGraphBuilder.activityGraph(navController: NavHostController) {
     composable(
         route = Destination.INVENTORY_ACTIVITY.route,
         arguments = listOf(
-            navArgument("ingredientId") { type = NavType.StringType; nullable = true },
-            navArgument("areaId") { type = NavType.StringType; nullable = true }
+            navArgument("ingredientId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
+            navArgument("areaId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            }
         )
     ) {
         InventoryActivityListRoute(

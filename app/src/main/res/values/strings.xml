@@ -720,7 +720,26 @@
     <string name="inventory_activity_original_unavailable">Original movement unavailable</string>
     <string name="inventory_activity_reversal_unavailable">Reversal unavailable</string>
     <string name="inventory_activity_invalid_route">Invalid activity route</string>
+    <string name="inventory_activity_detail_invalid_route">Invalid activity route</string>
+    <string name="inventory_activity_detail_back">Back</string>
     <string name="inventory_activity_not_found">Activity not found</string>
+    <string name="inventory_activity_source_document">Source document</string>
+    <string name="inventory_activity_source_purchase_from">Purchase from %1$s</string>
+    <string name="inventory_activity_source_invoice">Invoice %1$s</string>
+    <string name="inventory_activity_source_waste_reason">Waste — %1$s</string>
+    <string name="inventory_activity_source_production_recipe">Production — %1$s</string>
+    <string name="inventory_activity_source_stock_count_adj">Stock count adjustment</string>
+    <string name="inventory_activity_source_production_batch">Production batch</string>
+    <string name="inventory_activity_filter_date_custom">Custom Range</string>
+    <string name="inventory_activity_custom_date_dialog">Select Date Range</string>
+    <string name="inventory_activity_custom_start_date">Start Date</string>
+    <string name="inventory_activity_custom_end_date">End Date</string>
+    <string name="inventory_activity_custom_date_confirm">Apply Range</string>
+    <string name="inventory_activity_custom_date_error">Start date must be before or equal to end date</string>
+    <string name="inventory_activity_value_added">Value added</string>
+    <string name="inventory_activity_value_removed">Value removed</string>
+    <string name="inventory_activity_detail_unit_cost">Unit cost</string>
+    <string name="inventory_activity_detail_total_value">Total value</string>
     <string name="ingredient_view_activity">View inventory activity</string>
     <string name="area_view_activity">View activity</string>
 </resources>
