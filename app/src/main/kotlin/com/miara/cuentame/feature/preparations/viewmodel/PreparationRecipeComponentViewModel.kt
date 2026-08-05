@@ -49,7 +49,8 @@ data class PreparationRecipeComponentUiState(
     // Validation
     val quantityError: Boolean = false,
     val quantityErrorText: UiMessage? = null,
-    val inlineError: UiMessage? = null
+    val inlineError: UiMessage? = null,
+    val showDiscardConfirmation: Boolean = false
 )
 
 @HiltViewModel
@@ -313,5 +314,35 @@ class PreparationRecipeComponentViewModel @Inject constructor(
 
     fun onRetry() {
         retryTrigger.value += 1
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        val state = _uiState.value
+        val mode = state.mode
+        
+        return if (mode is PreparationRecipeComponentMode.Create) {
+            state.selectedIngredient != null ||
+            state.quantity.isNotBlank() ||
+            state.selectedUnitOptionId != null ||
+            state.notes.isNotBlank()
+        } else {
+            val existingComp = state.recipe?.components?.find { it.id == (mode as PreparationRecipeComponentMode.Edit).componentId }
+            state.selectedIngredient?.id != existingComp?.componentIngredientId ||
+            state.quantity != (existingComp?.quantityEntered?.toPlainString() ?: "") ||
+            state.selectedUnitOptionId != existingComp?.unitOptionId ||
+            state.notes != (existingComp?.notes ?: "")
+        }
+    }
+
+    fun onBackAction(onConfirmBack: () -> Unit) {
+        if (hasUnsavedChanges()) {
+            _uiState.update { it.copy(showDiscardConfirmation = true) }
+        } else {
+            onConfirmBack()
+        }
+    }
+
+    fun dismissDiscardConfirmation() {
+        _uiState.update { it.copy(showDiscardConfirmation = false) }
     }
 }

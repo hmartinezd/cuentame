@@ -74,6 +74,8 @@
     <string name="action_archive">Archive</string>
     <string name="action_confirm">Confirm</string>
     <string name="action_search">Search…</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_stay">Stay</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_retry_desc">Retry</string>
     <string name="optional">Optional</string>
@@ -517,6 +519,8 @@
     <string name="preparation_recipes_dashboard_desc">Manage ingredient recipes and production yields</string>
     <string name="component_count_format">%1$d components</string>
     <string name="last_updated_format">Last updated: %1$s</string>
+    <string name="discard_changes_title">Discard changes?</string>
+    <string name="discard_changes_message">You have unsaved changes. Are you sure you want to leave?</string>
     <string name="search_recipes">Search recipes…</string>
     <string name="confirm_activation_title">Activate Recipe?</string>
     <string name="confirm_activation_message">Activating this recipe will make it available for production batches. The recipe will become read-only.</string>

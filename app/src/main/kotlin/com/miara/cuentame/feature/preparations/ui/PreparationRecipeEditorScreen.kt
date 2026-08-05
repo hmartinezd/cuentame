@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.preparations.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +41,12 @@ fun PreparationRecipeEditorRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events = viewModel.events
 
+    val backHandler = {
+        viewModel.onBackAction(onBack)
+    }
+
+    BackHandler(onBack = backHandler)
+
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
@@ -53,7 +60,7 @@ fun PreparationRecipeEditorRoute(
 
     PreparationRecipeEditorScreen(
         uiState = uiState,
-        onBackClick = onBack,
+        onBackClick = backHandler,
         onSaveClick = viewModel::onSave,
         onRecipeNameChanged = viewModel::onRecipeNameChanged,
         onOutputIngredientSelected = viewModel::onOutputIngredientSelected,
@@ -65,7 +72,9 @@ fun PreparationRecipeEditorRoute(
         onRemoveComponent = viewModel::onRemoveComponent,
         onMoveComponentUp = viewModel::onMoveComponentUp,
         onMoveComponentDown = viewModel::onMoveComponentDown,
-        onRetry = viewModel::onRetry
+        onRetry = viewModel::onRetry,
+        onDismissDiscardConfirmation = viewModel::dismissDiscardConfirmation,
+        onDiscardChanges = onBack
     )
 }
 
@@ -85,7 +94,9 @@ fun PreparationRecipeEditorScreen(
     onRemoveComponent: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentUp: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentDown: (PreparationRecipeComponentId) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onDismissDiscardConfirmation: () -> Unit,
+    onDiscardChanges: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val loadState = uiState.loadState
@@ -101,9 +112,13 @@ fun PreparationRecipeEditorScreen(
                         else stringResource(R.string.new_preparation_recipe)
                     ) 
                 },
+                modifier = Modifier.testTag("recipe_editor_app_bar"),
                 navigationIcon = {
                     IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        Icon(
+                            imageVector = if (isEditing) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Close,
+                            contentDescription = stringResource(if (isEditing) R.string.action_back else android.R.string.cancel)
+                        )
                     }
                 },
                 actions = {
@@ -114,7 +129,7 @@ fun PreparationRecipeEditorScreen(
                                 focusManager.clearFocus()
                                 onSaveClick()
                             },
-                            enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
+                            enabled = !uiState.isSaving,
                             modifier = Modifier.testTag("recipe_editor_save")
                         ) {
                             if (uiState.isSaving) {
@@ -172,7 +187,7 @@ fun PreparationRecipeEditorScreen(
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = stringResource(R.string.error_generic), // Or a specific invalid route message
+                            text = stringResource(R.string.error_generic),
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.testTag("recipe_editor_invalid_route")
                         )
@@ -185,7 +200,6 @@ fun PreparationRecipeEditorScreen(
             }
             com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.ComponentNotFound,
             com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.ParentNotEditable -> {
-                // Not expected on Editor screen, but must be exhaustive
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.error_generic))
                 }
@@ -316,6 +330,17 @@ fun PreparationRecipeEditorScreen(
             }
         }
     }
+
+    if (uiState.showDiscardConfirmation) {
+        LifecycleConfirmationDialog(
+            title = stringResource(R.string.discard_changes_title),
+            message = stringResource(R.string.discard_changes_message),
+            confirmText = stringResource(R.string.action_discard),
+            dismissText = stringResource(R.string.action_stay),
+            onConfirm = onDiscardChanges,
+            onDismiss = onDismissDiscardConfirmation
+        )
+    }
 }
 
 @Composable
@@ -381,4 +406,3 @@ private fun UiMessage.toRecipeDisplayText(): String =
         is UiMessage.PlainTextInternalOnly ->
             stringResource(R.string.error_generic)
     }
-

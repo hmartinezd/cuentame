@@ -1,9 +1,11 @@
 package com.miara.cuentame.feature.preparations.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +33,12 @@ fun PreparationRecipeComponentRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events = viewModel.events
 
+    val backHandler = {
+        viewModel.onBackAction(onBack)
+    }
+
+    BackHandler(onBack = backHandler)
+
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
@@ -42,13 +50,15 @@ fun PreparationRecipeComponentRoute(
 
     PreparationRecipeComponentScreen(
         uiState = uiState,
-        onBackClick = onBack,
+        onBackClick = backHandler,
         onSaveClick = viewModel::onSave,
         onIngredientSelected = viewModel::onIngredientSelected,
         onQuantityChanged = viewModel::onQuantityChanged,
         onUnitOptionSelected = viewModel::onUnitOptionSelected,
         onNotesChanged = viewModel::onNotesChanged,
-        onRetry = viewModel::onRetry
+        onRetry = viewModel::onRetry,
+        onDismissDiscardConfirmation = viewModel::dismissDiscardConfirmation,
+        onDiscardChanges = onBack
     )
 }
 
@@ -62,7 +72,9 @@ fun PreparationRecipeComponentScreen(
     onQuantityChanged: (String) -> Unit,
     onUnitOptionSelected: (com.miara.cuentame.core.model.ingredient.IngredientUnitOption) -> Unit,
     onNotesChanged: (String) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onDismissDiscardConfirmation: () -> Unit,
+    onDiscardChanges: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val loadState = uiState.loadState
@@ -74,9 +86,13 @@ fun PreparationRecipeComponentScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (isEditing) stringResource(R.string.edit_component) else stringResource(R.string.add_component)) },
+                modifier = Modifier.testTag("recipe_component_app_bar"),
                 navigationIcon = {
                     IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        Icon(
+                            imageVector = if (isEditing) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Close,
+                            contentDescription = stringResource(if (isEditing) R.string.action_back else android.R.string.cancel)
+                        )
                     }
                 },
                 actions = {
@@ -87,7 +103,7 @@ fun PreparationRecipeComponentScreen(
                                 focusManager.clearFocus()
                                 onSaveClick()
                             },
-                            enabled = !uiState.isSaving && uiState.selectedIngredient != null && uiState.selectedUnitOptionId != null,
+                            enabled = !uiState.isSaving,
                             modifier = Modifier.testTag("recipe_component_save")
                         ) {
                             if (uiState.isSaving) {
@@ -249,6 +265,17 @@ fun PreparationRecipeComponentScreen(
             }
         }
     }
+
+    if (uiState.showDiscardConfirmation) {
+        LifecycleConfirmationDialog(
+            title = stringResource(R.string.discard_changes_title),
+            message = stringResource(R.string.discard_changes_message),
+            confirmText = stringResource(R.string.action_discard),
+            dismissText = stringResource(R.string.action_stay),
+            onConfirm = onDiscardChanges,
+            onDismiss = onDismissDiscardConfirmation
+        )
+    }
 }
 
 @Composable
@@ -260,4 +287,3 @@ private fun UiMessage.toRecipeDisplayText(): String =
         is UiMessage.PlainTextInternalOnly ->
             stringResource(R.string.error_generic)
     }
-

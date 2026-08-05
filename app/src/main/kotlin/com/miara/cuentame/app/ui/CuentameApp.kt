@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -169,13 +171,9 @@ fun MainAppContent(
                                     imageVector = Icons.Default.ArrowBack,
                                     contentDescription = stringResource(com.miara.cuentame.R.string.action_back)
                                 )
-
-
-
                             }
                         }
                     },
-
                     actions = {
                         if (isTopLevelDestination) {
                             IconButton(
@@ -210,12 +208,14 @@ fun MainAppContent(
                     currentDestination = currentDestination
                 )
             }
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Row(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
         ) {
             if (shouldShowNavRail) {
                 CuentameNavRail(

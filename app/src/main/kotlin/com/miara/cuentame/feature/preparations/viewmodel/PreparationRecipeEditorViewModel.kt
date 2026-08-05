@@ -49,7 +49,8 @@ data class PreparationRecipeEditorUiState(
     // Validation
     val yieldQuantityError: Boolean = false,
     val yieldQuantityErrorText: UiMessage? = null,
-    val inlineError: UiMessage? = null
+    val inlineError: UiMessage? = null,
+    val showDiscardConfirmation: Boolean = false
 )
 
 @HiltViewModel
@@ -388,5 +389,37 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onRetry() {
         retryTrigger.value += 1
+    }
+
+    fun hasUnsavedChanges(): Boolean {
+        val state = _uiState.value
+        val recipe = state.recipe
+        
+        return if (recipe == null) {
+            // Creation mode - consider it dirty if any field is touched
+            state.selectedOutputIngredient != null ||
+            state.recipeName.isNotBlank() ||
+            state.yieldQuantity.isNotBlank() ||
+            state.selectedYieldUnitOptionId != null ||
+            state.notes.isNotBlank()
+        } else {
+            // Edit mode - compare with original recipe values
+            state.recipeName != recipe.name ||
+            state.yieldQuantity != (recipe.standardYieldQuantity?.toPlainString() ?: "") ||
+            state.selectedYieldUnitOptionId != recipe.yieldUnitOptionId ||
+            state.notes != (recipe.notes ?: "")
+        }
+    }
+
+    fun onBackAction(onConfirmBack: () -> Unit) {
+        if (hasUnsavedChanges()) {
+            _uiState.update { it.copy(showDiscardConfirmation = true) }
+        } else {
+            onConfirmBack()
+        }
+    }
+
+    fun dismissDiscardConfirmation() {
+        _uiState.update { it.copy(showDiscardConfirmation = false) }
     }
 }

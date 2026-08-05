@@ -74,6 +74,8 @@
     <string name="action_archive">Archivar</string>
     <string name="action_confirm">Confirmar</string>
     <string name="action_search">Buscar…</string>
+    <string name="action_discard">Descartar</string>
+    <string name="action_stay">Permanecer</string>
     <string name="action_dismiss">Descartar</string>
     <string name="action_retry_desc">Reintentar</string>
     <string name="optional">Opcional</string>
@@ -517,6 +519,8 @@
     <string name="preparation_recipes_dashboard_desc">Gestionar recetas de ingredientes y rendimientos de producción</string>
     <string name="component_count_format">%1$d componentes</string>
     <string name="last_updated_format">Última actualización: %1$s</string>
+    <string name="discard_changes_title">¿Descartar cambios?</string>
+    <string name="discard_changes_message">Tiene cambios sin guardar. ¿Está seguro de que desea salir?</string>
     <string name="search_recipes">Buscar recetas…</string>
     <string name="confirm_activation_title">¿Activar receta?</string>
     <string name="confirm_activation_message">La activación de esta receta la hará disponible para lotes de producción. La receta pasará a ser de solo lectura.</string>

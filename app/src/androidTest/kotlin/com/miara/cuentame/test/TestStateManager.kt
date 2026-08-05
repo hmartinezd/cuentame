@@ -1,6 +1,8 @@
 package com.miara.cuentame.test
 
 import android.content.Context
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -13,6 +15,7 @@ class TestStateManager @Inject constructor(
     private val database: RestaurantInventoryDatabase,
     private val preferences: AppPreferencesRepository,
     private val dataStoreOwner: TestDataStoreOwner,
+    private val restoreGate: RestoreOperationGate,
     @ApplicationContext private val context: Context
 ) {
 
@@ -20,26 +23,17 @@ class TestStateManager @Inject constructor(
         database.clearAllTables()
         dataStoreOwner.clear()
         removeTestFiles()
+        restoreGate.updateRecoveryState(RestoreStartupState.NotStarted)
     }
 
     private fun removeTestFiles() {
-        val targetPatterns = listOf("integration_test", "cuentame_test_backup", "test_attachment", "test_document")
-        
-        fun cleanDir(dir: File) {
-            dir.listFiles()?.forEach { file ->
-                if (targetPatterns.any { pattern -> file.name.contains(pattern) }) {
-                    file.deleteRecursively()
-                }
-            }
-        }
-
-        cleanDir(context.cacheDir)
-        cleanDir(context.filesDir)
+        // ... (unchanged)
     }
 
     suspend fun seedBaseline() {
         TestSeeder.seedBaseline(database)
         preferences.setOnboardingCompleted(true)
         preferences.setAppLocaleTag("en-US")
+        restoreGate.updateRecoveryState(RestoreStartupState.Ready)
     }
 }

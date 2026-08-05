@@ -92,6 +92,7 @@ fun PreparationRecipeDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.recipe_details)) },
+                modifier = Modifier.testTag("recipe_detail_app_bar"),
                 navigationIcon = {
                     IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
