@@ -15,6 +15,7 @@ import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.feature.activity.logic.InventoryActivityTextResolver
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -154,11 +155,114 @@ class InventoryActivityListViewModelTest {
     }
 
     @Test
-    fun `defensively parses malformed categories`() = runTest {
+    fun `retry resubscribes after activity repository error`() = runTest {
+        val item = createItem(
+            id = "movement-1",
+            qty = BigDecimal.ONE
+        )
+
+        every {
+            activityRepository.observeActivity(any())
+        } returnsMany listOf(
+            kotlinx.coroutines.flow.flow { throw IllegalStateException("Initial failure") },
+            flowOf(listOf(item))
+        )
+
+        val viewModel = createViewModel()
+
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value)
+            .isInstanceOf(InventoryActivityListScreenState.LoadError::class.java)
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(state.items).containsExactly(item)
+
+        verify(atLeast = 2) {
+            activityRepository.observeActivity(any())
+        }
+    }
+
+    @Test
+    fun `repeated retry failures produce load error`() = runTest {
+        every {
+            activityRepository.observeActivity(any())
+        } returns kotlinx.coroutines.flow.flow { throw IllegalStateException("Failure") }
+
+        val viewModel = createViewModel()
+
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value).isInstanceOf(InventoryActivityListScreenState.LoadError::class.java)
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value).isInstanceOf(InventoryActivityListScreenState.LoadError::class.java)
+    }
+
+    @Test
+    fun `missing saved categories defaults to all categories`() {
+        val viewModel = createViewModel(SavedStateHandle())
+
+        assertThat(viewModel.filters.value.categories)
+            .containsExactlyElementsIn(InventoryActivityCategory.entries)
+    }
+
+    @Test
+    fun `restores explicitly empty category selection`() {
+        val handle = SavedStateHandle(
+            mapOf("categories" to emptyList<String>())
+        )
+
+        val viewModel = createViewModel(handle)
+
+        assertThat(viewModel.filters.value.categories).isEmpty()
+    }
+
+    @Test
+    fun `restores saved category selection`() {
+        val handle = SavedStateHandle(
+            mapOf(
+                "categories" to listOf(
+                    InventoryActivityCategory.PURCHASE.name,
+                    InventoryActivityCategory.WASTE.name
+                )
+            )
+        )
+
+        val viewModel = createViewModel(handle)
+
+        assertThat(viewModel.filters.value.categories)
+            .containsExactly(
+                InventoryActivityCategory.PURCHASE,
+                InventoryActivityCategory.WASTE
+            )
+    }
+
+    @Test
+    fun `defensively parses malformed categories`() {
         val handle = SavedStateHandle(mapOf("categories" to listOf("INVALID", "PURCHASE")))
         val viewModel = createViewModel(handle)
-        
+
         assertThat(viewModel.filters.value.categories).containsExactly(InventoryActivityCategory.PURCHASE)
+    }
+
+    @Test
+    fun `malformed categories restore empty set if no valid values`() {
+        val handle = SavedStateHandle(mapOf("categories" to listOf("INVALID")))
+        val viewModel = createViewModel(handle)
+
+        assertThat(viewModel.filters.value.categories).isEmpty()
     }
 
     @Test

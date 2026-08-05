@@ -91,10 +91,14 @@ class InventoryActivityListViewModel @Inject constructor(
             ?.takeIf { it.isNotBlank() && it != "{areaId}" }
             ?.let { InventoryAreaId(it) }
 
-        val categoryNames = savedStateHandle.get<List<String>>("categories")
-        val categories = categoryNames?.mapNotNull { name ->
-            runCatching { InventoryActivityCategory.valueOf(name) }.getOrNull()
-        }?.toSet()?.takeIf { it.isNotEmpty() } ?: InventoryActivityCategory.entries.toSet()
+        val savedCategoryNames = savedStateHandle.get<List<String>>("categories")
+        val categories = if (savedCategoryNames == null) {
+            InventoryActivityCategory.entries.toSet()
+        } else {
+            savedCategoryNames.mapNotNull { name ->
+                runCatching { InventoryActivityCategory.valueOf(name) }.getOrNull()
+            }.toSet()
+        }
 
         val directionName = savedStateHandle.get<String>("direction")
         val direction = directionName?.let { name ->
@@ -136,12 +140,33 @@ class InventoryActivityListViewModel @Inject constructor(
     private val retryTrigger = MutableStateFlow(0)
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-    val uiState: StateFlow<InventoryActivityListScreenState> = combine(
+    val uiState: StateFlow<InventoryActivityListScreenState> = retryTrigger
+        .flatMapLatest {
+            buildActivityStateFlow()
+                .onStart {
+                    emit(InventoryActivityListScreenState.Loading)
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    emit(
+                        InventoryActivityListScreenState.LoadError(
+                            UiMessage.Resource(R.string.error_generic)
+                        )
+                    )
+                }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = InventoryActivityListScreenState.Loading
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    private fun buildActivityStateFlow(): Flow<InventoryActivityListScreenState> = combine(
         restaurantRepository.observeRestaurant(),
         _filters,
-        _searchQuery.debounce(300L),
-        retryTrigger
-    ) { restaurant, filters, search, _ ->
+        _searchQuery.debounce(300L)
+    ) { restaurant, filters, search ->
         restaurant to (filters to search)
     }.flatMapLatest { (restaurant, filtersAndSearch) ->
         val (filters, search) = filtersAndSearch
@@ -158,7 +183,7 @@ class InventoryActivityListViewModel @Inject constructor(
                 ingredientId = filters.ingredientId,
                 areaId = filters.areaId
             )
-            
+
             val locale = Locale.forLanguageTag(restaurant.localeTag)
 
             combine(
@@ -175,7 +200,7 @@ class InventoryActivityListViewModel @Inject constructor(
                     }
                     val matchesReversal = filters.includeReversals || item.movement.movementType != InventoryMovementType.REVERSAL
                     val matchesSearch = search.isBlank() || item.matches(search, textResolver, locale)
-                    
+
                     matchesCategory && matchesDirection && matchesReversal && matchesSearch
                 }
 
@@ -196,10 +221,7 @@ class InventoryActivityListViewModel @Inject constructor(
                 }
             }
         }
-    }.catch { e ->
-        if (e is CancellationException) throw e
-        emit(InventoryActivityListScreenState.LoadError(UiMessage.Resource(R.string.error_generic)))
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InventoryActivityListScreenState.Loading)
+    }
 
     fun onFilterChange(newFilters: InventoryActivityFilters) {
         _filters.value = newFilters
