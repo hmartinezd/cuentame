@@ -156,7 +156,8 @@ fun PurchaseDetailScreen(
                                 if (!details.receipt.invoiceNumber.isNullOrBlank()) {
                                     Text(
                                         text = "${stringResource(R.string.invoice_number)}: ${details.receipt.invoiceNumber}",
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.testTag("purchase_invoice_number")
                                     )
                                 }
                             }
@@ -191,7 +192,7 @@ fun PurchaseDetailScreen(
                                     Text(
                                         text = stringResource(R.string.posted_at, timeFormatter.format(it)),
                                         style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(top = 8.dp)
+                                        modifier = Modifier.padding(top = 8.dp).testTag("purchase_posted_at")
                                     )
                                 }
                                 Button(
@@ -210,7 +211,7 @@ fun PurchaseDetailScreen(
                                     Text(
                                         text = stringResource(R.string.posted_at, timeFormatter.format(it)),
                                         style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(top = 8.dp)
+                                        modifier = Modifier.padding(top = 8.dp).testTag("purchase_posted_at")
                                     )
                                 }
                                 if (details.receipt.status == DocumentStatus.VOIDED) {
@@ -219,7 +220,7 @@ fun PurchaseDetailScreen(
                                             text = stringResource(R.string.voided_at, timeFormatter.format(it)),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(top = 8.dp)
+                                            modifier = Modifier.padding(top = 8.dp).testTag("purchase_voided_at")
                                         )
                                     }
                                 } else if (details.receipt.status == DocumentStatus.UNKNOWN) {
@@ -228,7 +229,7 @@ fun PurchaseDetailScreen(
                                             text = stringResource(R.string.voided_at, timeFormatter.format(it)),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(top = 8.dp)
+                                            modifier = Modifier.padding(top = 8.dp).testTag("purchase_voided_at")
                                         )
                                     }
                                 }

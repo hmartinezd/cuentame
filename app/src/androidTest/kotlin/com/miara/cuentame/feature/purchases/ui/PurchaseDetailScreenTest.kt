@@ -69,7 +69,7 @@ class PurchaseDetailScreenTest {
         composeTestRule.onNodeWithText(dateFormatter.format(fixedNow)).assertIsDisplayed()
         
         val invoiceLabel = context.getString(R.string.invoice_number)
-        composeTestRule.onNodeWithText("$invoiceLabel: INV-123").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("purchase_invoice_number").assertTextEquals("$invoiceLabel: INV-123")
 
         // 9-15. Purchase lines
         val line = details.lines.first()
@@ -213,8 +213,8 @@ class PurchaseDetailScreenTest {
         val unavailableText = context.getString(R.string.status_unavailable)
 
         // It should show both timestamps if present, even if status is UNKNOWN
-        composeTestRule.onNodeWithText(postedAtLabel).assertIsDisplayed()
-        composeTestRule.onNodeWithText(voidedAtLabel).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("purchase_posted_at").assertTextEquals(postedAtLabel)
+        composeTestRule.onNodeWithTag("purchase_voided_at").assertTextEquals(voidedAtLabel)
         
         // But status chip should still say Unavailable
         composeTestRule.onNodeWithTag("purchase_status_chip").assertTextContains(unavailableText)
@@ -287,6 +287,26 @@ class PurchaseDetailScreenTest {
                     ),
                     ingredientName = "Chicken",
                     areaName = "Kitchen",
+                    unitOptionName = "lb",
+                    baseUnitSymbol = "lb"
+                ),
+                PurchaseLineWithDetails(
+                    line = PurchaseLine(
+                        id = PurchaseLineId("l2"),
+                        purchaseReceiptId = receiptId,
+                        ingredientId = IngredientId("i2"),
+                        areaId = InventoryAreaId("a2"),
+                        ingredientUnitOptionId = IngredientUnitOptionId("o2"),
+                        quantityEntered = BigDecimal("5"),
+                        quantityBase = BigDecimal("5"),
+                        lineTotal = BigDecimal("25"),
+                        unitCostBase = BigDecimal("5"),
+                        notes = null,
+                        createdAt = fixedNow,
+                        updatedAt = fixedNow
+                    ),
+                    ingredientName = "Potatoes",
+                    areaName = "Pantry",
                     unitOptionName = "lb",
                     baseUnitSymbol = "lb"
                 )

@@ -118,25 +118,21 @@ class PurchaseDetailViewModelTest {
 
         val viewModel = createViewModel("p1")
 
-        app.cash.turbine.turbineScope {
-            val uiStateTurbine = viewModel.uiState.testIn(this)
-            val eventsTurbine = viewModel.events.testIn(this)
-
-            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
-                // skip loading
+        viewModel.events.test {
+            // Wait for ready state
+            viewModel.uiState.test {
+                while (awaitItem().state !is PurchaseDetailState.Ready) { }
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            eventsTurbine.expectNoEvents()
+            expectNoEvents()
             val finalState = viewModel.uiState.value
             assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
             assertThat(finalState.isVoiding).isFalse()
+            assertThat(finalState.error).isNull()
             assertThat(voidCount).isEqualTo(0)
-            
-            uiStateTurbine.cancel()
-            eventsTurbine.cancel()
         }
     }
 
@@ -147,25 +143,20 @@ class PurchaseDetailViewModelTest {
 
         val viewModel = createViewModel("p1")
 
-        app.cash.turbine.turbineScope {
-            val uiStateTurbine = viewModel.uiState.testIn(this)
-            val eventsTurbine = viewModel.events.testIn(this)
-
-            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
-                // skip loading
+        viewModel.events.test {
+            viewModel.uiState.test {
+                while (awaitItem().state !is PurchaseDetailState.Ready) { }
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            eventsTurbine.expectNoEvents()
+            expectNoEvents()
             val finalState = viewModel.uiState.value
             assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.UNKNOWN)
             assertThat(finalState.isVoiding).isFalse()
+            assertThat(finalState.error).isNull()
             assertThat(voidCount).isEqualTo(0)
-            
-            uiStateTurbine.cancel()
-            eventsTurbine.cancel()
         }
     }
 
@@ -176,25 +167,20 @@ class PurchaseDetailViewModelTest {
 
         val viewModel = createViewModel("p1")
 
-        app.cash.turbine.turbineScope {
-            val uiStateTurbine = viewModel.uiState.testIn(this)
-            val eventsTurbine = viewModel.events.testIn(this)
-
-            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
-                // skip loading
+        viewModel.events.test {
+            viewModel.uiState.test {
+                while (awaitItem().state !is PurchaseDetailState.Ready) { }
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            eventsTurbine.expectNoEvents()
+            expectNoEvents()
             val finalState = viewModel.uiState.value
             assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.DRAFT)
             assertThat(finalState.isVoiding).isFalse()
+            assertThat(finalState.error).isNull()
             assertThat(voidCount).isEqualTo(0)
-            
-            uiStateTurbine.cancel()
-            eventsTurbine.cancel()
         }
     }
 
