@@ -63,12 +63,8 @@ fun InventoryActivityDetailScreen(
     onOpenMovement: (InventoryMovementId) -> Unit,
     onRetry: () -> Unit
 ) {
-    val detailTag = (uiState as? InventoryActivityDetailScreenState.Ready)?.let {
-        "inventory_activity_detail_movement_${it.item.movement.id.value}"
-    } ?: "inventory_activity_detail_screen"
-
     Scaffold(
-        modifier = Modifier.testTag(detailTag),
+        modifier = Modifier.testTag("inventory_activity_detail_screen"),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inventory_activity_view_details)) },
@@ -122,7 +118,9 @@ fun InventoryActivityDetailScreen(
                     localeTag = uiState.localeTag,
                     onOpenSource = onOpenSource,
                     onOpenMovement = onOpenMovement,
-                    modifier = Modifier.padding(padding)
+                    modifier = Modifier
+                        .padding(padding)
+                        .testTag("inventory_activity_detail_movement_${uiState.item.movement.id.value}")
                 )
             }
         }

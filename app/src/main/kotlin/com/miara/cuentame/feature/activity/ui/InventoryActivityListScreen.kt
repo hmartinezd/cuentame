@@ -720,7 +720,8 @@ private fun ActiveFiltersRow(
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_search, searchQuery),
                 onClear = { onSearchQueryChange("") },
-                testTag = "inventory_activity_active_search"
+                testTag = "inventory_activity_active_search",
+                removeTestTag = "inventory_activity_active_search_remove"
             )
         }
 
@@ -730,7 +731,8 @@ private fun ActiveFiltersRow(
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_ingredient_filter, name),
                 onClear = { onFilterChange(filters.copy(ingredientId = null)) },
-                testTag = "inventory_activity_active_ingredient_filter"
+                testTag = "inventory_activity_active_ingredient_filter",
+                removeTestTag = "inventory_activity_active_ingredient_filter_remove"
             )
         }
 
@@ -740,7 +742,8 @@ private fun ActiveFiltersRow(
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_area_filter, name),
                 onClear = { onFilterChange(filters.copy(areaId = null)) },
-                testTag = "inventory_activity_active_area_filter"
+                testTag = "inventory_activity_active_area_filter",
+                removeTestTag = "inventory_activity_active_area_filter_remove"
             )
         }
 
@@ -748,7 +751,8 @@ private fun ActiveFiltersRow(
             ActiveFilterChip(
                 label = stringResource(R.string.inventory_activity_active_date_filter, formatDateRangeLabel(filters.dateRange)),
                 onClear = { onFilterChange(filters.copy(dateRange = InventoryActivityDateRange.Last30Days)) },
-                testTag = "inventory_activity_active_date_filter"
+                testTag = "inventory_activity_active_date_filter",
+                removeTestTag = "inventory_activity_active_date_filter_remove"
             )
         }
     }
@@ -758,7 +762,8 @@ private fun ActiveFiltersRow(
 private fun ActiveFilterChip(
     label: String,
     onClear: () -> Unit,
-    testTag: String
+    testTag: String,
+    removeTestTag: String
 ) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -773,7 +778,9 @@ private fun ActiveFilterChip(
             Spacer(modifier = Modifier.width(4.dp))
             IconButton(
                 onClick = onClear,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier
+                    .size(16.dp)
+                    .testTag(removeTestTag)
             ) {
                 Icon(
                     Icons.Default.Close,

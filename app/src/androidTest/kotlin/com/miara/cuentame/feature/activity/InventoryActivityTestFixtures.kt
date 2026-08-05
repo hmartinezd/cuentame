@@ -7,12 +7,9 @@ import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.test.TestSeeder
-import kotlinx.coroutines.flow.first
 import java.math.BigDecimal
 import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlinx.coroutines.flow.first
 
 data class CanonicalInventoryActivityFixture(
     val restaurantId: RestaurantId,
@@ -44,7 +41,6 @@ suspend fun seedCanonicalInventoryActivity(
     stockCountRepository: StockCountRepository,
     productionBatchRepository: ProductionBatchRepository,
     preparationRecipeRepository: PreparationRecipeRepository,
-    activityRepository: InventoryActivityRepository,
     movementDao: InventoryMovementDao
 ): CanonicalInventoryActivityFixture {
     val restaurantId = RestaurantId(TestSeeder.RESTAURANT_ID)
@@ -53,7 +49,9 @@ suspend fun seedCanonicalInventoryActivity(
     val areaId = InventoryAreaId(TestSeeder.AREA_ID)
     val baseUnitId = UnitId(TestSeeder.UNIT_ID)
     
-    val baseTime = OffsetDateTime.of(2026, 8, 4, 12, 0, 0, 0, ZoneOffset.UTC).toInstant()
+    val baseTime = Instant.now()
+        .minusSeconds(60 * 60)
+        .truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
 
     // 1. Setup Output Ingredient (reuse baseline LB unit)
     val preparedChickenId = IngredientId("ing-prepared-chicken-test")
