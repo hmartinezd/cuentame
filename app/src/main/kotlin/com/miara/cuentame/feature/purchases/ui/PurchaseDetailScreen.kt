@@ -140,6 +140,7 @@ fun PurchaseDetailScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(16.dp)
+                        .testTag("purchase_detail_list")
                 ) {
                     item {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -305,8 +306,11 @@ fun ReadOnlyPurchaseLineItem(
                     text = "${Formatters.formatQuantity(line.line.quantityEntered, line.unitOptionName)} (${Formatters.formatQuantity(line.line.quantityBase, line.baseUnitSymbol)})",
                     modifier = Modifier.testTag("purchase_line_quantity_${line.line.id.value}")
                 )
+                val areaDisplay = line.areaName
+                    ?.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.not_available)
                 Text(
-                    text = "${stringResource(R.string.receiving_area)}: ${line.areaName ?: ""}",
+                    text = "${stringResource(R.string.receiving_area)}: $areaDisplay",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.testTag("purchase_line_area_${line.line.id.value}")
                 )
@@ -319,8 +323,13 @@ fun ReadOnlyPurchaseLineItem(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("purchase_line_total_${line.line.id.value}")
                 )
+                val formattedCost = Formatters.formatCurrency(line.line.unitCostBase, currencyCode)
+                val unitCostText = line.baseUnitSymbol
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { "$formattedCost per $it" }
+                    ?: formattedCost
                 Text(
-                    text = "${Formatters.formatCurrency(line.line.unitCostBase, currencyCode)} per ${line.baseUnitSymbol ?: ""}",
+                    text = unitCostText,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.testTag("purchase_line_unit_cost_${line.line.id.value}")
                 )

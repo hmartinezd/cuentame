@@ -50,9 +50,6 @@ class PurchaseDetailScreenTest {
         }
 
         val unavailableText = context.getString(R.string.status_unavailable)
-        val draftText = context.getString(R.string.status_draft)
-        val postedText = context.getString(R.string.status_posted)
-        val voidedText = context.getString(R.string.status_voided)
 
         // 1. Verify status label (merged semantics)
         composeTestRule.onNodeWithTag("purchase_status_chip")
@@ -60,9 +57,9 @@ class PurchaseDetailScreenTest {
         
         // 2. Verify it does NOT show other statuses
         composeTestRule.onNodeWithTag("purchase_status_chip")
-            .assert(hasText(draftText).not())
-            .assert(hasText(postedText).not())
-            .assert(hasText(voidedText).not())
+            .assert(hasText(context.getString(R.string.status_draft)).not())
+            .assert(hasText(context.getString(R.string.status_posted)).not())
+            .assert(hasText(context.getString(R.string.status_voided)).not())
 
         // 5. Header information
         composeTestRule.onNodeWithText("Test Supplier").assertIsDisplayed()
@@ -74,6 +71,9 @@ class PurchaseDetailScreenTest {
         // 9-15. Purchase lines
         val line = details.lines.first()
         val lineId = line.line.id.value
+        
+        composeTestRule.onNodeWithTag("purchase_detail_list", useUnmergedTree = true)
+            .performScrollToNode(hasTestTag("purchase_line_ingredient_$lineId"))
         
         composeTestRule.onNodeWithTag("purchase_line_ingredient_$lineId", useUnmergedTree = true).assertTextEquals("Chicken")
         
@@ -95,12 +95,19 @@ class PurchaseDetailScreenTest {
         // Receipt total
         val totalAmount = details.lines.fold(BigDecimal.ZERO) { acc, l -> acc.add(l.line.lineTotal) }
         val expectedReceiptTotal = Formatters.formatCurrency(totalAmount, "USD")
+        
+        composeTestRule.onNodeWithTag("purchase_detail_list")
+            .performScrollToNode(hasTestTag("purchase_receipt_total"))
+        
         composeTestRule.onNodeWithTag("purchase_receipt_total").assertTextEquals(expectedReceiptTotal)
 
         // 16-20. Verify mutation controls are hidden
         composeTestRule.onNodeWithTag("purchase_void_button").assertDoesNotExist()
-        composeTestRule.onNodeWithText(context.getString(R.string.void_purchase)).assertDoesNotExist()
-        // No Add Line, Edit Line, Delete Line (these are not in the read-only screen)
+        composeTestRule.onNodeWithTag("purchase_post_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("purchase_delete_button").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription(context.getString(R.string.add_line)).assertDoesNotExist()
+        composeTestRule.onNode(hasContentDescription(context.getString(R.string.action_edit), substring = true)).assertDoesNotExist()
+        composeTestRule.onNode(hasContentDescription(context.getString(R.string.delete_line), substring = true)).assertDoesNotExist()
     }
 
     @Test
@@ -159,26 +166,36 @@ class PurchaseDetailScreenTest {
         }
 
         val noSupplierText = context.getString(R.string.no_supplier)
-        val invoiceLabel = context.getString(R.string.invoice_number)
         val uncategorizedText = context.getString(R.string.uncategorized)
         val areaLabel = context.getString(R.string.receiving_area)
+        val notAvailableText = context.getString(R.string.not_available)
 
         composeTestRule.onNodeWithText(noSupplierText).assertIsDisplayed()
-        composeTestRule.onNodeWithText(invoiceLabel, substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithTag("purchase_invoice_number").assertDoesNotExist()
         
         val lineId = "l1"
+        composeTestRule.onNodeWithTag("purchase_detail_list", useUnmergedTree = true)
+            .performScrollToNode(hasTestTag("purchase_line_ingredient_$lineId"))
+        
         composeTestRule.onNodeWithTag("purchase_line_ingredient_$lineId", useUnmergedTree = true).assertTextEquals(uncategorizedText)
         
         // Quantity formatting should be safe even with null unit
         val quantityText = "${Formatters.formatQuantity(BigDecimal("10"), null)} (${Formatters.formatQuantity(BigDecimal("10"), null)})"
         composeTestRule.onNodeWithTag("purchase_line_quantity_$lineId", useUnmergedTree = true).assertTextEquals(quantityText)
         
-        // Area should show label with empty value
-        composeTestRule.onNodeWithTag("purchase_line_area_$lineId", useUnmergedTree = true).assertTextEquals("$areaLabel: ")
+        // Area should show label with "not available" fallback
+        composeTestRule.onNodeWithTag("purchase_line_area_$lineId", useUnmergedTree = true).assertTextEquals("$areaLabel: $notAvailableText")
         
+        // Unit cost should not show "per" suffix when base unit is missing
+        val expectedUnitCost = Formatters.formatCurrency(BigDecimal("8"), "USD")
+        composeTestRule.onNodeWithTag("purchase_line_unit_cost_$lineId", useUnmergedTree = true).assertTextEquals(expectedUnitCost)
+
         // Unit cost and total should remain safe
         val expectedTotal = Formatters.formatCurrency(BigDecimal("80"), "USD")
         composeTestRule.onNodeWithTag("purchase_line_total_$lineId", useUnmergedTree = true).assertTextEquals(expectedTotal)
+        
+        composeTestRule.onNodeWithTag("purchase_detail_list")
+            .performScrollToNode(hasTestTag("purchase_receipt_total"))
         
         val expectedReceiptTotal = Formatters.formatCurrency(BigDecimal("80"), "USD")
         composeTestRule.onNodeWithTag("purchase_receipt_total").assertTextEquals(expectedReceiptTotal)
@@ -213,7 +230,12 @@ class PurchaseDetailScreenTest {
         val unavailableText = context.getString(R.string.status_unavailable)
 
         // It should show both timestamps if present, even if status is UNKNOWN
+        composeTestRule.onNodeWithTag("purchase_detail_list")
+            .performScrollToNode(hasTestTag("purchase_posted_at"))
         composeTestRule.onNodeWithTag("purchase_posted_at").assertTextEquals(postedAtLabel)
+        
+        composeTestRule.onNodeWithTag("purchase_detail_list")
+            .performScrollToNode(hasTestTag("purchase_voided_at"))
         composeTestRule.onNodeWithTag("purchase_voided_at").assertTextEquals(voidedAtLabel)
         
         // But status chip should still say Unavailable
@@ -237,11 +259,8 @@ class PurchaseDetailScreenTest {
             )
         }
 
-        val postedAtPrefix = context.getString(R.string.posted_at, "").substringBefore("%")
-        val voidedAtPrefix = context.getString(R.string.voided_at, "").substringBefore("%")
-
-        composeTestRule.onNodeWithText(postedAtPrefix, substring = true).assertDoesNotExist()
-        composeTestRule.onNodeWithText(voidedAtPrefix, substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithTag("purchase_posted_at").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("purchase_voided_at").assertDoesNotExist()
         composeTestRule.onNodeWithTag("purchase_detail_screen").assertIsDisplayed()
     }
 
