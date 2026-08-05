@@ -40,6 +40,7 @@ class PurchaseDetailViewModelTest {
     
     private val detailsFlow = MutableStateFlow<PurchaseDetails?>(null)
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
+    private var voidCount = 0
 
     private val fakePurchaseRepository = object : PurchaseRepository {
         override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> = flowOf(emptyList())
@@ -52,6 +53,7 @@ class PurchaseDetailViewModelTest {
         override suspend fun deleteDraft(id: PurchaseReceiptId) {}
         override suspend fun post(id: PurchaseReceiptId) {}
         override suspend fun void(id: PurchaseReceiptId) {
+             voidCount++
              val current = detailsFlow.value ?: return
              detailsFlow.value = current.copy(receipt = current.receipt.copy(status = DocumentStatus.VOIDED))
         }
@@ -67,6 +69,7 @@ class PurchaseDetailViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
+        voidCount = 0
     }
 
     @After
@@ -75,7 +78,7 @@ class PurchaseDetailViewModelTest {
     }
 
     @Test
-    fun `void purchase success updates state to VOIDED`() = runTest {
+    fun `void purchase success updates state to VOIDED and calls repository once`() = runTest {
         val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.POSTED, null, null, Instant.now(), Instant.now())
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
         
@@ -95,6 +98,29 @@ class PurchaseDetailViewModelTest {
                 latest = awaitItem()
             }
             assertThat((latest.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
+            assertThat(voidCount).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `onVoid is ignored when status is VOIDED`() = runTest {
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.VOIDED, null, null, Instant.now(), Instant.now())
+        detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
+
+        val viewModel = createViewModel("p1")
+
+        viewModel.uiState.test {
+            var latest = awaitItem()
+            while (latest.state !is PurchaseDetailState.Ready) {
+                latest = awaitItem()
+            }
+
+            viewModel.onVoid()
+            runCurrent()
+
+            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
+            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            assertThat(voidCount).isEqualTo(0)
         }
     }
 
@@ -117,6 +143,7 @@ class PurchaseDetailViewModelTest {
             // State should remain Ready with UNKNOWN status
             assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.UNKNOWN)
             assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            assertThat(voidCount).isEqualTo(0)
         }
     }
 
@@ -138,6 +165,7 @@ class PurchaseDetailViewModelTest {
 
             assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.DRAFT)
             assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            assertThat(voidCount).isEqualTo(0)
         }
     }
 

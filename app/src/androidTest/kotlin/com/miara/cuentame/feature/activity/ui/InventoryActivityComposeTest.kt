@@ -41,6 +41,7 @@ class InventoryActivityComposeTest {
             valueAdded = BigDecimal("100.00"),
             valueRemoved = BigDecimal("50.00"),
             valueCoverage = InventoryActivityValueCoverage.COMPLETE,
+            quantityCoverage = InventoryActivityValueCoverage.COMPLETE,
             quantitySummary = null
         )
 
@@ -208,7 +209,7 @@ class InventoryActivityComposeTest {
         reversedByDisplay = null
     )
 
-    private fun mockSummary() = InventoryActivitySummary(0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, InventoryActivityValueCoverage.NONE, null)
+    private fun mockSummary() = InventoryActivitySummary(0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, InventoryActivityValueCoverage.NONE, InventoryActivityValueCoverage.NONE, null)
 
     private fun formatSignedQuantity(quantity: BigDecimal, unitSymbol: String): String {
         val prefix = if (quantity > BigDecimal.ZERO) "+" else if (quantity < BigDecimal.ZERO) "\u2212" else ""

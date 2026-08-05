@@ -19,9 +19,8 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onAddPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
             onPurchaseClick = { id, status ->
-                getPurchaseNavigationRoute(id, status)?.let { route ->
-                    navController.navigate(route)
-                }
+                val route = getPurchaseNavigationRoute(id, status)
+                navController.navigate(route)
             }
         )
     }
@@ -77,7 +76,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
     }
 }
 
-fun getPurchaseNavigationRoute(id: PurchaseReceiptId, status: DocumentStatus): String? {
+fun getPurchaseNavigationRoute(id: PurchaseReceiptId, status: DocumentStatus): String {
     return when (status) {
         DocumentStatus.DRAFT -> AppRoutes.purchaseDraft(id)
         DocumentStatus.POSTED, DocumentStatus.VOIDED, DocumentStatus.UNKNOWN -> AppRoutes.purchaseDetail(id)

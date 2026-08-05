@@ -5,17 +5,26 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.presentation.navigation.RouteEncoder
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
 class PurchaseNavigationTest {
 
+    private lateinit var originalEncoder: RouteEncoder
+
     @Before
     fun setup() {
+        originalEncoder = AppRoutes.encoder
         // Use a simple encoder for testing routes
         AppRoutes.encoder = object : RouteEncoder {
             override fun encode(s: String): String = s
         }
+    }
+
+    @After
+    fun tearDown() {
+        AppRoutes.encoder = originalEncoder
     }
 
     @Test
