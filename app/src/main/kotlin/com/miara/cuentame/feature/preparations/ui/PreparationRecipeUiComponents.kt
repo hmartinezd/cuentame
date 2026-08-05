@@ -58,6 +58,11 @@ fun RecipeStatusBadge(
             MaterialTheme.colorScheme.errorContainer,
             MaterialTheme.colorScheme.onErrorContainer
         )
+        PreparationRecipeStatus.UNKNOWN -> Triple(
+            R.string.status_unavailable,
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.outline
+        )
     }
 
     Surface(

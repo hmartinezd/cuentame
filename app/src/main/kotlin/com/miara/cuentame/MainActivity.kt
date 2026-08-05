@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
 
             CuentameTheme(
                 darkTheme = when (preferences?.themeMode) {
-                    ThemeMode.SYSTEM, null -> isSystemInDarkTheme()
+                    ThemeMode.SYSTEM, ThemeMode.UNKNOWN, null -> isSystemInDarkTheme()
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 },

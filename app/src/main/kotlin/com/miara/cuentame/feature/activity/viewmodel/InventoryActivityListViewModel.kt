@@ -96,8 +96,7 @@ class InventoryActivityListViewModel @Inject constructor(
             InventoryActivityCategory.entries.toSet()
         } else {
             savedCategoryNames.mapNotNull { name ->
-                val parsed = parsePersistedEnum(name, InventoryActivityCategory.UNKNOWN)
-                parsed.takeIf { it != InventoryActivityCategory.UNKNOWN }
+                InventoryActivityCategory.entries.firstOrNull { it.name == name }
             }.toSet()
         }
 
@@ -196,8 +195,8 @@ class InventoryActivityListViewModel @Inject constructor(
                     val matchesCategory = filters.categories.contains(item.movement.movementType.toInventoryActivityCategory())
                     val matchesDirection = when (filters.direction) {
                         InventoryActivityDirection.ALL -> true
-                        InventoryActivityDirection.IN -> item.movement.quantityBaseSigned > BigDecimal.ZERO
-                        InventoryActivityDirection.OUT -> item.movement.quantityBaseSigned < BigDecimal.ZERO
+                        InventoryActivityDirection.IN -> item.movement.movementType.toDirection(item.movement.quantityBaseSigned) == InventoryActivityDirection.IN
+                        InventoryActivityDirection.OUT -> item.movement.movementType.toDirection(item.movement.quantityBaseSigned) == InventoryActivityDirection.OUT
                     }
                     val matchesReversal = filters.includeReversals || item.movement.movementType != InventoryMovementType.REVERSAL
                     val matchesSearch = search.isBlank() || item.matches(search, textResolver, locale)
@@ -283,9 +282,9 @@ class InventoryActivityListViewModel @Inject constructor(
             else -> InventoryActivityValueCoverage.UNAVAILABLE
         }
 
-        val distinctIngredientUnits = items.map { it.movement.ingredientId to it.baseUnitSymbol }.distinct()
+        val distinctIngredientUnits = knownMovements.map { it.movement.ingredientId to it.baseUnitSymbol }.distinct()
         val quantitySummary = if (distinctIngredientUnits.size == 1) {
-            val first = items.first()
+            val first = knownMovements.first()
             var qIn = BigDecimal.ZERO
             var qOut = BigDecimal.ZERO
             knownMovements.forEach { 

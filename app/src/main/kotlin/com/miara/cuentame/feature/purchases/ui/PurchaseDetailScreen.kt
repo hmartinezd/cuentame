@@ -248,11 +248,13 @@ fun StatusChip(status: DocumentStatus, modifier: Modifier = Modifier) {
         DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
         DocumentStatus.VOIDED -> MaterialTheme.colorScheme.error
+        DocumentStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
     }
     val text = when (status) {
         DocumentStatus.DRAFT -> stringResource(R.string.status_draft)
         DocumentStatus.POSTED -> stringResource(R.string.status_posted)
         DocumentStatus.VOIDED -> stringResource(R.string.status_voided)
+        DocumentStatus.UNKNOWN -> stringResource(R.string.status_unavailable)
     }
     
     Box(

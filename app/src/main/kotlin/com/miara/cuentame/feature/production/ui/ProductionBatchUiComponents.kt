@@ -40,6 +40,11 @@ fun ProductionStatusBadge(
             MaterialTheme.colorScheme.onErrorContainer,
             MaterialTheme.colorScheme.errorContainer
         )
+        DocumentStatus.UNKNOWN -> Triple(
+            R.string.status_unavailable,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant
+        )
     }
     val textRes = triple.first
     val color = triple.second
@@ -49,6 +54,7 @@ fun ProductionStatusBadge(
         DocumentStatus.DRAFT -> "production_status_draft"
         DocumentStatus.POSTED -> "production_status_posted"
         DocumentStatus.VOIDED -> "production_status_voided"
+        DocumentStatus.UNKNOWN -> "production_status_unknown"
     }
 
     Text(

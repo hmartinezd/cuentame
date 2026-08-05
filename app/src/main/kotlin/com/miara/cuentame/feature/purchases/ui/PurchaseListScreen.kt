@@ -190,12 +190,14 @@ fun PurchaseItem(
                             DocumentStatus.DRAFT -> stringResource(R.string.status_draft)
                             DocumentStatus.POSTED -> stringResource(R.string.status_posted)
                             DocumentStatus.VOIDED -> stringResource(R.string.status_voided)
+                            DocumentStatus.UNKNOWN -> stringResource(R.string.status_unavailable)
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = when (summary.receipt.status) {
                             DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
                             DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
                             DocumentStatus.VOIDED -> MaterialTheme.colorScheme.error
+                            DocumentStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
                         }
                     )
                 }

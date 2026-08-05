@@ -185,6 +185,7 @@ private fun BatchListFilters(
                             DocumentStatus.DRAFT -> R.string.status_draft
                             DocumentStatus.POSTED -> R.string.status_posted
                             DocumentStatus.VOIDED -> R.string.status_voided
+                            DocumentStatus.UNKNOWN -> R.string.status_unavailable
                         }
                         DropdownMenuItem(
                             text = { Text(stringResource(labelRes)) },

@@ -296,9 +296,10 @@ object BackupSnapshotIntegrityValidator {
     private fun validateNumericFields(dto: BackupSnapshotDto): BackupSnapshotIntegrityException? {
         // Units
         for (unit in dto.units) {
-            try { UnitDimension.valueOf(unit.dimension) } catch (_: IllegalArgumentException) {
+            val dim = try { UnitDimension.valueOf(unit.dimension) } catch (_: IllegalArgumentException) {
                 return err(INVALID_ENUM, "Invalid value for units.dimension")
             }
+            if (dim == UnitDimension.UNKNOWN) return err(INVALID_ENUM, "units.dimension cannot be UNKNOWN")
             val r = parseDecimal(unit.factorToCanonical, "Invalid numeric format in units.factorToCanonical")
             when (r) {
                 is BigDecimalResult.Err -> return err(r.code, r.msg)
@@ -387,9 +388,10 @@ object BackupSnapshotIntegrityValidator {
 
         // Waste events
         for (waste in dto.wasteEvents) {
-            try { WasteReason.valueOf(waste.reason) } catch (_: IllegalArgumentException) {
+            val reason = try { WasteReason.valueOf(waste.reason) } catch (_: IllegalArgumentException) {
                 return err(INVALID_ENUM, "Invalid value for waste_events.reason")
             }
+            if (reason == WasteReason.UNKNOWN) return err(INVALID_ENUM, "waste_events.reason cannot be UNKNOWN")
             for ((value, field) in listOf(
                 waste.quantityEntered to "waste_events.quantityEntered",
                 waste.quantityBase to "waste_events.quantityBase",
@@ -499,6 +501,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_TIMESTAMP_ORDER, "purchase_receipts: postedAt must be <= voidedAt")
                     }
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Purchase receipt status cannot be UNKNOWN")
             }
         }
 
@@ -528,6 +531,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_TIMESTAMP_ORDER, "waste_events: postedAt must be <= voidedAt")
                     }
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Waste event status cannot be UNKNOWN")
             }
         }
 
@@ -557,6 +561,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_TIMESTAMP_ORDER, "stock_counts: completedAt must be <= voidedAt")
                     }
                 }
+                StockCountStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Stock count status cannot be UNKNOWN")
             }
         }
 
@@ -574,6 +579,7 @@ object BackupSnapshotIntegrityValidator {
                 CountAreaStatus.COMPLETED -> {
                     if (sca.completedAt == null) return err(INVALID_DOCUMENT_LIFECYCLE, "COMPLETED stock count area requires completedAt")
                 }
+                CountAreaStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Stock count area status cannot be UNKNOWN")
             }
         }
 
@@ -603,6 +609,7 @@ object BackupSnapshotIntegrityValidator {
             } catch (_: IllegalArgumentException) {
                 return err(INVALID_ENUM, "Invalid value for inventory_movements.sourceDocumentType")
             }
+            if (docType == SourceDocumentType.UNKNOWN) return err(INVALID_ENUM, "inventory_movements.sourceDocumentType cannot be UNKNOWN")
 
             if (move.sourceDocumentId.isBlank()) return err(BLANK_PRIMARY_KEY, "Blank sourceDocumentId in inventory_movements")
             if (move.sourceOperationId.isBlank()) return err(BLANK_PRIMARY_KEY, "Blank sourceOperationId in inventory_movements")
@@ -784,6 +791,7 @@ object BackupSnapshotIntegrityValidator {
                         SourceDocumentType.STOCK_COUNT -> ctx.countById[original.sourceDocumentId]?.status
                         SourceDocumentType.PRODUCTION_BATCH -> ctx.batchById[original.sourceDocumentId]?.status
                         SourceDocumentType.MANUAL -> null
+                        SourceDocumentType.UNKNOWN -> null
                     }
                     if (parentDocStatus != null
                         && parentDocStatus != DocumentStatus.VOIDED.name
@@ -791,6 +799,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_REVERSAL, "REVERSAL movement exists on a non-VOIDED parent document")
                     }
                 }
+                InventoryMovementType.UNKNOWN -> return err(INVALID_ENUM, "Inventory movement type cannot be UNKNOWN")
             }
         }
 
@@ -843,6 +852,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED purchase receipt REVERSAL movements must cover all original PURCHASE movements 1-to-1")
                     }
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Purchase receipt status cannot be UNKNOWN")
             }
         }
 
@@ -876,6 +886,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED waste event REVERSAL must point to original WASTE movement")
                     }
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Waste event status cannot be UNKNOWN")
             }
         }
 
@@ -932,6 +943,7 @@ object BackupSnapshotIntegrityValidator {
                         return err(INVALID_DOCUMENT_LIFECYCLE, "VOIDED stock count REVERSAL movements must cover all original movements 1-to-1")
                     }
                 }
+                StockCountStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Stock count status cannot be UNKNOWN")
             }
         }
 
@@ -977,6 +989,7 @@ object BackupSnapshotIntegrityValidator {
                     validateProductionOriginalMovements(batch, components, originalMoves)?.let { return it }
                     validateProductionReversals(batch, originalMoves, reversals)?.let { return it }
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Production batch status cannot be UNKNOWN")
             }
         }
 
@@ -1094,6 +1107,7 @@ object BackupSnapshotIntegrityValidator {
             } catch (_: Exception) {
                 return err(INVALID_ENUM, "Invalid status in preparation_recipes")
             }
+            if (status == PreparationRecipeStatus.UNKNOWN) return err(INVALID_ENUM, "preparation_recipes.status cannot be UNKNOWN")
 
             // Timestamps
             if (recipe.createdAt > recipe.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "recipe.createdAt must be <= recipe.updatedAt")
@@ -1302,6 +1316,7 @@ object BackupSnapshotIntegrityValidator {
                     if (batch.postedAt > batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.postedAt must be <= voidedAt")
                     if (batch.voidedAt > batch.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "batch.voidedAt must be <= batch.updatedAt")
                 }
+                DocumentStatus.UNKNOWN -> return err(INVALID_DOCUMENT_LIFECYCLE, "Production batch status cannot be UNKNOWN")
             }
 
             // Isolation & FKs

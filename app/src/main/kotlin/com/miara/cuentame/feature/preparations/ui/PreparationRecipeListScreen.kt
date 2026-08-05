@@ -212,6 +212,7 @@ private fun RecipeListFilters(
                                 PreparationRecipeStatus.DRAFT -> R.string.status_draft
                                 PreparationRecipeStatus.ACTIVE -> R.string.status_active
                                 PreparationRecipeStatus.ARCHIVED -> R.string.status_archived
+                                PreparationRecipeStatus.UNKNOWN -> R.string.status_unavailable
                             }
                             DropdownMenuItem(
                                 text = { Text(stringResource(labelRes)) },

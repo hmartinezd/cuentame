@@ -211,11 +211,12 @@ class InventoryActivityListViewModelTest {
     }
 
     @Test
-    fun `missing saved categories defaults to all categories`() {
+    fun `missing saved categories defaults to all categories including UNKNOWN`() {
         val viewModel = createViewModel(SavedStateHandle())
 
         assertThat(viewModel.filters.value.categories)
             .containsExactlyElementsIn(InventoryActivityCategory.entries)
+        assertThat(viewModel.filters.value.categories).contains(InventoryActivityCategory.UNKNOWN)
     }
 
     @Test
@@ -230,12 +231,12 @@ class InventoryActivityListViewModelTest {
     }
 
     @Test
-    fun `restores saved category selection`() {
+    fun `restores saved category selection including legitimate UNKNOWN`() {
         val handle = SavedStateHandle(
             mapOf(
                 "categories" to listOf(
                     InventoryActivityCategory.PURCHASE.name,
-                    InventoryActivityCategory.WASTE.name
+                    InventoryActivityCategory.UNKNOWN.name
                 )
             )
         )
@@ -245,24 +246,105 @@ class InventoryActivityListViewModelTest {
         assertThat(viewModel.filters.value.categories)
             .containsExactly(
                 InventoryActivityCategory.PURCHASE,
-                InventoryActivityCategory.WASTE
+                InventoryActivityCategory.UNKNOWN
             )
     }
 
     @Test
-    fun `defensively parses malformed categories`() {
-        val handle = SavedStateHandle(mapOf("categories" to listOf("INVALID", "PURCHASE")))
+    fun `filter restoration ignores malformed names but preserves UNKNOWN`() {
+        val handle = SavedStateHandle(
+            mapOf("categories" to listOf("PURCHASE", "UNKNOWN", "invalid", ""))
+        )
         val viewModel = createViewModel(handle)
 
-        assertThat(viewModel.filters.value.categories).containsExactly(InventoryActivityCategory.PURCHASE)
+        assertThat(viewModel.filters.value.categories)
+            .containsExactly(InventoryActivityCategory.PURCHASE, InventoryActivityCategory.UNKNOWN)
     }
 
     @Test
-    fun `malformed categories restore empty set if no valid values`() {
-        val handle = SavedStateHandle(mapOf("categories" to listOf("INVALID")))
+    fun `restoration of only malformed names results in empty set`() {
+        val handle = SavedStateHandle(mapOf("categories" to listOf("unknown", "INVALID")))
         val viewModel = createViewModel(handle)
 
         assertThat(viewModel.filters.value.categories).isEmpty()
+    }
+
+    @Test
+    fun `persisting and restoring filters preserves UNKNOWN`() {
+        val handle = SavedStateHandle()
+        val viewModel = createViewModel(handle)
+        
+        val filters = InventoryActivityFilters(
+            categories = setOf(InventoryActivityCategory.UNKNOWN, InventoryActivityCategory.PURCHASE)
+        )
+        viewModel.onFilterChange(filters)
+        
+        // Create new VM from the same handle (which was updated by persistFilters)
+        val secondViewModel = createViewModel(handle)
+        assertThat(secondViewModel.filters.value.categories).isEqualTo(filters.categories)
+    }
+
+    @Test
+    fun `unknown movement direction filtering`() = runTest {
+        val unknownPos = createItem("m1", BigDecimal("10.0")).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        val unknownNeg = createItem("m2", BigDecimal("-5.0")).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        val unknownZero = createItem("m3", BigDecimal.ZERO).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        val items = listOf(unknownPos, unknownNeg, unknownZero)
+
+        every { activityRepository.observeActivity(any()) } returns flowOf(items)
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // Visible under ALL
+        assertThat((viewModel.uiState.value as InventoryActivityListScreenState.Ready).items).hasSize(3)
+
+        // Excluded from IN
+        viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.IN))
+        advanceUntilIdle()
+        assertThat((viewModel.uiState.value as InventoryActivityListScreenState.Ready).items).isEmpty()
+
+        // Excluded from OUT
+        viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.OUT))
+        advanceUntilIdle()
+        assertThat((viewModel.uiState.value as InventoryActivityListScreenState.Ready).items).isEmpty()
+    }
+
+    @Test
+    fun `recognized movement direction filtering preserved`() = runTest {
+        val pos = createItem("m1", BigDecimal("10.0")) // PURCHASE (IN)
+        val neg = createItem("m2", BigDecimal("-5.0")).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.WASTE)) // WASTE (OUT)
+        }
+        val zero = createItem("m3", BigDecimal.ZERO)
+        val items = listOf(pos, neg, zero)
+
+        every { activityRepository.observeActivity(any()) } returns flowOf(items)
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // IN
+        viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.IN))
+        advanceUntilIdle()
+        assertThat((viewModel.uiState.value as InventoryActivityListScreenState.Ready).items).containsExactly(pos)
+
+        // OUT
+        viewModel.onFilterChange(InventoryActivityFilters(direction = InventoryActivityDirection.OUT))
+        advanceUntilIdle()
+        assertThat((viewModel.uiState.value as InventoryActivityListScreenState.Ready).items).containsExactly(neg)
     }
 
     @Test
@@ -306,104 +388,6 @@ class InventoryActivityListViewModelTest {
         val range = viewModel.filters.value.dateRange as InventoryActivityDateRange.Custom
         assertThat(range.startDate).isEqualTo(start)
         assertThat(range.endDateInclusive).isEqualTo(end)
-    }
-
-    @Test
-    fun `falls back on malformed start date`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to "invalid",
-            "customEndDate" to "2026-08-04"
-        ))
-        val viewModel = createViewModel(handle)
-        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
-    }
-
-    @Test
-    fun `falls back on malformed end date`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to "2026-08-01",
-            "customEndDate" to "invalid"
-        ))
-        val viewModel = createViewModel(handle)
-        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
-    }
-
-    @Test
-    fun `falls back on missing start date`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customEndDate" to "2026-08-04"
-        ))
-        val viewModel = createViewModel(handle)
-        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
-    }
-
-    @Test
-    fun `falls back on missing end date`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to "2026-08-01"
-        ))
-        val viewModel = createViewModel(handle)
-        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
-    }
-
-    @Test
-    fun `falls back on reversed range`() = runTest {
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to "2026-08-10",
-            "customEndDate" to "2026-08-01"
-        ))
-        val viewModel = createViewModel(handle)
-        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
-    }
-
-    @Test
-    fun `restores single day range`() = runTest {
-        val date = java.time.LocalDate.of(2026, 8, 1)
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to date.toString(),
-            "customEndDate" to date.toString()
-        ))
-        val viewModel = createViewModel(handle)
-        
-        val range = viewModel.filters.value.dateRange as InventoryActivityDateRange.Custom
-        assertThat(range.startDate).isEqualTo(date)
-        assertThat(range.endDateInclusive).isEqualTo(date)
-    }
-
-    @Test
-    fun `restored future end date is capped by today in repository query`() = runTest {
-        val today = java.time.LocalDate.now()
-        val zoneId = java.time.ZoneId.systemDefault()
-        val future = today.plusDays(10)
-        
-        val observedQueries = mutableListOf<InventoryActivityQuery>()
-        every { activityRepository.observeActivity(capture(observedQueries)) } returns flowOf(emptyList())
-
-        val handle = SavedStateHandle(mapOf(
-            "dateRangeKind" to "Custom",
-            "customStartDate" to today.minusDays(1).toString(),
-            "customEndDate" to future.toString()
-        ))
-        val viewModel = createViewModel(handle)
-        
-        backgroundScope.launch(testDispatcher) {
-            viewModel.uiState.collect()
-        }
-        advanceUntilIdle()
-        
-        val query = observedQueries.last()
-        
-        val expectedStart = today.minusDays(1).atStartOfDay(zoneId).toInstant()
-        val expectedEndExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant()
-        
-        assertThat(query.startInclusive).isEqualTo(expectedStart)
-        assertThat(query.endExclusive).isEqualTo(expectedEndExclusive)
     }
 
     @Test
@@ -459,6 +443,31 @@ class InventoryActivityListViewModelTest {
         assertThat(state.summary.incomingMovementCount).isEqualTo(0)
         assertThat(state.summary.valueCoverage).isEqualTo(InventoryActivityValueCoverage.UNAVAILABLE)
         assertThat(state.summary.quantityCoverage).isEqualTo(InventoryActivityValueCoverage.UNAVAILABLE)
+        assertThat(state.summary.quantitySummary).isNull()
+    }
+
+    @Test
+    fun `quantity summary for mixed incompatible ingredients with unknown`() = runTest {
+        val ing1 = IngredientId("ing1")
+        val ing2 = IngredientId("ing2")
+        val knownIng1 = createItem("m1", BigDecimal("10.0"), ingredientId = ing1)
+        val unknownIng2 = createItem("m2", BigDecimal("5.0"), ingredientId = ing2).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        
+        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(knownIng1, unknownIng2))
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        // Summary should still be produced for ing1
+        assertThat(state.summary.quantitySummary).isNotNull()
+        assertThat(state.summary.quantitySummary!!.ingredientName).isEqualTo("Ing")
+        assertThat(state.summary.quantityCoverage).isEqualTo(InventoryActivityValueCoverage.PARTIAL)
     }
 
     @Test

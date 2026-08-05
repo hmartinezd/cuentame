@@ -321,6 +321,7 @@ fun SettingsScreen(
                             ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
                             ThemeMode.LIGHT -> stringResource(R.string.theme_light)
                             ThemeMode.DARK -> stringResource(R.string.theme_dark)
+                            ThemeMode.UNKNOWN -> stringResource(R.string.theme_system)
                         }
                     )
                 },

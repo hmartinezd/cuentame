@@ -65,6 +65,15 @@ fun InventoryMovementType.toInventoryActivityCategory(): InventoryActivityCatego
     InventoryMovementType.UNKNOWN -> InventoryActivityCategory.UNKNOWN
 }
 
+fun InventoryMovementType.toDirection(quantity: BigDecimal): InventoryActivityDirection? = when (this) {
+    InventoryMovementType.UNKNOWN -> null
+    else -> when {
+        quantity > BigDecimal.ZERO -> InventoryActivityDirection.IN
+        quantity < BigDecimal.ZERO -> InventoryActivityDirection.OUT
+        else -> null
+    }
+}
+
 data class InventoryActivityRelatedMovementDisplay(
     val movementId: InventoryMovementId,
     val category: InventoryActivityCategory,

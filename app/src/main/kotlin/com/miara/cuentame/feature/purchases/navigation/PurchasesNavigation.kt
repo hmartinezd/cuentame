@@ -24,6 +24,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                         navController.navigate(AppRoutes.purchaseDraft(id))
                     DocumentStatus.POSTED, DocumentStatus.VOIDED ->
                         navController.navigate(AppRoutes.purchaseDetail(id))
+                    DocumentStatus.UNKNOWN -> { /* Ignore */ }
                 }
             }
         )

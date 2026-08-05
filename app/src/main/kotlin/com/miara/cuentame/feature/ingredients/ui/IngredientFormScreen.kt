@@ -337,6 +337,7 @@ fun DimensionSelector(
                     UnitDimension.MASS -> stringResource(R.string.dim_mass)
                     UnitDimension.VOLUME -> stringResource(R.string.dim_volume)
                     UnitDimension.COUNT -> stringResource(R.string.dim_count)
+                    UnitDimension.UNKNOWN -> stringResource(R.string.not_applicable)
                 }
             } ?: "",
             onValueChange = {},
@@ -356,6 +357,7 @@ fun DimensionSelector(
                             UnitDimension.MASS -> stringResource(R.string.dim_mass)
                             UnitDimension.VOLUME -> stringResource(R.string.dim_volume)
                             UnitDimension.COUNT -> stringResource(R.string.dim_count)
+                            UnitDimension.UNKNOWN -> stringResource(R.string.not_applicable)
                         })
                     },
                     onClick = {

@@ -12,4 +12,5 @@ fun WasteReason.toLabelRes(): Int = when (this) {
     WasteReason.CUSTOMER_RETURN -> R.string.reason_customer_return
     WasteReason.QUALITY_REJECTION -> R.string.reason_quality_rejection
     WasteReason.OTHER -> R.string.reason_other
+    WasteReason.UNKNOWN -> R.string.waste_reason_unavailable
 }

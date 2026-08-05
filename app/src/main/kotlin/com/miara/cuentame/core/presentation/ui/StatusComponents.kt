@@ -23,11 +23,13 @@ fun StatusChip(status: DocumentStatus, modifier: Modifier = Modifier) {
         DocumentStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         DocumentStatus.POSTED -> MaterialTheme.colorScheme.primary
         DocumentStatus.VOIDED -> MaterialTheme.colorScheme.error
+        DocumentStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
     }
     val text = when (status) {
         DocumentStatus.DRAFT -> stringResource(R.string.status_draft)
         DocumentStatus.POSTED -> stringResource(R.string.status_posted)
         DocumentStatus.VOIDED -> stringResource(R.string.status_voided)
+        DocumentStatus.UNKNOWN -> stringResource(R.string.status_unavailable)
     }
     
     StatusChipContent(text = text, color = color, modifier = modifier)
@@ -39,11 +41,13 @@ fun StatusChip(status: StockCountStatus, modifier: Modifier = Modifier) {
         StockCountStatus.DRAFT -> MaterialTheme.colorScheme.secondary
         StockCountStatus.COMPLETED -> MaterialTheme.colorScheme.primary
         StockCountStatus.VOIDED -> MaterialTheme.colorScheme.error
+        StockCountStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
     }
     val text = when (status) {
         StockCountStatus.DRAFT -> stringResource(R.string.status_draft)
         StockCountStatus.COMPLETED -> stringResource(R.string.status_completed)
         StockCountStatus.VOIDED -> stringResource(R.string.status_voided)
+        StockCountStatus.UNKNOWN -> stringResource(R.string.status_unavailable)
     }
     
     StatusChipContent(text = text, color = color, modifier = modifier)
@@ -55,11 +59,13 @@ fun AreaStatusChip(status: CountAreaStatus, modifier: Modifier = Modifier) {
         CountAreaStatus.NOT_STARTED -> MaterialTheme.colorScheme.outline
         CountAreaStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondary
         CountAreaStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+        CountAreaStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
     }
     val text = when (status) {
         CountAreaStatus.NOT_STARTED -> stringResource(R.string.not_started)
         CountAreaStatus.IN_PROGRESS -> stringResource(R.string.status_in_progress)
         CountAreaStatus.COMPLETED -> stringResource(R.string.area_completed)
+        CountAreaStatus.UNKNOWN -> stringResource(R.string.status_unavailable)
     }
     
     StatusChipContent(text = text, color = color, modifier = modifier)
