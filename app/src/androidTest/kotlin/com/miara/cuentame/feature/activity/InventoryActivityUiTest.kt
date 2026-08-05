@@ -95,29 +95,22 @@ class InventoryActivityUiTest {
             composeTestRule.onNodeWithTag("inventory_activity_summary").assertIsDisplayed()
             
             // fixture adds exactly 7 movements
-            composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextEquals("7")
-            composeTestRule.onNodeWithTag("inventory_activity_incoming_count").assertTextEquals("4")
-            composeTestRule.onNodeWithTag("inventory_activity_outgoing_count").assertTextEquals("3")
-            composeTestRule.onNodeWithTag("inventory_activity_reversal_count").assertTextEquals("1")
+            composeTestRule.onNodeWithTag("inventory_activity_movement_count_value").assertTextEquals("7")
+            composeTestRule.onNodeWithTag("inventory_activity_incoming_count_value").assertTextEquals("4")
+            composeTestRule.onNodeWithTag("inventory_activity_outgoing_count_value").assertTextEquals("3")
+            composeTestRule.onNodeWithTag("inventory_activity_reversal_count_value").assertTextEquals("1")
 
             // 4. Search by unique Invoice Number
             val searchQuery = "INV-001"
             composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput(searchQuery)
             
-            // Wait for debounced search
-            composeTestRule.waitUntil(5000) {
-                val expectedExists = composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_${fixture.purchaseMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
-                val excludedExists = composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_${fixture.wasteMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
-                expectedExists && !excludedExists
-            }
+            // Wait for debounced search using Summary count
+            waitForMovementCount("1")
             
             // Only matching row remains
             composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").assertIsDisplayed()
             composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.wasteMovementId.value}").assertDoesNotExist()
-            
-            // Verify summary reflects filtered result
-            composeTestRule.onNodeWithTag("inventory_activity_list").performScrollToNode(hasTestTag("inventory_activity_summary"))
-            composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextEquals("1")
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.originalMovementId.value}").assertDoesNotExist()
 
             // 5. Active search indicator visible
             composeTestRule.onNodeWithTag("inventory_activity_active_search").assertIsDisplayed()
@@ -125,16 +118,14 @@ class InventoryActivityUiTest {
             // 6. Reset search via stable remove tag
             composeTestRule.onNodeWithTag("inventory_activity_active_search_remove").performClick()
             
-            // 7. Wait for default results to return
-            composeTestRule.waitUntil(5000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_${fixture.wasteMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
-            }
+            // 7. Wait for default results to return using Summary count
+            waitForMovementCount("7")
             
             composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("")
             composeTestRule.onNodeWithTag("inventory_activity_active_search").assertDoesNotExist()
             
-            composeTestRule.onNodeWithTag("inventory_activity_list").performScrollToNode(hasTestTag("inventory_activity_summary"))
-            composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextEquals("7")
+            scrollToActivityRow(fixture.purchaseMovementId)
+            scrollToActivityRow(fixture.wasteMovementId)
 
             // 7.5. Re-search to reach filtered-empty state
             composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("NONEXISTENT_ACTIVITY")
@@ -144,13 +135,13 @@ class InventoryActivityUiTest {
             composeTestRule.onNodeWithTag("inventory_activity_filtered_empty").assertIsDisplayed()
             composeTestRule.onNodeWithTag("inventory_activity_filtered_empty_reset").performClick()
             
-            // Wait for return
-            composeTestRule.waitUntil(5000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_row_${fixture.purchaseMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
-            }
+            // Wait for return using Summary count
+            waitForMovementCount("7")
             
             // Verify reset from filtered-empty also works
             composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("")
+            composeTestRule.onNodeWithTag("inventory_activity_filtered_empty").assertDoesNotExist()
+            composeTestRule.onNodeWithTag("inventory_activity_active_search").assertDoesNotExist()
             scrollToActivityRow(fixture.purchaseMovementId)
             
             // 8. Open Production consumption row -> Production Batch source
@@ -158,15 +149,14 @@ class InventoryActivityUiTest {
             composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}")
                 .performClick()
             
-            composeTestRule.onNodeWithTag("inventory_activity_detail_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.productionConsumptionMovementId.value}").assertIsDisplayed()
+            waitForActivityDetail(fixture.productionConsumptionMovementId)
             
             composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
-            composeTestRule.onNodeWithTag("production_batch_detail_screen").assertIsDisplayed()
+            waitForProductionBatchDetail()
             
             // Back from Source Document -> Activity Detail
             composeTestRule.onNodeWithTag("production_batch_detail_back").performClick()
-            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.productionConsumptionMovementId.value}").assertIsDisplayed()
+            waitForActivityDetail(fixture.productionConsumptionMovementId)
             
             // Back from Activity Detail -> Activity List
             composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
@@ -177,10 +167,10 @@ class InventoryActivityUiTest {
             composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}")
                 .performClick()
             
-            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.reversalMovementId.value}").assertIsDisplayed()
+            waitForActivityDetail(fixture.reversalMovementId)
             
             composeTestRule.onNodeWithTag("inventory_activity_open_original").performClick()
-            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.originalMovementId.value}").assertIsDisplayed()
+            waitForActivityDetail(fixture.originalMovementId)
             
             composeTestRule.onNodeWithTag("inventory_activity_open_reversal").assertIsDisplayed()
             composeTestRule.onNodeWithTag("inventory_activity_open_original").assertDoesNotExist()
@@ -203,5 +193,29 @@ class InventoryActivityUiTest {
         val rowTag = "inventory_activity_row_${movementId.value}"
         composeTestRule.onNodeWithTag("inventory_activity_list").performScrollToNode(hasTestTag(rowTag))
         composeTestRule.onNodeWithTag(rowTag).assertIsDisplayed()
+    }
+
+    private fun waitForMovementCount(expectedCount: String, timeoutMillis: Long = 5000) {
+        composeTestRule.waitUntil(timeoutMillis) {
+            composeTestRule.onAllNodes(hasTestTag("inventory_activity_movement_count_value") and hasText(expectedCount))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("inventory_activity_movement_count_value").assertTextEquals(expectedCount)
+    }
+
+    private fun waitForActivityDetail(movementId: com.miara.cuentame.core.common.ids.InventoryMovementId) {
+        val tag = "inventory_activity_detail_movement_${movementId.value}"
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("inventory_activity_detail_screen").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
+    }
+
+    private fun waitForProductionBatchDetail() {
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodes(hasTestTag("production_batch_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("production_batch_detail_screen").assertIsDisplayed()
     }
 }

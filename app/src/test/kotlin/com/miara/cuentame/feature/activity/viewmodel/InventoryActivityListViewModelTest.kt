@@ -189,10 +189,69 @@ class InventoryActivityListViewModelTest {
     }
 
     @Test
+    fun `restores valid Custom range`() = runTest {
+        val start = java.time.LocalDate.of(2026, 8, 1)
+        val end = java.time.LocalDate.of(2026, 8, 4)
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to start.toString(),
+            "customEndDate" to end.toString()
+        ))
+        val viewModel = createViewModel(handle)
+        
+        val range = viewModel.filters.value.dateRange as InventoryActivityDateRange.Custom
+        assertThat(range.startDate).isEqualTo(start)
+        assertThat(range.endDateInclusive).isEqualTo(end)
+    }
+
+    @Test
+    fun `falls back on malformed start date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "invalid",
+            "customEndDate" to "2026-08-04"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on malformed end date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "2026-08-01",
+            "customEndDate" to "invalid"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on missing start date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customEndDate" to "2026-08-04"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
     fun `falls back on missing end date`() = runTest {
         val handle = SavedStateHandle(mapOf(
             "dateRangeKind" to "Custom",
             "customStartDate" to "2026-08-01"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on reversed range`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "2026-08-10",
+            "customEndDate" to "2026-08-01"
         ))
         val viewModel = createViewModel(handle)
         assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
@@ -214,9 +273,14 @@ class InventoryActivityListViewModelTest {
     }
 
     @Test
-    fun `restored future end date is capped by today in interval`() = runTest {
+    fun `restored future end date is capped by today in repository query`() = runTest {
         val today = java.time.LocalDate.now()
+        val zoneId = java.time.ZoneId.systemDefault()
         val future = today.plusDays(10)
+        
+        val observedQueries = mutableListOf<InventoryActivityQuery>()
+        every { activityRepository.observeActivity(capture(observedQueries)) } returns flowOf(emptyList())
+
         val handle = SavedStateHandle(mapOf(
             "dateRangeKind" to "Custom",
             "customStartDate" to today.minusDays(1).toString(),
@@ -224,20 +288,18 @@ class InventoryActivityListViewModelTest {
         ))
         val viewModel = createViewModel(handle)
         
-        // Restore works (SavedState doesn't know "today")
-        val range = viewModel.filters.value.dateRange as InventoryActivityDateRange.Custom
-        assertThat(range.endDateInclusive).isEqualTo(future)
-        
-        // But UI state (which uses toInterval) caps it
         backgroundScope.launch(testDispatcher) {
             viewModel.uiState.collect()
         }
         advanceUntilIdle()
         
-        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
-        assertThat(state.today).isEqualTo(today)
-        // Interval verification would require mocking activityRepository.observeActivity and checking the query, 
-        // but the logic in InventoryActivityDateUtils already proves it.
+        val query = observedQueries.last()
+        
+        val expectedStart = today.minusDays(1).atStartOfDay(zoneId).toInstant()
+        val expectedEndExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant()
+        
+        assertThat(query.startInclusive).isEqualTo(expectedStart)
+        assertThat(query.endExclusive).isEqualTo(expectedEndExclusive)
     }
 
     private fun createItem(

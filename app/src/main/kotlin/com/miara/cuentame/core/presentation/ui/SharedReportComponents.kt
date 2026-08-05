@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.semantics
 import com.miara.cuentame.R
 
 @Composable
@@ -56,14 +55,36 @@ fun SummaryMetric(
     value: String,
     modifier: Modifier = Modifier,
     testTag: String? = null,
+    valueTestTag: String? = testTag?.let { "${it}_value" },
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Column(
-        modifier = modifier
-            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-            .semantics(mergeDescendants = true) {}
+        modifier = modifier.then(
+            if (testTag != null) {
+                Modifier.testTag(testTag)
+            } else {
+                Modifier
+            }
+        )
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            modifier = Modifier.then(
+                if (valueTestTag != null) {
+                    Modifier.testTag(valueTestTag)
+                } else {
+                    Modifier
+                }
+            )
+        )
     }
 }
