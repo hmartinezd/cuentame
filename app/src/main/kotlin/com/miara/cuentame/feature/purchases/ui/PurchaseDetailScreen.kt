@@ -181,7 +181,8 @@ fun PurchaseDetailScreen(
                                 Text(
                                     text = Formatters.formatCurrency(total, uiState.currencyCode),
                                     style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.testTag("purchase_receipt_total")
                                 )
                             }
 
@@ -291,13 +292,22 @@ fun ReadOnlyPurchaseLineItem(
     currencyCode: String
 ) {
     ListItem(
-        headlineContent = { Text(line.ingredientName ?: stringResource(R.string.uncategorized)) },
+        headlineContent = {
+            Text(
+                text = line.ingredientName ?: stringResource(R.string.uncategorized),
+                modifier = Modifier.testTag("purchase_line_ingredient_${line.line.id.value}")
+            )
+        },
         supportingContent = {
             Column {
-                Text("${Formatters.formatQuantity(line.line.quantityEntered, line.unitOptionName)} (${Formatters.formatQuantity(line.line.quantityBase, line.baseUnitSymbol)})")
+                Text(
+                    text = "${Formatters.formatQuantity(line.line.quantityEntered, line.unitOptionName)} (${Formatters.formatQuantity(line.line.quantityBase, line.baseUnitSymbol)})",
+                    modifier = Modifier.testTag("purchase_line_quantity_${line.line.id.value}")
+                )
                 Text(
                     text = "${stringResource(R.string.receiving_area)}: ${line.areaName ?: ""}",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag("purchase_line_area_${line.line.id.value}")
                 )
             }
         },
@@ -305,11 +315,13 @@ fun ReadOnlyPurchaseLineItem(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = Formatters.formatCurrency(line.line.lineTotal, currencyCode),
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag("purchase_line_total_${line.line.id.value}")
                 )
                 Text(
                     text = "${Formatters.formatCurrency(line.line.unitCostBase, currencyCode)} per ${line.baseUnitSymbol ?: ""}",
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("purchase_line_unit_cost_${line.line.id.value}")
                 )
             }
         }

@@ -65,11 +65,14 @@ class PurchaseDetailViewModelTest {
         override suspend fun save(restaurant: Restaurant) {}
     }
 
+    private val fixedNow = Instant.parse("2026-08-05T10:00:00Z")
+
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
+        restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", fixedNow, fixedNow)
         voidCount = 0
+        detailsFlow.value = null
     }
 
     @After
@@ -79,93 +82,119 @@ class PurchaseDetailViewModelTest {
 
     @Test
     fun `void purchase success updates state to VOIDED and calls repository once`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.POSTED, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.POSTED, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
         
         val viewModel = createViewModel("p1")
         
-        viewModel.uiState.test {
-            // Loading or initial emission
-            var latest = awaitItem()
-            while (latest.state !is PurchaseDetailState.Ready) {
-                latest = awaitItem()
+        app.cash.turbine.turbineScope {
+            val uiStateTurbine = viewModel.uiState.testIn(this)
+            val eventsTurbine = viewModel.events.testIn(this)
+            
+            // Wait for ready state
+            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
+                // skip loading
             }
             
             viewModel.onVoid()
+            assertThat(eventsTurbine.awaitItem()).isEqualTo(PurchaseDetailEvent.Voided)
             
-            // Wait for VOIDED
-            while ((latest.state as? PurchaseDetailState.Ready)?.details?.receipt?.status != DocumentStatus.VOIDED) {
-                latest = awaitItem()
+            // Wait for the state to reflect VOIDED
+            var stateItem = uiStateTurbine.awaitItem()
+            while ((stateItem.state as? PurchaseDetailState.Ready)?.details?.receipt?.status != DocumentStatus.VOIDED) {
+                stateItem = uiStateTurbine.awaitItem()
             }
-            assertThat((latest.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
+            
             assertThat(voidCount).isEqualTo(1)
+            uiStateTurbine.cancel()
+            eventsTurbine.cancel()
         }
     }
 
     @Test
     fun `onVoid is ignored when status is VOIDED`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.VOIDED, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.VOIDED, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")
 
-        viewModel.uiState.test {
-            var latest = awaitItem()
-            while (latest.state !is PurchaseDetailState.Ready) {
-                latest = awaitItem()
+        app.cash.turbine.turbineScope {
+            val uiStateTurbine = viewModel.uiState.testIn(this)
+            val eventsTurbine = viewModel.events.testIn(this)
+
+            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
+                // skip loading
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
-            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            eventsTurbine.expectNoEvents()
+            val finalState = viewModel.uiState.value
+            assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.VOIDED)
+            assertThat(finalState.isVoiding).isFalse()
             assertThat(voidCount).isEqualTo(0)
+            
+            uiStateTurbine.cancel()
+            eventsTurbine.cancel()
         }
     }
 
     @Test
     fun `onVoid is ignored when status is UNKNOWN`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.UNKNOWN, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.UNKNOWN, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")
 
-        viewModel.uiState.test {
-            var latest = awaitItem()
-            while (latest.state !is PurchaseDetailState.Ready) {
-                latest = awaitItem()
+        app.cash.turbine.turbineScope {
+            val uiStateTurbine = viewModel.uiState.testIn(this)
+            val eventsTurbine = viewModel.events.testIn(this)
+
+            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
+                // skip loading
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            // State should remain Ready with UNKNOWN status
-            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.UNKNOWN)
-            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            eventsTurbine.expectNoEvents()
+            val finalState = viewModel.uiState.value
+            assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.UNKNOWN)
+            assertThat(finalState.isVoiding).isFalse()
             assertThat(voidCount).isEqualTo(0)
+            
+            uiStateTurbine.cancel()
+            eventsTurbine.cancel()
         }
     }
 
     @Test
     fun `onVoid is ignored when status is DRAFT`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.DRAFT, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")
 
-        viewModel.uiState.test {
-            var latest = awaitItem()
-            while (latest.state !is PurchaseDetailState.Ready) {
-                latest = awaitItem()
+        app.cash.turbine.turbineScope {
+            val uiStateTurbine = viewModel.uiState.testIn(this)
+            val eventsTurbine = viewModel.events.testIn(this)
+
+            while (uiStateTurbine.awaitItem().state !is PurchaseDetailState.Ready) {
+                // skip loading
             }
 
             viewModel.onVoid()
             runCurrent()
 
-            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.DRAFT)
-            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+            eventsTurbine.expectNoEvents()
+            val finalState = viewModel.uiState.value
+            assertThat((finalState.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.DRAFT)
+            assertThat(finalState.isVoiding).isFalse()
             assertThat(voidCount).isEqualTo(0)
+            
+            uiStateTurbine.cancel()
+            eventsTurbine.cancel()
         }
     }
 
