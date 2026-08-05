@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.dao.ProductionBatchSummaryRow
 import com.miara.cuentame.core.database.entity.ProductionBatchComponentEntity
@@ -32,7 +33,7 @@ fun ProductionBatchEntity.toDomain(components: List<ProductionBatchComponentEnti
         totalComponentCostSnapshot = totalComponentCostSnapshot?.let { BigDecimal(it) },
         outputUnitCostBaseSnapshot = outputUnitCostBaseSnapshot?.let { BigDecimal(it) },
         effectiveAt = Instant.ofEpochMilli(effectiveAt),
-        status = DocumentStatus.valueOf(status),
+        status = parsePersistedEnum(status, DocumentStatus.UNKNOWN),
         notes = notes,
         components = components.map { it.toDomain() },
         createdAt = Instant.ofEpochMilli(createdAt),
@@ -72,7 +73,7 @@ fun ProductionBatchSummaryRow.toDomain(): ProductionBatchSummary {
         id = ProductionBatchId(id),
         recipeName = recipeName,
         outputIngredientName = outputIngredientName,
-        status = DocumentStatus.valueOf(status),
+        status = parsePersistedEnum(status, DocumentStatus.UNKNOWN),
         expectedOutputQuantityEntered = BigDecimal(expectedOutputQuantityEntered),
         actualOutputQuantityEntered = BigDecimal(actualOutputQuantityEntered),
         outputUnitLabel = outputUnitLabel,

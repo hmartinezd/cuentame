@@ -91,6 +91,7 @@
     <string name="status_active">Activa</string>
     <string name="status_archived">Archivada</string>
     <string name="status_in_progress">En progreso</string>
+    <string name="status_unavailable">Estado no disponible</string>
 
     <!-- Activity Statuses -->
     <string name="activity_status_posted">Publicado</string>
@@ -184,6 +185,9 @@
     <string name="activity_type_purchase">Compra</string>
     <string name="activity_type_waste">Merma</string>
     <string name="activity_type_stock_count">Conteo</string>
+    <string name="unknown_inventory_activity">Actividad de inventario desconocida</string>
+    <string name="activity_type_unavailable">Tipo de actividad no disponible</string>
+    <string name="source_type_unavailable">Tipo de origen no disponible</string>
     <string name="log_waste_action">Registrar Merma</string>
     <string name="new_purchase_action">Nueva Compra</string>
     <string name="start_count_action">Iniciar Conteo</string>
@@ -198,6 +202,7 @@
     <string name="setup_required_desc">Por favor, complete la configuración del restaurante para ver el panel de control.</string>
     <string name="dashboard_error_title">Error del Panel</string>
     <string name="dashboard_error_desc">No pudimos cargar los datos del panel. Inténtalo de nuevo.</string>
+    <string name="summary_partial">Resumen parcial</string>
     <string name="from_previous_period">vs periodo anterior</string>
     <string name="items_count_format">%1$d artículos</string>
     <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
@@ -467,6 +472,7 @@
     <string name="reason_customer_return">Devolución de cliente</string>
     <string name="reason_quality_rejection">Rechazo por calidad</string>
     <string name="reason_other">Otro</string>
+    <string name="waste_reason_unavailable">Motivo de desperdicio no disponible</string>
 
     <!-- Waste Errors -->
     <string name="error_waste_not_found">Evento de merma no encontrado</string>
@@ -621,6 +627,7 @@
     <string name="inventory_activity_summary_quantity_out">Cantidad Saliente</string>
     <string name="inventory_activity_summary_quantity_net">Cantidad Neta</string>
     <string name="inventory_activity_value_incomplete">Algunos valores de movimiento no están disponibles</string>
+    <string name="inventory_activity_quantity_incomplete">El resumen de cantidades para este período está incompleto debido a tipos de movimiento desconocidos.</string>
     <string name="inventory_activity_empty_state">Aún no hay actividad de inventario</string>
     <string name="inventory_activity_empty_desc">Aquí aparecerán las compras, mermas, conteos y producción publicados.</string>
     <string name="inventory_activity_filtered_empty_state">Ninguna actividad coincide con estos filtros</string>

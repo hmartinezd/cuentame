@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.InventoryMovementId
@@ -16,12 +17,12 @@ fun InventoryMovementEntity.toDomain(): InventoryMovement = InventoryMovement(
     restaurantId = RestaurantId(restaurantId),
     ingredientId = IngredientId(ingredientId),
     areaId = InventoryAreaId(areaId),
-    movementType = InventoryMovementType.valueOf(movementType),
+    movementType = parsePersistedEnum(movementType, InventoryMovementType.UNKNOWN),
     quantityBaseSigned = BigDecimal(quantityBaseSigned),
     unitCostBaseSnapshot = unitCostBaseSnapshot?.let { BigDecimal(it) },
     totalValueSnapshot = totalValueSnapshot?.let { BigDecimal(it) },
     effectiveAt = Instant.ofEpochMilli(effectiveAt),
-    sourceDocumentType = SourceDocumentType.valueOf(sourceDocumentType),
+    sourceDocumentType = parsePersistedEnum(sourceDocumentType, SourceDocumentType.UNKNOWN),
     sourceDocumentId = sourceDocumentId,
     sourceOperationId = sourceOperationId,
     sourceLineId = sourceLineId,

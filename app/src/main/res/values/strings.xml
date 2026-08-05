@@ -91,6 +91,7 @@
     <string name="status_active">Active</string>
     <string name="status_archived">Archived</string>
     <string name="status_in_progress">In Progress</string>
+    <string name="status_unavailable">Status unavailable</string>
     <string name="not_started">Not Started</string>
     <string name="area_completed">Area Completed</string>
     <string name="pending_item">Pending</string>
@@ -188,6 +189,9 @@
     <string name="activity_type_purchase">Purchase</string>
     <string name="activity_type_waste">Waste</string>
     <string name="activity_type_stock_count">Stock count</string>
+    <string name="unknown_inventory_activity">Unknown inventory activity</string>
+    <string name="activity_type_unavailable">Activity type unavailable</string>
+    <string name="source_type_unavailable">Source type unavailable</string>
     <string name="log_waste_action">Log Waste</string>
     <string name="new_purchase_action">New Purchase</string>
     <string name="start_count_action">Start Stock Count</string>
@@ -202,6 +206,7 @@
     <string name="setup_required_desc">Please complete the restaurant setup to view the dashboard.</string>
     <string name="dashboard_error_title">Dashboard Error</string>
     <string name="dashboard_error_desc">We couldn\'t load the dashboard data. Please try again.</string>
+    <string name="summary_partial">Partial summary</string>
     <string name="from_previous_period">vs previous period</string>
     <string name="items_count_format">%1$d items</string>
     <string name="activity_description_format">%1$s: %2$s. %3$s, %4$s. %5$s</string>
@@ -467,6 +472,7 @@
     <string name="reason_customer_return">Customer Return</string>
     <string name="reason_quality_rejection">Quality Rejection</string>
     <string name="reason_other">Other</string>
+    <string name="waste_reason_unavailable">Waste reason unavailable</string>
 
     <!-- Waste Errors -->
     <string name="error_waste_not_found">Waste event not found</string>
@@ -621,6 +627,7 @@
     <string name="inventory_activity_summary_quantity_out">Quantity Out</string>
     <string name="inventory_activity_summary_quantity_net">Net Quantity</string>
     <string name="inventory_activity_value_incomplete">Some movement values are unavailable</string>
+    <string name="inventory_activity_quantity_incomplete">Quantity summary for this period is incomplete due to unknown movement types.</string>
     <string name="inventory_activity_empty_state">No inventory activity yet</string>
     <string name="inventory_activity_empty_desc">Posted purchases, Waste, Stock Counts, and Production will appear here.</string>
     <string name="inventory_activity_filtered_empty_state">No activity matches these filters</string>

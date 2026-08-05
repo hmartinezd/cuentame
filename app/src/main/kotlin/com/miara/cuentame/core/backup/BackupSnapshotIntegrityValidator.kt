@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.backup.BackupSnapshotIntegrityCode.*
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.common.text.normalizeName
@@ -1044,10 +1045,10 @@ object BackupSnapshotIntegrityValidator {
             val moves = (movementsByIngredient[ing.id] ?: emptyList()).map { move ->
                 HistoricalInventoryMovement(
                     id = move.id,
-                    movementType = InventoryMovementType.valueOf(move.movementType),
+                    movementType = parsePersistedEnum(move.movementType, InventoryMovementType.UNKNOWN),
                     quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
                     unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
-                    sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                    sourceDocumentType = parsePersistedEnum(move.sourceDocumentType, SourceDocumentType.UNKNOWN),
                     sourceDocumentId = move.sourceDocumentId,
                     effectiveAt = move.effectiveAt,
                     createdAt = move.createdAt,
@@ -1456,10 +1457,10 @@ object BackupSnapshotIntegrityValidator {
                     val moves = (movementsByIngredient[comp.componentIngredientId] ?: emptyList()).map { move ->
                         HistoricalInventoryMovement(
                             id = move.id,
-                            movementType = InventoryMovementType.valueOf(move.movementType),
+                            movementType = parsePersistedEnum(move.movementType, InventoryMovementType.UNKNOWN),
                             quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
                             unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
-                            sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
+                            sourceDocumentType = parsePersistedEnum(move.sourceDocumentType, SourceDocumentType.UNKNOWN),
                             sourceDocumentId = move.sourceDocumentId,
                             effectiveAt = move.effectiveAt,
                             createdAt = move.createdAt,

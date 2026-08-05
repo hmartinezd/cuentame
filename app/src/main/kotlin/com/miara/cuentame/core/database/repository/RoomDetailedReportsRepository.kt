@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -117,11 +118,7 @@ class RoomDetailedReportsRepository @Inject constructor(
             period.endExclusive.toEpochMilli()
         ).map { rows ->
             val items = rows.map { row ->
-                val reason = try {
-                    WasteReason.valueOf(row.reason)
-                } catch (e: Exception) {
-                    throw com.miara.cuentame.core.domain.validation.ValidationError.InvalidWasteReason
-                }
+                val reason = parsePersistedEnum(row.reason, WasteReason.UNKNOWN)
                 WasteDetailItem(
                     wasteEventId = WasteEventId(row.wasteEventId),
                     ingredientId = IngredientId(row.ingredientId),

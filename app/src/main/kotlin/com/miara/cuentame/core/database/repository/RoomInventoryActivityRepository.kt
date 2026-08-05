@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.common.parsePersistedEnum
+import com.miara.cuentame.core.common.parsePersistedEnumOrNull
 import com.miara.cuentame.core.common.ids.InventoryMovementId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -11,7 +13,6 @@ import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.model.InventoryActivityRow
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
 import com.miara.cuentame.core.model.inventory.DocumentStatus
-import com.miara.cuentame.core.model.inventory.InventoryActivityCategory
 import com.miara.cuentame.core.model.inventory.InventoryActivityItem
 import com.miara.cuentame.core.model.inventory.InventoryActivityQuery
 import com.miara.cuentame.core.model.inventory.InventoryActivityRelatedMovementDisplay
@@ -87,7 +88,8 @@ class RoomInventoryActivityRepository @Inject constructor(
             baseUnitSymbol = baseUnitSymbol,
             sourceInfo = toSourceInfo(),
             reversedByMovementId = reversedByMovementId?.let { InventoryMovementId(it) },
-            reversalOfDisplay = reversalOfMovementType?.let { type ->
+            reversalOfDisplay = reversalOfMovementType?.let { typeStr ->
+                val type = parsePersistedEnum(typeStr, InventoryMovementType.UNKNOWN)
                 InventoryActivityRelatedMovementDisplay(
                     movementId = InventoryMovementId(movement.reversalOfMovementId!!),
                     category = type.toInventoryActivityCategory(),
@@ -95,9 +97,10 @@ class RoomInventoryActivityRepository @Inject constructor(
                 )
             },
             reversedByDisplay = reversedByMovementId?.let { id ->
+                val type = parsePersistedEnum(reversedByMovementType, InventoryMovementType.UNKNOWN)
                 InventoryActivityRelatedMovementDisplay(
                     movementId = InventoryMovementId(id),
-                    category = reversedByMovementType!!.toInventoryActivityCategory(),
+                    category = type.toInventoryActivityCategory(),
                     effectiveAt = reversedByMovementEffectiveAt!!
                 )
             }
@@ -112,9 +115,7 @@ class RoomInventoryActivityRepository @Inject constructor(
                 isResolved = sourcePurchaseResolvedId != null
             )
             SourceDocumentType.WASTE_EVENT.name -> InventoryActivitySourceInfo.Waste(
-                reason = sourceWasteReason?.let { reason ->
-                    WasteReason.valueOf(reason)
-                },
+                reason = parsePersistedEnumOrNull(sourceWasteReason, WasteReason.UNKNOWN),
                 sourceAreaName = sourceWasteAreaName,
                 isResolved = sourceWasteResolvedId != null
             )
@@ -124,13 +125,11 @@ class RoomInventoryActivityRepository @Inject constructor(
             )
             SourceDocumentType.PRODUCTION_BATCH.name -> InventoryActivitySourceInfo.Production(
                 recipeName = sourceProductionRecipeName,
-                status = sourceProductionStatus?.let { status ->
-                    DocumentStatus.valueOf(status)
-                },
+                status = parsePersistedEnumOrNull(sourceProductionStatus, DocumentStatus.UNKNOWN),
                 isResolved = sourceProductionResolvedId != null
             )
             else -> InventoryActivitySourceInfo.Other(
-                sourceDocumentType = SourceDocumentType.valueOf(movement.sourceDocumentType)
+                sourceDocumentType = parsePersistedEnum(movement.sourceDocumentType, SourceDocumentType.UNKNOWN)
             )
         }
     }

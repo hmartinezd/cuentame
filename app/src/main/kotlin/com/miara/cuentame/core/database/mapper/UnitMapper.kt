@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.database.entity.UnitEntity
 import com.miara.cuentame.core.model.inventory.UnitDimension
@@ -9,7 +10,7 @@ fun UnitEntity.toDomain(): UnitOfMeasure = UnitOfMeasure(
     id = UnitId(id),
     name = name,
     symbol = symbol,
-    dimension = UnitDimension.valueOf(dimension),
+    dimension = parsePersistedEnum(dimension, UnitDimension.UNKNOWN),
     factorToCanonical = factorToCanonical,
     isSystem = isSystem,
     sortOrder = sortOrder

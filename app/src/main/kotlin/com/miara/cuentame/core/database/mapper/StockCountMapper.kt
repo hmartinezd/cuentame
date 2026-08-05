@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.StockCountId
 import com.miara.cuentame.core.database.entity.StockCountEntity
@@ -14,7 +15,7 @@ fun StockCountEntity.toDomain(): StockCount = StockCount(
     startedAt = Instant.ofEpochMilli(startedAt),
     effectiveAt = Instant.ofEpochMilli(effectiveAt),
     completedAt = completedAt?.let { Instant.ofEpochMilli(it) },
-    status = StockCountStatus.valueOf(status),
+    status = parsePersistedEnum(status, StockCountStatus.UNKNOWN),
     notes = notes,
     createdAt = Instant.ofEpochMilli(createdAt),
     updatedAt = Instant.ofEpochMilli(updatedAt),

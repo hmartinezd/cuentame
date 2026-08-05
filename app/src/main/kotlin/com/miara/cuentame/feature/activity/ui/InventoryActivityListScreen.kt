@@ -476,6 +476,15 @@ private fun SummarySection(
                 )
             }
 
+            if (summary.quantityCoverage == InventoryActivityValueCoverage.PARTIAL || summary.quantityCoverage == InventoryActivityValueCoverage.UNAVAILABLE) {
+                Text(
+                    stringResource(R.string.inventory_activity_quantity_incomplete),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.testTag("inventory_activity_quantity_incomplete")
+                )
+            }
+
             summary.quantitySummary?.let { q ->
                 HorizontalDivider()
                 Text("${stringResource(R.string.inventory_activity_summary_title)}: ${q.ingredientName}", style = MaterialTheme.typography.labelMedium)

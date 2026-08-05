@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -36,35 +37,23 @@ class RoomInventorySnapshotService @Inject constructor(
             effectiveAt.toEpochMilli()
         )
 
-        try {
-            historyValidator.validateCompleteHistory(movements)
-        } catch (e: Exception) {
-            throw ValidationError.MalformedInventoryMovementHistory
+        historyValidator.validateCompleteHistory(movements)
+
+        val historicalMoves = movements.map { move ->
+            HistoricalInventoryMovement(
+                id = move.id,
+                movementType = parsePersistedEnum(move.movementType, InventoryMovementType.UNKNOWN),
+                quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                sourceDocumentType = parsePersistedEnum(move.sourceDocumentType, SourceDocumentType.UNKNOWN),
+                sourceDocumentId = move.sourceDocumentId,
+                effectiveAt = move.effectiveAt,
+                createdAt = move.createdAt,
+                reversalOfMovementId = move.reversalOfMovementId
+            )
         }
 
-        val historicalMoves = try {
-            movements.map { move ->
-                HistoricalInventoryMovement(
-                    id = move.id,
-                    movementType = InventoryMovementType.valueOf(move.movementType),
-                    quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
-                    unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
-                    sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
-                    sourceDocumentId = move.sourceDocumentId,
-                    effectiveAt = move.effectiveAt,
-                    createdAt = move.createdAt,
-                    reversalOfMovementId = move.reversalOfMovementId
-                )
-            }
-        } catch (e: Exception) {
-            throw ValidationError.MalformedInventoryMovementHistory
-        }
-
-        val calculationResult = try {
-            costCalculator.calculate(historicalMoves)
-        } catch (e: Exception) {
-            throw ValidationError.MalformedInventoryMovementHistory
-        }
+        val calculationResult = costCalculator.calculate(historicalMoves)
 
         val costResult = when (calculationResult) {
             is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value
@@ -108,35 +97,23 @@ class RoomInventorySnapshotService @Inject constructor(
         val balances = mutableMapOf<IngredientId, BigDecimal>()
 
         movementsByIngredient.forEach { (ingredientId, ingredientMovements) ->
-            try {
-                historyValidator.validateCompleteHistory(ingredientMovements)
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
+            historyValidator.validateCompleteHistory(ingredientMovements)
+
+            val historicalMoves = ingredientMovements.map { move ->
+                HistoricalInventoryMovement(
+                    id = move.id,
+                    movementType = parsePersistedEnum(move.movementType, InventoryMovementType.UNKNOWN),
+                    quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                    unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                    sourceDocumentType = parsePersistedEnum(move.sourceDocumentType, SourceDocumentType.UNKNOWN),
+                    sourceDocumentId = move.sourceDocumentId,
+                    effectiveAt = move.effectiveAt,
+                    createdAt = move.createdAt,
+                    reversalOfMovementId = move.reversalOfMovementId
+                )
             }
 
-            val historicalMoves = try {
-                ingredientMovements.map { move ->
-                    HistoricalInventoryMovement(
-                        id = move.id,
-                        movementType = InventoryMovementType.valueOf(move.movementType),
-                        quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
-                        unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
-                        sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
-                        sourceDocumentId = move.sourceDocumentId,
-                        effectiveAt = move.effectiveAt,
-                        createdAt = move.createdAt,
-                        reversalOfMovementId = move.reversalOfMovementId
-                    )
-                }
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
-            }
-
-            val calculationResult = try {
-                costCalculator.calculate(historicalMoves)
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
-            }
+            val calculationResult = costCalculator.calculate(historicalMoves)
 
             val costResult = when (calculationResult) {
                 is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value

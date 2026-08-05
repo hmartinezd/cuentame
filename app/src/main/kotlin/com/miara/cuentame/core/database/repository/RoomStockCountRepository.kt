@@ -2,6 +2,7 @@ package com.miara.cuentame.core.database.repository
 
 import androidx.room.withTransaction
 import com.miara.cuentame.core.common.ids.IdGenerator
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
@@ -117,7 +118,7 @@ class RoomStockCountRepository @Inject constructor(
                             areaName = areaInfo?.name,
                             restaurantId = RestaurantId(countEntity.restaurantId),
                             countId = id,
-                            countStatus = StockCountStatus.valueOf(countEntity.status),
+                            countStatus = parsePersistedEnum(countEntity.status, StockCountStatus.UNKNOWN),
                             effectiveAt = Instant.ofEpochMilli(countEntity.effectiveAt),
                             lines = lineEntities.map { it.toDomain() }
                         )
@@ -152,7 +153,7 @@ class RoomStockCountRepository @Inject constructor(
                         areaName = areaInfo?.name,
                         restaurantId = RestaurantId(countEntity.restaurantId),
                         countId = StockCountId(countEntity.id),
-                        countStatus = StockCountStatus.valueOf(countEntity.status),
+                        countStatus = parsePersistedEnum(countEntity.status, StockCountStatus.UNKNOWN),
                         effectiveAt = Instant.ofEpochMilli(countEntity.effectiveAt),
                         lines = lineEntities.map { it.toDomain() }
                     )

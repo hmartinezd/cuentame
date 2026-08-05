@@ -62,6 +62,7 @@ fun InventoryMovementType.toInventoryActivityCategory(): InventoryActivityCatego
     InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
     InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
     InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
+    InventoryMovementType.UNKNOWN -> InventoryActivityCategory.UNKNOWN
 }
 
 data class InventoryActivityRelatedMovementDisplay(
@@ -85,7 +86,8 @@ enum class InventoryActivityCategory {
     PRODUCTION_CONSUMPTION,
     PRODUCTION_OUTPUT,
     REVERSAL,
-    OTHER
+    OTHER,
+    UNKNOWN
 }
 
 enum class InventoryActivityDirection {
@@ -136,6 +138,7 @@ data class InventoryActivitySummary(
     val valueAdded: BigDecimal,
     val valueRemoved: BigDecimal,
     val valueCoverage: InventoryActivityValueCoverage,
+    val quantityCoverage: InventoryActivityValueCoverage,
     val quantitySummary: InventoryActivityQuantitySummary?
 )
 

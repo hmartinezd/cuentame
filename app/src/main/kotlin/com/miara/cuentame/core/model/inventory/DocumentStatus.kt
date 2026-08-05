@@ -3,19 +3,22 @@ package com.miara.cuentame.core.model.inventory
 enum class DocumentStatus {
     DRAFT,
     POSTED,
-    VOIDED
+    VOIDED,
+    UNKNOWN
 }
 
 enum class StockCountStatus {
     DRAFT,
     COMPLETED,
-    VOIDED
+    VOIDED,
+    UNKNOWN
 }
 
 enum class CountAreaStatus {
     NOT_STARTED,
     IN_PROGRESS,
-    COMPLETED
+    COMPLETED,
+    UNKNOWN
 }
 
 enum class WasteReason {
@@ -26,7 +29,8 @@ enum class WasteReason {
     DROPPED_OR_DAMAGED,
     CUSTOMER_RETURN,
     QUALITY_REJECTION,
-    OTHER
+    OTHER,
+    UNKNOWN
 }
 
 enum class InventoryMovementType {
@@ -37,7 +41,8 @@ enum class InventoryMovementType {
     OPENING_BALANCE,
     REVERSAL,
     PRODUCTION_CONSUMPTION,
-    PRODUCTION_OUTPUT
+    PRODUCTION_OUTPUT,
+    UNKNOWN
 }
 
 enum class SourceDocumentType {
@@ -45,5 +50,6 @@ enum class SourceDocumentType {
     STOCK_COUNT,
     WASTE_EVENT,
     MANUAL,
-    PRODUCTION_BATCH
+    PRODUCTION_BATCH,
+    UNKNOWN
 }

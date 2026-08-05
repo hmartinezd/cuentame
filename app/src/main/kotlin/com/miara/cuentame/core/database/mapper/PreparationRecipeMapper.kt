@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
@@ -23,7 +24,7 @@ fun PreparationRecipeEntity.toDomain(components: List<PreparationRecipeComponent
         standardYieldQuantity = standardYieldQuantity,
         standardYieldQuantityBase = standardYieldQuantityBase,
         yieldUnitOptionId = yieldUnitOptionId?.let { IngredientUnitOptionId(it) },
-        status = PreparationRecipeStatus.valueOf(status),
+        status = parsePersistedEnum(status, PreparationRecipeStatus.UNKNOWN),
         notes = notes,
         components = components.map { it.toDomain() },
         createdAt = Instant.ofEpochMilli(createdAt),
@@ -51,7 +52,7 @@ fun RecipeSummaryRow.toDomain(): PreparationRecipeSummary {
         outputIngredientId = IngredientId(outputIngredientId),
         outputIngredientName = outputIngredientName,
         recipeName = recipeName,
-        status = PreparationRecipeStatus.valueOf(status),
+        status = parsePersistedEnum(status, PreparationRecipeStatus.UNKNOWN),
         standardYieldQuantity = standardYieldQuantity,
         yieldUnitLabel = yieldUnitLabel,
         componentCount = componentCount,

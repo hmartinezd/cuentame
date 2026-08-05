@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
@@ -20,11 +21,11 @@ fun WasteEventEntity.toDomain(): WasteEvent = WasteEvent(
     ingredientUnitOptionId = IngredientUnitOptionId(ingredientUnitOptionId),
     quantityEntered = BigDecimal(quantityEntered),
     quantityBase = BigDecimal(quantityBase),
-    reason = WasteReason.valueOf(reason),
+    reason = parsePersistedEnum(reason, WasteReason.UNKNOWN),
     effectiveAt = Instant.ofEpochMilli(effectiveAt),
     notes = notes,
     attachmentPath = attachmentPath,
-    status = DocumentStatus.valueOf(status),
+    status = parsePersistedEnum(status, DocumentStatus.UNKNOWN),
     createdAt = Instant.ofEpochMilli(createdAt),
     updatedAt = Instant.ofEpochMilli(updatedAt),
     postedAt = postedAt?.let { Instant.ofEpochMilli(it) },

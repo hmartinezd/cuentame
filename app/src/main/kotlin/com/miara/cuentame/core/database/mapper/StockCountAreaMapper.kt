@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.StockCountAreaId
 import com.miara.cuentame.core.common.ids.StockCountId
@@ -12,7 +13,7 @@ fun StockCountAreaEntity.toDomain(): StockCountArea = StockCountArea(
     id = StockCountAreaId(id),
     stockCountId = StockCountId(stockCountId),
     areaId = InventoryAreaId(areaId),
-    status = CountAreaStatus.valueOf(status),
+    status = parsePersistedEnum(status, CountAreaStatus.UNKNOWN),
     startedAt = startedAt?.let { Instant.ofEpochMilli(it) },
     completedAt = completedAt?.let { Instant.ofEpochMilli(it) },
     sortOrder = sortOrder

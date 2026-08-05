@@ -2,7 +2,6 @@ package com.miara.cuentame.core.database.model
 
 import androidx.room.Embedded
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
-import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import java.time.Instant
 
 data class InventoryActivityRow(
@@ -32,9 +31,9 @@ data class InventoryActivityRow(
 
     // Reversal info
     val reversedByMovementId: String? = null,
-    val reversedByMovementType: InventoryMovementType? = null,
+    val reversedByMovementType: String? = null,
     val reversedByMovementEffectiveAt: Instant? = null,
     
-    val reversalOfMovementType: InventoryMovementType? = null,
+    val reversalOfMovementType: String? = null,
     val reversalOfMovementEffectiveAt: Instant? = null
 )

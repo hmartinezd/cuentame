@@ -18,7 +18,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
-import java.time.Instant
 
 class InventoryActivityRepositoryTest {
 
@@ -152,7 +151,7 @@ class InventoryActivityRepositoryTest {
     }
 
     @Test
-    fun `getActivityItem fails on malformed Waste reason`() = runBlocking {
+    fun `getActivityItem handles malformed Waste reason safely`() = runBlocking {
         val movementId = "m1"
         val restaurantId = RestaurantId("rest-1")
         val row = createActivityRow(movementId, SourceDocumentType.WASTE_EVENT, "w1").copy(
@@ -160,16 +159,14 @@ class InventoryActivityRepositoryTest {
         )
         coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
-        try {
-            repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
-            org.junit.Assert.fail("Should have thrown IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            // Success
-        }
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNotNull()
+        val info = result!!.sourceInfo as InventoryActivitySourceInfo.Waste
+        assertThat(info.reason).isEqualTo(WasteReason.UNKNOWN)
     }
 
     @Test
-    fun `getActivityItem fails on malformed Production status`() = runBlocking {
+    fun `getActivityItem handles malformed Production status safely`() = runBlocking {
         val movementId = "m1"
         val restaurantId = RestaurantId("rest-1")
         val row = createActivityRow(movementId, SourceDocumentType.PRODUCTION_BATCH, "b1").copy(
@@ -177,16 +174,14 @@ class InventoryActivityRepositoryTest {
         )
         coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
-        try {
-            repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
-            org.junit.Assert.fail("Should have thrown IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            // Success
-        }
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNotNull()
+        val info = result!!.sourceInfo as InventoryActivitySourceInfo.Production
+        assertThat(info.status).isEqualTo(DocumentStatus.UNKNOWN)
     }
 
     @Test
-    fun `getActivityItem fails on malformed source-document type`() = runBlocking {
+    fun `getActivityItem handles malformed source-document type safely`() = runBlocking {
         val movementId = "m1"
         val restaurantId = RestaurantId("rest-1")
         val row = createActivityRow(movementId, SourceDocumentType.PURCHASE_RECEIPT, "p1").copy(
@@ -194,16 +189,16 @@ class InventoryActivityRepositoryTest {
         )
         coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
-        try {
-            repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
-            org.junit.Assert.fail("Should have thrown IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            // Success
-        }
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNotNull()
+        assertThat(result!!.movement.sourceDocumentType).isEqualTo(SourceDocumentType.UNKNOWN)
+        assertThat(result.sourceInfo).isInstanceOf(InventoryActivitySourceInfo.Other::class.java)
+        val info = result.sourceInfo as InventoryActivitySourceInfo.Other
+        assertThat(info.sourceDocumentType).isEqualTo(SourceDocumentType.UNKNOWN)
     }
 
     @Test
-    fun `getActivityItem fails on malformed movement type`() = runBlocking {
+    fun `getActivityItem handles malformed movement type safely`() = runBlocking {
         val movementId = "m1"
         val restaurantId = RestaurantId("rest-1")
         val row = createActivityRow(movementId, SourceDocumentType.PURCHASE_RECEIPT, "p1").copy(
@@ -211,12 +206,24 @@ class InventoryActivityRepositoryTest {
         )
         coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
 
-        try {
-            repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
-            org.junit.Assert.fail("Should have thrown IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            // Success
-        }
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNotNull()
+        assertThat(result!!.movement.movementType).isEqualTo(InventoryMovementType.UNKNOWN)
+    }
+
+    @Test
+    fun `getActivityItem handles blank enum values safely`() = runBlocking {
+        val movementId = "m1"
+        val restaurantId = RestaurantId("rest-1")
+        val row = createActivityRow(movementId, SourceDocumentType.WASTE_EVENT, "w1").copy(
+            sourceWasteReason = "  "
+        )
+        coEvery { movementDao.getInventoryActivityRow(restaurantId.value, movementId) } returns row
+
+        val result = repository.getActivityItem(restaurantId, InventoryMovementId(movementId))
+        assertThat(result).isNotNull()
+        val info = result!!.sourceInfo as InventoryActivitySourceInfo.Waste
+        assertThat(info.reason).isEqualTo(WasteReason.UNKNOWN)
     }
 
     private fun createActivityRow(id: String, type: SourceDocumentType, docId: String) = InventoryActivityRow(

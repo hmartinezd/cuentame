@@ -141,6 +141,9 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
                 InventoryMovementType.REVERSAL -> {
                     // Reversals already handled by filtering
                 }
+                InventoryMovementType.UNKNOWN -> {
+                    // Unknown movements are excluded from quantity and cost calculations
+                }
             }
         }
 
@@ -149,7 +152,10 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
                 totalQuantityBase = currentTotalQuantity,
                 averageUnitCostBase = if (hasEstablishedCost) currentAverageCost else null,
                 hasEstablishedCost = hasEstablishedCost,
-                effectiveMovementIds = sortedMovements.map { it.id }.toSet()
+                effectiveMovementIds = sortedMovements
+                    .filter { it.movementType != InventoryMovementType.UNKNOWN }
+                    .map { it.id }
+                    .toSet()
             )
         )
     }

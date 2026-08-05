@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.mapper
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.SupplierId
@@ -14,7 +15,7 @@ fun PurchaseReceiptEntity.toDomain(): PurchaseReceipt = PurchaseReceipt(
     supplierId = supplierId?.let { SupplierId(it) },
     invoiceNumber = invoiceNumber,
     purchaseDate = Instant.ofEpochMilli(purchaseDate),
-    status = DocumentStatus.valueOf(status),
+    status = parsePersistedEnum(status, DocumentStatus.UNKNOWN),
     notes = notes,
     attachmentPath = attachmentPath,
     createdAt = Instant.ofEpochMilli(createdAt),

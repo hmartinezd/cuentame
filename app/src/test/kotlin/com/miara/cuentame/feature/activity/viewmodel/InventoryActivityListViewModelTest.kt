@@ -406,6 +406,79 @@ class InventoryActivityListViewModelTest {
         assertThat(query.endExclusive).isEqualTo(expectedEndExclusive)
     }
 
+    @Test
+    fun `summary handles mixed valid and unknown movements correctly`() = runTest {
+        val valid = createItem("m1", BigDecimal("10.0"), BigDecimal("20.0")) // PURCHASE
+        val unknown = createItem("m2", BigDecimal("-5.0"), BigDecimal("-10.0")).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        val items = listOf(valid, unknown)
+
+        every { activityRepository.observeActivity(any()) } returns flowOf(items)
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(state.summary.movementCount).isEqualTo(2)
+        // Only valid movement is counted in directional totals
+        assertThat(state.summary.incomingMovementCount).isEqualTo(1)
+        assertThat(state.summary.outgoingMovementCount).isEqualTo(0)
+        assertThat(state.summary.valueAdded).isEqualTo(BigDecimal("20.0"))
+        assertThat(state.summary.valueRemoved).isEqualTo(BigDecimal.ZERO)
+        
+        // Coverage should be partial because one movement is unknown
+        assertThat(state.summary.valueCoverage).isEqualTo(InventoryActivityValueCoverage.PARTIAL)
+        assertThat(state.summary.quantityCoverage).isEqualTo(InventoryActivityValueCoverage.PARTIAL)
+        
+        // Quantity summary also partial
+        assertThat(state.summary.quantitySummary).isNotNull()
+        assertThat(state.summary.quantitySummary!!.quantityIn).isEqualTo(BigDecimal("10.0"))
+        assertThat(state.summary.quantitySummary!!.quantityOut).isEqualTo(BigDecimal.ZERO)
+        assertThat(state.summary.quantitySummary!!.netQuantity).isEqualTo(BigDecimal("10.0"))
+    }
+
+    @Test
+    fun `summary unavailable for only unknown movements`() = runTest {
+        val unknown = createItem("m1", BigDecimal("10.0")).let {
+            it.copy(movement = it.movement.copy(movementType = InventoryMovementType.UNKNOWN))
+        }
+        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(unknown))
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(state.summary.movementCount).isEqualTo(1)
+        assertThat(state.summary.incomingMovementCount).isEqualTo(0)
+        assertThat(state.summary.valueCoverage).isEqualTo(InventoryActivityValueCoverage.UNAVAILABLE)
+        assertThat(state.summary.quantityCoverage).isEqualTo(InventoryActivityValueCoverage.UNAVAILABLE)
+    }
+
+    @Test
+    fun `unknown source does not affect quantity summary if movement type is known`() = runTest {
+        val item = createItem("m1", BigDecimal("10.0")).let {
+            it.copy(movement = it.movement.copy(sourceDocumentType = SourceDocumentType.UNKNOWN))
+        }
+        every { activityRepository.observeActivity(any()) } returns flowOf(listOf(item))
+
+        val viewModel = createViewModel()
+        backgroundScope.launch(testDispatcher) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as InventoryActivityListScreenState.Ready
+        assertThat(state.summary.quantityCoverage).isEqualTo(InventoryActivityValueCoverage.COMPLETE)
+        assertThat(state.summary.quantitySummary!!.quantityIn).isEqualTo(BigDecimal("10.0"))
+    }
+
     private fun createItem(
         id: String,
         qty: BigDecimal,
@@ -445,10 +518,10 @@ class InventoryActivityListViewModelTest {
             is InventoryActivitySourceInfo.Waste -> "Waste - ${info.reason}"
             is InventoryActivitySourceInfo.StockCount -> info.countName ?: "Count"
             is InventoryActivitySourceInfo.Production -> "Production - ${info.recipeName}"
-            is InventoryActivitySourceInfo.Other -> "Other"
+            is InventoryActivitySourceInfo.Other -> if (info.sourceDocumentType == SourceDocumentType.UNKNOWN) "Unknown Source" else "Other"
         }
         override fun sourceSubtitle(info: InventoryActivitySourceInfo): String? = null
-        override fun wasteReasonText(reason: WasteReason): String = reason.name.lowercase().replaceFirstChar { it.uppercase() }
+        override fun wasteReasonText(reason: WasteReason): String = reason.name
         override fun productionStatusText(status: DocumentStatus): String = status.name
     }
 }

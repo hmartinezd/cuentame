@@ -21,6 +21,7 @@ class AndroidInventoryActivityTextResolver @Inject constructor(
         InventoryActivityCategory.PRODUCTION_OUTPUT -> context.getString(R.string.inventory_activity_production_output)
         InventoryActivityCategory.REVERSAL -> context.getString(R.string.inventory_activity_reversal)
         InventoryActivityCategory.OTHER -> context.getString(R.string.inventory_activity_other)
+        InventoryActivityCategory.UNKNOWN -> context.getString(R.string.unknown_inventory_activity)
     }
 
     override fun sourceTitle(info: InventoryActivitySourceInfo): String = when (info) {
@@ -38,7 +39,11 @@ class AndroidInventoryActivityTextResolver @Inject constructor(
             R.string.inventory_activity_source_production_recipe,
             info.recipeName ?: context.getString(R.string.not_available)
         )
-        is InventoryActivitySourceInfo.Other -> context.getString(R.string.inventory_activity_other)
+        is InventoryActivitySourceInfo.Other -> if (info.sourceDocumentType == com.miara.cuentame.core.model.inventory.SourceDocumentType.UNKNOWN) {
+            context.getString(R.string.source_type_unavailable)
+        } else {
+            context.getString(R.string.inventory_activity_other)
+        }
     }
 
     override fun sourceSubtitle(info: InventoryActivitySourceInfo): String? = when (info) {
@@ -60,11 +65,13 @@ class AndroidInventoryActivityTextResolver @Inject constructor(
         WasteReason.CUSTOMER_RETURN -> context.getString(R.string.reason_customer_return)
         WasteReason.QUALITY_REJECTION -> context.getString(R.string.reason_quality_rejection)
         WasteReason.OTHER -> context.getString(R.string.reason_other)
+        WasteReason.UNKNOWN -> context.getString(R.string.waste_reason_unavailable)
     }
 
     override fun productionStatusText(status: DocumentStatus): String = when (status) {
         DocumentStatus.DRAFT -> context.getString(R.string.status_draft)
         DocumentStatus.POSTED -> context.getString(R.string.status_posted)
         DocumentStatus.VOIDED -> context.getString(R.string.status_voided)
+        DocumentStatus.UNKNOWN -> context.getString(R.string.status_unavailable)
     }
 }

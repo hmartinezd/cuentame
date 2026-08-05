@@ -30,17 +30,13 @@ class InventoryMovementValidator {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 
-        // Validate movement type
-        try {
-            InventoryMovementType.valueOf(movement.movementType)
-        } catch (e: Exception) {
+        // Validate movement type (Resilient parsing)
+        if (movement.movementType.isBlank()) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 
-        // Validate source document type
-        try {
-            SourceDocumentType.valueOf(movement.sourceDocumentType)
-        } catch (e: Exception) {
+        // Validate source document type (Resilient parsing)
+        if (movement.sourceDocumentType.isBlank()) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 

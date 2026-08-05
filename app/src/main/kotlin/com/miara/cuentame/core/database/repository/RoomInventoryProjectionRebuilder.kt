@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.database.repository
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import androidx.room.withTransaction
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -42,35 +43,23 @@ class RoomInventoryProjectionRebuilder @Inject constructor(
             val allMovements = movementDao.getByIngredient(ingredientId.value)
             
             // Validate the complete movement/reversal graph
-            try {
-                historyValidator.validateCompleteHistory(allMovements)
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
-            }
+            historyValidator.validateCompleteHistory(allMovements)
             
-            val historicalMoves = try {
-                allMovements.map { move ->
-                    HistoricalInventoryMovement(
-                        id = move.id,
-                        movementType = InventoryMovementType.valueOf(move.movementType),
-                        quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
-                        unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
-                        sourceDocumentType = SourceDocumentType.valueOf(move.sourceDocumentType),
-                        sourceDocumentId = move.sourceDocumentId,
-                        effectiveAt = move.effectiveAt,
-                        createdAt = move.createdAt,
-                        reversalOfMovementId = move.reversalOfMovementId
-                    )
-                }
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
+            val historicalMoves = allMovements.map { move ->
+                HistoricalInventoryMovement(
+                    id = move.id,
+                    movementType = parsePersistedEnum(move.movementType, InventoryMovementType.UNKNOWN),
+                    quantityBaseSigned = BigDecimal(move.quantityBaseSigned),
+                    unitCostBaseSnapshot = move.unitCostBaseSnapshot?.let { BigDecimal(it) },
+                    sourceDocumentType = parsePersistedEnum(move.sourceDocumentType, SourceDocumentType.UNKNOWN),
+                    sourceDocumentId = move.sourceDocumentId,
+                    effectiveAt = move.effectiveAt,
+                    createdAt = move.createdAt,
+                    reversalOfMovementId = move.reversalOfMovementId
+                )
             }
 
-            val calculationResult = try {
-                costCalculator.calculate(historicalMoves)
-            } catch (e: Exception) {
-                throw ValidationError.MalformedInventoryMovementHistory
-            }
+            val calculationResult = costCalculator.calculate(historicalMoves)
 
             val costResult = when (calculationResult) {
                 is HistoricalInventoryCostCalculationResult.Success -> calculationResult.value

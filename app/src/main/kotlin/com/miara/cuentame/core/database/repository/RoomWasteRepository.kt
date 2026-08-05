@@ -3,6 +3,7 @@ package com.miara.cuentame.core.database.repository
 import androidx.room.withTransaction
 import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.common.ids.IdGenerator
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
@@ -458,9 +459,7 @@ class RoomWasteRepository @Inject constructor(
         if (event.updatedAt > now) throw ValidationError.MalformedWasteMovementHistory
         if (event.effectiveAt > now) throw ValidationError.InvalidWasteEffectiveTime
 
-        try {
-            com.miara.cuentame.core.model.inventory.WasteReason.valueOf(event.reason)
-        } catch (e: Exception) {
+        if (parsePersistedEnum(event.reason, com.miara.cuentame.core.model.inventory.WasteReason.UNKNOWN) == com.miara.cuentame.core.model.inventory.WasteReason.UNKNOWN) {
             throw ValidationError.InvalidWasteReason
         }
 
@@ -492,19 +491,11 @@ class RoomWasteRepository @Inject constructor(
         ingredientUnitOptionId = IngredientUnitOptionId(ingredientUnitOptionId),
         quantityEntered = parseHistoryDecimal(quantityEntered),
         quantityBase = parseHistoryDecimal(quantityBase),
-        reason = try {
-            com.miara.cuentame.core.model.inventory.WasteReason.valueOf(reason)
-        } catch (e: Exception) {
-            throw ValidationError.MalformedWasteMovementHistory
-        },
+        reason = parsePersistedEnum(reason, com.miara.cuentame.core.model.inventory.WasteReason.UNKNOWN),
         effectiveAt = Instant.ofEpochMilli(effectiveAt),
         notes = notes,
         attachmentPath = attachmentPath,
-        status = try {
-            com.miara.cuentame.core.model.inventory.DocumentStatus.valueOf(status)
-        } catch (e: Exception) {
-            throw ValidationError.MalformedWasteMovementHistory
-        },
+        status = parsePersistedEnum(status, com.miara.cuentame.core.model.inventory.DocumentStatus.UNKNOWN),
         createdAt = Instant.ofEpochMilli(createdAt),
         updatedAt = Instant.ofEpochMilli(updatedAt),
         postedAt = postedAt?.let { Instant.ofEpochMilli(it) },

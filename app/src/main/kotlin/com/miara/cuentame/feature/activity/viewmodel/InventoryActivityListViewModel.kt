@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.activity.viewmodel
 
+import com.miara.cuentame.core.common.parsePersistedEnum
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -21,7 +22,6 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import java.math.BigDecimal
 import java.math.MathContext
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -96,13 +96,14 @@ class InventoryActivityListViewModel @Inject constructor(
             InventoryActivityCategory.entries.toSet()
         } else {
             savedCategoryNames.mapNotNull { name ->
-                runCatching { InventoryActivityCategory.valueOf(name) }.getOrNull()
+                val parsed = parsePersistedEnum(name, InventoryActivityCategory.UNKNOWN)
+                parsed.takeIf { it != InventoryActivityCategory.UNKNOWN }
             }.toSet()
         }
 
         val directionName = savedStateHandle.get<String>("direction")
         val direction = directionName?.let { name ->
-            runCatching { InventoryActivityDirection.valueOf(name) }.getOrNull()
+            parsePersistedEnum(name, InventoryActivityDirection.ALL)
         } ?: InventoryActivityDirection.ALL
 
         val includeReversals = savedStateHandle.get<Boolean>("includeReversals") ?: true
@@ -246,9 +247,12 @@ class InventoryActivityListViewModel @Inject constructor(
     }
 
     private fun calculateSummary(items: List<InventoryActivityItem>): InventoryActivitySummary {
-        val incoming = items.count { it.movement.quantityBaseSigned > BigDecimal.ZERO }
-        val outgoing = items.count { it.movement.quantityBaseSigned < BigDecimal.ZERO }
-        val reversals = items.count { it.movement.movementType == InventoryMovementType.REVERSAL }
+        val knownMovements = items.filter { it.movement.movementType != InventoryMovementType.UNKNOWN }
+        val unknownMovements = items.filter { it.movement.movementType == InventoryMovementType.UNKNOWN }
+
+        val incoming = knownMovements.count { it.movement.quantityBaseSigned > BigDecimal.ZERO }
+        val outgoing = knownMovements.count { it.movement.quantityBaseSigned < BigDecimal.ZERO }
+        val reversals = knownMovements.count { it.movement.movementType == InventoryMovementType.REVERSAL }
         
         var valueAdded = BigDecimal.ZERO
         var valueRemoved = BigDecimal.ZERO
@@ -256,7 +260,7 @@ class InventoryActivityListViewModel @Inject constructor(
         
         val mc = MathContext.DECIMAL128
         
-        items.forEach { item ->
+        knownMovements.forEach { item ->
             val value = item.movement.totalValueSnapshot
             if (value != null) {
                 valuePresentCount++
@@ -265,10 +269,17 @@ class InventoryActivityListViewModel @Inject constructor(
             }
         }
 
-        val coverage = when {
+        val valueCoverage = when {
             items.isEmpty() -> InventoryActivityValueCoverage.NONE
-            valuePresentCount == items.size -> InventoryActivityValueCoverage.COMPLETE
+            unknownMovements.isEmpty() && valuePresentCount == knownMovements.size -> InventoryActivityValueCoverage.COMPLETE
             valuePresentCount > 0 -> InventoryActivityValueCoverage.PARTIAL
+            else -> InventoryActivityValueCoverage.UNAVAILABLE
+        }
+
+        val quantityCoverage = when {
+            items.isEmpty() -> InventoryActivityValueCoverage.NONE
+            unknownMovements.isEmpty() -> InventoryActivityValueCoverage.COMPLETE
+            knownMovements.isNotEmpty() -> InventoryActivityValueCoverage.PARTIAL
             else -> InventoryActivityValueCoverage.UNAVAILABLE
         }
 
@@ -277,7 +288,7 @@ class InventoryActivityListViewModel @Inject constructor(
             val first = items.first()
             var qIn = BigDecimal.ZERO
             var qOut = BigDecimal.ZERO
-            items.forEach { 
+            knownMovements.forEach { 
                 if (it.movement.quantityBaseSigned > BigDecimal.ZERO) qIn = qIn.add(it.movement.quantityBaseSigned, mc)
                 else if (it.movement.quantityBaseSigned < BigDecimal.ZERO) qOut = qOut.add(it.movement.quantityBaseSigned.abs(), mc)
             }
@@ -297,7 +308,8 @@ class InventoryActivityListViewModel @Inject constructor(
             reversalCount = reversals,
             valueAdded = valueAdded,
             valueRemoved = valueRemoved,
-            valueCoverage = coverage,
+            valueCoverage = valueCoverage,
+            quantityCoverage = quantityCoverage,
             quantitySummary = quantitySummary
         )
     }

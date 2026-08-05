@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.preferences.model.AppPreferences
 import com.miara.cuentame.core.preferences.model.ThemeMode
@@ -45,11 +46,11 @@ class DataStoreAppPreferencesRepository @Inject constructor(
         .map { preferences ->
             AppPreferences(
                 onboardingCompleted = preferences[Keys.ONBOARDING_COMPLETED] ?: false,
-                themeMode = try {
-                    ThemeMode.valueOf(preferences[Keys.THEME_MODE] ?: ThemeMode.SYSTEM.name)
-                } catch (e: IllegalArgumentException) {
-                    ThemeMode.SYSTEM
-                },
+                themeMode = parsePersistedEnum(
+                    preferences[Keys.THEME_MODE],
+                    unknownValue = ThemeMode.UNKNOWN,
+                    absentValue = ThemeMode.SYSTEM
+                ),
                 dynamicColorEnabled = preferences[Keys.DYNAMIC_COLOR_ENABLED] ?: true,
                 appLocaleTag = preferences[Keys.APP_LOCALE_TAG] ?: "en-US"
             )
