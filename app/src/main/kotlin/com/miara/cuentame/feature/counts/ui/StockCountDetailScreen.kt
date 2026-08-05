@@ -144,7 +144,7 @@ fun StockCountDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.count_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("count_back_button")) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("stock_count_detail_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },

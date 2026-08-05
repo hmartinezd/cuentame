@@ -30,9 +30,7 @@ class InventoryActivityNavigationTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject lateinit var testStateManager: TestStateManager
-    @Inject lateinit var restaurantRepository: RestaurantRepository
     @Inject lateinit var ingredientRepository: IngredientRepository
-    @Inject lateinit var areaRepository: InventoryAreaRepository
     @Inject lateinit var purchaseRepository: PurchaseRepository
     @Inject lateinit var wasteRepository: WasteRepository
     @Inject lateinit var stockCountRepository: StockCountRepository
@@ -49,10 +47,14 @@ class InventoryActivityNavigationTest {
         runBlocking {
             testStateManager.seedBaseline()
             fixture = seedCanonicalInventoryActivity(
-                restaurantRepository, ingredientRepository, areaRepository,
-                purchaseRepository, wasteRepository, stockCountRepository,
-                productionBatchRepository, preparationRecipeRepository, 
-                activityRepository, movementDao
+                ingredientRepository,
+                purchaseRepository,
+                wasteRepository,
+                stockCountRepository,
+                productionBatchRepository,
+                preparationRecipeRepository,
+                activityRepository,
+                movementDao
             )
         }
     }
@@ -76,7 +78,7 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_back").performClick()
             composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
         }
     }
@@ -93,7 +95,9 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("ingredient_item_Chicken").performClick()
+            composeTestRule.onNodeWithTag("ingredient_item_Chicken")
+                .performScrollTo()
+                .performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -142,32 +146,40 @@ class InventoryActivityNavigationTest {
             
             composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Chicken")
 
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_movement_${fixture.purchaseMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
             composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("Chicken")
         }
     }
 
     @Test
-    fun detailToRelatedMovementNavigation() {
+    fun detailToRelatedMovementStackInvariant() {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Reversal -> Original
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}").performClick()
+            // Reversal -> Original -> Reversal
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}")
+                .performScrollTo()
+                .performClick()
+            
             composeTestRule.onNodeWithTag("inventory_activity_open_original").performClick()
             composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.originalMovementId.value}").assertIsDisplayed()
             
-            // Original -> Reversal
             composeTestRule.onNodeWithTag("inventory_activity_open_reversal").performClick()
             composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.reversalMovementId.value}").assertIsDisplayed()
+            
+            // Press Back once -> Returns to Activity List
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
         }
     }
 
@@ -180,27 +192,43 @@ class InventoryActivityNavigationTest {
             }
             
             // Purchase
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
             composeTestRule.onNodeWithTag("purchase_detail_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
-            
+            composeTestRule.onNodeWithTag("purchase_detail_back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.purchaseMovementId.value}").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
+
             // Waste
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.wasteMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.wasteMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
             composeTestRule.onNodeWithTag("waste_detail_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("waste_detail_back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.wasteMovementId.value}").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
 
             // Stock Count
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.stockCountMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.stockCountMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
             composeTestRule.onNodeWithTag("count_detail_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            composeTestRule.onNodeWithTag("stock_count_detail_back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.stockCountMovementId.value}").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
 
             // Production Batch
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.onNodeWithTag("inventory_activity_open_source").performClick()
             composeTestRule.onNodeWithTag("production_batch_detail_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("production_batch_detail_back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.productionConsumptionMovementId.value}").assertIsDisplayed()
         }
     }
 }

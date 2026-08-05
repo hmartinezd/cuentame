@@ -20,10 +20,10 @@
 | Capability | Status | Notes |
 | :--- | :--- | :--- |
 | Core Inventory Logic | Implemented | High-precision BigDecimal calculations. |
-| Unified Activity Feed | Fully Verified | Auditable source traceability implemented. |
-| Production & Recipes | Fully Verified | Functional dependency tracking. |
-| Backup & Restore | Fully Verified | Schema version 4, Backup Format v1. |
-| Instrumentation Tests | Fully Verified | Green build on connected devices. |
+| Unified Activity Feed | Functionally complete | JVM verification complete; connected verification pending. |
+| Production & Recipes | Functionally complete | Verification status based on actual executed suites. |
+| Backup & Restore | Implemented | Supported by current code and verified commands. |
+| Instrumentation Tests | Implemented | Connected execution pending. |
 | Smart Invoice Capture | **Planned** | OCR and AI-assisted entry (Milestone 5). |
 
 ## Architecture
@@ -50,4 +50,4 @@ This repository is publicly viewable, but Cuentame is a privately developed proj
 
 ---
 
-Milestone 4 Unified Inventory Activity & Source Traceability is functionally complete and fully verified.
+Milestone 4 Unified Inventory Activity & Source Traceability is functionally complete. Connected verification is pending.

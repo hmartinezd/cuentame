@@ -77,7 +77,7 @@ class InventoryActivityListViewModel @Inject constructor(
             "Last7Days" -> InventoryActivityDateRange.Last7Days
             "Last30Days" -> InventoryActivityDateRange.Last30Days
             "Last90Days" -> InventoryActivityDateRange.Last90Days
-            "Custom" -> if (customStart != null && customEnd != null) {
+            "Custom" -> if (customStart != null && customEnd != null && !customStart.isAfter(customEnd)) {
                 InventoryActivityDateRange.Custom(customStart, customEnd)
             } else InventoryActivityDateRange.Last30Days
             else -> InventoryActivityDateRange.Last30Days

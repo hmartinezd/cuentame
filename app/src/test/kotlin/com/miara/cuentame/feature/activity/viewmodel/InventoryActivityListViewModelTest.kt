@@ -188,6 +188,65 @@ class InventoryActivityListViewModelTest {
         assertThat(stateEmpty.items).isEmpty()
     }
 
+    @Test
+    fun `restores valid Custom range`() = runTest {
+        val start = java.time.LocalDate.of(2026, 8, 1)
+        val end = java.time.LocalDate.of(2026, 8, 4)
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to start.toString(),
+            "customEndDate" to end.toString()
+        ))
+        val viewModel = createViewModel(handle)
+        
+        val range = viewModel.filters.value.dateRange as InventoryActivityDateRange.Custom
+        assertThat(range.startDate).isEqualTo(start)
+        assertThat(range.endDateInclusive).isEqualTo(end)
+    }
+
+    @Test
+    fun `falls back on malformed start date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "invalid",
+            "customEndDate" to "2026-08-04"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on malformed end date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "2026-08-01",
+            "customEndDate" to "invalid"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on missing start date`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customEndDate" to "2026-08-04"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
+    @Test
+    fun `falls back on reversed range`() = runTest {
+        val handle = SavedStateHandle(mapOf(
+            "dateRangeKind" to "Custom",
+            "customStartDate" to "2026-08-10",
+            "customEndDate" to "2026-08-01"
+        ))
+        val viewModel = createViewModel(handle)
+        assertThat(viewModel.filters.value.dateRange).isEqualTo(InventoryActivityDateRange.Last30Days)
+    }
+
     private fun createItem(
         id: String,
         qty: BigDecimal,

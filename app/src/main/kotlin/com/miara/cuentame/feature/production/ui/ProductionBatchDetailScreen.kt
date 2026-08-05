@@ -75,7 +75,7 @@ fun ProductionBatchDetailScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.production_batch)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("production_back_button")) {
+                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("production_batch_detail_back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }

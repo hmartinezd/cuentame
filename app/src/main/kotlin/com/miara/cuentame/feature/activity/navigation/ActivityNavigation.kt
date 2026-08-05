@@ -69,7 +69,11 @@ fun NavGraphBuilder.activityGraph(navController: NavHostController) {
                     }
                 },
                 onOpenMovement = { movementId ->
-                    navController.navigate(AppRoutes.inventoryActivityDetail(movementId))
+                    navController.navigate(AppRoutes.inventoryActivityDetail(movementId)) {
+                        popUpTo(Destination.INVENTORY_ACTIVITY_DETAIL.route) {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }

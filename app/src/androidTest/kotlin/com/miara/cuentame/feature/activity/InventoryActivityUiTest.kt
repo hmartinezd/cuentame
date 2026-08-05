@@ -32,9 +32,7 @@ class InventoryActivityUiTest {
     val composeTestRule = createEmptyComposeRule()
 
     @Inject lateinit var testStateManager: TestStateManager
-    @Inject lateinit var restaurantRepository: RestaurantRepository
     @Inject lateinit var ingredientRepository: IngredientRepository
-    @Inject lateinit var areaRepository: InventoryAreaRepository
     @Inject lateinit var purchaseRepository: PurchaseRepository
     @Inject lateinit var wasteRepository: WasteRepository
     @Inject lateinit var stockCountRepository: StockCountRepository
@@ -51,10 +49,14 @@ class InventoryActivityUiTest {
         runBlocking {
             testStateManager.seedBaseline()
             fixture = seedCanonicalInventoryActivity(
-                restaurantRepository, ingredientRepository, areaRepository,
-                purchaseRepository, wasteRepository, stockCountRepository,
-                productionBatchRepository, preparationRecipeRepository, 
-                activityRepository, movementDao
+                ingredientRepository,
+                purchaseRepository,
+                wasteRepository,
+                stockCountRepository,
+                productionBatchRepository,
+                preparationRecipeRepository,
+                activityRepository,
+                movementDao
             )
         }
     }
@@ -83,19 +85,38 @@ class InventoryActivityUiTest {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 2. Verify rows by exact movement tags
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.wasteMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.stockCountMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionOutputMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.originalMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}").assertIsDisplayed()
+            // 2. Verify rows by exact movement tags with scrolling
+            val rows = listOf(
+                fixture.purchaseMovementId,
+                fixture.wasteMovementId,
+                fixture.stockCountMovementId,
+                fixture.productionConsumptionMovementId,
+                fixture.productionOutputMovementId,
+                fixture.originalMovementId,
+                fixture.reversalMovementId
+            )
+            
+            rows.forEach { movementId ->
+                composeTestRule.onNodeWithTag("inventory_activity_row_${movementId.value}")
+                    .performScrollTo()
+                    .assertIsDisplayed()
+            }
 
             // 3. Verify Summary (exact counts from fixture)
             composeTestRule.onNodeWithTag("inventory_activity_summary").assertIsDisplayed()
             // fixture adds exactly 7 movements
             composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextContains("7", substring = true)
+            
+            // Re-assert specific directions if known
+            // 1 Purchase (+), 1 Waste (-), 1 Stock Count (+6), 1 Production consumption (-1), 1 Production output (+1), 
+            // 1 Voided Purchase (+5), 1 Reversal (-5)
+            // Incoming: 1, 1, 1, 1 = 4? No. 
+            // 10.0 (P), -1.0 (W), +6.0 (SC), -1.0 (PC), +1.0 (PO), +5.0 (VP), -5.0 (R)
+            // Signs > 0: Purchase, SC, PO, VP = 4
+            // Signs < 0: Waste, PC, R = 3
+            composeTestRule.onNodeWithTag("inventory_activity_incoming_count").assertTextContains("4", substring = true)
+            composeTestRule.onNodeWithTag("inventory_activity_outgoing_count").assertTextContains("3", substring = true)
+            composeTestRule.onNodeWithTag("inventory_activity_reversal_count").assertTextContains("1", substring = true)
 
             // 4. Search by localized Purchase source text
             val purchaseTitle = resolver.sourceTitle(InventoryActivitySourceInfo.Purchase(null, "INV-001", true))
@@ -130,10 +151,14 @@ class InventoryActivityUiTest {
             
             // Verify reset from filtered-empty also works
             composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("")
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.purchaseMovementId.value}")
+                .performScrollTo()
+                .assertIsDisplayed()
             
             // 8. Open Production consumption row -> Production Batch source
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.productionConsumptionMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_movement_${fixture.productionConsumptionMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -141,10 +166,18 @@ class InventoryActivityUiTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("production_batch_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            // Back from Source Document -> Activity Detail
+            composeTestRule.onNodeWithTag("production_batch_detail_back").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.productionConsumptionMovementId.value}").assertIsDisplayed()
+            
+            // Back from Activity Detail -> Activity List
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
             
             // 9. Reversal -> Original -> Navigation
-            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}").performClick()
+            composeTestRule.onNodeWithTag("inventory_activity_row_${fixture.reversalMovementId.value}")
+                .performScrollTo()
+                .performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_detail_movement_${fixture.reversalMovementId.value}")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -157,9 +190,8 @@ class InventoryActivityUiTest {
             composeTestRule.onNodeWithTag("inventory_activity_open_reversal").assertIsDisplayed()
             composeTestRule.onNodeWithTag("inventory_activity_open_original").assertDoesNotExist()
             
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
-            composeTestRule.onNodeWithTag("inventory_activity_detail_movement_${fixture.reversalMovementId.value}").assertIsDisplayed()
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
+            // Press Back once from related Detail -> Activity List (due to popUpTo inclusive)
+            composeTestRule.onNodeWithTag("inventory_activity_detail_back_top").performClick()
             composeTestRule.onNodeWithTag("inventory_activity_screen").assertIsDisplayed()
         }
     }

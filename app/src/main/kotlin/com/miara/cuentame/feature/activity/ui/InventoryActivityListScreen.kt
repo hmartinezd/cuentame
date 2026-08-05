@@ -86,7 +86,10 @@ fun InventoryActivityListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.inventory_activity_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier.testTag("inventory_activity_back")
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
