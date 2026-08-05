@@ -98,6 +98,49 @@ class PurchaseDetailViewModelTest {
         }
     }
 
+    @Test
+    fun `onVoid is ignored when status is UNKNOWN`() = runTest {
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.UNKNOWN, null, null, Instant.now(), Instant.now())
+        detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
+
+        val viewModel = createViewModel("p1")
+
+        viewModel.uiState.test {
+            var latest = awaitItem()
+            while (latest.state !is PurchaseDetailState.Ready) {
+                latest = awaitItem()
+            }
+
+            viewModel.onVoid()
+            runCurrent()
+
+            // State should remain Ready with UNKNOWN status
+            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.UNKNOWN)
+            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+        }
+    }
+
+    @Test
+    fun `onVoid is ignored when status is DRAFT`() = runTest {
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now())
+        detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
+
+        val viewModel = createViewModel("p1")
+
+        viewModel.uiState.test {
+            var latest = awaitItem()
+            while (latest.state !is PurchaseDetailState.Ready) {
+                latest = awaitItem()
+            }
+
+            viewModel.onVoid()
+            runCurrent()
+
+            assertThat((viewModel.uiState.value.state as PurchaseDetailState.Ready).details.receipt.status).isEqualTo(DocumentStatus.DRAFT)
+            assertThat(viewModel.uiState.value.isVoiding).isFalse()
+        }
+    }
+
     private fun createViewModel(receiptId: String?): PurchaseDetailViewModel {
         return PurchaseDetailViewModel(
             SavedStateHandle(if (receiptId != null) mapOf("receiptId" to receiptId) else emptyMap()),

@@ -8,6 +8,7 @@ import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.usecase.ObservePurchaseDetailsUseCase
 import com.miara.cuentame.core.domain.usecase.VoidPurchaseUseCase
+import com.miara.cuentame.core.model.inventory.DocumentStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -90,6 +91,12 @@ class PurchaseDetailViewModel @Inject constructor(
 
     fun onVoid() {
         if (receiptId == null || _isVoiding.value) return
+        
+        val currentState = uiState.value.state
+        if (currentState !is PurchaseDetailState.Ready || currentState.details.receipt.status != DocumentStatus.POSTED) {
+            return
+        }
+
         _isVoiding.value = true
         _error.value = null
 

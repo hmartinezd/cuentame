@@ -204,14 +204,32 @@ fun PurchaseDetailScreen(
                                     }
                                     Text(stringResource(R.string.void_purchase))
                                 }
-                            } else if (details.receipt.status == DocumentStatus.VOIDED) {
-                                details.receipt.voidedAt?.let {
+                            } else {
+                                details.receipt.postedAt?.let {
                                     Text(
-                                        text = stringResource(R.string.voided_at, timeFormatter.format(it)),
+                                        text = stringResource(R.string.posted_at, timeFormatter.format(it)),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.padding(top = 8.dp)
                                     )
+                                }
+                                if (details.receipt.status == DocumentStatus.VOIDED) {
+                                    details.receipt.voidedAt?.let {
+                                        Text(
+                                            text = stringResource(R.string.voided_at, timeFormatter.format(it)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        )
+                                    }
+                                } else if (details.receipt.status == DocumentStatus.UNKNOWN) {
+                                    details.receipt.voidedAt?.let {
+                                        Text(
+                                            text = stringResource(R.string.voided_at, timeFormatter.format(it)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
