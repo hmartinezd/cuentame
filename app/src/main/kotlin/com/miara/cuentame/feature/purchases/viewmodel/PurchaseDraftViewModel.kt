@@ -35,6 +35,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import javax.inject.Inject
 
@@ -88,6 +90,7 @@ class PurchaseDraftViewModel @Inject constructor(
     private val _isRemovingDocument = MutableStateFlow(false)
     private val _deletingLineId = MutableStateFlow<PurchaseLineId?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
+    private val operationMutex = Mutex()
 
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -107,9 +110,16 @@ class PurchaseDraftViewModel @Inject constructor(
 
     private val documentMetadataFlow = detailsFlow.flatMapLatest { details ->
         flow {
-            emit(details?.receipt?.attachmentPath?.let { path ->
-                documentStore.inspect(path)
-            })
+            val path = details?.receipt?.attachmentPath
+            if (path == null) {
+                emit(null)
+            } else {
+                val inspected = documentStore.inspect(path)
+                val persistedName = details.receipt.attachmentDisplayName
+                emit(inspected?.copy(
+                    displayName = persistedName?.takeIf { it.isNotBlank() } ?: inspected.displayName
+                ))
+            }
         }
     }
 
@@ -167,12 +177,12 @@ class PurchaseDraftViewModel @Inject constructor(
         purchaseDate: Instant,
         notes: String?
     ) {
-        if (_isSaving.value) return
-        _isSaving.value = true
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _isSaving.value = true
+                _error.value = null
+                
                 val currentState = uiState.value
                 if (currentState.receiptId == null) {
                     val restaurant = restaurantRepository.getRestaurant() ?: throw Exception("No restaurant")
@@ -201,94 +211,95 @@ class PurchaseDraftViewModel @Inject constructor(
                 _error.value = e
             } finally {
                 _isSaving.value = false
+                operationMutex.unlock()
             }
         }
     }
 
     fun onAttachDocument(uri: android.net.Uri) {
         val currentReceiptId = receiptId ?: return
-        if (_isImportingDocument.value) return
-        _isImportingDocument.value = true
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _isImportingDocument.value = true
+                _error.value = null
                 attachPurchaseDocumentUseCase(currentReceiptId, uri)
             } catch (e: Exception) {
                 _error.value = e
             } finally {
                 _isImportingDocument.value = false
+                operationMutex.unlock()
             }
         }
     }
 
     fun onRemoveDocument() {
         val currentReceiptId = receiptId ?: return
-        if (_isRemovingDocument.value) return
-        _isRemovingDocument.value = true
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _isRemovingDocument.value = true
+                _error.value = null
                 removePurchaseDocumentUseCase(currentReceiptId)
             } catch (e: Exception) {
                 _error.value = e
             } finally {
                 _isRemovingDocument.value = false
+                operationMutex.unlock()
             }
         }
     }
 
     fun onPost() {
         val currentReceiptId = receiptId ?: return
-        if (_isPosting.value) return
-        _isPosting.value = true
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _isPosting.value = true
+                _error.value = null
                 postPurchaseUseCase(currentReceiptId)
                 _events.send(PurchaseDraftEvent.Posted)
             } catch (e: Exception) {
                 _error.value = e
             } finally {
                 _isPosting.value = false
+                operationMutex.unlock()
             }
         }
     }
 
     fun onDeleteDraft() {
         val currentReceiptId = receiptId ?: return
-        if (_isDeletingDraft.value) return
-        _isDeletingDraft.value = true
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _isDeletingDraft.value = true
+                _error.value = null
                 deletePurchaseDraftUseCase(currentReceiptId)
                 _events.send(PurchaseDraftEvent.Deleted)
             } catch (e: Exception) {
                 _error.value = e
             } finally {
                 _isDeletingDraft.value = false
+                operationMutex.unlock()
             }
         }
     }
 
     fun onDeleteLine(lineId: PurchaseLineId) {
         val currentReceiptId = receiptId ?: return
-        if (_deletingLineId.value != null) return
-        _deletingLineId.value = lineId
-        _error.value = null
-
         viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
             try {
+                _deletingLineId.value = lineId
+                _error.value = null
                 deletePurchaseLineUseCase(currentReceiptId, lineId)
                 _events.send(PurchaseDraftEvent.LineDeleted(lineId))
             } catch (e: Exception) {
                 _error.value = e
             } finally {
                 _deletingLineId.value = null
+                operationMutex.unlock()
             }
         }
     }

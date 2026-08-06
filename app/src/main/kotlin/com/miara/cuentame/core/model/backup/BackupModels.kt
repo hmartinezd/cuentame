@@ -67,7 +67,8 @@ data class RestoreDatabaseRollbackSnapshot(
     val purchaseReceiptAttachmentPaths: Map<String, String?>,
     val purchaseReceiptAttachmentDisplayNames: Map<String, String?>,
     val wasteEventAttachmentPaths: Map<String, String?>,
-    val wasteEventAttachmentDisplayNames: Map<String, String?>
+    val wasteEventAttachmentDisplayNames: Map<String, String?>,
+    val attachmentInventory: List<com.miara.cuentame.core.backup.internal.RollbackAttachmentMetadata> = emptyList()
 )
 
 sealed interface BackupResult {

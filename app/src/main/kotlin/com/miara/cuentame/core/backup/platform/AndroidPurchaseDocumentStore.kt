@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -85,7 +86,7 @@ class AndroidPurchaseDocumentStore @Inject constructor(
             try {
                 when (mimeType) {
                     "application/pdf" -> validatePdf(tempFile)
-                    "image/jpeg", "image/png", "image/webp" -> validateImage(tempFile)
+                    "image/jpeg", "image/png", "image/webp" -> validateImage(tempFile, mimeType)
                 }
             } catch (e: Exception) {
                 throw IllegalArgumentException("Content validation failed: ${e.message}")
@@ -96,7 +97,7 @@ class AndroidPurchaseDocumentStore @Inject constructor(
             }
 
             StoredPurchaseDocument(
-                location = targetFile.toRelativePath(),
+                location = targetFile.toRelativePath(context.filesDir),
                 displayName = originalName ?: safeName,
                 mimeType = mimeType,
                 sizeBytes = targetFile.length()
@@ -168,24 +169,35 @@ class AndroidPurchaseDocumentStore @Inject constructor(
         }
     }
 
-    private fun validateImage(file: File) {
+    private fun validateImage(file: File, reportedMimeType: String) {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, options)
         if (options.outWidth <= 0 || options.outHeight <= 0) {
             throw IllegalArgumentException("Invalid image dimensions: ${options.outWidth}x${options.outHeight}")
         }
-        if (options.outMimeType == null) {
-            throw IllegalArgumentException("Could not determine image type")
+        val actualMimeType = options.outMimeType ?: throw IllegalArgumentException("Could not determine image type")
+        
+        // Normalize and compare
+        if (!isMimeTypeMatch(actualMimeType, reportedMimeType)) {
+            throw IllegalArgumentException("MIME type mismatch: actual $actualMimeType vs reported $reportedMimeType")
         }
     }
 
-    private fun File.toRelativePath(): String {
-        return this.absolutePath.removePrefix(context.filesDir.absolutePath).trimStart('/')
+    private fun isMimeTypeMatch(actual: String, reported: String): Boolean {
+        if (actual == reported) return true
+        // Handle common aliases/subtypes if needed, e.g. image/jpg vs image/jpeg
+        val normalizedActual = actual.replace("image/jpg", "image/jpeg")
+        val normalizedReported = reported.replace("image/jpg", "image/jpeg")
+        return normalizedActual == normalizedReported
+    }
+
+    private fun File.toRelativePath(filesDir: File): String {
+        return filesDir.toPath().relativize(this.toPath()).toString()
     }
 
     private fun generateSafeFilename(originalName: String?, mimeType: String): String {
         val sanitized = AttachmentFilenameSanitizer.sanitize(originalName)
-        val timestamp = System.currentTimeMillis()
+        val uuid = UUID.randomUUID().toString()
         val extension = when (mimeType) {
             "application/pdf" -> ".pdf"
             "image/jpeg" -> ".jpg"
@@ -194,9 +206,8 @@ class AndroidPurchaseDocumentStore @Inject constructor(
             else -> ""
         }
         val nameWithoutExtension = sanitized.substringBeforeLast(".")
-        // Ensure the final name is not too long for the sanitizer's limits if possible
-        val base = if (nameWithoutExtension.length > 100) nameWithoutExtension.substring(0, 100) else nameWithoutExtension
-        return "${base}_${timestamp}${extension}"
+        val base = if (nameWithoutExtension.length > 50) nameWithoutExtension.substring(0, 50) else nameWithoutExtension
+        return "${base}_${uuid}${extension}"
     }
 
     private fun inferMimeType(file: File): String {

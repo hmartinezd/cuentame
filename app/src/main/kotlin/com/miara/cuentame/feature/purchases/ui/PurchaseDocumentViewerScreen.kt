@@ -203,9 +203,10 @@ fun PdfPage(renderer: PdfRenderer, pageIndex: Int, mutex: Mutex) {
 
     DisposableEffect(bitmap) {
         onDispose {
-            // Bitmaps should be managed carefully to avoid OOM, but Compose's ImageBitmap handles this mostly.
-            // If we manually created it, we should ideally recycle it if it's large.
-            // bitmap?.recycle() // Be careful with recycling if Compose might still use it
+            // Bitmaps should be managed carefully to avoid OOM
+            val b = bitmap
+            bitmap = null
+            b?.recycle()
         }
     }
     

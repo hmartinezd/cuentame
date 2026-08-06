@@ -26,8 +26,7 @@ import javax.inject.Inject
 
 sealed interface PreparationRecipeEditorEvent {
     data class Created(val recipeId: PreparationRecipeId) : PreparationRecipeEditorEvent
-    data object Saved : PreparationRecipeEditorEvent
-    data object DeletedOrArchived : PreparationRecipeEditorEvent
+    data object DraftSaved : PreparationRecipeEditorEvent
     data class NavigateToDetail(val recipeId: PreparationRecipeId) : PreparationRecipeEditorEvent
 }
 
@@ -35,6 +34,7 @@ data class PreparationRecipeEditorUiState(
     val loadState: PreparationScreenLoadState = PreparationScreenLoadState.Loading,
     val isSaving: Boolean = false,
     val isReordering: Boolean = false,
+    val isActivating: Boolean = false,
     val recipe: PreparationRecipe? = null,
     val availableIngredients: List<Ingredient> = emptyList(),
     val availableUnitOptions: List<IngredientUnitOption> = emptyList(),
@@ -51,9 +51,10 @@ data class PreparationRecipeEditorUiState(
     val yieldQuantityErrorText: UiMessage? = null,
     val inlineError: UiMessage? = null,
     val showDiscardConfirmation: Boolean = false,
-    val isActivating: Boolean = false,
     val showActivateConfirmation: Boolean = false
-)
+) {
+    val isOperating: Boolean get() = isSaving || isReordering || isActivating
+}
 
 @HiltViewModel
 class PreparationRecipeEditorViewModel @Inject constructor(
@@ -266,54 +267,72 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onSave() {
         viewModelScope.launch {
-            saveInternal()
+            val result = saveInternal()
+            if (result is DraftSaveResult.Success) {
+                if (recipeId == null) {
+                    _events.send(PreparationRecipeEditorEvent.Created(result.recipeId))
+                } else {
+                    _events.send(PreparationRecipeEditorEvent.DraftSaved)
+                }
+            }
         }
     }
 
-    private suspend fun saveInternal(ignoreActivating: Boolean = false): Boolean {
+    private sealed interface DraftSaveResult {
+        data class Success(val recipeId: PreparationRecipeId) : DraftSaveResult
+        data class Failure(val message: UiMessage) : DraftSaveResult
+    }
+
+    private suspend fun saveInternal(): DraftSaveResult {
         val state = _uiState.value
-        if (state.isSaving || (!ignoreActivating && state.isActivating)) return false
+        if (state.isOperating) return DraftSaveResult.Failure(UiMessage.Resource(R.string.error_generic))
         if (state.selectedOutputIngredient == null) {
-            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_select_output_ingredient)) }
-            return false
+            val msg = UiMessage.Resource(R.string.error_select_output_ingredient)
+            _uiState.update { it.copy(inlineError = msg) }
+            return DraftSaveResult.Failure(msg)
         }
 
         val quantity = if (state.yieldQuantity.isBlank()) null else {
             try {
                 BigDecimal(state.yieldQuantity)
             } catch (e: Exception) {
-                _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_invalid_decimal), inlineError = null) }
-                return false
+                val msg = UiMessage.Resource(R.string.error_invalid_decimal)
+                _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = msg, inlineError = null) }
+                return DraftSaveResult.Failure(msg)
             }
         }
 
         if (quantity != null && quantity <= BigDecimal.ZERO) {
-            _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_quantity_positive), inlineError = null) }
-            return false
+            val msg = UiMessage.Resource(R.string.error_quantity_positive)
+            _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = msg, inlineError = null) }
+            return DraftSaveResult.Failure(msg)
         }
 
         // Standard yield must have both quantity and unit if either is present
         if ((quantity != null && state.selectedYieldUnitOptionId == null) || (quantity == null && state.selectedYieldUnitOptionId != null)) {
-            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_yield_pairing_required)) }
-            return false
+            val msg = UiMessage.Resource(R.string.error_yield_pairing_required)
+            _uiState.update { it.copy(inlineError = msg) }
+            return DraftSaveResult.Failure(msg)
         }
 
         val trimmedName = state.recipeName.trim().ifBlank { null }
         if (recipeId != null && trimmedName == null) {
-            _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_name_required)) }
-            return false
+            val msg = UiMessage.Resource(R.string.error_recipe_name_required)
+            _uiState.update { it.copy(inlineError = msg) }
+            return DraftSaveResult.Failure(msg)
         }
 
         _uiState.update { it.copy(isSaving = true, inlineError = null) }
         return try {
             val restaurant = restaurantRepository.getRestaurant()
             if (restaurant == null) {
-                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
-                return false
+                val msg = UiMessage.Resource(R.string.error_generic)
+                _uiState.update { it.copy(inlineError = msg) }
+                return DraftSaveResult.Failure(msg)
             }
 
-            if (recipeId == null) {
-                val newId = preparationRecipeRepository.createDraft(
+            val savedId = if (recipeId == null) {
+                preparationRecipeRepository.createDraft(
                     CreatePreparationRecipeCommand(
                         restaurantId = restaurant.id,
                         outputIngredientId = state.selectedOutputIngredient.id,
@@ -323,7 +342,6 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                         notes = state.notes.trim().ifBlank { null }
                     )
                 )
-                _events.send(PreparationRecipeEditorEvent.Created(newId))
             } else {
                 preparationRecipeRepository.updateDraft(
                     UpdatePreparationRecipeCommand(
@@ -334,31 +352,33 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                         notes = state.notes.trim().ifBlank { null }
                     )
                 )
-                _events.send(PreparationRecipeEditorEvent.Saved)
+                recipeId
             }
-            true
+            DraftSaveResult.Success(savedId)
         } catch (e: Exception) {
-            _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
-            false
+            val msg = e.toPreparationRecipeUserMessage()
+            _uiState.update { it.copy(inlineError = msg) }
+            DraftSaveResult.Failure(msg)
         } finally {
             _uiState.update { it.copy(isSaving = false) }
         }
     }
 
     fun onActivateClick() {
-        if (_uiState.value.isSaving || _uiState.value.isActivating) return
+        if (_uiState.value.isOperating) return
         _uiState.update { it.copy(showActivateConfirmation = true) }
     }
 
     fun onActivateConfirm() {
         val rId = recipeId ?: return
-        if (_uiState.value.isActivating) return
+        if (_uiState.value.isOperating) return
         _uiState.update { it.copy(showActivateConfirmation = false, isActivating = true, inlineError = null) }
         viewModelScope.launch {
             try {
                 // 1. Save pending changes if needed
                 if (hasUnsavedChanges()) {
-                    if (!saveInternal(ignoreActivating = true)) {
+                    val saveResult = saveInternal()
+                    if (saveResult is DraftSaveResult.Failure) {
                         // Saving failed, error already shown in inlineError
                         return@launch
                     }
@@ -381,7 +401,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     fun onRemoveComponent(componentId: PreparationRecipeComponentId) {
         val rId = recipeId ?: return
-        if (_uiState.value.isSaving) return
+        if (_uiState.value.isOperating) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, inlineError = null) }
             try {
@@ -404,7 +424,7 @@ class PreparationRecipeEditorViewModel @Inject constructor(
 
     private fun moveComponent(componentId: PreparationRecipeComponentId, delta: Int) {
         val rId = recipeId ?: return
-        if (_uiState.value.isReordering) return
+        if (_uiState.value.isOperating) return
         val currentRecipe = _uiState.value.recipe ?: return
         val components = currentRecipe.components.sortedBy { it.sortOrder }
         val index = components.indexOfFirst { it.id == componentId }

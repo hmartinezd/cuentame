@@ -29,13 +29,11 @@ object PurchaseAttachmentLocation {
      * Rejects path traversal attempts.
      */
     fun resolveUnderFilesDir(filesDir: File, storedLocation: String): File {
+        val rootPath = filesDir.canonicalFile.toPath()
         val file = File(filesDir, storedLocation)
+        val candidatePath = file.canonicalFile.toPath()
         
-        // Canonicalize to prevent ".." traversal
-        val canonicalFilesDir = filesDir.canonicalFile.path
-        val canonicalFile = file.canonicalFile.path
-        
-        if (!canonicalFile.startsWith(canonicalFilesDir)) {
+        if (!candidatePath.startsWith(rootPath)) {
             throw IllegalArgumentException("Path traversal attempt rejected: $storedLocation")
         }
         

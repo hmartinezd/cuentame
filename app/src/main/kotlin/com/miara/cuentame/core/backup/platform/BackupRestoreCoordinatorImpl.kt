@@ -112,19 +112,23 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
               catch (e: Exception) { throw RestorePreparationException(e) }
 
             // Capture attachment rollback
-            try {
+            val inventory = try {
                 attachmentInstaller.captureRollback(sessionId)
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { throw RestorePreparationException(e) }
 
             // 8. Persist rollback snapshot atomically
             try {
-                storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+                val rollbackWithInventory = rollback.copy(attachmentInventory = inventory)
+                storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollbackWithInventory))
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { throw RestorePreparationException(e) }
 
-            // 9. Write journal ROLLBACK_CAPTURED with previous preferences
-            val rollbackCapturedJournal = currentJournal.copy(previousPreferences = prevPrefs)
+            // 9. Write journal ROLLBACK_CAPTURED with previous preferences and inventory
+            val rollbackCapturedJournal = currentJournal.copy(
+                previousPreferences = prevPrefs,
+                attachmentInventory = inventory
+            )
             try {
                 journal.write(rollbackCapturedJournal)
                 currentJournal = rollbackCapturedJournal

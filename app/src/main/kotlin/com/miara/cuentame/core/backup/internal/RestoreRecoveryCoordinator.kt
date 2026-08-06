@@ -14,6 +14,7 @@ class RestoreRecoveryCoordinator @Inject constructor(
     private val storage: InternalBackupRestoreStorage,
     private val databaseApplier: RestoreDatabaseApplier,
     private val preferencesApplier: RestorePreferencesApplier,
+    private val attachmentInstaller: RestoreAttachmentInstaller,
     private val codecs: BackupJsonCodecs
 ) {
     suspend fun recoverIfNeeded(): RestoreRecoveryResult {
@@ -144,6 +145,14 @@ class RestoreRecoveryCoordinator @Inject constructor(
             throw PreferencesRestoreException(e)
         }
 
+        // 5b. Restore attachments
+        try {
+            attachmentInstaller.rollback(dto.sessionId)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw AttachmentRestoreException(e)
+        }
+
         // 6. Verify database
         if (!databaseApplier.verifyMatchesRollback(rollback)) {
             throw VerificationFailedException("Database verification failed")
@@ -153,6 +162,15 @@ class RestoreRecoveryCoordinator @Inject constructor(
         val currentPrefs = preferencesApplier.captureRollback()
         if (currentPrefs != prevPrefs) {
             throw VerificationFailedException("Preferences verification failed")
+        }
+
+        // 7b. Verify attachments
+        try {
+            val inventory = dto.attachmentInventory.takeIf { it.isNotEmpty() }
+                ?: rollback.attachmentInventory
+            attachmentInstaller.verifyInventory(inventory)
+        } catch (e: Exception) {
+            throw VerificationFailedException("Attachment verification failed: ${e.message}")
         }
 
         // 8. Write ROLLBACK_COMPLETED
@@ -183,6 +201,7 @@ private class SnapshotCorruptException(cause: Throwable) : RuntimeException(caus
 private class PreferencesMissingException : RuntimeException()
 private class DatabaseRestoreException(cause: Throwable) : RuntimeException(cause)
 private class PreferencesRestoreException(cause: Throwable) : RuntimeException(cause)
+private class AttachmentRestoreException(cause: Throwable) : RuntimeException(cause)
 private class VerificationFailedException(message: String) : RuntimeException(message)
 private class CleanupFailedException(cause: Throwable) : RuntimeException(cause)
 

@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -83,7 +82,6 @@ class PurchaseDocumentUiTest {
         }
     }
 
-    @Ignore("Hanging in emulator, likely due to bootstrapper/gate deadlock in test environment")
     @Test
     fun documentSection_showsSaveMessageBeforeFirstSave() {
         ActivityScenario.launch(MainActivity::class.java).use {
@@ -101,7 +99,6 @@ class PurchaseDocumentUiTest {
         }
     }
 
-    @Ignore("Hanging in emulator, likely due to bootstrapper/gate deadlock in test environment")
     @Test
     fun documentSection_showsImportAfterFirstSave() {
         ActivityScenario.launch(MainActivity::class.java).use {
@@ -123,7 +120,6 @@ class PurchaseDocumentUiTest {
         }
     }
 
-    @Ignore("Hanging in emulator, likely due to bootstrapper/gate deadlock in test environment")
     @Test
     fun documentSection_postedPurchase_showsReadOnlyDocument() {
         val now = Instant.now().toEpochMilli()
@@ -165,7 +161,6 @@ class PurchaseDocumentUiTest {
         }
     }
 
-    @Ignore("Hanging in emulator, likely due to bootstrapper/gate deadlock in test environment")
     @Test
     fun complete_backup_restore_roundtrip_with_attachment() {
         runBlocking {

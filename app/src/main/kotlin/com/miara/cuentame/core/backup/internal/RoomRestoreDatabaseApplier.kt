@@ -42,7 +42,8 @@ class RoomRestoreDatabaseApplier @Inject constructor(
             purchaseReceiptAttachmentPaths = purchasePaths,
             purchaseReceiptAttachmentDisplayNames = purchaseNames,
             wasteEventAttachmentPaths = wastePaths,
-            wasteEventAttachmentDisplayNames = wasteNames
+            wasteEventAttachmentDisplayNames = wasteNames,
+            attachmentInventory = emptyList() // Will be populated by coordinator during capture
         )
     }
 
@@ -139,7 +140,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 )
             } else {
                 val livePath = dto.attachmentId?.let { attachmentMapping["PURCHASE_RECEIPT" to dto.id] }
-                entity.copy(attachmentPath = livePath)
+                entity.copy(
+                    attachmentPath = livePath,
+                    attachmentDisplayName = dto.attachmentDisplayName
+                )
             }
         }
         restoreDao.insertPurchaseReceipts(receipts)
@@ -158,7 +162,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 )
             } else {
                 val livePath = dto.attachmentId?.let { attachmentMapping["WASTE_EVENT" to dto.id] }
-                entity.copy(attachmentPath = livePath)
+                entity.copy(
+                    attachmentPath = livePath,
+                    attachmentDisplayName = dto.attachmentDisplayName
+                )
             }
         }
         restoreDao.insertWasteEvents(waste)

@@ -16,6 +16,7 @@ data class RestoreJournalDto(
     val phase: RestorePhase,
     val expectedArchiveFingerprint: String,
     val previousPreferences: BackupPreferencesDto? = null,
+    val attachmentInventory: List<RollbackAttachmentMetadata> = emptyList(),
     val startedAt: Long
 )
 
