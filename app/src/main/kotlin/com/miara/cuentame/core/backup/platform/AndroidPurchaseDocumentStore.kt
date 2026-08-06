@@ -1,10 +1,14 @@
 package com.miara.cuentame.core.backup.platform
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.BackupLimits
+import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
@@ -21,8 +25,6 @@ import javax.inject.Singleton
 class AndroidPurchaseDocumentStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) : PurchaseDocumentStore {
-
-    private val rootDir = File(context.filesDir, "attachments/purchases")
 
     override suspend fun importDocument(
         receiptId: PurchaseReceiptId,
@@ -52,7 +54,11 @@ class AndroidPurchaseDocumentStore @Inject constructor(
             throw IllegalArgumentException("File too large: $reportedSize bytes")
         }
 
-        val receiptDir = File(rootDir, receiptId.value).apply { if (!exists()) mkdirs() }
+        val relativeDir = PurchaseAttachmentLocation.directory(receiptId)
+        val receiptDir = PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, relativeDir)
+        if (!receiptDir.exists() && !receiptDir.mkdirs()) {
+            throw IllegalStateException("Could not create attachment directory")
+        }
         
         // Sanitize and generate a stable but unique filename
         val safeName = generateSafeFilename(originalName, mimeType)
@@ -75,6 +81,16 @@ class AndroidPurchaseDocumentStore @Inject constructor(
                 }
             } ?: throw IllegalStateException("Could not open source stream")
 
+            // Content Validation
+            try {
+                when (mimeType) {
+                    "application/pdf" -> validatePdf(tempFile)
+                    "image/jpeg", "image/png", "image/webp" -> validateImage(tempFile)
+                }
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Content validation failed: ${e.message}")
+            }
+
             if (!tempFile.renameTo(targetFile)) {
                 throw IllegalStateException("Failed to commit imported file")
             }
@@ -92,12 +108,17 @@ class AndroidPurchaseDocumentStore @Inject constructor(
     }
 
     override suspend fun inspect(storedLocation: String): StoredPurchaseDocument? = withContext(Dispatchers.IO) {
-        val file = File(context.filesDir, storedLocation)
-        if (!file.exists() || !file.isChildOf(rootDir)) return@withContext null
+        val file = try {
+            PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+        } catch (e: Exception) {
+            return@withContext null
+        }
+        
+        if (!file.exists()) return@withContext null
 
         StoredPurchaseDocument(
             location = storedLocation,
-            displayName = file.name, // Fallback to filename as we don't store original separately
+            displayName = file.name,
             mimeType = inferMimeType(file),
             sizeBytes = file.length()
         )
@@ -105,33 +126,61 @@ class AndroidPurchaseDocumentStore @Inject constructor(
 
     override suspend fun delete(storedLocation: String) {
         withContext(Dispatchers.IO) {
-            val file = File(context.filesDir, storedLocation)
-            if (file.exists() && file.isChildOf(rootDir)) {
+            val file = try {
+                PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+            } catch (e: Exception) {
+                return@withContext
+            }
+            if (file.exists()) {
                 file.delete()
             }
         }
     }
 
     override suspend fun open(storedLocation: String): InputStream = withContext(Dispatchers.IO) {
-        val file = File(context.filesDir, storedLocation)
-        if (!file.exists() || !file.isChildOf(rootDir)) {
-            throw java.io.FileNotFoundException("Stored document not found or access denied: $storedLocation")
+        val file = PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+        if (!file.exists()) {
+            throw java.io.FileNotFoundException("Stored document not found: $storedLocation")
         }
         file.inputStream()
     }
 
-    private fun File.toRelativePath(): String {
-        return this.absolutePath.removePrefix(context.filesDir.absolutePath).trimStart('/')
+    private fun validatePdf(file: File) {
+        if (file.length() == 0L) throw IllegalArgumentException("Empty PDF file")
+        
+        // Check signature
+        file.inputStream().use { input ->
+            val buffer = ByteArray(4)
+            if (input.read(buffer) != 4 || String(buffer) != "%PDF") {
+                throw IllegalArgumentException("Invalid PDF signature")
+            }
+        }
+
+        // Try opening with renderer to verify it's readable and not password-protected
+        try {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                PdfRenderer(pfd).use { renderer ->
+                    if (renderer.pageCount == 0) throw IllegalArgumentException("PDF has no pages")
+                }
+            }
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Could not open PDF: ${e.message}")
+        }
     }
 
-    private fun File.isChildOf(parent: File): Boolean {
-        var current: File? = this.canonicalFile
-        val canonicalParent = parent.canonicalFile
-        while (current != null) {
-            if (current == canonicalParent) return true
-            current = current.parentFile
+    private fun validateImage(file: File) {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) {
+            throw IllegalArgumentException("Invalid image dimensions: ${options.outWidth}x${options.outHeight}")
         }
-        return false
+        if (options.outMimeType == null) {
+            throw IllegalArgumentException("Could not determine image type")
+        }
+    }
+
+    private fun File.toRelativePath(): String {
+        return this.absolutePath.removePrefix(context.filesDir.absolutePath).trimStart('/')
     }
 
     private fun generateSafeFilename(originalName: String?, mimeType: String): String {

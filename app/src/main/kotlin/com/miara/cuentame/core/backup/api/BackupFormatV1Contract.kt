@@ -3,9 +3,9 @@ package com.miara.cuentame.core.backup.api
 object BackupFormatV1Contract {
 
     const val BACKUP_FORMAT_VERSION = 1
-    const val DATABASE_SCHEMA_VERSION = 4
+    const val DATABASE_SCHEMA_VERSION = 5
 
-    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4)
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -78,6 +78,12 @@ object BackupFormatV1Contract {
             2 -> base
             3 -> base + setOf("preparation_recipes", "preparation_recipe_components")
             4 -> base + setOf(
+                "preparation_recipes",
+                "preparation_recipe_components",
+                "production_batches",
+                "production_batch_components"
+            )
+            5 -> base + setOf(
                 "preparation_recipes",
                 "preparation_recipe_components",
                 "production_batches",

@@ -16,7 +16,7 @@ class AttachPurchaseDocumentUseCase @Inject constructor(
     ) {
         val stored = documentStore.importDocument(receiptId, sourceUri)
         try {
-            repository.attachDocument(receiptId, stored.location)
+            repository.attachDocument(receiptId, stored.location, stored.displayName)
         } catch (e: Exception) {
             documentStore.delete(stored.location)
             throw e

@@ -71,7 +71,7 @@ class PurchaseLineViewModelTest {
         override suspend fun deleteDraft(id: PurchaseReceiptId) {}
         override suspend fun post(id: PurchaseReceiptId) {}
         override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 

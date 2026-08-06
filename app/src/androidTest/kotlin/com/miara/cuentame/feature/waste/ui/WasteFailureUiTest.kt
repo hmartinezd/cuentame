@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
@@ -58,6 +60,9 @@ class WasteFailureUiTest {
     @Inject
     lateinit var testStateManager: TestStateManager
 
+    @Inject
+    lateinit var restoreGate: RestoreOperationGate
+
     private val restaurantId = "rest_fail_test"
     private val ingId = "ing_test"
     private val areaId = "area_test"
@@ -71,6 +76,7 @@ class WasteFailureUiTest {
         
         runBlocking {
             testStateManager.resetAll()
+            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
 
             val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
             database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now, now, null))
@@ -134,6 +140,7 @@ class WasteFailureUiTest {
                     effectiveAt = now,
                     notes = "Post fail test",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -221,6 +228,7 @@ class WasteFailureUiTest {
                     effectiveAt = effectiveAt,
                     notes = null,
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.POSTED.name,
                     createdAt = effectiveAt,
                     updatedAt = postedAt,
@@ -320,6 +328,7 @@ class WasteFailureUiTest {
                     effectiveAt = now,
                     notes = "Delete fail test",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,

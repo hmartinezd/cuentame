@@ -116,7 +116,7 @@ class BackupProductionIntegrationTest {
         val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, codecs)
         
         val stager = BackupArchiveRestoreStager(codecs, processor, storage, fingerprinter)
-        val attachmentInstaller = RestoreAttachmentInstaller(storage)
+        val attachmentInstaller = RestoreAttachmentInstaller(storage, mockk(relaxed = true))
 
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
@@ -268,7 +268,7 @@ class BackupProductionIntegrationTest {
         db.supplierDao().insert(SupplierEntity("s1", "r1", "Sup 1", "sup 1", "123", "sup@test.com", "Notes", true, 100, 100, null))
         
         // Purchase 1
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, 100, 100, 1000, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "r1", "s1", "INV1", 1000, "POSTED", "Notes", null, null, 100, 100, 1000, null))
         db.purchaseDao().insertLine(PurchaseLineEntity(
             id = "pl1",
             purchaseReceiptId = "p1",
@@ -285,7 +285,7 @@ class BackupProductionIntegrationTest {
         ))
 
         // Purchase 2
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p2", "r1", "s1", "INV2", 1300, "POSTED", "Notes", null, 100, 100, 1300, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p2", "r1", "s1", "INV2", 1300, "POSTED", "Notes", null, null, 100, 100, 1300, null))
         db.purchaseDao().insertLine(PurchaseLineEntity(
             id = "pl2",
             purchaseReceiptId = "p2",
@@ -305,7 +305,7 @@ class BackupProductionIntegrationTest {
         db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "DRAFT", null, null, 1)))
         db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", null, null, "Notes", 100, 100))
         
-        db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, "POSTED", 100, 100, 1200, null))
+        db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, null, "POSTED", 100, 100, 1200, null))
         
         db.inventoryMovementDao().insertAll(listOf(
             InventoryMovementEntity("m1", "r1", "i1", "a1", "PURCHASE", "20", "3", "60", 1000, "PURCHASE_RECEIPT", "p1", InventoryMovementOperationIds.purchasePost("p1", "pl1"), "pl1", null, 1000),

@@ -75,8 +75,10 @@ class RestoreDurablePhaseTest {
         coEvery { preferencesApplier.captureRollback() } returns BackupPreferencesDto("SYSTEM", true, "en-US")
         coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(
             snapshot = createMinimalSnapshot(),
-            purchaseReceiptAttachmentPaths = emptyMap<String, String>(),
-            wasteEventAttachmentPaths = emptyMap<String, String>()
+            purchaseReceiptAttachmentPaths = emptyMap(),
+            purchaseReceiptAttachmentDisplayNames = emptyMap(),
+            wasteEventAttachmentPaths = emptyMap(),
+            wasteEventAttachmentDisplayNames = emptyMap()
         )
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
         coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true

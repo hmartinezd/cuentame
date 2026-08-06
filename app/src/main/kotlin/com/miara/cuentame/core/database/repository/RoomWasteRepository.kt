@@ -219,6 +219,7 @@ class RoomWasteRepository @Inject constructor(
                     effectiveAt = command.effectiveAt.toEpochMilli(),
                     notes = command.notes?.trim()?.ifBlank { null },
                     attachmentPath = command.attachmentUri?.trim()?.ifBlank { null },
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -274,6 +275,7 @@ class RoomWasteRepository @Inject constructor(
                 effectiveAt = command.effectiveAt.toEpochMilli(),
                 notes = command.notes?.trim()?.ifBlank { null },
                 attachmentPath = command.attachmentUri?.trim()?.ifBlank { null },
+                attachmentDisplayName = existing.attachmentDisplayName,
                 updatedAt = now
             )
             val affected = wasteDao.update(updated)
@@ -495,6 +497,7 @@ class RoomWasteRepository @Inject constructor(
         effectiveAt = Instant.ofEpochMilli(effectiveAt),
         notes = notes,
         attachmentPath = attachmentPath,
+        attachmentDisplayName = attachmentDisplayName,
         status = parsePersistedEnum(status, com.miara.cuentame.core.model.inventory.DocumentStatus.UNKNOWN),
         createdAt = Instant.ofEpochMilli(createdAt),
         updatedAt = Instant.ofEpochMilli(updatedAt),

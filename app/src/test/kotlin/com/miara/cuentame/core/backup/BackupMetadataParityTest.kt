@@ -49,11 +49,11 @@ class BackupMetadataParityTest {
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 4
+        every { appVersionProvider.databaseSchemaVersion } returns 5
     }
 
     @Test
-    fun `planner and validator agree on schema 4 metadata`() = runTest {
+    fun `planner and validator agree on schema 5 metadata`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -61,19 +61,19 @@ class BackupMetadataParityTest {
         
         // 0. Validate snapshot integrity before planning
         val manifestBefore = BackupManifest(
-            backupFormatVersion = 1,
+            backupFormatVersion = 2,
             createdAtUtc = "2026-08-02T12:00:00Z",
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",
             appVersionCode = 1,
-            databaseSchemaVersion = 4,
+            databaseSchemaVersion = 5,
             restaurantId = "r1",
             restaurantName = "Test Rest",
             localeTag = "en-US",
             currencyCode = "USD",
             tableMetadata = createExpectedMetadata(snapshotDto),
             attachments = emptyList(),
-            includedSections = listOf("DATABASE", "PREFERENCES")
+            includedSections = listOf("data", "preferences", "attachments")
         )
         assertThat(BackupSnapshotIntegrityValidator.validate(snapshotDto, manifestBefore).isSuccess).isTrue()
 
@@ -87,7 +87,7 @@ class BackupMetadataParityTest {
         
         // 1. Validate Planner's metadata
         val plannerMetadata = plan.manifest.tableMetadata
-        assertThat(plannerMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
+        assertThat(plannerMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(5))
         
         // 2. Build archive from plan
         val archiveBytes = buildArchive(plan)
@@ -112,7 +112,7 @@ class BackupMetadataParityTest {
     private fun BackupManifest.entryCounts() = tableMetadata.mapValues { it.value.entryCount }
 
     private fun createExpectedMetadata(dto: BackupSnapshotDto): Map<String, TableMetadata> {
-        val schemaVersion = 4
+        val schemaVersion = 5
         val counts = mapOf(
             "restaurants" to dto.restaurants.size,
             "inventory_areas" to dto.inventoryAreas.size,

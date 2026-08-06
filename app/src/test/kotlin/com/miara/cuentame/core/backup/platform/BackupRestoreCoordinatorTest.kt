@@ -63,7 +63,7 @@ class BackupRestoreCoordinatorTest {
         
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         coEvery { databaseApplier.hasExistingAttachmentReferences() } returns false
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
@@ -98,7 +98,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         
         coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
         coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_fail"))
@@ -129,7 +129,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         
         coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
         coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_fail_global"))
@@ -160,7 +160,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
         coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
 
         coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
@@ -187,7 +187,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         
         // Fail mutation write
         every { journal.write(match { it.phase == RestorePhase.MUTATION_STARTED }) } throws RuntimeException("Disk full")
@@ -216,7 +216,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         
         // Fail mutation write
         every { journal.write(match { it.phase == RestorePhase.MUTATION_STARTED }) } throws RuntimeException("Disk full")
@@ -245,7 +245,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
         
@@ -281,7 +281,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
         
@@ -386,7 +386,7 @@ class BackupRestoreCoordinatorTest {
         coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
         coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_att_ok"))
         
-        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>(), emptyMap<String, String?>())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         
         every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_att.json")

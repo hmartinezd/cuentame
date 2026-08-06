@@ -312,7 +312,8 @@ class RoomPurchaseRepository @Inject constructor(
 
     override suspend fun attachDocument(
         receiptId: PurchaseReceiptId,
-        storedLocation: String
+        storedLocation: String,
+        displayName: String
     ) {
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
@@ -326,6 +327,7 @@ class RoomPurchaseRepository @Inject constructor(
 
             val updated = existing.copy(
                 attachmentPath = storedLocation,
+                attachmentDisplayName = displayName,
                 updatedAt = timeProvider.now().toEpochMilli()
             )
 

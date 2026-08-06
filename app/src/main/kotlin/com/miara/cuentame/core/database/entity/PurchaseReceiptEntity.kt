@@ -38,6 +38,7 @@ data class PurchaseReceiptEntity(
     val status: String,
     val notes: String?,
     val attachmentPath: String?,
+    val attachmentDisplayName: String?,
     val createdAt: Long,
     val updatedAt: Long,
     val postedAt: Long?,

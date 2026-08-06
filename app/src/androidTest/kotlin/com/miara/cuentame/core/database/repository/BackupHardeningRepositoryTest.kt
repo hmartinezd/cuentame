@@ -80,7 +80,7 @@ class BackupHardeningRepositoryTest {
             PurchaseReceiptEntity(
                 id = receiptId, restaurantId = restaurantId, supplierId = null, invoiceNumber = "INV-1",
                 purchaseDate = now, status = DocumentStatus.DRAFT.name, notes = null, attachmentPath = null,
-                createdAt = now, updatedAt = now, postedAt = null, voidedAt = null
+                attachmentDisplayName = null, createdAt = now, updatedAt = now, postedAt = null, voidedAt = null
             )
         )
         database.purchaseDao().insertLine(

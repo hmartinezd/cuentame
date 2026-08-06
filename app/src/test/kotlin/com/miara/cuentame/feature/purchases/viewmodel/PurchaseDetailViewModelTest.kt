@@ -58,7 +58,7 @@ class PurchaseDetailViewModelTest {
              val current = detailsFlow.value ?: return
              detailsFlow.value = current.copy(receipt = current.receipt.copy(status = DocumentStatus.VOIDED))
         }
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 
@@ -85,7 +85,7 @@ class PurchaseDetailViewModelTest {
 
     @Test
     fun `void purchase success updates state to VOIDED and calls repository once`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.POSTED, null, null, fixedNow, fixedNow)
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.POSTED, null, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
         
         val viewModel = createViewModel("p1")
@@ -116,7 +116,7 @@ class PurchaseDetailViewModelTest {
 
     @Test
     fun `onVoid is ignored when status is VOIDED`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.VOIDED, null, null, fixedNow, fixedNow)
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.VOIDED, null, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")
@@ -141,7 +141,7 @@ class PurchaseDetailViewModelTest {
 
     @Test
     fun `onVoid is ignored when status is UNKNOWN`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.UNKNOWN, null, null, fixedNow, fixedNow)
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.UNKNOWN, null, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")
@@ -165,7 +165,7 @@ class PurchaseDetailViewModelTest {
 
     @Test
     fun `onVoid is ignored when status is DRAFT`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.DRAFT, null, null, fixedNow, fixedNow)
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, fixedNow, DocumentStatus.DRAFT, null, null, null, fixedNow, fixedNow)
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
 
         val viewModel = createViewModel("p1")

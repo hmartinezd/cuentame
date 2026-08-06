@@ -47,7 +47,8 @@ object DatabaseModule {
         .addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
-            RestaurantInventoryDatabase.MIGRATION_3_4
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5
         )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {

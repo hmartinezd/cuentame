@@ -711,7 +711,7 @@ class BackupManifestContractValidatorTest {
     )
 
     private fun createWasteEvent(id: String, attId: String?) = WasteEventBackupDto(
-        id, "rest-1", "i1", "a1", "o1", "1", "1", "OTHER", 0, null, attId, "POSTED", 0, 0, 0, null
+        id, "rest-1", "i1", "a1", "o1", "1", "1", "OTHER", 0, null, attId, null, "POSTED", 0, 0, 0, null
     )
 
     private fun createPurchaseReceipt(id: String, attId: String?) = PurchaseReceiptBackupDto(
@@ -723,6 +723,7 @@ class BackupManifestContractValidatorTest {
         status = "POSTED",
         notes = null,
         attachmentId = attId,
+        attachmentDisplayName = null,
         createdAt = 1704110400000L,
         updatedAt = 1704110400000L,
         postedAt = 1704110400000L,

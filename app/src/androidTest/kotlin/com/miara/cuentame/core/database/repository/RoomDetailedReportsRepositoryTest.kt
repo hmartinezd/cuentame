@@ -147,7 +147,7 @@ class RoomDetailedReportsRepositoryTest {
     @Test
     fun observePurchaseDetails_strictDecimalValidation() = runBlocking {
         seedDependencies()
-        val receipt = PurchaseReceiptEntity("p1", restId.value, null, null, 1000L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 1000L, null)
+        val receipt = PurchaseReceiptEntity("p1", restId.value, null, null, 1000L, DocumentStatus.POSTED.name, null, null, null, 0L, 0L, 1000L, null)
         db.purchaseDao().insertReceipt(receipt)
         db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing1", "area1", "opt1", "1", "1", "-100.0", "1", null, 0L, 0L))
         
@@ -163,7 +163,7 @@ class RoomDetailedReportsRepositoryTest {
     @Test
     fun observeWasteDetails_strictSnapshotValidation() = runBlocking {
         seedDependencies()
-        db.wasteDao().insert(WasteEventEntity("w1", restId.value, "ing1", "area1", "opt1", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
+        db.wasteDao().insert(WasteEventEntity("w1", restId.value, "ing1", "area1", "opt1", "10", "1", "SPOILED", 1000L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m1", restId.value, "ing1", "area1", InventoryMovementType.WASTE.name, "-10", "1", null, 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
         
         val period = ReportingPeriod(Instant.ofEpochMilli(500), Instant.ofEpochMilli(1500))

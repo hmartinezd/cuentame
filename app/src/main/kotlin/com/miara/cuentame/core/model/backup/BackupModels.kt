@@ -65,7 +65,9 @@ sealed interface BackupRestoreEligibility {
 data class RestoreDatabaseRollbackSnapshot(
     val snapshot: com.miara.cuentame.core.backup.model.BackupSnapshotDto,
     val purchaseReceiptAttachmentPaths: Map<String, String?>,
-    val wasteEventAttachmentPaths: Map<String, String?>
+    val purchaseReceiptAttachmentDisplayNames: Map<String, String?>,
+    val wasteEventAttachmentPaths: Map<String, String?>,
+    val wasteEventAttachmentDisplayNames: Map<String, String?>
 )
 
 sealed interface BackupResult {

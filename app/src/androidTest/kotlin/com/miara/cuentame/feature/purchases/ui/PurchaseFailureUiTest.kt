@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.repository.IntegrationFailurePoints
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
@@ -50,6 +52,9 @@ class PurchaseFailureUiTest {
     @Inject
     lateinit var testStateManager: TestStateManager
 
+    @Inject
+    lateinit var restoreGate: RestoreOperationGate
+
     private val restaurantId = "rest_purchase_fail"
     private val ingId = "ing_test"
     private val areaId = "area_test"
@@ -61,6 +66,7 @@ class PurchaseFailureUiTest {
         runBlocking {
             testStateManager.resetAll()
             (failureBoundary as? ConfigurableFailureBoundary)?.reset()
+            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
             
             val now = Instant.parse("2026-01-01T12:00:00Z").toEpochMilli()
             database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now, now, null))
@@ -96,6 +102,7 @@ class PurchaseFailureUiTest {
                     status = DocumentStatus.DRAFT.name,
                     notes = null,
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     createdAt = now,
                     updatedAt = now,
                     postedAt = null,

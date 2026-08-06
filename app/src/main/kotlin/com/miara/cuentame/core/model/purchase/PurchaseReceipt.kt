@@ -15,6 +15,7 @@ data class PurchaseReceipt(
     val status: DocumentStatus,
     val notes: String? = null,
     val attachmentPath: String? = null,
+    val attachmentDisplayName: String? = null,
     val createdAt: Instant,
     val updatedAt: Instant,
     val postedAt: Instant? = null,

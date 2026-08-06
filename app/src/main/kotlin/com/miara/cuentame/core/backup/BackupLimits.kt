@@ -1,7 +1,6 @@
 package com.miara.cuentame.core.backup
 
 object BackupLimits {
-    const val BACKUP_FORMAT_VERSION = 1
     const val DATABASE_SCHEMA_VERSION_BASELINE = 2
     
     const val MAX_ARCHIVE_ENTRY_COUNT = 600

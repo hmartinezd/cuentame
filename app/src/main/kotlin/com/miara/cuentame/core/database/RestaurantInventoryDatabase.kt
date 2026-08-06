@@ -225,5 +225,12 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_production_batch_components_productionBatchId_componentIngredientId` ON `production_batch_components` (`productionBatchId`, `componentIngredientId`)")
             }
         }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `purchase_receipts` ADD COLUMN `attachmentDisplayName` TEXT")
+                db.execSQL("ALTER TABLE `waste_events` ADD COLUMN `attachmentDisplayName` TEXT")
+            }
+        }
     }
 }

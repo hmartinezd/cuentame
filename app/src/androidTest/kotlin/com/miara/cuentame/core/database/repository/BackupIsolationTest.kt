@@ -43,7 +43,7 @@ class BackupIsolationTest {
         db.ingredientDao().insert(IngredientEntity("ing-1", "rest-1", "Ing 1", "ing 1", "cat-1", "u1", "area-1", null, null, null, true, 0L, 0L, null))
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
         db.supplierDao().insert(SupplierEntity("sup-1", "rest-1", "Sup 1", "sup 1", null, null, null, true, 0L, 0L, null))
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p-1", "rest-1", "sup-1", null, 0L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 0L, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p-1", "rest-1", "sup-1", null, 0L, DocumentStatus.POSTED.name, null, null, null, 0L, 0L, 0L, null))
         db.purchaseDao().insertLine(PurchaseLineEntity("pl-1", "p-1", "ing-1", "area-1", "opt-1", "1", "1", "10.0", "10.0", null, 0L, 0L))
         
         db.stockCountDao().insertCount(StockCountEntity("sc-1", "rest-1", "sc-1-name", 0L, 0L, null, DocumentStatus.DRAFT.name, null, 0L, 0L, null))
@@ -51,7 +51,7 @@ class BackupIsolationTest {
         // Corrected StockCountLineEntity constructor call
         db.stockCountDao().insertCountLine(StockCountLineEntity("scl-1", "sca-1", "ing-1", "opt-1", "1", "1", null, null, null, 0L, 0L))
         
-        db.wasteDao().insert(WasteEventEntity("w-1", "rest-1", "ing-1", "area-1", "opt-1", "1", "1", "SPOILED", 0L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 0L, null))
+        db.wasteDao().insert(WasteEventEntity("w-1", "rest-1", "ing-1", "area-1", "opt-1", "1", "1", "SPOILED", 0L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 0L, null))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("rest-1", "ing-1", "area-1", "10.0", 0L))
         db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("rest-1", "ing-1", "10.0", 0L))
         db.inventoryMovementDao().insert(InventoryMovementEntity("im-1", "rest-1", "ing-1", "area-1", "PURCHASE", "10", "1", "10", 0L, "PURCHASE_RECEIPT", "p-1", "op-1", "pl-1", null, 0L))
@@ -63,11 +63,11 @@ class BackupIsolationTest {
         db.ingredientDao().insert(IngredientEntity("ing-2", "rest-2", "Ing 2", "ing 2", "cat-2", "u1", "area-2", null, null, null, true, 0L, 0L, null))
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-2", "ing-2", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
         db.supplierDao().insert(SupplierEntity("sup-2", "rest-2", "Sup 2", "sup 2", null, null, null, true, 0L, 0L, null))
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p-2", "rest-2", "sup-2", null, 0L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 0L, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p-2", "rest-2", "sup-2", null, 0L, DocumentStatus.POSTED.name, null, null, null, 0L, 0L, 0L, null))
         
         db.stockCountDao().insertCount(StockCountEntity("sc-2", "rest-2", "sc-2-name", 0L, 0L, null, DocumentStatus.DRAFT.name, null, 0L, 0L, null))
         
-        db.wasteDao().insert(WasteEventEntity("w-2", "rest-2", "ing-2", "area-2", "opt-2", "1", "1", "SPOILED", 0L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 0L, null))
+        db.wasteDao().insert(WasteEventEntity("w-2", "rest-2", "ing-2", "area-2", "opt-2", "1", "1", "SPOILED", 0L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 0L, null))
         db.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity("rest-2", "ing-2", "area-2", "20.0", 0L))
         db.inventoryMovementDao().insert(InventoryMovementEntity("im-2", "rest-2", "ing-2", "area-2", "PURCHASE", "20", "1", "20", 0L, "PURCHASE_RECEIPT", "p-2", "op-2", null, null, 0L))
 

@@ -160,7 +160,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         throw RestoreDatabaseApplicationException(e)
                     }
 
-                    attachmentInstaller.installStaged(sessionId, stagingDir)
+                    attachmentInstaller.installStaged(sessionId, stagingDir, archive.manifest)
 
                     // 12. Replace Room
                     try {
@@ -193,6 +193,12 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     // 15. Finalizing
                     onProgress(BackupRestoreProgress.Finalizing)
                     if (!databaseApplier.verifyMatchesBackup(archive.snapshot, archive.manifest)) {
+                        throw RestoreFinalVerificationException()
+                    }
+                    
+                    try {
+                        attachmentInstaller.verify(archive.manifest)
+                    } catch (e: Exception) {
                         throw RestoreFinalVerificationException()
                     }
 

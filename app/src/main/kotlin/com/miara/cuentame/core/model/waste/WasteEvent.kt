@@ -22,6 +22,7 @@ data class WasteEvent(
     val effectiveAt: Instant,
     val notes: String? = null,
     val attachmentPath: String? = null,
+    val attachmentDisplayName: String? = null,
     val status: DocumentStatus,
     val createdAt: Instant,
     val updatedAt: Instant,

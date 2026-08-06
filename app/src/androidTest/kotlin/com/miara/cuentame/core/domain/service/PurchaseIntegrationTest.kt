@@ -48,6 +48,7 @@ class PurchaseIntegrationTest {
             status = DocumentStatus.DRAFT.name,
             notes = null,
             attachmentPath = null,
+            attachmentDisplayName = null,
             createdAt = now,
             updatedAt = now,
             postedAt = null,

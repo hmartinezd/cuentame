@@ -54,6 +54,7 @@ data class WasteEventEntity(
     val effectiveAt: Long,
     val notes: String?,
     val attachmentPath: String?,
+    val attachmentDisplayName: String?,
     val status: String,
     val createdAt: Long,
     val updatedAt: Long,

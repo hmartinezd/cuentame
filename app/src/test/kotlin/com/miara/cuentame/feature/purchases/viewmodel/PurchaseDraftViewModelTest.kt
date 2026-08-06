@@ -63,7 +63,7 @@ class PurchaseDraftViewModelTest {
         override suspend fun deleteDraft(id: PurchaseReceiptId) {}
         override suspend fun post(id: PurchaseReceiptId) {}
         override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 
@@ -90,7 +90,7 @@ class PurchaseDraftViewModelTest {
 
     @Test
     fun `post purchase success emits event`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, null, Instant.now(), Instant.now())
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
         
         val viewModel = createViewModel("p1")
@@ -104,7 +104,7 @@ class PurchaseDraftViewModelTest {
 
     @Test
     fun `delete line success emits event`() = runTest {
-        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now())
+        val receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, null, Instant.now(), DocumentStatus.DRAFT, null, null, null, Instant.now(), Instant.now())
         detailsFlow.value = PurchaseDetails(receipt, null, emptyList())
         
         val viewModel = createViewModel("p1")

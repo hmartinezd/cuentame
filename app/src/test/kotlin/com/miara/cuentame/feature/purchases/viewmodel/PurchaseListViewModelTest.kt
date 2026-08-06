@@ -50,7 +50,7 @@ class PurchaseListViewModelTest {
         override suspend fun deleteDraft(id: PurchaseReceiptId) {}
         override suspend fun post(id: PurchaseReceiptId) {}
         override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 
@@ -89,7 +89,7 @@ class PurchaseListViewModelTest {
         )
         
         val summary = PurchaseSummary(
-            receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, "INV-1", Instant.now(), DocumentStatus.DRAFT, null, null, Instant.now(), Instant.now()),
+            receipt = PurchaseReceipt(PurchaseReceiptId("p1"), RestaurantId("r1"), null, "INV-1", Instant.now(), DocumentStatus.DRAFT, null, null, null, Instant.now(), Instant.now()),
             supplierName = "Supplier A",
             lineCount = 2,
             totalAmount = BigDecimal("100")

@@ -50,7 +50,9 @@ data class PreparationRecipeEditorUiState(
     val yieldQuantityError: Boolean = false,
     val yieldQuantityErrorText: UiMessage? = null,
     val inlineError: UiMessage? = null,
-    val showDiscardConfirmation: Boolean = false
+    val showDiscardConfirmation: Boolean = false,
+    val isActivating: Boolean = false,
+    val showActivateConfirmation: Boolean = false
 )
 
 @HiltViewModel
@@ -263,11 +265,17 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     }
 
     fun onSave() {
+        viewModelScope.launch {
+            saveInternal()
+        }
+    }
+
+    private suspend fun saveInternal(ignoreActivating: Boolean = false): Boolean {
         val state = _uiState.value
-        if (state.isSaving) return
+        if (state.isSaving || (!ignoreActivating && state.isActivating)) return false
         if (state.selectedOutputIngredient == null) {
             _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_select_output_ingredient)) }
-            return
+            return false
         }
 
         val quantity = if (state.yieldQuantity.isBlank()) null else {
@@ -275,66 +283,100 @@ class PreparationRecipeEditorViewModel @Inject constructor(
                 BigDecimal(state.yieldQuantity)
             } catch (e: Exception) {
                 _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_invalid_decimal), inlineError = null) }
-                return
+                return false
             }
         }
 
         if (quantity != null && quantity <= BigDecimal.ZERO) {
             _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = UiMessage.Resource(R.string.error_quantity_positive), inlineError = null) }
-            return
+            return false
         }
 
         // Standard yield must have both quantity and unit if either is present
         if ((quantity != null && state.selectedYieldUnitOptionId == null) || (quantity == null && state.selectedYieldUnitOptionId != null)) {
             _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_yield_pairing_required)) }
-            return
+            return false
         }
 
         val trimmedName = state.recipeName.trim().ifBlank { null }
         if (recipeId != null && trimmedName == null) {
             _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_recipe_name_required)) }
-            return
+            return false
         }
 
         _uiState.update { it.copy(isSaving = true, inlineError = null) }
+        return try {
+            val restaurant = restaurantRepository.getRestaurant()
+            if (restaurant == null) {
+                _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
+                return false
+            }
+
+            if (recipeId == null) {
+                val newId = preparationRecipeRepository.createDraft(
+                    CreatePreparationRecipeCommand(
+                        restaurantId = restaurant.id,
+                        outputIngredientId = state.selectedOutputIngredient.id,
+                        name = trimmedName,
+                        standardYieldQuantity = quantity,
+                        yieldUnitOptionId = state.selectedYieldUnitOptionId,
+                        notes = state.notes.trim().ifBlank { null }
+                    )
+                )
+                _events.send(PreparationRecipeEditorEvent.Created(newId))
+            } else {
+                preparationRecipeRepository.updateDraft(
+                    UpdatePreparationRecipeCommand(
+                        recipeId = recipeId,
+                        name = trimmedName ?: "",
+                        standardYieldQuantity = quantity,
+                        yieldUnitOptionId = state.selectedYieldUnitOptionId,
+                        notes = state.notes.trim().ifBlank { null }
+                    )
+                )
+                _events.send(PreparationRecipeEditorEvent.Saved)
+            }
+            true
+        } catch (e: Exception) {
+            _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
+            false
+        } finally {
+            _uiState.update { it.copy(isSaving = false) }
+        }
+    }
+
+    fun onActivateClick() {
+        if (_uiState.value.isSaving || _uiState.value.isActivating) return
+        _uiState.update { it.copy(showActivateConfirmation = true) }
+    }
+
+    fun onActivateConfirm() {
+        val rId = recipeId ?: return
+        if (_uiState.value.isActivating) return
+        _uiState.update { it.copy(showActivateConfirmation = false, isActivating = true, inlineError = null) }
         viewModelScope.launch {
             try {
-                val restaurant = restaurantRepository.getRestaurant()
-                if (restaurant == null) {
-                    _uiState.update { it.copy(inlineError = UiMessage.Resource(R.string.error_generic)) }
-                    return@launch
+                // 1. Save pending changes if needed
+                if (hasUnsavedChanges()) {
+                    if (!saveInternal(ignoreActivating = true)) {
+                        // Saving failed, error already shown in inlineError
+                        return@launch
+                    }
                 }
 
-                if (recipeId == null) {
-                    val newId = preparationRecipeRepository.createDraft(
-                        CreatePreparationRecipeCommand(
-                            restaurantId = restaurant.id,
-                            outputIngredientId = state.selectedOutputIngredient.id,
-                            name = trimmedName,
-                            standardYieldQuantity = quantity,
-                            yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                            notes = state.notes.trim().ifBlank { null }
-                        )
-                    )
-                    _events.send(PreparationRecipeEditorEvent.Created(newId))
-                } else {
-                    preparationRecipeRepository.updateDraft(
-                        UpdatePreparationRecipeCommand(
-                            recipeId = recipeId,
-                            name = trimmedName ?: "",
-                            standardYieldQuantity = quantity,
-                            yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                            notes = state.notes.trim().ifBlank { null }
-                        )
-                    )
-                    _events.send(PreparationRecipeEditorEvent.Saved)
-                }
+                // 2. Activate
+                preparationRecipeRepository.activate(rId)
+                // Navigation will be handled by the observer in loadData() when status changes to ACTIVE
             } catch (e: Exception) {
                 _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
             } finally {
-                _uiState.update { it.copy(isSaving = false) }
+                _uiState.update { it.copy(isActivating = false) }
             }
         }
+    }
+
+    fun dismissActivateConfirmation() {
+        _uiState.update { it.copy(showActivateConfirmation = false) }
     }
 
     fun onRemoveComponent(componentId: PreparationRecipeComponentId) {

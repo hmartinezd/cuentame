@@ -45,7 +45,7 @@ class BackupMetadataConsistencyTest {
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 4
+        every { appVersionProvider.databaseSchemaVersion } returns 5
 
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         coEvery { preferencesSource.loadPreferences() } returns BackupPreferencesDto("SYSTEM", true, "en-US")
@@ -63,8 +63,8 @@ class BackupMetadataConsistencyTest {
 
     @Test
     fun planner_validator_and_helper_produce_consistent_metadata() = runBlocking<Unit> {
-        // 1. Create a representative schema-4 snapshot
-        val snapshot = createPopulatedSchema4Snapshot()
+        // 1. Create a representative schema-5 snapshot
+        val snapshot = createPopulatedSchema5Snapshot()
         val restaurant = Restaurant(RestaurantId("r1"), "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         
         // 2. Generate plan through Planner
@@ -78,7 +78,7 @@ class BackupMetadataConsistencyTest {
         // 3. Generate manifest through Test Helper (Local copy for JVM test)
         val helperManifest = createManifestForSnapshot(
             snapshot = snapshot,
-            schemaVersion = 4,
+            schemaVersion = 5,
             restaurantName = "Test",
             localeTag = "en-US",
             currencyCode = "USD"
@@ -98,12 +98,12 @@ class BackupMetadataConsistencyTest {
         // 6. Compare Validator-accepted manifest against original
         assertThat(validatedManifest.tableMetadata).isEqualTo(plannerMetadata)
         
-        // 7. Verify literal expected schema-4 keys
-        val expectedKeys = BackupFormatV1Contract.expectedTablesForSchema(4)
+        // 7. Verify literal expected schema-5 keys
+        val expectedKeys = BackupFormatV1Contract.expectedTablesForSchema(5)
         assertThat(plannerMetadata.keys).containsExactlyElementsIn(expectedKeys)
     }
 
-    private fun createPopulatedSchema4Snapshot() = BackupSnapshotDto(
+    private fun createPopulatedSchema5Snapshot() = BackupSnapshotDto(
         restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("r1", "Test", "USD", "en-US", 100, 100, null)),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),

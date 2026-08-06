@@ -80,7 +80,7 @@ class ReportingIsolationTest {
         db.supplierDao().insert(SupplierEntity("s2", rest2.value, "SECRET", "secret", null, null, null, true, 0L, 0L, null))
 
         // Purchase belongs to Rest 1 but references Supplier 2 (malformed cross-restaurant link)
-        val receipt = PurchaseReceiptEntity("p1", rest1.value, "s2", null, 1000L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 1000L, null)
+        val receipt = PurchaseReceiptEntity("p1", rest1.value, "s2", null, 1000L, DocumentStatus.POSTED.name, null, null, null, 0L, 0L, 1000L, null)
         db.purchaseDao().insertReceipt(receipt)
         db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing1", "area1", "opt1", "1", "1", "100.0", "1", null, 0L, 0L))
 
@@ -104,7 +104,7 @@ class ReportingIsolationTest {
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt2", "ing2", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
         // Waste event and Movement belong to Rest 1 (CORRUPTION: reference Rest 2 metadata)
-        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
+        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m1", rest1.value, "ing2", "area2", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
 
         val period = com.miara.cuentame.core.domain.service.ReportingPeriod(java.time.Instant.ofEpochMilli(500), java.time.Instant.ofEpochMilli(1500))
@@ -126,7 +126,7 @@ class ReportingIsolationTest {
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt2", "ing2", "opt", "opt", null, BigDecimal.ONE, true, true, true, true, 0L, 0L, null))
 
         // Waste event and Movement belong to Rest 1 (CORRUPTION: reference Rest 2 metadata)
-        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
+        db.wasteDao().insert(WasteEventEntity("w1", rest1.value, "ing2", "area2", "opt2", "10", "1", "SPOILED", 1000L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1000L, null))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m1", rest1.value, "ing2", "area2", InventoryMovementType.WASTE.name, "-10", "1", "50.0", 1000L, SourceDocumentType.WASTE_EVENT.name, "w1", "op1", "m1", null, 0L))
 
         val activity = db.inventoryMovementDao().observeRecentWasteActivity(rest1.value, 10).first()

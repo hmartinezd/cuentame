@@ -72,6 +72,9 @@ fun PreparationRecipeEditorRoute(
         onRemoveComponent = viewModel::onRemoveComponent,
         onMoveComponentUp = viewModel::onMoveComponentUp,
         onMoveComponentDown = viewModel::onMoveComponentDown,
+        onActivateClick = viewModel::onActivateClick,
+        onActivateConfirm = viewModel::onActivateConfirm,
+        onDismissActivateConfirmation = viewModel::dismissActivateConfirmation,
         onRetry = viewModel::onRetry,
         onDismissDiscardConfirmation = viewModel::dismissDiscardConfirmation,
         onDiscardChanges = onBack
@@ -94,6 +97,9 @@ fun PreparationRecipeEditorScreen(
     onRemoveComponent: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentUp: (PreparationRecipeComponentId) -> Unit,
     onMoveComponentDown: (PreparationRecipeComponentId) -> Unit,
+    onActivateClick: () -> Unit,
+    onActivateConfirm: () -> Unit,
+    onDismissActivateConfirmation: () -> Unit,
     onRetry: () -> Unit,
     onDismissDiscardConfirmation: () -> Unit,
     onDiscardChanges: () -> Unit
@@ -101,6 +107,7 @@ fun PreparationRecipeEditorScreen(
     val focusManager = LocalFocusManager.current
     val loadState = uiState.loadState
     val isEditing = loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady
+    val isBusy = uiState.isSaving || uiState.isActivating || uiState.isReordering
 
     Scaffold(
         modifier = Modifier.testTag("preparation_recipe_editor_screen"),
@@ -114,33 +121,72 @@ fun PreparationRecipeEditorScreen(
                 },
                 modifier = Modifier.testTag("recipe_editor_app_bar"),
                 navigationIcon = {
-                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("preparation_back_button")) {
+                    IconButton(
+                        onClick = onBackClick, 
+                        modifier = Modifier.testTag("preparation_back_button"),
+                        enabled = !uiState.isActivating
+                    ) {
                         Icon(
                             imageVector = if (isEditing) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Close,
                             contentDescription = stringResource(if (isEditing) R.string.action_back else android.R.string.cancel)
                         )
                     }
-                },
-                actions = {
-                    if (loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.CreateReady || 
-                        loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady) {
-                        TextButton(
+                }
+            )
+        },
+        bottomBar = {
+            if (loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.CreateReady || 
+                loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.testTag("recipe_editor_action_bar")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Button(
                             onClick = {
                                 focusManager.clearFocus()
                                 onSaveClick()
                             },
-                            enabled = !uiState.isSaving,
-                            modifier = Modifier.testTag("recipe_editor_save")
+                            enabled = !isBusy,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("recipe_editor_save")
                         ) {
                             if (uiState.isSaving) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                             } else {
                                 Text(stringResource(R.string.action_save))
                             }
                         }
+
+                        if (isEditing) {
+                            Button(
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    onActivateClick()
+                                },
+                                enabled = !isBusy,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("recipe_editor_activate")
+                            ) {
+                                if (uiState.isActivating) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                } else {
+                                    Text(stringResource(R.string.activate_recipe))
+                                }
+                            }
+                        }
                     }
                 }
-            )
+            }
         }
     ) { padding ->
         when (loadState) {
@@ -217,7 +263,7 @@ fun PreparationRecipeEditorScreen(
                             selectedIngredient = uiState.selectedOutputIngredient,
                             ingredients = uiState.availableIngredients,
                             onIngredientSelected = onOutputIngredientSelected,
-                            enabled = !isEditing && !uiState.isSaving,
+                            enabled = !isEditing && !isBusy,
                             isError = false,
                             testTag = "recipe_output_ingredient_selector"
                         )
@@ -229,7 +275,7 @@ fun PreparationRecipeEditorScreen(
                             onValueChange = onRecipeNameChanged,
                             modifier = Modifier.fillMaxWidth().testTag("recipe_name_field"),
                             label = { Text(stringResource(R.string.recipe_name)) },
-                            enabled = !uiState.isSaving,
+                            enabled = !isBusy,
                             singleLine = true,
                             placeholder = { Text(uiState.selectedOutputIngredient?.name ?: "") }
                         )
@@ -242,7 +288,7 @@ fun PreparationRecipeEditorScreen(
                                 onValueChange = onYieldQuantityChanged,
                                 label = stringResource(R.string.standard_yield),
                                 modifier = Modifier.weight(1f),
-                                enabled = !uiState.isSaving,
+                                enabled = !isBusy,
                                 isError = uiState.yieldQuantityError,
                                 errorText = uiState.yieldQuantityErrorText?.toRecipeDisplayText(),
                                 testTag = "recipe_yield_quantity_field"
@@ -253,7 +299,7 @@ fun PreparationRecipeEditorScreen(
                                 options = uiState.availableUnitOptions,
                                 onOptionSelected = onYieldUnitOptionSelected,
                                 modifier = Modifier.weight(1f),
-                                enabled = !uiState.isSaving && uiState.selectedOutputIngredient != null,
+                                enabled = !isBusy && uiState.selectedOutputIngredient != null,
                                 testTag = "recipe_yield_unit_selector"
                             )
                         }
@@ -265,7 +311,7 @@ fun PreparationRecipeEditorScreen(
                             onValueChange = onNotesChanged,
                             modifier = Modifier.fillMaxWidth().testTag("recipe_notes_field"),
                             label = { Text(stringResource(R.string.notes)) },
-                            enabled = !uiState.isSaving,
+                            enabled = !isBusy,
                             minLines = 3
                         )
                     }
@@ -320,7 +366,7 @@ fun PreparationRecipeEditorScreen(
                                     onMoveDown = { onMoveComponentDown(component.id) },
                                     isFirst = component == components.first(),
                                     isLast = component == components.last(),
-                                    enabled = !uiState.isSaving && !uiState.isReordering
+                                    enabled = !isBusy
                                 )
                                 HorizontalDivider()
                             }
@@ -339,6 +385,18 @@ fun PreparationRecipeEditorScreen(
             dismissText = stringResource(R.string.action_stay),
             onConfirm = onDiscardChanges,
             onDismiss = onDismissDiscardConfirmation
+        )
+    }
+
+    if (uiState.showActivateConfirmation) {
+        LifecycleConfirmationDialog(
+            modifier = Modifier.testTag("recipe_activate_confirm_dialog"),
+            title = stringResource(R.string.confirm_activation_title),
+            message = stringResource(R.string.confirm_activation_message),
+            confirmText = stringResource(R.string.activate_recipe),
+            dismissText = stringResource(android.R.string.cancel),
+            onConfirm = onActivateConfirm,
+            onDismiss = onDismissActivateConfirmation
         )
     }
 }

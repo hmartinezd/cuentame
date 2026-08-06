@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.inventory.DocumentStatus
@@ -40,6 +42,9 @@ class HomeUiTest {
     @Inject
     lateinit var testStateManager: TestStateManager
 
+    @Inject
+    lateinit var restoreGate: RestoreOperationGate
+
     private val testNow = Instant.parse("2026-01-01T12:00:00Z")
 
     @Before
@@ -47,6 +52,7 @@ class HomeUiTest {
         hiltRule.inject()
         runBlocking {
             testStateManager.resetAll()
+            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
         }
     }
 
@@ -102,7 +108,7 @@ class HomeUiTest {
             db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId, "ing-1", "2.0", testNow.toEpochMilli()))
             
             // Seed posted purchase of $100
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", restId, null, null, testNow.minus(1, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", restId, null, null, testNow.minus(1, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "5", "5", "100.0", "20.0", null, 0L, 0L))
         }
         

@@ -69,11 +69,11 @@ class InventoryActivityDaoTest {
     @Test
     fun observeInventoryActivityRows_joinsAllSourceTypes() = runBlocking {
         // 1. Purchase
-        purchaseDao.insertReceipt(PurchaseReceiptEntity("p1", restId, null, "INV-123", 1000L, DocumentStatus.POSTED.name, null, null, 0L, 0L, 1000L, null))
+        purchaseDao.insertReceipt(PurchaseReceiptEntity("p1", restId, null, "INV-123", 1000L, DocumentStatus.POSTED.name, null, null, null, 0L, 0L, 1000L, null))
         movementDao.insert(createMovement("m1", InventoryMovementType.PURCHASE, SourceDocumentType.PURCHASE_RECEIPT, "p1", 1000L))
 
         // 2. Waste
-        wasteDao.insert(WasteEventEntity("w1", restId, ing1, area1, "opt1", "1", "1", "SPOILED", 1100L, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1100L, null))
+        wasteDao.insert(WasteEventEntity("w1", restId, ing1, area1, "opt1", "1", "1", "SPOILED", 1100L, null, null, null, DocumentStatus.POSTED.name, 0L, 0L, 1100L, null))
         movementDao.insert(createMovement("m2", InventoryMovementType.WASTE, SourceDocumentType.WASTE_EVENT, "w1", 1100L))
 
         // 3. Stock Count

@@ -169,7 +169,7 @@ object BackupManifestContractValidator {
             "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
         )
 
-        if (manifest.databaseSchemaVersion == 4) {
+        if (manifest.databaseSchemaVersion >= 4) {
             actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
             actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
             actualCounts["production_batches"] = snapshot.productionBatches.size

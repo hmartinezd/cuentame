@@ -28,6 +28,7 @@ class WasteMovementHistoryValidatorTest {
         effectiveAt = 1000L,
         notes = null,
         attachmentPath = null,
+        attachmentDisplayName = null,
         status = DocumentStatus.POSTED.name,
         createdAt = 500L,
         updatedAt = 2000L,

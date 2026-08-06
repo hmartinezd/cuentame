@@ -434,6 +434,105 @@ class PreparationRecipeEditorViewModelTest {
         assertThat(viewModel.uiState.value.loadState).isEqualTo(PreparationScreenLoadState.CreateReady)
     }
 
+    @Test
+    fun `onActivateClick - shows confirmation dialog`() = runTest {
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        viewModel.onActivateClick()
+        assertThat(viewModel.uiState.value.showActivateConfirmation).isTrue()
+    }
+
+    @Test
+    fun `onActivateConfirm - saves pending changes before activation`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(createIngredient("i1", "Ing 1")))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(createUnitOption("o1", "i1"))
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onRecipeNameChanged("New Name")
+        viewModel.onActivateConfirm()
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            preparationRecipeRepository.updateDraft(match { it.name == "New Name" })
+            preparationRecipeRepository.activate(recipe.id)
+        }
+    }
+
+    @Test
+    fun `onActivateConfirm - fails activation if save fails`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(createIngredient("i1", "Ing 1")))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(createUnitOption("o1", "i1"))
+        coEvery { preparationRecipeRepository.updateDraft(any()) } throws RuntimeException("Save failed")
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onRecipeNameChanged("New Name")
+        viewModel.onActivateConfirm()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { preparationRecipeRepository.activate(any()) }
+        assertThat(viewModel.uiState.value.inlineError).isNotNull()
+    }
+
+    @Test
+    fun `onActivateConfirm - handles activation error`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(createIngredient("i1", "Ing 1")))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(createUnitOption("o1", "i1"))
+        coEvery { preparationRecipeRepository.activate(any()) } throws RuntimeException("Activation failed")
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onActivateConfirm()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.inlineError).isNotNull()
+        assertThat(viewModel.uiState.value.isActivating).isFalse()
+    }
+
+    @Test
+    fun `onActivateConfirm - ignores multiple taps`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        coEvery { preparationRecipeRepository.activate(any()) } coAnswers {
+            delay(1000)
+        }
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        advanceUntilIdle()
+
+        viewModel.onActivateConfirm()
+        viewModel.onActivateConfirm()
+        
+        advanceUntilIdle()
+        coVerify(exactly = 1) { preparationRecipeRepository.activate(any()) }
+    }
+
     private fun createIngredient(id: String, name: String) = Ingredient(
         id = IngredientId(id),
         restaurantId = restaurantId,

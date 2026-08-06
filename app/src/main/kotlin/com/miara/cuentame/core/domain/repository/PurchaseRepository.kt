@@ -111,7 +111,8 @@ interface PurchaseRepository {
 
     suspend fun attachDocument(
         receiptId: PurchaseReceiptId,
-        storedLocation: String
+        storedLocation: String,
+        displayName: String
     )
 
     suspend fun removeDocument(

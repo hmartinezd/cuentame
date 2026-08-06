@@ -51,7 +51,7 @@ class BackupSnapshotIntegrityNumericTest {
     @Test
     fun `rejects negative purchase quantity`() {
         val dto = createEmptyDto().copy(
-            purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", restId, null, null, 0, "DRAFT", null, null, 0, 0, null, null)),
+            purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", restId, null, null, 0, "DRAFT", null, null, null, 0, 0, null, null)),
             purchaseLines = listOf(PurchaseLineBackupDto("l1", "p1", "i1", "a1", "o1", "-1.0", "-1.0", "1.0", "1.0", null, 0, 0))
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
@@ -61,7 +61,7 @@ class BackupSnapshotIntegrityNumericTest {
     @Test
     fun `rejects malformed decimal`() {
         val dto = createEmptyDto().copy(
-            purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", restId, null, null, 0, "DRAFT", null, null, 0, 0, null, null)),
+            purchaseReceipts = listOf(PurchaseReceiptBackupDto("p1", restId, null, null, 0, "DRAFT", null, null, null, 0, 0, null, null)),
             purchaseLines = listOf(PurchaseLineBackupDto("l1", "p1", "i1", "a1", "o1", "not-a-number", "1.0", "1.0", "1.0", null, 0, 0))
         )
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)

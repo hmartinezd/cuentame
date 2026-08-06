@@ -132,6 +132,9 @@ class PreparationRecipeUiTest {
             composeTestRule.waitForIdle()
 
             // 6. Add Component
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("add_recipe_component").fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("add_recipe_component", useUnmergedTree = true).assertIsDisplayed().performClick()
             composeTestRule.onNodeWithTag("recipe_component_ingredient_selector").performClick()
             composeTestRule.onNodeWithTag("ingredient_option_i1").performClick()

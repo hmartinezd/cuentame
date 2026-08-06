@@ -523,7 +523,7 @@
     <string name="discard_changes_message">You have unsaved changes. Are you sure you want to leave?</string>
     <string name="search_recipes">Search recipes…</string>
     <string name="confirm_activation_title">Activate Recipe?</string>
-    <string name="confirm_activation_message">Activating this recipe will make it available for production batches. The recipe will become read-only.</string>
+    <string name="confirm_activation_message">An active recipe becomes available for production and is no longer directly editable until moved back to draft. Do you want to activate it now?</string>
     <string name="confirm_move_to_draft_title">Move to Draft?</string>
     <string name="confirm_move_to_draft_message">Moving this recipe back to Draft will allow you to edit its components and yield. It will not be available for new production batches until reactivated.</string>
     <string name="confirm_archive_recipe_title">Archive Recipe?</string>
@@ -778,6 +778,9 @@
     <string name="purchase_import_failed">Failed to import document.</string>
     <string name="purchase_document_unavailable">Document unavailable</string>
     <string name="purchase_remove_document_confirmation">Are you sure you want to remove the invoice document?</string>
-    <string name="purchase_pdf_render_failure">Failed to render PDF.</string>
-    <string name="purchase_image_decode_failure">Failed to display image.</string>
+    <string name="purchase_pdf_render_failure">Could not open PDF document.</string>
+    <string name="purchase_pdf_empty">The PDF document has no pages.</string>
+    <string name="purchase_pdf_page_render_failure">Could not render page %1$d.</string>
+    <string name="purchase_document_pdf_page_desc">Invoice page %1$d</string>
+    <string name="purchase_image_decode_failure">Could not load the image document.</string>
 </resources>

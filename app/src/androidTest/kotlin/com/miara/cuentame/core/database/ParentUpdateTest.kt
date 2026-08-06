@@ -52,7 +52,7 @@ class ParentUpdateTest {
         val receiptId = "receipt_1"
         val receipt = PurchaseReceiptEntity(
             receiptId, "rest_1", null, null, Instant.now().toEpochMilli(),
-            DocumentStatus.DRAFT.name, null, null, 0, 0, null, null
+            DocumentStatus.DRAFT.name, null, null, null, 0, 0, null, null
         )
         db.purchaseDao().insertReceipt(receipt)
 

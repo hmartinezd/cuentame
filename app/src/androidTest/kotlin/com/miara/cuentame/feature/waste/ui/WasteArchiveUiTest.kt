@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.IngredientEntity
 import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
@@ -50,6 +52,9 @@ class WasteArchiveUiTest {
     @Inject
     lateinit var attachmentPermissionManager: com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 
+    @Inject
+    lateinit var restoreGate: RestoreOperationGate
+
     private val restaurantId = "rest_archive_test"
     private val archivedIngId = "ing_archived"
     private val activeIngId = "ing_active"
@@ -65,6 +70,7 @@ class WasteArchiveUiTest {
         
         runBlocking {
             testStateManager.resetAll()
+            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
 
             val now = Instant.now()
             database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", now.toEpochMilli(), now.toEpochMilli(), null))
@@ -142,6 +148,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Archived ref test",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -191,6 +198,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Change archived test",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -249,6 +257,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Missing ing",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -293,6 +302,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Missing area",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -330,6 +340,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Missing option",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,
@@ -367,6 +378,7 @@ class WasteArchiveUiTest {
                     effectiveAt = now,
                     notes = "Cross opt test",
                     attachmentPath = null,
+                    attachmentDisplayName = null,
                     status = DocumentStatus.DRAFT.name,
                     createdAt = now,
                     updatedAt = now,

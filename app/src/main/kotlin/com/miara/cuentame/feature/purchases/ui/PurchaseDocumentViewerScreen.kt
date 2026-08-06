@@ -38,11 +38,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDocumentViewerState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDocumentViewerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -119,6 +122,7 @@ fun PurchaseDocumentViewerScreen(
 fun PdfViewer(file: File) {
     var renderer by remember(file) { mutableStateOf<PdfRenderer?>(null) }
     var error by remember { mutableStateOf<Throwable?>(null) }
+    val mutex = remember { Mutex() }
 
     LaunchedEffect(file) {
         withContext(Dispatchers.IO) {
@@ -133,16 +137,25 @@ fun PdfViewer(file: File) {
 
     if (error != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.purchase_pdf_render_failure))
+            Text(
+                text = stringResource(R.string.purchase_pdf_render_failure),
+                modifier = Modifier.testTag("purchase_document_pdf_error")
+            )
         }
     } else if (renderer != null) {
         val pageCount = renderer!!.pageCount
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().testTag("purchase_document_pdf_list"),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            items(pageCount) { pageIndex ->
-                PdfPage(renderer!!, pageIndex)
+        if (pageCount == 0) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.purchase_pdf_empty))
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().testTag("purchase_document_pdf_list"),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                items(pageCount) { pageIndex ->
+                    PdfPage(renderer!!, pageIndex, mutex)
+                }
             }
         }
     } else {
@@ -159,30 +172,62 @@ fun PdfViewer(file: File) {
 }
 
 @Composable
-fun PdfPage(renderer: PdfRenderer, pageIndex: Int) {
+fun PdfPage(renderer: PdfRenderer, pageIndex: Int, mutex: Mutex) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var error by remember { mutableStateOf<Boolean>(false) }
     
     LaunchedEffect(pageIndex) {
         withContext(Dispatchers.IO) {
-            try {
-                val page = renderer.openPage(pageIndex)
-                // Render at a reasonable scale.
-                // We use a fixed width for now, but in a real app we might want to adapt to screen width.
-                val width = 1024
-                val height = (width * page.height) / page.width
-                val b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                bitmap = b
-                page.close()
-            } catch (_: Exception) {}
+            mutex.withLock {
+                try {
+                    val page = renderer.openPage(pageIndex)
+                    try {
+                        // Cap bitmap dimensions based on viewport and memory limits
+                        val maxWidth = 2048 
+                        val scale = if (page.width > maxWidth) maxWidth.toFloat() / page.width else 1.0f
+                        val width = (page.width * scale).toInt().coerceAtLeast(1)
+                        val height = (page.height * scale).toInt().coerceAtLeast(1)
+                        
+                        val b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        bitmap = b
+                    } finally {
+                        page.close()
+                    }
+                } catch (e: Exception) {
+                    error = true
+                }
+            }
+        }
+    }
+
+    DisposableEffect(bitmap) {
+        onDispose {
+            // Bitmaps should be managed carefully to avoid OOM, but Compose's ImageBitmap handles this mostly.
+            // If we manually created it, we should ideally recycle it if it's large.
+            // bitmap?.recycle() // Be careful with recycling if Compose might still use it
         }
     }
     
-    if (bitmap != null) {
+    if (error) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .padding(8.dp)
+                .testTag("purchase_document_pdf_page_error_$pageIndex"),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(stringResource(R.string.purchase_pdf_page_render_failure, pageIndex + 1), color = MaterialTheme.colorScheme.error)
+        }
+    } else if (bitmap != null) {
         Image(
             bitmap = bitmap!!.asImageBitmap(),
-            contentDescription = "Page ${pageIndex + 1}",
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            contentDescription = stringResource(R.string.purchase_document_pdf_page_desc, pageIndex + 1),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .testTag("purchase_document_pdf_page_$pageIndex"),
             contentScale = ContentScale.FillWidth
         )
     } else {
@@ -194,15 +239,29 @@ fun PdfPage(renderer: PdfRenderer, pageIndex: Int) {
 
 @Composable
 fun ImageViewer(file: File) {
+    var hasError by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AsyncImage(
-            model = file,
-            contentDescription = stringResource(R.string.purchase_invoice_document),
-            modifier = Modifier.fillMaxSize().testTag("purchase_document_image"),
-            contentScale = ContentScale.Fit,
-            onError = {
-                // handle error
-            }
-        )
+        if (hasError) {
+            Text(
+                text = stringResource(R.string.purchase_image_decode_failure),
+                modifier = Modifier.testTag("purchase_document_image_error")
+            )
+        } else {
+            SubcomposeAsyncImage(
+                model = file,
+                contentDescription = stringResource(R.string.purchase_invoice_document),
+                modifier = Modifier.fillMaxSize().testTag("purchase_document_image"),
+                contentScale = ContentScale.Fit,
+                loading = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                },
+                onError = {
+                    hasError = true
+                }
+            )
+        }
     }
 }

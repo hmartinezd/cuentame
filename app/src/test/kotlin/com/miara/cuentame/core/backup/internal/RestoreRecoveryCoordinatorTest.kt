@@ -336,7 +336,9 @@ class RestoreRecoveryCoordinatorTest {
         val rollbackSnapshot = RestoreDatabaseRollbackSnapshot(
             snapshot = createMinimalSnapshot(),
             purchaseReceiptAttachmentPaths = emptyMap(),
-            wasteEventAttachmentPaths = emptyMap()
+            purchaseReceiptAttachmentDisplayNames = emptyMap(),
+            wasteEventAttachmentPaths = emptyMap(),
+            wasteEventAttachmentDisplayNames = emptyMap()
         )
         rollbackFile.writeText(codecs.writer.encodeToString(rollbackSnapshot))
         every { storage.getRollbackSnapshotFile(sessionId) } returns rollbackFile

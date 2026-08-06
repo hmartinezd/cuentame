@@ -194,7 +194,7 @@ class DashboardDaoTest {
     }
 
     private fun createReceipt(id: String, restId: String, date: Long, status: String) = PurchaseReceiptEntity(
-        id, restId, null, null, date, status, null, null, 0L, 0L, if(status=="POSTED") date else null, null
+        id, restId, null, null, date, status, null, null, null, 0L, 0L, if(status=="POSTED") date else null, null
     )
     
     private fun createLine(id: String, receiptId: String, total: String) = PurchaseLineEntity(
@@ -202,7 +202,7 @@ class DashboardDaoTest {
     )
     
     private fun createWaste(id: String, restId: String, ingId: String, optId: String, date: Long, status: String) = WasteEventEntity(
-        id, restId, ingId, "area1", optId, "1", "1", "SPOILED", date, null, null, status, 0L, 0L, if(status=="POSTED") date else null, null
+        id, restId, ingId, "area1", optId, "1", "1", "SPOILED", date, null, null, null, status, 0L, 0L, if(status=="POSTED") date else null, null
     )
     
     private fun createWasteMovement(id: String, restId: String, ingId: String, docId: String, value: String) = InventoryMovementEntity(

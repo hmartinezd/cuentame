@@ -302,10 +302,12 @@ fun LifecycleConfirmationDialog(
     message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
     confirmText: String = stringResource(R.string.action_confirm),
     dismissText: String = stringResource(R.string.action_back)
 ) {
     AlertDialog(
+        modifier = modifier,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },

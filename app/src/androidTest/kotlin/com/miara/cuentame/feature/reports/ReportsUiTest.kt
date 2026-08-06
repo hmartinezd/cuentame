@@ -4,6 +4,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import com.miara.cuentame.MainActivity
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.inventory.DocumentStatus
@@ -40,6 +42,9 @@ class ReportsUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var restoreGate: RestoreOperationGate
+
     private val testNow = Instant.now()
 
     @Before
@@ -50,6 +55,7 @@ class ReportsUiTest {
             preferencesRepository.clearAll()
             db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             preferencesRepository.setAppLocaleTag("en-US")
+            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
         }
     }
 
@@ -86,27 +92,27 @@ class ReportsUiTest {
 
         // 2. Purchases
         // Current POSTED: 100
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", restId, null, null, testNow.minus(1, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", restId, null, null, testNow.minus(1, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
         db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-a", "area-1", "opt-a", "5", "5", "100.0", "1", null, 0L, 0L))
         // Previous POSTED: 50
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, testNow.minus(40, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_old", restId, null, null, testNow.minus(40, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
         db.purchaseDao().insertLine(PurchaseLineEntity("l_old", "p_old", "ing-a", "area-1", "opt-a", "5", "5", "50.0", "1", null, 0L, 0L))
         // Current DRAFT (Excluded): 700
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_draft", restId, null, null, testNow.minus(2, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.DRAFT.name, null, null, 0L, 0L, null, null))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_draft", restId, null, null, testNow.minus(2, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.DRAFT.name, null, null, null, 0L, 0L, null, null))
         db.purchaseDao().insertLine(PurchaseLineEntity("l_draft", "p_draft", "ing-a", "area-1", "opt-a", "1", "1", "700.0", "1", null, 0L, 0L))
         // Current VOIDED (Excluded): 900
-        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_void", restId, null, null, testNow.minus(3, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.VOIDED.name, null, null, 0L, 0L, testNow.toEpochMilli(), testNow.toEpochMilli()))
+        db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_void", restId, null, null, testNow.minus(3, ChronoUnit.HOURS).toEpochMilli(), DocumentStatus.VOIDED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), testNow.toEpochMilli()))
         db.purchaseDao().insertLine(PurchaseLineEntity("l_void", "p_void", "ing-a", "area-1", "opt-a", "1", "1", "900.0", "1", null, 0L, 0L))
 
         // 3. Waste
         // Current POSTED: 10 (Historical)
-        db.wasteDao().insert(WasteEventEntity("w1", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(4, ChronoUnit.HOURS).toEpochMilli(), null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null))
+        db.wasteDao().insert(WasteEventEntity("w1", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(4, ChronoUnit.HOURS).toEpochMilli(), null, null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m1", restId, "ing-a", "area-1", InventoryMovementType.WASTE.name, "-1", "1", "10.0", testNow.minus(4, ChronoUnit.HOURS).toEpochMilli(), SourceDocumentType.WASTE_EVENT.name, "w1", "op-1", "m1", null, 0L))
         // Previous POSTED: 4
-        db.wasteDao().insert(WasteEventEntity("w_old", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(40, ChronoUnit.DAYS).toEpochMilli(), null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null))
+        db.wasteDao().insert(WasteEventEntity("w_old", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(40, ChronoUnit.DAYS).toEpochMilli(), null, null, null, DocumentStatus.POSTED.name, 0L, 0L, testNow.toEpochMilli(), null))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m_old", restId, "ing-a", "area-1", InventoryMovementType.WASTE.name, "-1", "1", "4.0", testNow.minus(40, ChronoUnit.DAYS).toEpochMilli(), SourceDocumentType.WASTE_EVENT.name, "w_old", "op-2", "m_old", null, 0L))
         // Current VOIDED (Excluded): 20
-        db.wasteDao().insert(WasteEventEntity("w_void", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(5, ChronoUnit.HOURS).toEpochMilli(), null, null, DocumentStatus.VOIDED.name, 0L, 0L, testNow.toEpochMilli(), testNow.toEpochMilli()))
+        db.wasteDao().insert(WasteEventEntity("w_void", restId, "ing-a", "area-1", "opt-a", "1", "1", "SPOILED", testNow.minus(5, ChronoUnit.HOURS).toEpochMilli(), null, null, null, DocumentStatus.VOIDED.name, 0L, 0L, testNow.toEpochMilli(), testNow.toEpochMilli()))
         db.inventoryMovementDao().insert(InventoryMovementEntity("m_void", restId, "ing-a", "area-1", InventoryMovementType.WASTE.name, "-1", "1", "20.0", testNow.minus(5, ChronoUnit.HOURS).toEpochMilli(), SourceDocumentType.WASTE_EVENT.name, "w_void", "op-3", "m_void", null, 0L))
 
         // 4. Stock Count
@@ -200,11 +206,11 @@ class ReportsUiTest {
             db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
 
             // 5 days ago: 70
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_7", restId, null, null, testNow.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_7", restId, null, null, testNow.minus(5, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p_7", "ing-1", "area-1", "opt-1", "1", "1", "70.0", "1", null, 0L, 0L))
             
             // 15 days ago: 100
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_30", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_30", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l2", "p_30", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
         }
 
@@ -245,11 +251,11 @@ class ReportsUiTest {
             db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
 
             // 15 days ago: 100
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_30", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_30", restId, null, null, testNow.minus(15, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p_30", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
             
             // 60 days ago: 200
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_90", restId, null, null, testNow.minus(60, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p_90", restId, null, null, testNow.minus(60, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l2", "p_90", "ing-1", "area-1", "opt-1", "1", "1", "200.0", "1", null, 0L, 0L))
         }
 
@@ -305,7 +311,7 @@ class ReportsUiTest {
         runBlocking {
             db.ingredientDao().insert(IngredientEntity("ing-1", "rest-1", "Chicken", "chicken", null, "mass_lb", null, null, null, null, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
             db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("opt-1", "ing-1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, testNow.toEpochMilli(), testNow.toEpochMilli(), null))
-            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "rest-1", null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, 0L, 0L, testNow.toEpochMilli(), null))
+            db.purchaseDao().insertReceipt(PurchaseReceiptEntity("p1", "rest-1", null, null, testNow.minus(2, ChronoUnit.DAYS).toEpochMilli(), DocumentStatus.POSTED.name, null, null, null, 0L, 0L, testNow.toEpochMilli(), null))
             db.purchaseDao().insertLine(PurchaseLineEntity("l1", "p1", "ing-1", "area-1", "opt-1", "1", "1", "100.0", "1", null, 0L, 0L))
         }
 

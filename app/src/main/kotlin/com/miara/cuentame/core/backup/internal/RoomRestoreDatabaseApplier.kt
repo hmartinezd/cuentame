@@ -1,8 +1,10 @@
 package com.miara.cuentame.core.backup.internal
 
 import androidx.room.withTransaction
+import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.backup.platform.BackupMapper
+import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
@@ -31,12 +33,16 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         val dto = BackupMapper.mapToDto(entitySnapshot, emptyMap())
         
         val purchasePaths = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentPath }
+        val purchaseNames = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentDisplayName }
         val wastePaths = entitySnapshot.wasteEvents.associate { it.id to it.attachmentPath }
+        val wasteNames = entitySnapshot.wasteEvents.associate { it.id to it.attachmentDisplayName }
         
         return RestoreDatabaseRollbackSnapshot(
             snapshot = dto,
             purchaseReceiptAttachmentPaths = purchasePaths,
-            wasteEventAttachmentPaths = wastePaths
+            purchaseReceiptAttachmentDisplayNames = purchaseNames,
+            wasteEventAttachmentPaths = wastePaths,
+            wasteEventAttachmentDisplayNames = wasteNames
         )
     }
 
@@ -50,7 +56,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 useOriginalPaths = false, 
                 attachmentMapping = attachmentMapping,
                 rollbackPaths = emptyMap(), 
-                rollbackWastePaths = emptyMap()
+                rollbackDisplayNames = emptyMap(),
+                rollbackWastePaths = emptyMap(),
+                rollbackWasteDisplayNames = emptyMap()
             )
             
             if (!verifySnapshot(snapshot, manifest)) {
@@ -67,7 +75,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 useOriginalPaths = true, 
                 attachmentMapping = emptyMap(),
                 rollbackPaths = rollback.purchaseReceiptAttachmentPaths,
-                rollbackWastePaths = rollback.wasteEventAttachmentPaths
+                rollbackDisplayNames = rollback.purchaseReceiptAttachmentDisplayNames,
+                rollbackWastePaths = rollback.wasteEventAttachmentPaths,
+                rollbackWasteDisplayNames = rollback.wasteEventAttachmentDisplayNames
             )
             
             if (!verifyRollback(rollback)) {
@@ -89,7 +99,7 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 val livePath = when (ref.recordType) {
-                    "PURCHASE_RECEIPT" -> "attachments/purchases/${ref.recordId}/${att.displayName}"
+                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
                     else -> "attachments/other/${att.attachmentId}/${att.displayName}"
                 }
@@ -104,7 +114,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         useOriginalPaths: Boolean,
         attachmentMapping: Map<Pair<String, String>, String>,
         rollbackPaths: Map<String, String?>,
-        rollbackWastePaths: Map<String, String?>
+        rollbackDisplayNames: Map<String, String?>,
+        rollbackWastePaths: Map<String, String?>,
+        rollbackWasteDisplayNames: Map<String, String?>
     ) {
         restoreDao.insertRestaurants(snapshot.restaurants.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertInventoryAreas(snapshot.inventoryAreas.map { BackupMapper.run { it.toEntity() } })
@@ -121,7 +133,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         val receipts = snapshot.purchaseReceipts.map { dto ->
             val entity = BackupMapper.run { dto.toEntity() }
             if (useOriginalPaths) {
-                entity.copy(attachmentPath = rollbackPaths[dto.id])
+                entity.copy(
+                    attachmentPath = rollbackPaths[dto.id],
+                    attachmentDisplayName = rollbackDisplayNames[dto.id]
+                )
             } else {
                 val livePath = dto.attachmentId?.let { attachmentMapping["PURCHASE_RECEIPT" to dto.id] }
                 entity.copy(attachmentPath = livePath)
@@ -137,7 +152,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         val waste = snapshot.wasteEvents.map { dto ->
             val entity = BackupMapper.run { dto.toEntity() }
             if (useOriginalPaths) {
-                entity.copy(attachmentPath = rollbackWastePaths[dto.id])
+                entity.copy(
+                    attachmentPath = rollbackWastePaths[dto.id],
+                    attachmentDisplayName = rollbackWasteDisplayNames[dto.id]
+                )
             } else {
                 val livePath = dto.attachmentId?.let { attachmentMapping["WASTE_EVENT" to dto.id] }
                 entity.copy(attachmentPath = livePath)
@@ -157,7 +175,7 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 val livePath = when (ref.recordType) {
-                    "PURCHASE_RECEIPT" -> "attachments/purchases/${ref.recordId}/${att.displayName}"
+                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
                     else -> "attachments/other/${att.attachmentId}/${att.displayName}"
                 }
@@ -176,9 +194,13 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         if (currentDto != expected.snapshot) return false
         
         val currentPurchasePaths = current.purchaseReceipts.associate { it.id to it.attachmentPath }
+        val currentPurchaseNames = current.purchaseReceipts.associate { it.id to it.attachmentDisplayName }
         val currentWastePaths = current.wasteEvents.associate { it.id to it.attachmentPath }
+        val currentWasteNames = current.wasteEvents.associate { it.id to it.attachmentDisplayName }
         
         return currentPurchasePaths == expected.purchaseReceiptAttachmentPaths &&
-               currentWastePaths == expected.wasteEventAttachmentPaths
+               currentPurchaseNames == expected.purchaseReceiptAttachmentDisplayNames &&
+               currentWastePaths == expected.wasteEventAttachmentPaths &&
+               currentWasteNames == expected.wasteEventAttachmentDisplayNames
     }
 }

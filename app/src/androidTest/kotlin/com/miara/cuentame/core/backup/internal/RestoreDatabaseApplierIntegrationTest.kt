@@ -86,7 +86,7 @@ class RestoreDatabaseApplierIntegrationTest {
         
         val snapshot = createMinimalSnapshot("r1", "R").copy(
             purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "r1", null, null, 0, "DRAFT", null, null, 0, 0, null, null
+                "p1", "r1", null, null, 0, "DRAFT", null, null, null, 0, 0, null, null
             ))
         )
         
@@ -115,7 +115,7 @@ class RestoreDatabaseApplierIntegrationTest {
     fun current_attachment_references_are_detected() = runBlocking {
         db.restaurantDao().insert(RestaurantEntity("r1", "R", "USD", "en-US", 0, 0, null))
         db.purchaseDao().insertReceipt(PurchaseReceiptEntity(
-            "p1", "r1", null, null, 0, "DRAFT", null, "some/path", 0, 0, null, null
+            "p1", "r1", null, null, 0, "DRAFT", null, "some/path", null, 0, 0, null, null
         ))
         
         assertThat(applier.hasExistingAttachmentReferences()).isTrue()

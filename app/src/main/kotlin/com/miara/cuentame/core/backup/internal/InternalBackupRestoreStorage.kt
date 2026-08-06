@@ -28,6 +28,8 @@ class InternalBackupRestoreStorage @Inject constructor(
         return File(getRollbackDir(sessionId), "rollback_snapshot.json")
     }
 
+    fun getFilesDir(): File = context.filesDir
+
     fun saveRollbackSnapshot(sessionId: String, json: String) {
         val file = getRollbackSnapshotFile(sessionId)
         val atomicFile = AtomicFile(file)

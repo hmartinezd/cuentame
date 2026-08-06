@@ -1,6 +1,10 @@
 package com.miara.cuentame.core.backup.internal
 
 import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.backup.ChecksumProvider
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
+import com.miara.cuentame.core.model.backup.BackupAttachmentReference
+import com.miara.cuentame.core.model.backup.BackupManifest
 import io.mockk.*
 import org.junit.Before
 import org.junit.Rule
@@ -14,15 +18,17 @@ class RestoreAttachmentInstallerTest {
     val tempFolder = TemporaryFolder()
 
     private val storage = mockk<InternalBackupRestoreStorage>()
+    private val checksumProvider = mockk<ChecksumProvider>()
     private lateinit var installer: RestoreAttachmentInstaller
 
     @Before
     fun setup() {
-        installer = RestoreAttachmentInstaller(storage)
+        every { storage.getFilesDir() } returns tempFolder.root
+        installer = RestoreAttachmentInstaller(storage, checksumProvider)
     }
 
     @Test
-    fun `captureRollback moves live to rollback`() {
+    fun `captureRollback copies live to rollback`() {
         val liveDir = tempFolder.newFolder("live")
         val rollbackDir = tempFolder.newFolder("rollback")
         File(liveDir, "file.txt").writeText("data")
@@ -32,21 +38,44 @@ class RestoreAttachmentInstallerTest {
         
         installer.captureRollback("session")
         
-        assertThat(liveDir.exists()).isFalse()
+        assertThat(liveDir.exists()).isTrue()
         assertThat(File(rollbackDir, "attachments/file.txt").exists()).isTrue()
     }
 
     @Test
-    fun `installStaged moves staged to live`() {
-        val liveDir = File(tempFolder.root, "live")
+    fun `installStaged installs based on manifest`() {
         val stagedDir = tempFolder.newFolder("staged")
-        File(stagedDir, "new.txt").writeText("new")
+        val attId = "att1"
+        val attFile = File(stagedDir, "attachments/$attId/file.jpg").apply {
+            parentFile.mkdirs()
+            writeText("bytes")
+        }
         
+        val liveDir = tempFolder.newFolder("live")
         every { storage.getLiveAttachmentDir() } returns liveDir
+
+        val manifest = createManifestWithAttachment(attId, "file.jpg", "p1")
         
-        installer.installStaged("session", stagedDir)
+        installer.installStaged("session", stagedDir, manifest)
         
-        assertThat(stagedDir.exists()).isFalse()
-        assertThat(File(liveDir, "new.txt").exists()).isTrue()
+        val expectedFile = File(tempFolder.root, "attachments/purchases/p1/file.jpg")
+        assertThat(expectedFile.exists()).isTrue()
+        assertThat(expectedFile.readText()).isEqualTo("bytes")
+    }
+
+    private fun createManifestWithAttachment(id: String, name: String, recordId: String): BackupManifest {
+        return mockk<BackupManifest>().apply {
+            every { attachments } returns listOf(
+                BackupAttachmentMetadata(
+                    attachmentId = id,
+                    archivePath = "attachments/$id/$name",
+                    displayName = name,
+                    mimeType = "image/jpeg",
+                    sizeBytes = 5,
+                    checksumSha256 = "hash",
+                    referencedBy = listOf(BackupAttachmentReference("PURCHASE_RECEIPT", recordId))
+                )
+            )
+        }
     }
 }
