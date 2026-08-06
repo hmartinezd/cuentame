@@ -521,6 +521,7 @@
     <string name="last_updated_format">Last updated: %1$s</string>
     <string name="discard_changes_title">Discard changes?</string>
     <string name="discard_changes_message">You have unsaved changes. Are you sure you want to leave?</string>
+    <string name="recipe_saved">Recipe saved</string>
     <string name="search_recipes">Search recipes…</string>
     <string name="confirm_activation_title">Activate Recipe?</string>
     <string name="confirm_activation_message">An active recipe becomes available for production and is no longer directly editable until moved back to draft. Do you want to activate it now?</string>

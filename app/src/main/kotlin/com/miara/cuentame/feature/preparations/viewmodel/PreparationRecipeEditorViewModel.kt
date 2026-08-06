@@ -266,101 +266,130 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     }
 
     fun onSave() {
+        if (_uiState.value.isOperating) return
+
+        val validation = validateForm()
+        if (validation is FormValidationResult.Invalid) {
+            _uiState.update { state ->
+                val isYieldError = validation.message is UiMessage.Resource &&
+                    (validation.message.id == R.string.error_invalid_decimal || 
+                     validation.message.id == R.string.error_quantity_positive)
+                
+                state.copy(
+                    inlineError = validation.message,
+                    yieldQuantityError = isYieldError,
+                    yieldQuantityErrorText = if (isYieldError && validation.message is UiMessage.Resource) validation.message else null
+                )
+            }
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true, inlineError = null) }
         viewModelScope.launch {
-            val result = saveInternal()
-            if (result is DraftSaveResult.Success) {
+            val result = persistDraft((validation as FormValidationResult.Valid).form)
+            _uiState.update { it.copy(isSaving = false) }
+
+            if (result is DraftPersistenceResult.Success) {
                 if (recipeId == null) {
                     _events.send(PreparationRecipeEditorEvent.Created(result.recipeId))
                 } else {
                     _events.send(PreparationRecipeEditorEvent.DraftSaved)
                 }
+            } else if (result is DraftPersistenceResult.Failure) {
+                _uiState.update { it.copy(inlineError = result.message) }
             }
         }
     }
 
-    private sealed interface DraftSaveResult {
-        data class Success(val recipeId: PreparationRecipeId) : DraftSaveResult
-        data class Failure(val message: UiMessage) : DraftSaveResult
+    private data class ValidatedRecipeForm(
+        val outputIngredientId: IngredientId,
+        val name: String?,
+        val standardYieldQuantity: BigDecimal?,
+        val yieldUnitOptionId: com.miara.cuentame.core.common.ids.IngredientUnitOptionId?,
+        val notes: String?
+    )
+
+    private sealed interface FormValidationResult {
+        data class Valid(val form: ValidatedRecipeForm) : FormValidationResult
+        data class Invalid(val message: UiMessage) : FormValidationResult
     }
 
-    private suspend fun saveInternal(): DraftSaveResult {
+    private sealed interface DraftPersistenceResult {
+        data class Success(val recipeId: PreparationRecipeId) : DraftPersistenceResult
+        data class Failure(val message: UiMessage) : DraftPersistenceResult
+    }
+
+    private fun validateForm(): FormValidationResult {
         val state = _uiState.value
-        if (state.isOperating) return DraftSaveResult.Failure(UiMessage.Resource(R.string.error_generic))
         if (state.selectedOutputIngredient == null) {
-            val msg = UiMessage.Resource(R.string.error_select_output_ingredient)
-            _uiState.update { it.copy(inlineError = msg) }
-            return DraftSaveResult.Failure(msg)
+            return FormValidationResult.Invalid(UiMessage.Resource(R.string.error_select_output_ingredient))
         }
 
         val quantity = if (state.yieldQuantity.isBlank()) null else {
             try {
                 BigDecimal(state.yieldQuantity)
             } catch (e: Exception) {
-                val msg = UiMessage.Resource(R.string.error_invalid_decimal)
-                _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = msg, inlineError = null) }
-                return DraftSaveResult.Failure(msg)
+                return FormValidationResult.Invalid(UiMessage.Resource(R.string.error_invalid_decimal))
             }
         }
 
         if (quantity != null && quantity <= BigDecimal.ZERO) {
-            val msg = UiMessage.Resource(R.string.error_quantity_positive)
-            _uiState.update { it.copy(yieldQuantityError = true, yieldQuantityErrorText = msg, inlineError = null) }
-            return DraftSaveResult.Failure(msg)
+            return FormValidationResult.Invalid(UiMessage.Resource(R.string.error_quantity_positive))
         }
 
         // Standard yield must have both quantity and unit if either is present
         if ((quantity != null && state.selectedYieldUnitOptionId == null) || (quantity == null && state.selectedYieldUnitOptionId != null)) {
-            val msg = UiMessage.Resource(R.string.error_yield_pairing_required)
-            _uiState.update { it.copy(inlineError = msg) }
-            return DraftSaveResult.Failure(msg)
+            return FormValidationResult.Invalid(UiMessage.Resource(R.string.error_yield_pairing_required))
         }
 
         val trimmedName = state.recipeName.trim().ifBlank { null }
         if (recipeId != null && trimmedName == null) {
-            val msg = UiMessage.Resource(R.string.error_recipe_name_required)
-            _uiState.update { it.copy(inlineError = msg) }
-            return DraftSaveResult.Failure(msg)
+            return FormValidationResult.Invalid(UiMessage.Resource(R.string.error_recipe_name_required))
         }
 
-        _uiState.update { it.copy(isSaving = true, inlineError = null) }
+        return FormValidationResult.Valid(
+            ValidatedRecipeForm(
+                outputIngredientId = state.selectedOutputIngredient.id,
+                name = trimmedName,
+                standardYieldQuantity = quantity,
+                yieldUnitOptionId = state.selectedYieldUnitOptionId,
+                notes = state.notes.trim().ifBlank { null }
+            )
+        )
+    }
+
+    private suspend fun persistDraft(form: ValidatedRecipeForm): DraftPersistenceResult {
         return try {
             val restaurant = restaurantRepository.getRestaurant()
-            if (restaurant == null) {
-                val msg = UiMessage.Resource(R.string.error_generic)
-                _uiState.update { it.copy(inlineError = msg) }
-                return DraftSaveResult.Failure(msg)
-            }
+                ?: return DraftPersistenceResult.Failure(UiMessage.Resource(R.string.error_generic))
 
             val savedId = if (recipeId == null) {
                 preparationRecipeRepository.createDraft(
                     CreatePreparationRecipeCommand(
                         restaurantId = restaurant.id,
-                        outputIngredientId = state.selectedOutputIngredient.id,
-                        name = trimmedName,
-                        standardYieldQuantity = quantity,
-                        yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                        notes = state.notes.trim().ifBlank { null }
+                        outputIngredientId = form.outputIngredientId,
+                        name = form.name,
+                        standardYieldQuantity = form.standardYieldQuantity,
+                        yieldUnitOptionId = form.yieldUnitOptionId,
+                        notes = form.notes
                     )
                 )
             } else {
                 preparationRecipeRepository.updateDraft(
                     UpdatePreparationRecipeCommand(
                         recipeId = recipeId,
-                        name = trimmedName ?: "",
-                        standardYieldQuantity = quantity,
-                        yieldUnitOptionId = state.selectedYieldUnitOptionId,
-                        notes = state.notes.trim().ifBlank { null }
+                        name = form.name ?: "",
+                        standardYieldQuantity = form.standardYieldQuantity,
+                        yieldUnitOptionId = form.yieldUnitOptionId,
+                        notes = form.notes
                     )
                 )
                 recipeId
             }
-            DraftSaveResult.Success(savedId)
+            DraftPersistenceResult.Success(savedId)
         } catch (e: Exception) {
-            val msg = e.toPreparationRecipeUserMessage()
-            _uiState.update { it.copy(inlineError = msg) }
-            DraftSaveResult.Failure(msg)
-        } finally {
-            _uiState.update { it.copy(isSaving = false) }
+            if (e is CancellationException) throw e
+            DraftPersistenceResult.Failure(e.toPreparationRecipeUserMessage())
         }
     }
 
@@ -372,26 +401,35 @@ class PreparationRecipeEditorViewModel @Inject constructor(
     fun onActivateConfirm() {
         val rId = recipeId ?: return
         if (_uiState.value.isOperating) return
+        
         _uiState.update { it.copy(showActivateConfirmation = false, isActivating = true, inlineError = null) }
+        
         viewModelScope.launch {
             try {
-                // 1. Save pending changes if needed
+                // 1. Validate
+                val validation = validateForm()
+                if (validation is FormValidationResult.Invalid) {
+                    _uiState.update { it.copy(inlineError = validation.message, isActivating = false) }
+                    return@launch
+                }
+
+                // 2. Persist pending changes if necessary
                 if (hasUnsavedChanges()) {
-                    val saveResult = saveInternal()
-                    if (saveResult is DraftSaveResult.Failure) {
-                        // Saving failed, error already shown in inlineError
+                    val persistResult = persistDraft((validation as FormValidationResult.Valid).form)
+                    if (persistResult is DraftPersistenceResult.Failure) {
+                        _uiState.update { it.copy(inlineError = persistResult.message, isActivating = false) }
                         return@launch
                     }
                 }
 
-                // 2. Activate
+                // 3. Activate
                 preparationRecipeRepository.activate(rId)
                 // Navigation will be handled by the observer in loadData() when status changes to ACTIVE
             } catch (e: Exception) {
-                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage()) }
-            } finally {
-                _uiState.update { it.copy(isActivating = false) }
+                if (e is CancellationException) throw e
+                _uiState.update { it.copy(inlineError = e.toPreparationRecipeUserMessage(), isActivating = false) }
             }
+            // Note: isActivating remains true if successful until navigation triggers destination disposal
         }
     }
 

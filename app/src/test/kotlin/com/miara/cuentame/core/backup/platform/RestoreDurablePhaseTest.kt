@@ -61,7 +61,7 @@ class RestoreDurablePhaseTest {
         }
 
         recoveryCoordinator = RestoreRecoveryCoordinator(
-            journal, storage, databaseApplier, preferencesApplier, codecs
+            journal, storage, databaseApplier, preferencesApplier, attachmentInstaller, codecs
         )
         
         coordinator = BackupRestoreCoordinatorImpl(

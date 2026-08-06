@@ -23,6 +23,7 @@ class RestoreRecoveryCoordinatorTest {
     private val storage = mockk<InternalBackupRestoreStorage>()
     private val databaseApplier = mockk<RestoreDatabaseApplier>(relaxed = true)
     private val preferencesApplier = mockk<RestorePreferencesApplier>(relaxed = true)
+    private val attachmentInstaller = mockk<RestoreAttachmentInstaller>(relaxed = true)
     private val codecs = BackupJsonCodecs()
 
     private lateinit var coordinator: RestoreRecoveryCoordinator
@@ -30,7 +31,7 @@ class RestoreRecoveryCoordinatorTest {
     @Before
     fun setup() {
         coordinator = RestoreRecoveryCoordinator(
-            journal, storage, databaseApplier, preferencesApplier, codecs
+            journal, storage, databaseApplier, preferencesApplier, attachmentInstaller, codecs
         )
         every { preferencesApplier.validate(any()) } returns true
         every { journal.write(any()) } just Runs
@@ -50,7 +51,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `recoverIfNeeded cleans up session when mutation not started`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.deleteOrThrow() } just Runs
@@ -65,7 +66,7 @@ class RestoreRecoveryCoordinatorTest {
     @Test
     fun `recoverIfNeeded performs rollback when mutation occurred`() = runTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         
         val rollbackSnapshot = setupRollbackFile("session")
@@ -88,7 +89,7 @@ class RestoreRecoveryCoordinatorTest {
     @Test
     fun `recovery handles ROLLING_BACK phase correctly`() = runTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        val dto = RestoreJournalDto("session", RestorePhase.ROLLING_BACK, "hash", prefs, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLING_BACK, "hash", prefs, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         
         setupRollbackFile("session")
@@ -112,7 +113,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `retry from COMPLETED performs cleanup only`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.deleteOrThrow() } just Runs
@@ -127,7 +128,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `durable COMPLETED cleanup failure retries cleanup without rollback`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.deleteOrThrow() } just Runs
@@ -143,7 +144,7 @@ class RestoreRecoveryCoordinatorTest {
     @Test
     fun `recovery requires recovery when preference verification fails`() = runTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         
         setupRollbackFile("session")
@@ -167,7 +168,7 @@ class RestoreRecoveryCoordinatorTest {
     @Test
     fun `recovery is idempotent`() = runTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         setupRollbackFile("session")
         
@@ -202,7 +203,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `missing rollback snapshot after mutation results in RecoveryRequired`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.MUTATION_STARTED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.MUTATION_STARTED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.getRollbackSnapshotFile("session") } returns File(tempFolder.root, "missing")
         
@@ -216,7 +217,7 @@ class RestoreRecoveryCoordinatorTest {
     @Test
     fun `recovery fails if database rollback fails`() = runTest {
         val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.DATABASE_APPLIED, "hash", prefs, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         setupRollbackFile("session")
         
@@ -232,7 +233,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `cleanup failure from COMPLETED returns RecoveryRequired`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
         
@@ -246,7 +247,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `ROLLBACK_CAPTURED cleanup failure preserves journal`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_CAPTURED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
         
@@ -260,7 +261,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `ROLLBACK_COMPLETED cleanup failure preserves journal`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.ROLLBACK_COMPLETED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } throws java.io.IOException("Cleanup failed")
         
@@ -274,7 +275,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `COMPLETED journal deletion failure remains retryable`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         every { storage.cleanupSessionOrThrow("session") } just Runs
         every { journal.deleteOrThrow() } throws java.io.IOException("Delete failed")
@@ -290,7 +291,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `retry succeeds after cleanup failure becomes available`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 0)
         
         // First try fails
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
@@ -309,7 +310,7 @@ class RestoreRecoveryCoordinatorTest {
 
     @Test
     fun `generic RECOVERY_REQUIRED preserves evidence`() = runTest {
-        val dto = RestoreJournalDto("session", RestorePhase.RECOVERY_REQUIRED, "hash", null, 0)
+        val dto = RestoreJournalDto("session", RestorePhase.RECOVERY_REQUIRED, "hash", null, emptyList(), 0)
         every { journal.read() } returns RestoreJournalReadResult.Present(dto)
         
         val result = coordinator.recoverIfNeeded()

@@ -355,6 +355,7 @@ class RoomPurchaseRepository @Inject constructor(
 
             val updated = existing.copy(
                 attachmentPath = null,
+                attachmentDisplayName = null,
                 updatedAt = timeProvider.now().toEpochMilli()
             )
 

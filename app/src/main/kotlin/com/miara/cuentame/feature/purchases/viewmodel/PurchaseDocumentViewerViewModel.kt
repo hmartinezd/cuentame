@@ -47,8 +47,11 @@ class PurchaseDocumentViewerViewModel @Inject constructor(
             try {
                 val receipt = purchaseRepository.getReceipt(receiptId)
                 val path = receipt?.attachmentPath
+                val displayName = receipt?.attachmentDisplayName
                 if (path != null) {
-                    val metadata = documentStore.inspect(path)
+                    val metadata = documentStore.inspect(path)?.let { m ->
+                        if (displayName != null) m.copy(displayName = displayName) else m
+                    }
                     if (metadata != null) {
                         _uiState.value = PurchaseDocumentViewerState.Ready(metadata)
                     } else {

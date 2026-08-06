@@ -241,6 +241,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                             throw IllegalStateException("Rollback preference verification failed")
                         }
 
+                        // Verify attachment inventory before marking rollback as completed
+                        attachmentInstaller.verifyInventory(inventory)
+
                         val rollbackCompletedJournal = currentJournal.copy(phase = RestorePhase.ROLLBACK_COMPLETED)
                         journal.write(rollbackCompletedJournal)
                         currentJournal = rollbackCompletedJournal

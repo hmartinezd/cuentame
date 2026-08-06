@@ -98,13 +98,24 @@ class RoomRestoreDatabaseApplier @Inject constructor(
     private fun buildAttachmentMapping(manifest: BackupManifest): Map<Pair<String, String>, String> {
         val mapping = mutableMapOf<Pair<String, String>, String>()
         for (att in manifest.attachments) {
+            // Validate sanitized display name
+            PurchaseAttachmentLocation.validateSegment(att.displayName)
+            
             for (ref in att.referencedBy) {
+                // Validate record ID segment safety
+                PurchaseAttachmentLocation.validateSegment(ref.recordId)
+                
                 val livePath = when (ref.recordType) {
                     "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
-                    else -> "attachments/other/${att.attachmentId}/${att.displayName}"
+                    else -> throw IllegalArgumentException("Unsupported record type in manifest: ${ref.recordType}")
                 }
-                mapping[ref.recordType to ref.recordId] = livePath
+                
+                val key = ref.recordType to ref.recordId
+                if (mapping.containsKey(key)) {
+                    throw IllegalStateException("Duplicate attachment reference for $key")
+                }
+                mapping[key] = livePath
             }
         }
         return mapping
@@ -184,7 +195,7 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 val livePath = when (ref.recordType) {
                     "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
-                    else -> "attachments/other/${att.attachmentId}/${att.displayName}"
+                    else -> throw IllegalArgumentException("Unsupported record type in manifest: ${ref.recordType}")
                 }
                 livePathToAttachmentId[livePath] = att.attachmentId
             }

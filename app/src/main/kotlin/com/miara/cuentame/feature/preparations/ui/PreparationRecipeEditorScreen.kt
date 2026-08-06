@@ -40,19 +40,22 @@ fun PreparationRecipeEditorRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events = viewModel.events
+    val snackbarHostState = remember { SnackbarHostState() }
+    val savedMessage = stringResource(R.string.recipe_saved)
 
     val backHandler = {
         viewModel.onBackAction(onBack)
     }
 
-    BackHandler(onBack = backHandler)
+    BackHandler(onBack = backHandler, enabled = !uiState.isActivating)
 
     LaunchedEffect(events) {
         events.collect { event ->
             when (event) {
                 is PreparationRecipeEditorEvent.Created -> onRecipeCreated(event.recipeId)
-                is PreparationRecipeEditorEvent.Saved -> onSaveSuccess()
-                is PreparationRecipeEditorEvent.DeletedOrArchived -> onBack()
+                PreparationRecipeEditorEvent.DraftSaved -> {
+                    snackbarHostState.showSnackbar(savedMessage)
+                }
                 is PreparationRecipeEditorEvent.NavigateToDetail -> onNavigateToDetail(event.recipeId)
             }
         }
@@ -60,6 +63,7 @@ fun PreparationRecipeEditorRoute(
 
     PreparationRecipeEditorScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBackClick = backHandler,
         onSaveClick = viewModel::onSave,
         onRecipeNameChanged = viewModel::onRecipeNameChanged,
@@ -85,6 +89,7 @@ fun PreparationRecipeEditorRoute(
 @Composable
 fun PreparationRecipeEditorScreen(
     uiState: PreparationRecipeEditorUiState,
+    snackbarHostState: SnackbarHostState,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
     onRecipeNameChanged: (String) -> Unit,
@@ -107,10 +112,11 @@ fun PreparationRecipeEditorScreen(
     val focusManager = LocalFocusManager.current
     val loadState = uiState.loadState
     val isEditing = loadState is com.miara.cuentame.feature.preparations.viewmodel.PreparationScreenLoadState.EditReady
-    val isBusy = uiState.isSaving || uiState.isActivating || uiState.isReordering
+    val isBusy = uiState.isOperating
 
     Scaffold(
         modifier = Modifier.testTag("preparation_recipe_editor_screen"),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { 
@@ -332,6 +338,7 @@ fun PreparationRecipeEditorScreen(
                                 Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
                                 TextButton(
                                     onClick = onAddComponent,
+                                    enabled = !isBusy,
                                     modifier = Modifier.testTag("add_recipe_component")
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null)

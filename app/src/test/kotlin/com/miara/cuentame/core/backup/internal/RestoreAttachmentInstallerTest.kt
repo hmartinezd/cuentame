@@ -35,6 +35,7 @@ class RestoreAttachmentInstallerTest {
         
         every { storage.getLiveAttachmentDir() } returns liveDir
         every { storage.getRollbackDir("session") } returns rollbackDir
+        every { checksumProvider.calculateChecksum(any()) } returns "hash"
         
         installer.captureRollback("session")
         

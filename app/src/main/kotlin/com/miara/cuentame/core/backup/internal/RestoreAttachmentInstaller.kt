@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup.internal
 
+import com.miara.cuentame.core.backup.BackupLimits
 import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.ChecksumProvider
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
@@ -28,19 +29,56 @@ class RestoreAttachmentInstaller @Inject constructor(
     fun captureRollback(sessionId: String): List<RollbackAttachmentMetadata> {
         val liveDir = storage.getLiveAttachmentDir()
         val rollbackDir = storage.getRollbackDir(sessionId)
-        val inventory = mutableListOf<RollbackAttachmentMetadata>()
+        val target = File(rollbackDir, "attachments")
         
+        // Always create the rollback attachments directory to indicate capture was attempted
+        if (!target.exists() && !target.mkdirs()) {
+            throw IllegalStateException("Could not create rollback directory")
+        }
+
+        val inventory = mutableListOf<RollbackAttachmentMetadata>()
+        var totalBytes = 0L
+
         if (liveDir.exists()) {
-            val target = File(rollbackDir, "attachments")
-            liveDir.copyRecursively(target, overwrite = true)
+            val livePath = liveDir.canonicalFile.toPath()
+            val filesToCapture = liveDir.walkTopDown().filter { it.isFile }.toList()
             
-            target.walkTopDown().filter { it.isFile }.forEach { file ->
-                val relativePath = target.toPath().relativize(file.toPath()).toString()
-                val checksum = file.inputStream().use { checksumProvider.calculateChecksum(it) }
+            if (filesToCapture.size > BackupLimits.MAX_ATTACHMENT_COUNT) {
+                throw IllegalStateException("Rollback exceeds attachment count limit")
+            }
+
+            for (file in filesToCapture) {
+                val canonicalFile = file.canonicalFile
+                if (!canonicalFile.toPath().startsWith(livePath)) {
+                    throw IllegalStateException("Symlink traversal detected during capture: ${file.absolutePath}")
+                }
+                
+                if (file.length() > BackupLimits.MAX_SINGLE_DOCUMENT_BYTES) {
+                    throw IllegalStateException("File exceeds individual size limit: ${file.name}")
+                }
+                
+                totalBytes += file.length()
+                if (totalBytes > BackupLimits.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+                    throw IllegalStateException("Total rollback size exceeds limit")
+                }
+
+                val relativePath = livePath.relativize(canonicalFile.toPath()).toString()
+                // Validate relative path segments using project standards
+                relativePath.split(File.separator).forEach { PurchaseAttachmentLocation.validateSegment(it) }
+
+                val rollbackFile = File(target, relativePath)
+                val parent = rollbackFile.parentFile ?: throw IllegalStateException("Invalid rollback path")
+                if (!parent.exists() && !parent.mkdirs()) {
+                    throw IllegalStateException("Could not create directory: ${parent.absolutePath}")
+                }
+                
+                file.copyTo(rollbackFile, overwrite = true)
+                
+                val checksum = rollbackFile.inputStream().use { checksumProvider.calculateChecksum(it) }
                 inventory.add(
                     RollbackAttachmentMetadata(
                         relativePath = relativePath,
-                        sizeBytes = file.length(),
+                        sizeBytes = rollbackFile.length(),
                         checksumSha256 = checksum
                     )
                 )
@@ -54,9 +92,9 @@ class RestoreAttachmentInstaller @Inject constructor(
      */
     fun installStaged(sessionId: String, stagedDir: File, manifest: BackupManifest) {
         val filesDir = storage.getFilesDir()
-        
-        // Before installing new files, we clean the live directory (now that rollback is safe)
         val liveDir = storage.getLiveAttachmentDir()
+        
+        // Before installing new files, we clean the live directory
         if (liveDir.exists()) {
             if (!liveDir.deleteRecursively()) {
                 throw IllegalStateException("Could not clean live attachment directory")
@@ -76,10 +114,15 @@ class RestoreAttachmentInstaller @Inject constructor(
                     else -> throw IllegalArgumentException("Unsupported record type: ${ref.recordType}")
                 }
                 
-                val targetFile = PurchaseAttachmentLocation.resolveUnderFilesDir(filesDir, relativePath)
+                val targetFile = if (ref.recordType == "PURCHASE_RECEIPT") {
+                    PurchaseAttachmentLocation.resolvePurchaseDocument(filesDir, relativePath)
+                } else {
+                    PurchaseAttachmentLocation.resolveAttachmentRootEntry(filesDir, relativePath)
+                }
                 
-                if (!targetFile.parentFile!!.exists() && !targetFile.parentFile!!.mkdirs()) {
-                    throw IllegalStateException("Could not create directory: ${targetFile.parentFile}")
+                val parent = targetFile.parentFile ?: throw IllegalStateException("Invalid target path")
+                if (!parent.exists() && !parent.mkdirs()) {
+                    throw IllegalStateException("Could not create directory: ${parent.absolutePath}")
                 }
                 
                 stagedFile.copyTo(targetFile, overwrite = true)
@@ -97,19 +140,29 @@ class RestoreAttachmentInstaller @Inject constructor(
     fun rollback(sessionId: String) {
         val liveDir = storage.getLiveAttachmentDir()
         val rollbackDir = storage.getRollbackDir(sessionId)
-        val target = File(rollbackDir, "attachments")
+        val rollbackSource = File(rollbackDir, "attachments")
         
-        if (target.exists()) {
-            if (liveDir.exists()) {
-                if (!liveDir.deleteRecursively()) {
-                    throw IllegalStateException("Could not delete live dir during rollback")
-                }
+        if (!rollbackSource.exists()) {
+            throw IllegalStateException("Rollback source missing")
+        }
+
+        // 1. Move aside mutated live directory to a temporary path
+        val tempLive = File(liveDir.parentFile, "live_attachments_rollback_tmp_${System.currentTimeMillis()}")
+        if (liveDir.exists()) {
+            if (!liveDir.renameTo(tempLive)) {
+                liveDir.deleteRecursively()
             }
-            if (!target.renameTo(liveDir)) {
-                if (!target.copyRecursively(liveDir, overwrite = true)) {
-                    throw IllegalStateException("Could not copy rollback files to live")
-                }
+        }
+
+        // 2. Copy rollback files to live (ensures source survives if verification fails)
+        try {
+            if (!rollbackSource.copyRecursively(liveDir, overwrite = true)) {
+                throw IllegalStateException("Rollback copy failed")
             }
+        } catch (e: Exception) {
+            throw IllegalStateException("Rollback copy failed: ${e.message}", e)
+        } finally {
+            if (tempLive.exists()) tempLive.deleteRecursively()
         }
     }
 
@@ -126,7 +179,12 @@ class RestoreAttachmentInstaller @Inject constructor(
                     else -> throw IllegalArgumentException("Unsupported record type: ${ref.recordType}")
                 }
                 
-                val file = PurchaseAttachmentLocation.resolveUnderFilesDir(filesDir, relativePath)
+                val file = if (ref.recordType == "PURCHASE_RECEIPT") {
+                    PurchaseAttachmentLocation.resolvePurchaseDocument(filesDir, relativePath)
+                } else {
+                    PurchaseAttachmentLocation.resolveAttachmentRootEntry(filesDir, relativePath)
+                }
+
                 if (!file.exists()) {
                     throw IllegalStateException("Attachment missing: $relativePath")
                 }
@@ -147,11 +205,11 @@ class RestoreAttachmentInstaller @Inject constructor(
      */
     fun verifyInventory(expected: List<RollbackAttachmentMetadata>) {
         val liveDir = storage.getLiveAttachmentDir()
-        val livePath = liveDir.toPath()
+        val livePath = liveDir.canonicalFile.toPath()
 
         val actualFiles = if (liveDir.exists()) {
             liveDir.walkTopDown().filter { it.isFile }.associateBy {
-                livePath.relativize(it.toPath()).toString()
+                livePath.relativize(it.canonicalFile.toPath()).toString()
             }
         } else emptyMap()
 

@@ -74,8 +74,16 @@ class PurchaseDetailViewModel @Inject constructor(
 
     private val documentMetadataFlow = detailsFlow.flatMapLatest { details ->
         flow {
-            emit(details?.receipt?.attachmentPath?.let { path ->
-                documentStore.inspect(path)
+            val path = details?.receipt?.attachmentPath
+            val displayName = details?.receipt?.attachmentDisplayName
+            emit(path?.let { p ->
+                documentStore.inspect(p)?.let { metadata ->
+                    if (displayName != null) {
+                        metadata.copy(displayName = displayName)
+                    } else {
+                        metadata
+                    }
+                }
             })
         }
     }

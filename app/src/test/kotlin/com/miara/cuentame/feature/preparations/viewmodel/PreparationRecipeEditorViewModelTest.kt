@@ -445,6 +445,48 @@ class PreparationRecipeEditorViewModelTest {
     }
 
     @Test
+    fun `onActivateConfirm - save occurs before activate and NavigateToDetail is emitted after ACTIVE`() = runTest {
+        val recipe = createRecipe("rec1", "i1")
+        val recipeFlow = MutableStateFlow(recipe)
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns recipeFlow
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(createIngredient("i1", "Ing 1")))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(createUnitOption("o1", "i1"))
+
+        val viewModel = PreparationRecipeEditorViewModel(
+            preparationRecipeRepository, ingredientRepository, restaurantRepository, 
+            SavedStateHandle(mapOf("recipeId" to "rec1"))
+        )
+        val events = mutableListOf<PreparationRecipeEditorEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        viewModel.onRecipeNameChanged("New Name")
+        viewModel.onActivateConfirm()
+        
+        // Advance to trigger save and activate
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            preparationRecipeRepository.updateDraft(match { it.name == "New Name" })
+            preparationRecipeRepository.activate(recipe.id)
+        }
+
+        // Verify DraftSaved was NOT emitted during activation
+        assertThat(events.filterIsInstance<PreparationRecipeEditorEvent.DraftSaved>()).isEmpty()
+
+        // Observe ACTIVE state
+        recipeFlow.value = recipe.copy(status = PreparationRecipeStatus.ACTIVE)
+        advanceUntilIdle()
+
+        // Verify NavigateToDetail emitted exactly once
+        assertThat(events.filterIsInstance<PreparationRecipeEditorEvent.NavigateToDetail>()).hasSize(1)
+        assertThat(events.filterIsInstance<PreparationRecipeEditorEvent.NavigateToDetail>().first().recipeId).isEqualTo(recipe.id)
+        
+        job.cancel()
+    }
+
+    @Test
     fun `onActivateConfirm - saves pending changes before activation`() = runTest {
         val recipe = createRecipe("rec1", "i1")
         every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
@@ -456,6 +498,8 @@ class PreparationRecipeEditorViewModelTest {
             preparationRecipeRepository, ingredientRepository, restaurantRepository, 
             SavedStateHandle(mapOf("recipeId" to "rec1"))
         )
+        val events = mutableListOf<PreparationRecipeEditorEvent>()
+        val job = launch { viewModel.events.collect { events.add(it) } }
         advanceUntilIdle()
 
         viewModel.onRecipeNameChanged("New Name")
@@ -466,6 +510,10 @@ class PreparationRecipeEditorViewModelTest {
             preparationRecipeRepository.updateDraft(match { it.name == "New Name" })
             preparationRecipeRepository.activate(recipe.id)
         }
+
+        // Verify DraftSaved event was NOT emitted during activation-save
+        assertThat(events.filterIsInstance<PreparationRecipeEditorEvent.DraftSaved>()).isEmpty()
+        job.cancel()
     }
 
     @Test
@@ -516,6 +564,12 @@ class PreparationRecipeEditorViewModelTest {
     @Test
     fun `onActivateConfirm - ignores multiple taps`() = runTest {
         val recipe = createRecipe("rec1", "i1")
+        val ingredient = createIngredient("i1", "Ing 1")
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(listOf(ingredient))
+        every { preparationRecipeRepository.observeRecipes(any(), any()) } returns flowOf(emptyList())
+        coEvery { ingredientRepository.getUnitOptions(any(), any()) } returns listOf(createUnitOption("o1", "i1"))
+
         coEvery { preparationRecipeRepository.activate(any()) } coAnswers {
             delay(1000)
         }

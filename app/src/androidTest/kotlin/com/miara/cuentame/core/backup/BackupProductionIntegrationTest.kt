@@ -113,10 +113,10 @@ class BackupProductionIntegrationTest {
         }
         val storage = InternalBackupRestoreStorage(context)
         val journal = RestoreJournal(storage, codecs)
-        val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, codecs)
+        val attachmentInstaller = RestoreAttachmentInstaller(storage, mockk(relaxed = true))
+        val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, attachmentInstaller, codecs)
         
         val stager = BackupArchiveRestoreStager(codecs, processor, storage, fingerprinter)
-        val attachmentInstaller = RestoreAttachmentInstaller(storage, mockk(relaxed = true))
 
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
@@ -220,7 +220,14 @@ class BackupProductionIntegrationTest {
         
         // 5. Write journal in ROLLING_BACK state
         val prevPrefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        journal.write(RestoreJournalDto(sessionId, RestorePhase.ROLLING_BACK, "hash", prevPrefs, 0))
+        journal.write(RestoreJournalDto(
+            sessionId = sessionId,
+            phase = RestorePhase.ROLLING_BACK,
+            expectedArchiveFingerprint = "hash",
+            previousPreferences = prevPrefs,
+            attachmentInventory = emptyList(),
+            startedAt = 0
+        ))
         
         // 6. Mutate live database to state B
         db.restoreDao().clearAllInOrder()

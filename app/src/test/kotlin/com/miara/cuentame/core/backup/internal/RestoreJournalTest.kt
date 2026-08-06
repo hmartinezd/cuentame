@@ -35,7 +35,7 @@ class RestoreJournalTest {
 
     @Test
     fun `journal valid`() {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 123L)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 123L)
         journal.write(dto)
         
         val result = journal.read()
@@ -51,14 +51,14 @@ class RestoreJournalTest {
 
     @Test
     fun `journal atomic write succeeds`() {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 123L)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 123L)
         journal.write(dto)
         assertThat(journalFile.exists()).isTrue()
     }
 
     @Test
     fun `journal delete removes durable state`() {
-        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, 123L)
+        val dto = RestoreJournalDto("session", RestorePhase.COMPLETED, "hash", null, emptyList(), 123L)
         journal.write(dto)
         assertThat(journalFile.exists()).isTrue()
         

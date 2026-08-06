@@ -521,6 +521,7 @@
     <string name="last_updated_format">Última actualización: %1$s</string>
     <string name="discard_changes_title">¿Descartar cambios?</string>
     <string name="discard_changes_message">Tiene cambios sin guardar. ¿Está seguro de que desea salir?</string>
+    <string name="recipe_saved">Receta guardada</string>
     <string name="search_recipes">Buscar recetas…</string>
     <string name="confirm_activation_title">¿Activar receta?</string>
     <string name="confirm_activation_message">Una receta activa estará disponible para producción y ya no se podrá editar directamente hasta que se mueva a borrador. ¿Deseas activarla ahora?</string>
