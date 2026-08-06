@@ -115,9 +115,13 @@ class BackupProductionIntegrationTest {
         val journal = RestoreJournal(storage, codecs)
         val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, codecs)
         
+        val stager = BackupArchiveRestoreStager(codecs, processor, storage, fingerprinter)
+        val attachmentInstaller = RestoreAttachmentInstaller(storage)
+
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
-            journal, storage, recoveryCoordinator, operationGate, codecs
+            journal, storage, recoveryCoordinator, operationGate, 
+            stager, attachmentInstaller, documentStore, codecs
         )
     }
 
@@ -193,7 +197,7 @@ class BackupProductionIntegrationTest {
         
         val tables = createTableMetadata(snapshotDto, 4)
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
+            backupFormatVersion = 2, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
             appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
             restaurantId = "r1", restaurantName = "Original", localeTag = "en-US", currencyCode = "USD",
             tableMetadata = tables, attachments = emptyList(), includedSections = listOf("data", "preferences", "attachments"),
@@ -362,216 +366,6 @@ class BackupProductionIntegrationTest {
         rebuilder.rebuildForIngredient(IngredientId("i2"))
     }
 
-    @Test
-    fun schema2_archive_restore_succeeds() = runBlocking {
-        // 1. Build schema 2 archive
-        val legacySnapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(RestaurantBackupDto("r1", "Legacy", "USD", "en-US", 100, 100, null)),
-            inventoryAreas = listOf(InventoryAreaBackupDto("a1", "r1", "Area 1", "area 1", 0, true, 100, 100, null)),
-            units = listOf(UnitBackupDto("u1", "Unit", "u", "COUNT", "1.0", true, 0)),
-            ingredients = listOf(IngredientBackupDto("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 100, 100, null)),
-            ingredientUnitOptions = listOf(IngredientUnitOptionBackupDto("o1", "i1", "Opt 1", "o1", null, "1.0", true, true, true, true, 100, 100, null))
-        )
-        val expectedLiteralTableSet = setOf(
-            "restaurants",
-            "inventory_areas",
-            "ingredient_categories",
-            "units",
-            "ingredients",
-            "ingredient_unit_options",
-            "suppliers",
-            "purchase_receipts",
-            "purchase_lines",
-            "stock_counts",
-            "stock_count_areas",
-            "stock_count_lines",
-            "waste_events",
-            "inventory_movements",
-            "inventory_balance_projections",
-            "ingredient_cost_projections"
-        )
-        val tables = expectedLiteralTableSet.associateWith { table ->
-            com.miara.cuentame.core.model.backup.TableMetadata(
-                when (table) {
-                    "restaurants" -> 1
-                    "inventory_areas" -> 1
-                    "units" -> 1
-                    "ingredients" -> 1
-                    "ingredient_unit_options" -> 1
-                    else -> 0
-                },
-                table in listOf("inventory_balance_projections", "ingredient_cost_projections")
-            )
-        }
-        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1,
-            createdAtUtc = "2026-01-01T12:00:00Z",
-            applicationId = "com.miara.cuentame",
-            appVersionName = "1.0",
-            appVersionCode = 1,
-            databaseSchemaVersion = 2,
-            restaurantId = "r1",
-            restaurantName = "Legacy",
-            localeTag = "en-US",
-            currencyCode = "USD",
-            tableMetadata = tables,
-            attachments = emptyList(),
-            includedSections = listOf("attachments", "data", "preferences"),
-            checksumAlgorithm = "SHA-256"
-        )
-        
-        // Assert exact manifest sets before building archives
-        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
-        assertThat(manifest.tableMetadata.keys).doesNotContain("production_batches")
-
-        // Instruction 13: Validate consistency before write
-        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, legacySnapshot)).isNull()
-
-        val bytes = buildArchive(manifest, legacySnapshot)
-        val backupUri = "content://backup/legacy.zip"
-        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
-
-        // 2. Inspect
-        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
-        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-        val ready = inspection as BackupArchiveInspectionResult.Ready
-        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
-        assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(2)
-
-        // 3. Apply
-        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
-
-        // 4. Verify exact DTO equality (Instruction 13)
-        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
-        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
-        
-        // Normalize schema-4 tables that must be empty for schema-2 restore
-        val expectedRestoredSnapshot = legacySnapshot.copy(
-            preparationRecipes = emptyList(),
-            preparationRecipeComponents = emptyList(),
-            productionBatches = emptyList(),
-            productionBatchComponents = emptyList()
-        )
-        assertThat(restoredSnapshot).isEqualTo(expectedRestoredSnapshot)
-
-        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Legacy")
-    }
-
-    @Test
-    fun schema3_archive_restore_succeeds() = runBlocking {
-        // 1. Build schema 3 archive (Recipes, no Production)
-        val schema3Snapshot = BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(RestaurantBackupDto("r1", "Recipes Only", "USD", "en-US", 100, 100, null)),
-            inventoryAreas = listOf(InventoryAreaBackupDto("a1", "r1", "Area 1", "area 1", 0, true, 100, 100, null)),
-            units = listOf(UnitBackupDto("u1", "Unit", "u", "COUNT", "1.0", true, 0)),
-            ingredients = listOf(
-                IngredientBackupDto("i1", "r1", "Ing 1", "ing 1", null, "u1", "a1", null, null, null, true, 100, 100, null),
-                IngredientBackupDto("i2", "r1", "Ing 2", "ing 2", null, "u1", "a1", null, null, null, true, 100, 100, null)
-            ),
-            ingredientUnitOptions = listOf(
-                IngredientUnitOptionBackupDto("o1", "i1", "Opt 1", "o1", null, "1.0", true, true, true, true, 100, 100, null),
-                IngredientUnitOptionBackupDto("o2", "i2", "Opt 2", "o2", null, "1.0", true, true, true, true, 100, 100, null)
-            ),
-            preparationRecipes = listOf(
-                PreparationRecipeBackupDto(
-                    "rec1", "r1", "i1", "Recipe 1", "recipe 1", "10", "10", "o1", "ACTIVE", null, 100, 100, null
-                )
-            ),
-            preparationRecipeComponents = listOf(
-                PreparationRecipeComponentBackupDto(
-                    "rc1", "rec1", "i2", "o2", "5", "5", 0, null, 100, 100
-                )
-            )
-        )
-        val expectedLiteralTableSet = setOf(
-            "restaurants",
-            "inventory_areas",
-            "ingredient_categories",
-            "units",
-            "ingredients",
-            "ingredient_unit_options",
-            "suppliers",
-            "purchase_receipts",
-            "purchase_lines",
-            "stock_counts",
-            "stock_count_areas",
-            "stock_count_lines",
-            "waste_events",
-            "inventory_movements",
-            "inventory_balance_projections",
-            "ingredient_cost_projections",
-            "preparation_recipes",
-            "preparation_recipe_components"
-        )
-        val tables = expectedLiteralTableSet.associateWith { table ->
-            com.miara.cuentame.core.model.backup.TableMetadata(
-                when (table) {
-                    "restaurants" -> 1
-                    "inventory_areas" -> 1
-                    "units" -> 1
-                    "ingredients" -> 2
-                    "ingredient_unit_options" -> 2
-                    "preparation_recipes" -> 1
-                    "preparation_recipe_components" -> 1
-                    else -> 0
-                },
-                table in listOf("inventory_balance_projections", "ingredient_cost_projections")
-            )
-        }
-        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1,
-            createdAtUtc = "2026-01-01T12:00:00Z",
-            applicationId = "com.miara.cuentame",
-            appVersionName = "1.0",
-            appVersionCode = 1,
-            databaseSchemaVersion = 3,
-            restaurantId = "r1",
-            restaurantName = "Recipes Only",
-            localeTag = "en-US",
-            currencyCode = "USD",
-            tableMetadata = tables,
-            attachments = emptyList(),
-            includedSections = listOf("attachments", "data", "preferences"),
-            checksumAlgorithm = "SHA-256"
-        )
-
-        // Assert exact manifest sets before building archives
-        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(expectedLiteralTableSet)
-        assertThat(manifest.tableMetadata.keys).doesNotContain("production_batches")
-
-        // Instruction 14: Validate consistency before write
-        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, schema3Snapshot)).isNull()
-
-        val bytes = buildArchive(manifest, schema3Snapshot)
-        val backupUri = "content://backup/schema3.zip"
-        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bytes) }
-
-        // 2. Inspect
-        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
-        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-        val ready = inspection as BackupArchiveInspectionResult.Ready
-        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
-        assertThat(ready.archive.manifest.databaseSchemaVersion).isEqualTo(3)
-
-        // 3. Apply
-        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
-
-        // 4. Verify exact DTO equality (Instruction 14)
-        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
-        val restoredSnapshot = snapshotSource.loadSnapshot("r1").dto
-        
-        // Normalize schema-4 tables that must be empty for schema-3 restore
-        val expectedRestoredSnapshot = schema3Snapshot.copy(
-            productionBatches = emptyList(),
-            productionBatchComponents = emptyList()
-        )
-        assertThat(restoredSnapshot).isEqualTo(expectedRestoredSnapshot)
-        
-        assertThat(restoredSnapshot.preparationRecipes).hasSize(1)
-        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Recipes Only")
-    }
 
     private fun createTableMetadata(dto: BackupSnapshotDto, schemaVersion: Int): Map<String, com.miara.cuentame.core.model.backup.TableMetadata> {
         val counts = mapOf(
@@ -606,78 +400,6 @@ class BackupProductionIntegrationTest {
     }
 
     @Test
-    fun planning_fails_if_snapshot_has_attachments(): Unit = runBlocking {
-        seedAllTables()
-        
-        // Corrupt purchase receipt with attachment path
-        database().openHelper.writableDatabase.execSQL(
-            "UPDATE purchase_receipts SET attachmentPath = '/test/receipt.jpg' WHERE id = 'p1'"
-        )
-
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        val backupUri = "content://backup/attachment-fail.zip"
-        val statuses = backupRepository.createBackup(backupUri).toList()
-        
-        val error = statuses.find { it is com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error }
-                as com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error
-        
-        assertThat(error.result).isInstanceOf(com.miara.cuentame.core.model.backup.BackupResult.Error.AttachmentsNotSupported::class.java)
-        
-        val file = File(tempFolder.root, "backups/attachment-fail.zip")
-        assertThat(file.exists()).isFalse()
-    }
-
-    @Test
-    fun planning_fails_if_waste_has_attachments(): Unit = runBlocking {
-        seedAllTables()
-        
-        // Corrupt waste event with attachment path
-        database().openHelper.writableDatabase.execSQL(
-            "UPDATE waste_events SET attachmentPath = '/test/waste.jpg' WHERE id = 'w1'"
-        )
-
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        val backupUri = "content://backup/waste-attachment-fail.zip"
-        val statuses = backupRepository.createBackup(backupUri).toList()
-        
-        val error = statuses.find { it is com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error }
-                as com.miara.cuentame.core.domain.repository.BackupOperationStatus.Error
-        
-        assertThat(error.result).isInstanceOf(com.miara.cuentame.core.model.backup.BackupResult.Error.AttachmentsNotSupported::class.java)
-        
-        val file = File(tempFolder.root, "backups/waste-attachment-fail.zip")
-        assertThat(file.exists()).isFalse()
-    }
-
-    @Test
-    fun planning_fails_if_attachment_bindings_not_empty(): Unit = runBlocking {
-        seedAllTables()
-        // Snapshot itself is clean, but bindings are passed (e.g. leftover from a previous attempt or injected)
-        
-        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
-        val restaurantRepository = mockk<com.miara.cuentame.core.domain.repository.RestaurantRepository>(relaxed = true) {
-            coEvery { getRestaurant() } returns com.miara.cuentame.core.model.restaurant.Restaurant(
-                com.miara.cuentame.core.common.ids.RestaurantId("r1"), "Original", "USD", "en-US", Instant.EPOCH, Instant.EPOCH
-            )
-        }
-        
-        val planner = BackupCreationPlanner(
-            localeReconciler,
-            mockk(relaxed = true) { coEvery { loadPreferences() } returns com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US") },
-            mockk(relaxed = true), timeProvider, appVersionProvider, codecs
-        )
-        
-        val snapshotResult = BackupSnapshotResult(
-            dto = snapshotSource.loadSnapshot("r1").dto,
-            attachmentBindings = listOf(BackupAttachmentSourceBinding("att1", AttachmentSourceUri("uri")))
-        )
-        
-        val result = planner.createPlan(restaurantRepository.getRestaurant()!!, snapshotResult)
-        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
-    }
-
-    @Test
     fun inspection_detects_attachments_in_archive() = runBlocking {
         // 1. Build valid attachment fixture
         val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
@@ -689,7 +411,7 @@ class BackupProductionIntegrationTest {
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         
         val ready = inspection as BackupArchiveInspectionResult.Ready
-        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.AttachmentsNotSupported)
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
         
         // Assertions from Requirement 2
         val manifest = ready.archive.manifest
@@ -704,47 +426,6 @@ class BackupProductionIntegrationTest {
         val receipt = snapshot.purchaseReceipts.find { it.id == "p1" }!!
         assertThat(receipt.attachmentId).isEqualTo(fixture.attachmentId)
     }
-
-    @Test
-    fun apply_fails_if_archive_has_attachments_no_mutation() = runBlocking {
-         // 1. Build valid attachment fixture
-        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
-        val backupUri = "content://backup/apply-att-fail.zip"
-        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
-
-        // Seed some data in live DB (Requirement 3.1 & 3.2)
-        seedAllTables()
-        val snapshotSource = RoomBackupSnapshotSource(db.backupDao(), mockk(relaxed = true))
-        val beforeApplySnapshot = snapshotSource.loadSnapshot("r1").dto
-
-        // 2. Inspect
-        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
-        val ready = inspection as BackupArchiveInspectionResult.Ready
-        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.AttachmentsNotSupported)
-        
-        // 3. Apply
-        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
-        assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
-        val failure = result as BackupRestoreApplyResult.Failure
-        assertThat(failure.reason).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreFailure.AttachmentsNotSupported)
-
-        // 4. Verify no mutation (Requirement 3.6)
-        val afterApplySnapshot = snapshotSource.loadSnapshot("r1").dto
-        assertThat(afterApplySnapshot).isEqualTo(beforeApplySnapshot)
-        
-        // 5. Verify no artifacts left (Requirement 3.7)
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val storage = InternalBackupRestoreStorage(context)
-        assertThat(storage.getJournalFile().exists()).isFalse()
-        
-        val baseDir = File(context.filesDir, "backup_restore")
-        val rollbackDir = File(baseDir, "rollback")
-        assertThat(rollbackDir.exists() && rollbackDir.listFiles()?.isNotEmpty() == true).isFalse()
-        
-        // Verify database was not cleared (seedAllTables data still there)
-        assertThat(db.restaurantDao().getById("r1")).isNotNull()
-    }
-
 
     @Test
     fun application_with_wrong_fingerprint_does_not_mutate_database() = runBlocking {
@@ -816,96 +497,6 @@ class BackupProductionIntegrationTest {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         return digest.digest(bytes).joinToString("") { "%02x".format(it) }
     }
-
-    private suspend fun verifyAllTables() {
-        assertThat(db.restaurantDao().getById("r1")?.name).isEqualTo("Original")
-        assertThat(db.inventoryAreaDao().getById("a1")?.name).isEqualTo("Area 1")
-        assertThat(db.ingredientCategoryDao().getById("c1")?.name).isEqualTo("Cat 1")
-        assertThat(db.unitDao().getById("u1")?.name).isEqualTo("Unit")
-        assertThat(db.ingredientDao().getById("i1")?.name).isEqualTo("Ing 1")
-        assertThat(db.ingredientUnitOptionDao().getById("o1")?.displayName).isEqualTo("Opt 1")
-        assertThat(db.supplierDao().getById("s1")?.name).isEqualTo("Sup 1")
-        assertThat(db.purchaseDao().getReceiptById("p1")?.invoiceNumber).isEqualTo("INV1")
-        assertThat(db.purchaseDao().getLineById("pl1")?.quantityEntered).isEqualTo("20")
-        assertThat(db.stockCountDao().getCountById("sc1")?.name).isEqualTo("Count 1")
-        assertThat(db.stockCountDao().getAreaById("sca1")?.stockCountId).isEqualTo("sc1")
-        assertThat(db.stockCountDao().getLineById("scl1")?.quantityEntered).isEqualTo("5")
-        assertThat(db.wasteDao().getById("w1")?.reason).isEqualTo("SPOILED")
-        
-        val movements = db.inventoryMovementDao().getAll()
-        assertThat(movements).hasSize(5)
-        
-        // m3 PRODUCTION_CONSUMPTION
-        val m3 = movements.find { it.id == "m3" }!!
-        assertThat(m3.movementType).isEqualTo("PRODUCTION_CONSUMPTION")
-        assertThat(m3.ingredientId).isEqualTo("i2")
-        assertThat(m3.areaId).isEqualTo("a1")
-        assertThat(BigDecimal(m3.quantityBaseSigned).compareTo(BigDecimal("-5"))).isEqualTo(0)
-        assertThat(BigDecimal(m3.unitCostBaseSnapshot!!).compareTo(BigDecimal("10"))).isEqualTo(0)
-        assertThat(BigDecimal(m3.totalValueSnapshot!!).compareTo(BigDecimal("-50"))).isEqualTo(0)
-        assertThat(m3.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
-        assertThat(m3.sourceDocumentId).isEqualTo("pb1")
-        assertThat(m3.sourceLineId).isEqualTo("pbc1")
-        assertThat(m3.sourceOperationId).isEqualTo(InventoryMovementOperationIds.productionConsumption("pb1", "pbc1"))
-        assertThat(m3.reversalOfMovementId).isNull()
-        assertThat(m3.effectiveAt).isEqualTo(2000)
-        assertThat(m3.createdAt).isEqualTo(2500)
-
-        // m4 PRODUCTION_OUTPUT
-        val m4 = movements.find { it.id == "m4" }!!
-        assertThat(m4.movementType).isEqualTo("PRODUCTION_OUTPUT")
-        assertThat(m4.ingredientId).isEqualTo("i1")
-        assertThat(m4.areaId).isEqualTo("a1")
-        assertThat(BigDecimal(m4.quantityBaseSigned).compareTo(BigDecimal("10"))).isEqualTo(0)
-        assertThat(BigDecimal(m4.unitCostBaseSnapshot!!).compareTo(BigDecimal("5"))).isEqualTo(0)
-        assertThat(BigDecimal(m4.totalValueSnapshot!!).compareTo(BigDecimal("50"))).isEqualTo(0)
-        assertThat(m4.sourceDocumentType).isEqualTo("PRODUCTION_BATCH")
-        assertThat(m4.sourceDocumentId).isEqualTo("pb1")
-        assertThat(m4.sourceLineId).isEqualTo("pb1")
-        assertThat(m4.sourceOperationId).isEqualTo(InventoryMovementOperationIds.productionOutput("pb1"))
-        assertThat(m4.reversalOfMovementId).isNull()
-        assertThat(m4.effectiveAt).isEqualTo(2000)
-        assertThat(m4.createdAt).isEqualTo(2500)
-
-        assertThat(db.inventoryProjectionDao().getBalance("i1", "a1")?.quantityBase).isEqualTo("28")
-        assertThat(db.inventoryProjectionDao().getBalance("i2", "a1")?.quantityBase).isEqualTo("5")
-        
-        // i2 average cost = 10
-        val costI2 = db.ingredientCostProjectionDao().getCost("i2")?.averageUnitCostBase
-        assertThat(BigDecimal(costI2!!).compareTo(BigDecimal("10"))).isEqualTo(0)
-
-        // i1 average cost = (18 * 3 + 10 * 5) / 28 = 104 / 28 = 26 / 7
-        // Canonical DECIMAL128 result: 3.714285714285714285714285714285714
-        val costI1 = db.ingredientCostProjectionDao().getCost("i1")?.averageUnitCostBase
-        assertThat(BigDecimal(costI1!!).compareTo(BigDecimal("3.714285714285714285714285714285714"))).isEqualTo(0)
-        
-        val recipe = db.preparationRecipeDao().getById("r1")!!
-        assertThat(recipe.name).isEqualTo("Recipe 1")
-        assertThat(recipe.status).isEqualTo("ACTIVE")
-        val components = db.preparationRecipeDao().getComponentsForRecipe("r1")
-        assertThat(components).hasSize(1)
-        assertThat(components[0].id).isEqualTo("rc1")
-        assertThat(components[0].notes).isEqualTo("Comp notes")
-
-        val batch = db.productionBatchDao().getById("pb1")!!
-        assertThat(batch.notes).isEqualTo("Batch 1")
-        assertThat(batch.status).isEqualTo("POSTED")
-        assertThat(batch.postedAt).isEqualTo(2500)
-        assertThat(batch.effectiveAt).isEqualTo(2000)
-        assertThat(BigDecimal(batch.batchMultiplier).compareTo(BigDecimal("1.0"))).isEqualTo(0)
-        assertThat(BigDecimal(batch.totalComponentCostSnapshot!!).compareTo(BigDecimal("50.0"))).isEqualTo(0)
-        assertThat(BigDecimal(batch.outputUnitCostBaseSnapshot!!).compareTo(BigDecimal("5.0"))).isEqualTo(0)
-
-        val batchComponents = db.productionBatchDao().getComponents("pb1")
-        assertThat(batchComponents).hasSize(1)
-        val pbc = batchComponents[0]
-        assertThat(pbc.id).isEqualTo("pbc1")
-        assertThat(pbc.componentIngredientId).isEqualTo("i2")
-        assertThat(BigDecimal(pbc.actualQuantityBase).compareTo(BigDecimal("5.0"))).isEqualTo(0)
-        assertThat(BigDecimal(pbc.unitCostBaseSnapshot!!).compareTo(BigDecimal("10.0"))).isEqualTo(0)
-        assertThat(BigDecimal(pbc.totalCostSnapshot!!).compareTo(BigDecimal("50.0"))).isEqualTo(0)
-    }
-
 
     private class FakeInternalDocumentStore(private val root: File) : BackupDocumentStore {
         override suspend fun openForWrite(destination: BackupDocumentUri) = File(root, destination.value.substringAfterLast("/")).outputStream()

@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupValidationCode
 import com.miara.cuentame.core.model.backup.BackupValidationDiagnostic
@@ -13,8 +14,17 @@ import java.util.Currency
 object BackupManifestValidator {
 
     fun validate(manifest: BackupManifest): BackupValidationResult {
-        if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+        val supportedVersions = setOf(
+            BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
+            BackupFormatV2Contract.BACKUP_FORMAT_VERSION
+        )
+        if (manifest.backupFormatVersion !in supportedVersions) {
             return BackupValidationResult.Invalid(BackupValidationCode.MANIFEST_INVALID, BackupValidationDiagnostic.VERSION_MISMATCH)
+        }
+
+        // V1 should not have attachments
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION && manifest.attachments.isNotEmpty()) {
+            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENT_INVALID)
         }
 
         if (manifest.databaseSchemaVersion !in BackupFormatV1Contract.SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS) {

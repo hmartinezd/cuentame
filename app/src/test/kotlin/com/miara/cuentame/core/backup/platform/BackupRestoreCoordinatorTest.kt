@@ -26,6 +26,9 @@ class BackupRestoreCoordinatorTest {
     private val storage = mockk<InternalBackupRestoreStorage>(relaxed = true)
     private val recoveryCoordinator = mockk<RestoreRecoveryCoordinator>(relaxed = true)
     private val operationGate = com.miara.cuentame.core.backup.internal.RestoreOperationGate()
+    private val stager = mockk<BackupArchiveRestoreStager>(relaxed = true)
+    private val attachmentInstaller = mockk<RestoreAttachmentInstaller>(relaxed = true)
+    private val backupDocumentStore = mockk<BackupDocumentStore>(relaxed = true)
     private val codecs = BackupJsonCodecs()
 
     private lateinit var coordinator: BackupRestoreCoordinatorImpl
@@ -35,7 +38,8 @@ class BackupRestoreCoordinatorTest {
         operationGate.updateRecoveryState(RestoreStartupState.Ready)
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
-            journal, storage, recoveryCoordinator, operationGate, codecs
+            journal, storage, recoveryCoordinator, operationGate, 
+            stager, attachmentInstaller, backupDocumentStore, codecs
         )
     }
 
@@ -65,10 +69,13 @@ class BackupRestoreCoordinatorTest {
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
         coEvery { preferencesApplier.validate(any()) } returns true
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
-        coEvery { databaseApplier.verifyMatchesBackup(any()) } returns true
+        coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true
         
         val rollbackFile = tempFolder.newFile("rollback_success.json")
         every { storage.getRollbackSnapshotFile(any()) } returns rollbackFile
+        
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging"))
 
         val result = coordinator.apply(source, fingerprint) {}
         
@@ -80,6 +87,7 @@ class BackupRestoreCoordinatorTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
 
+        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
             every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
@@ -90,8 +98,12 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
-        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("Initial Fail")
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_fail"))
+
+        coEvery { databaseApplier.replaceWithBackup(any(), any()) } throws RuntimeException("Initial Fail")
         coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("Rollback Fail")
         
         every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die_public.json")
@@ -106,6 +118,7 @@ class BackupRestoreCoordinatorTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
 
+        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
             every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
@@ -116,8 +129,12 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
-        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("Initial Fail")
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_fail_global"))
+
+        coEvery { databaseApplier.replaceWithBackup(any(), any()) } throws RuntimeException("Initial Fail")
         coEvery { databaseApplier.restoreRollback(any()) } throws RuntimeException("Rollback Fail")
         
         every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_die_global.json")
@@ -131,6 +148,7 @@ class BackupRestoreCoordinatorTest {
     fun `cleanup failure after successful mutation returns RecoveryRequired`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
+        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
             every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
@@ -140,10 +158,13 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns inspectionResult
         coEvery { preferencesApplier.validate(any()) } returns true
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
-        coEvery { databaseApplier.verifyMatchesBackup(any()) } returns true
+        coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true
         
-        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
+
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_cleanup_fail"))
 
         every { storage.cleanupSessionOrThrow(any()) } throws java.io.IOException("Cleanup failed")
         every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_cleanup_fail_global.json")
@@ -178,7 +199,7 @@ class BackupRestoreCoordinatorTest {
         assertThat(operationGate.recoveryState.value).isEqualTo(RestoreStartupState.Ready)
         
         coVerify(exactly = 0) {
-            databaseApplier.replaceWithBackup(any())
+            databaseApplier.replaceWithBackup(any(), any())
             databaseApplier.restoreRollback(any())
         }
     }
@@ -215,6 +236,7 @@ class BackupRestoreCoordinatorTest {
     fun `successful rollback returns DatabaseRestoreFailed`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
+        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
             every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
@@ -223,11 +245,14 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
         
-        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("DB Crash")
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_rollback_ok"))
+
+        coEvery { databaseApplier.replaceWithBackup(any(), any()) } throws RuntimeException("DB Crash")
         
         // Rollback succeeds
         coEvery { databaseApplier.restoreRollback(any()) } just Runs
@@ -247,6 +272,7 @@ class BackupRestoreCoordinatorTest {
     fun `apply rolls back on mutation failure`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
+        val emptySnapshot = createEmptySnapshot()
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
             every { this@mockk.preferences } returns mockk(relaxed = true) { every { themeMode } returns "SYSTEM" }
@@ -255,11 +281,14 @@ class BackupRestoreCoordinatorTest {
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible)
         coEvery { preferencesApplier.validate(any()) } returns true
         
-        val rollback = RestoreDatabaseRollbackSnapshot(createEmptySnapshot(), emptyMap(), emptyMap())
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
         coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
         coEvery { preferencesApplier.captureRollback() } returns archive.preferences
         
-        coEvery { databaseApplier.replaceWithBackup(any()) } throws RuntimeException("DB Crash")
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_rollback_mut"))
+
+        coEvery { databaseApplier.replaceWithBackup(any(), any()) } throws RuntimeException("DB Crash")
         
         // Rollback succeeds
         coEvery { databaseApplier.restoreRollback(any()) } just Runs
@@ -300,7 +329,7 @@ class BackupRestoreCoordinatorTest {
         coVerify(exactly = 0) {
             databaseApplier.captureRollbackSnapshot()
             journal.write(any())
-            databaseApplier.replaceWithBackup(any())
+            databaseApplier.replaceWithBackup(any(), any())
             preferencesApplier.apply(any())
         }
     }
@@ -327,32 +356,44 @@ class BackupRestoreCoordinatorTest {
         coVerify(exactly = 0) {
             databaseApplier.captureRollbackSnapshot()
             journal.write(any())
-            databaseApplier.replaceWithBackup(any())
+            databaseApplier.replaceWithBackup(any(), any())
             preferencesApplier.apply(any())
         }
     }
 
     @Test
-    fun `apply rejects attachments eligibility before mutation`() = runTest {
+    fun `apply allows attachments eligibility before mutation`() = runTest {
         val source = BackupDocumentUri("uri")
         val fingerprint = BackupArchiveFingerprint("hash")
+        val emptySnapshot = createEmptySnapshot()
         
         val archive = mockk<InspectedBackupArchive>(relaxed = true) {
             every { this@mockk.fingerprint } returns fingerprint
+            every { this@mockk.snapshot } returns emptySnapshot
+            every { this@mockk.preferences } returns mockk(relaxed = true) {
+                every { themeMode } returns "SYSTEM"
+            }
+            every { this@mockk.manifest } returns mockk(relaxed = true) {
+                every { attachments } returns listOf(mockk(relaxed = true))
+            }
         }
         coEvery { restoreRepository.inspect(source) } returns BackupArchiveInspectionResult.Ready(
-            archive, mockk(relaxed = true), BackupRestoreEligibility.AttachmentsNotSupported
+            archive, mockk(relaxed = true), BackupRestoreEligibility.Eligible
         )
+        coEvery { preferencesApplier.validate(any()) } returns true
+        coEvery { preferencesApplier.verifyMatches(any()) } returns true
+        coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(emptySnapshot, archive.preferences, archive.manifest, fingerprint, tempFolder.newFolder("staging_att_ok"))
         
+        val rollback = RestoreDatabaseRollbackSnapshot(emptySnapshot, emptyMap(), emptyMap())
+        coEvery { databaseApplier.captureRollbackSnapshot() } returns rollback
+        
+        every { storage.getRollbackSnapshotFile(any()) } returns tempFolder.newFile("rollback_att.json")
+
         val result = coordinator.apply(source, fingerprint) {}
         
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported))
-        
-        coVerify(exactly = 0) {
-            databaseApplier.captureRollbackSnapshot()
-            journal.write(any())
-            databaseApplier.replaceWithBackup(any())
-        }
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
     }
 
     private fun createEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

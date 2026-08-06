@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup.platform
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
@@ -19,7 +20,11 @@ object BackupManifestContractValidator {
         calculatedSizes: Map<String, Long>
     ): BackupRestoreFailure? {
         // 1. Version and Format check
-        if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+        val supportedVersions = setOf(
+            BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
+            BackupFormatV2Contract.BACKUP_FORMAT_VERSION
+        )
+        if (manifest.backupFormatVersion !in supportedVersions) {
             return BackupRestoreFailure.UnsupportedFormatVersion
         }
         if (manifest.databaseSchemaVersion !in BackupFormatV1Contract.SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS) {
@@ -130,6 +135,13 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.ManifestMismatch
         }
 
+        // V1 must not have attachments
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (manifest.attachments.isNotEmpty() || seenArchivePaths.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
         return null
     }
 
@@ -202,6 +214,13 @@ object BackupManifestContractValidator {
 
         if (snapshotRefs != manifestRefs) {
             return BackupRestoreFailure.ManifestMismatch
+        }
+
+        // V1 must not have attachments
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (snapshotRefs.isNotEmpty() || manifestRefs.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
         }
 
         return null

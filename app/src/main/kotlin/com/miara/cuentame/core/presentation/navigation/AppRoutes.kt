@@ -38,6 +38,9 @@ object AppRoutes {
     fun purchaseDetail(id: PurchaseReceiptId): String =
         "purchases/${encoder.encode(id.value)}/detail"
 
+    fun purchaseDocument(id: PurchaseReceiptId): String =
+        "purchases/${encoder.encode(id.value)}/document"
+
     fun purchaseLineCreate(receiptId: PurchaseReceiptId): String =
         "purchases/${encoder.encode(receiptId.value)}/line"
 

@@ -9,6 +9,7 @@ import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.purchases.ui.PurchaseDetailRoute
+import com.miara.cuentame.feature.purchases.ui.PurchaseDocumentViewerRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDraftRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseLineRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseListRoute
@@ -33,6 +34,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                     popUpTo(Destination.PURCHASE_CREATE.route) { inclusive = true }
                 }
             },
+            onNavigateToDocument = { id -> navController.navigate(AppRoutes.purchaseDocument(id)) },
             onAddLine = {},
             onEditLine = { _, _ -> },
             onPostSuccess = {}
@@ -46,6 +48,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 purchaseId = purchaseId,
                 onBack = { navController.popBackStack() },
                 onNavigateToDraft = {},
+                onNavigateToDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) },
                 onAddLine = { rid -> navController.navigate(AppRoutes.purchaseLineCreate(rid)) },
                 onEditLine = { rid, lid -> navController.navigate(AppRoutes.purchaseLineEdit(rid, lid)) },
                 onPostSuccess = { rid ->
@@ -70,6 +73,15 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
         val idStr = backStackEntry.arguments?.getString("receiptId")
         if (idStr != null) {
             PurchaseDetailRoute(
+                onBack = { navController.popBackStack() },
+                onNavigateToDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) }
+            )
+        }
+    }
+    composable(route = Destination.PURCHASE_DOCUMENT.route) { backStackEntry ->
+        val idStr = backStackEntry.arguments?.getString("receiptId")
+        if (idStr != null) {
+            PurchaseDocumentViewerRoute(
                 onBack = { navController.popBackStack() }
             )
         }

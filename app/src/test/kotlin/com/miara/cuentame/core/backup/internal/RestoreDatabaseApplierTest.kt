@@ -7,6 +7,7 @@ import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.database.backup.BackupSnapshot
+import com.miara.cuentame.core.model.backup.BackupManifest
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -59,8 +60,11 @@ class RestoreDatabaseApplierTest {
     @Test
     fun `replaceWith performs ordered clear and insert`() = runTest {
         val snapshot = createMinimalSnapshot()
+        val manifest = mockk<BackupManifest>(relaxed = true) {
+            every { attachments } returns emptyList()
+        }
         
-        applier.replaceWithBackup(snapshot)
+        applier.replaceWithBackup(snapshot, manifest)
         
         coVerifyOrder {
             restoreDao.clearAllInOrder()

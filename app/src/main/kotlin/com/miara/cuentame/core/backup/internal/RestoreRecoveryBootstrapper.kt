@@ -14,7 +14,8 @@ import javax.inject.Singleton
 @Singleton
 class RestoreRecoveryBootstrapper @Inject constructor(
     private val recoveryCoordinator: RestoreRecoveryCoordinator,
-    private val operationGate: RestoreOperationGate
+    private val operationGate: RestoreOperationGate,
+    private val cleanupCoordinator: PurchaseAttachmentCleanupCoordinator
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val started = AtomicBoolean(false)
@@ -34,6 +35,10 @@ class RestoreRecoveryBootstrapper @Inject constructor(
                         is RestoreRecoveryResult.RecoveryRequired -> RestoreStartupState.RecoveryRequired
                     }
                     operationGate.updateRecoveryState(terminalState)
+
+                    if (terminalState !is RestoreStartupState.RecoveryRequired) {
+                        cleanupCoordinator.cleanupOrphans()
+                    }
                 } catch (_: Exception) {
                     operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
                 }

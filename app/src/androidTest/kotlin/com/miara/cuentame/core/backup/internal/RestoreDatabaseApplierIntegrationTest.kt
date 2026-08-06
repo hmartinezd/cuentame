@@ -50,7 +50,22 @@ class RestoreDatabaseApplierIntegrationTest {
         )
         
         // 3. Replace
-        applier.replaceWithBackup(snapshotB)
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 2,
+            restaurantId = "r2",
+            restaurantName = "New",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = listOf("data", "preferences", "attachments")
+        )
+        applier.replaceWithBackup(snapshotB, manifest)
         
         // 4. Verify exact preservation and removal
         val backupDao = db.backupDao()
@@ -75,7 +90,22 @@ class RestoreDatabaseApplierIntegrationTest {
             ))
         )
         
-        applier.replaceWithBackup(snapshot)
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 2,
+            restaurantId = "r1",
+            restaurantName = "R",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = listOf("data", "preferences", "attachments")
+        )
+        applier.replaceWithBackup(snapshot, manifest)
         
         val entity = db.purchaseDao().getReceiptById("p1")
         assertThat(entity?.attachmentPath).isNull()
@@ -123,8 +153,23 @@ class RestoreDatabaseApplierIntegrationTest {
         )
 
         // 3. Invoke replaceWithBackup(B)
+        val manifestB = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 2,
+            restaurantId = "r2",
+            restaurantName = "State B",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = listOf("data", "preferences", "attachments")
+        )
         val result = try {
-            applier.replaceWithBackup(snapshotB)
+            applier.replaceWithBackup(snapshotB, manifestB)
             null
         } catch (e: android.database.sqlite.SQLiteConstraintException) {
             e

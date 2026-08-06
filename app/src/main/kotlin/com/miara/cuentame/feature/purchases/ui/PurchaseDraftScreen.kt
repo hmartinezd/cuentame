@@ -1,5 +1,7 @@
 package com.miara.cuentame.feature.purchases.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -76,6 +80,7 @@ fun PurchaseDraftRoute(
     purchaseId: PurchaseReceiptId?,
     onBack: () -> Unit,
     onNavigateToDraft: (PurchaseReceiptId) -> Unit,
+    onNavigateToDocument: (PurchaseReceiptId) -> Unit,
     onAddLine: (PurchaseReceiptId) -> Unit,
     onEditLine: (PurchaseReceiptId, PurchaseLineId) -> Unit,
     onPostSuccess: (PurchaseReceiptId) -> Unit,
@@ -107,12 +112,21 @@ fun PurchaseDraftRoute(
         }
     }
 
+    val pickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: android.net.Uri? ->
+        uri?.let { viewModel.onAttachDocument(it) }
+    }
+
     PurchaseDraftScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         lastDeletedLineId = lastDeletedLineId,
         onBack = onBack,
         onSaveHeader = viewModel::onSaveHeader,
+        onImportDocument = { pickerLauncher.launch(arrayOf("application/pdf", "image/*")) },
+        onRemoveDocument = viewModel::onRemoveDocument,
+        onViewDocument = { uiState.receiptId?.let { onNavigateToDocument(it) } },
         onAddLine = { purchaseId?.let { onAddLine(it) } },
         onEditLine = { lineId -> purchaseId?.let { onEditLine(it, lineId) } },
         onDeleteLine = viewModel::onDeleteLine,
@@ -130,6 +144,9 @@ fun PurchaseDraftScreen(
     lastDeletedLineId: PurchaseLineId?,
     onBack: () -> Unit,
     onSaveHeader: (SupplierId?, String?, Instant, String?) -> Unit,
+    onImportDocument: () -> Unit,
+    onRemoveDocument: () -> Unit,
+    onViewDocument: () -> Unit,
     onAddLine: () -> Unit,
     onEditLine: (PurchaseLineId) -> Unit,
     onDeleteLine: (PurchaseLineId) -> Unit,
@@ -190,6 +207,19 @@ fun PurchaseDraftScreen(
                     PurchaseHeaderSection(
                         uiState = uiState,
                         onSave = onSaveHeader
+                    )
+                }
+
+                item {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                }
+
+                item {
+                    PurchaseDocumentSection(
+                        uiState = uiState,
+                        onImport = onImportDocument,
+                        onRemove = onRemoveDocument,
+                        onView = onViewDocument
                     )
                 }
 
@@ -325,6 +355,94 @@ fun PurchaseDraftScreen(
             lineToDelete = null
             onResetLastDeletedLineId()
         }
+    }
+}
+
+@Composable
+fun PurchaseDocumentSection(
+    uiState: PurchaseDraftUiState,
+    onImport: () -> Unit,
+    onRemove: () -> Unit,
+    onView: () -> Unit
+) {
+    var showRemoveConfirm by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth().testTag("purchase_document_section")) {
+        Text(
+            text = stringResource(R.string.purchase_invoice_document),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        if (uiState.receiptId == null) {
+            Text(
+                text = stringResource(R.string.purchase_save_header_first),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (uiState.documentMetadata == null) {
+            Button(
+                onClick = onImport,
+                enabled = !uiState.isImportingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
+                modifier = Modifier.testTag("purchase_document_import")
+            ) {
+                if (uiState.isImportingDocument) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                }
+                Text(stringResource(R.string.purchase_import_document))
+            }
+        } else {
+            ListItem(
+                modifier = Modifier.testTag("purchase_document_metadata"),
+                headlineContent = { 
+                    Text(
+                        text = uiState.documentMetadata.displayName,
+                        modifier = Modifier.testTag("purchase_document_name")
+                    ) 
+                },
+                supportingContent = {
+                    Text(
+                        text = "${uiState.documentMetadata.mimeType} • ${Formatters.formatFileSize(uiState.documentMetadata.sizeBytes)}",
+                        modifier = Modifier.testTag("purchase_document_info")
+                    )
+                },
+                trailingContent = {
+                    Row {
+                        IconButton(onClick = onView, modifier = Modifier.testTag("purchase_document_view")) {
+                            Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
+                        }
+                        IconButton(
+                            onClick = onImport, 
+                            enabled = !uiState.isImportingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
+                            modifier = Modifier.testTag("purchase_document_replace")
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.purchase_replace_document))
+                        }
+                        IconButton(
+                            onClick = { showRemoveConfirm = true }, 
+                            enabled = !uiState.isRemovingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
+                            modifier = Modifier.testTag("purchase_document_remove")
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.purchase_remove_document))
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    if (showRemoveConfirm) {
+        ArchiveConfirmDialog(
+            title = stringResource(R.string.purchase_remove_document),
+            message = stringResource(R.string.purchase_remove_document_confirmation),
+            isSaving = uiState.isRemovingDocument,
+            modifier = Modifier.testTag("purchase_document_remove_confirm_dialog"),
+            onDismiss = { if (!uiState.isRemovingDocument) showRemoveConfirm = false },
+            onConfirm = {
+                onRemove()
+                showRemoveConfirm = false
+            }
+        )
     }
 }
 

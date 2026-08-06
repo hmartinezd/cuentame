@@ -24,6 +24,7 @@ import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.PurchaseFilter
@@ -67,7 +68,8 @@ class RoomPurchaseRepository @Inject constructor(
     private val timeProvider: TimeProvider,
     private val activeRestaurantProvider: ActiveRestaurantProvider,
     private val postingCoordinator: PurchasePostingCoordinator,
-    private val voidingCoordinator: PurchaseVoidingCoordinator
+    private val voidingCoordinator: PurchaseVoidingCoordinator,
+    private val documentStore: PurchaseDocumentStore
 ) : PurchaseRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
@@ -281,10 +283,16 @@ class RoomPurchaseRepository @Inject constructor(
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
-            
+
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
-            
+
+            val attachmentPath = receipt.attachmentPath
+
             purchaseDao.deleteDraftWithLines(id.value)
+
+            if (attachmentPath != null) {
+                documentStore.delete(attachmentPath)
+            }
         }
     }
 
@@ -299,6 +307,60 @@ class RoomPurchaseRepository @Inject constructor(
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             voidingCoordinator.void(id, activeRestaurant)
+        }
+    }
+
+    override suspend fun attachDocument(
+        receiptId: PurchaseReceiptId,
+        storedLocation: String
+    ) {
+        database.withTransaction {
+            val activeRestaurant = requireActiveRestaurant()
+            val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
+
+            if (existing.status != DocumentStatus.DRAFT.name) {
+                throw ValidationError.PurchaseNotDraft
+            }
+
+            val oldLocation = existing.attachmentPath
+
+            val updated = existing.copy(
+                attachmentPath = storedLocation,
+                updatedAt = timeProvider.now().toEpochMilli()
+            )
+
+            purchaseDao.updateReceipt(updated)
+
+            // Clean up old file if it existed
+            if (oldLocation != null && oldLocation != storedLocation) {
+                documentStore.delete(oldLocation)
+            }
+        }
+    }
+
+    override suspend fun removeDocument(
+        receiptId: PurchaseReceiptId
+    ) {
+        database.withTransaction {
+            val activeRestaurant = requireActiveRestaurant()
+            val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
+
+            if (existing.status != DocumentStatus.DRAFT.name) {
+                throw ValidationError.PurchaseNotDraft
+            }
+
+            val oldLocation = existing.attachmentPath
+
+            val updated = existing.copy(
+                attachmentPath = null,
+                updatedAt = timeProvider.now().toEpochMilli()
+            )
+
+            purchaseDao.updateReceipt(updated)
+
+            if (oldLocation != null) {
+                documentStore.delete(oldLocation)
+            }
         }
     }
 }

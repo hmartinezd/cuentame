@@ -190,15 +190,14 @@ class DefaultBackupArchiveValidator @Inject constructor(
             return BackupValidationResult.Invalid(BackupValidationCode.SNAPSHOT_INVALID, BackupValidationDiagnostic.SNAPSHOT_INTEGRITY_FAILURE)
         }
 
-        // 8. Attachments (V1 Policy: No attachments supported)
-        if (manifest.attachments.isNotEmpty()) {
-            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENTS_NOT_SUPPORTED)
-        }
-
-        if (dbDto.purchaseReceipts.any { it.attachmentId != null } ||
-            dbDto.wasteEvents.any { it.attachmentId != null }
-        ) {
-            return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENTS_NOT_SUPPORTED)
+        // 8. Attachments
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (manifest.attachments.isNotEmpty() ||
+                dbDto.purchaseReceipts.any { it.attachmentId != null } ||
+                dbDto.wasteEvents.any { it.attachmentId != null }
+            ) {
+                return BackupValidationResult.Invalid(BackupValidationCode.ATTACHMENTS_NOT_SUPPORTED)
+            }
         }
 
         return BackupValidationResult.Valid(manifest)

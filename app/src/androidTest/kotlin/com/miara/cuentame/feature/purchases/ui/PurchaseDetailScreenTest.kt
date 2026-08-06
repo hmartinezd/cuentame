@@ -45,6 +45,7 @@ class PurchaseDetailScreenTest {
                 uiState = uiState,
                 snackbarHostState = SnackbarHostState(),
                 onBack = {},
+                onViewDocument = {},
                 onVoid = {}
             )
         }
@@ -161,6 +162,7 @@ class PurchaseDetailScreenTest {
                 uiState = uiState,
                 snackbarHostState = SnackbarHostState(),
                 onBack = {},
+                onViewDocument = {},
                 onVoid = {}
             )
         }
@@ -221,6 +223,7 @@ class PurchaseDetailScreenTest {
                 uiState = uiState,
                 snackbarHostState = SnackbarHostState(),
                 onBack = {},
+                onViewDocument = {},
                 onVoid = {}
             )
         }
@@ -255,6 +258,7 @@ class PurchaseDetailScreenTest {
                 uiState = uiState,
                 snackbarHostState = SnackbarHostState(),
                 onBack = {},
+                onViewDocument = {},
                 onVoid = {}
             )
         }

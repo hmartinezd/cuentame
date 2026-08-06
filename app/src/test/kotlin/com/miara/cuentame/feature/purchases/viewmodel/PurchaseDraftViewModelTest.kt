@@ -23,10 +23,13 @@ import com.miara.cuentame.core.domain.usecase.ObservePurchaseDetailsUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveSuppliersUseCase
 import com.miara.cuentame.core.domain.usecase.PostPurchaseUseCase
 import com.miara.cuentame.core.domain.usecase.UpdatePurchaseDraftUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.AttachPurchaseDocumentUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.Supplier
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +63,8 @@ class PurchaseDraftViewModelTest {
         override suspend fun deleteDraft(id: PurchaseReceiptId) {}
         override suspend fun post(id: PurchaseReceiptId) {}
         override suspend fun void(id: PurchaseReceiptId) {}
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
@@ -129,6 +134,9 @@ class PurchaseDraftViewModelTest {
                 override suspend fun updateSupplier(command: com.miara.cuentame.core.domain.repository.UpdateSupplierCommand) {}
                 override suspend fun archiveSupplier(id: SupplierId, at: Instant) {}
             }),
+            AttachPurchaseDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true)),
+            RemovePurchaseDocumentUseCase(fakePurchaseRepository),
+            mockk(relaxed = true),
             fakeRestaurantRepository
         )
     }

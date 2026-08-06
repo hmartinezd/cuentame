@@ -1,6 +1,8 @@
 package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.api.*
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
@@ -38,13 +40,9 @@ class BackupCreationPlanner @Inject constructor(
                 return failure(BackupPlanningFailure.UnsupportedDatabaseSchema)
             }
 
-            // 0.1 Attachment check (V1 Policy: No attachments allowed)
+            // 0.1 Attachment check (V2 Policy: Support attachments)
             val snapshotDto = snapshotResult.dto
-            if (snapshotDto.purchaseReceipts.any { it.attachmentId != null } ||
-                snapshotDto.wasteEvents.any { it.attachmentId != null } ||
-                snapshotResult.attachmentBindings.isNotEmpty()) {
-                return failure(BackupPlanningFailure.AttachmentsNotSupported)
-            }
+            val backupFormatVersion = BackupFormatV2Contract.BACKUP_FORMAT_VERSION
 
             // 1. Reconcile locale
             val reconciliation = localeReconciler.reconcile()
@@ -123,9 +121,9 @@ class BackupCreationPlanner @Inject constructor(
             // 6. Table metadata from snapshot
             val tableMetadata = createTableMetadata(snapshotDto)
 
-            // 7. Base manifest
+            // 7. Base manifest (Incomplete attachments list)
             val baseManifest = BackupManifest(
-                backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
+                backupFormatVersion = backupFormatVersion,
                 createdAtUtc = DateTimeFormatter.ISO_INSTANT.format(timeProvider.now()),
                 applicationId = appVersionProvider.applicationId,
                 appVersionName = appVersionProvider.versionName,
@@ -141,10 +139,7 @@ class BackupCreationPlanner @Inject constructor(
                 checksumAlgorithm = BackupFormatV1Contract.CHECKSUM_ALGORITHM
             )
 
-            // 8. Snapshot integrity
-            BackupSnapshotIntegrityValidator.validate(snapshotDto, baseManifest).getOrElse {
-                return failure(BackupPlanningFailure.InvalidSnapshot)
-            }
+            // 8. Snapshot integrity - deferred until after attachments are planned
 
             // 9. Attachments and Serialization
             val entryChecksums = LinkedHashMap<String, String>()
@@ -234,6 +229,11 @@ class BackupCreationPlanner @Inject constructor(
                     )
                 }
             )
+
+            // 10. Snapshot integrity (moved from step 8)
+            BackupSnapshotIntegrityValidator.validate(snapshotDto, finalManifest).getOrElse {
+                return failure(BackupPlanningFailure.InvalidSnapshot)
+            }
 
             val manifestJson = try {
                 jsonCodecs.writer.encodeToString(finalManifest).toByteArray(Charsets.UTF_8)

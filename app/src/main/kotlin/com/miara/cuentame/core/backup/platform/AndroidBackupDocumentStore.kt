@@ -77,6 +77,17 @@ open class AndroidBackupDocumentStore @Inject constructor(
     }
 
     internal open fun openDescriptor(uri: Uri, mode: String): ParcelFileDescriptor? {
+        if (uri.scheme == null || uri.scheme == "file") {
+            val path = uri.path ?: uri.toString() // Use raw string if path is null for scheme-less URIs
+            val file = java.io.File(path)
+            file.parentFile?.mkdirs()
+            return ParcelFileDescriptor.open(file, when (mode) {
+                "r" -> ParcelFileDescriptor.MODE_READ_ONLY
+                "w" -> ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE
+                "wt" -> ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE
+                else -> ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE
+            })
+        }
         return context.contentResolver.openFileDescriptor(uri, mode)
     }
 

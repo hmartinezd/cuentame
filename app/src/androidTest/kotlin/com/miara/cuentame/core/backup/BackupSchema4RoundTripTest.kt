@@ -141,7 +141,7 @@ class BackupSchema4RoundTripTest {
         assertThat(mutatedSnapshot.productionBatches).hasSize(2)
         
         // 6. Restore backup
-        applier.replaceWithBackup(plan.snapshotDto)
+        applier.replaceWithBackup(plan.snapshotDto, plan.manifest)
 
         // 7. Verify exact equality
         val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
@@ -215,7 +215,22 @@ class BackupSchema4RoundTripTest {
         )
 
         // 2. Restore
-        applier.replaceWithBackup(schema3Snapshot)
+        val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.miara.cuentame",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 3,
+            restaurantId = restId.value,
+            restaurantName = "Schema 3",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = listOf("data", "preferences", "attachments")
+        )
+        applier.replaceWithBackup(schema3Snapshot, manifest)
 
         // 3. Verify
         val restored = snapshotSource.loadSnapshot(restId.value).dto

@@ -108,4 +108,13 @@ interface PurchaseRepository {
     suspend fun void(
         id: PurchaseReceiptId
     )
+
+    suspend fun attachDocument(
+        receiptId: PurchaseReceiptId,
+        storedLocation: String
+    )
+
+    suspend fun removeDocument(
+        receiptId: PurchaseReceiptId
+    )
 }

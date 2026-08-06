@@ -48,8 +48,17 @@ class BackupManifestValidatorTest {
     }
 
     @Test
+    fun `supports format versions 1 and 2`() {
+        val v1 = createValidManifest().copy(backupFormatVersion = 1)
+        assertThat(BackupManifestValidator.validate(v1)).isInstanceOf(BackupValidationResult.Valid::class.java)
+
+        val v2 = createValidManifest().copy(backupFormatVersion = 2)
+        assertThat(BackupManifestValidator.validate(v2)).isInstanceOf(BackupValidationResult.Valid::class.java)
+    }
+
+    @Test
     fun `rejects unsupported format version`() {
-        val manifest = createValidManifest().copy(backupFormatVersion = 2)
+        val manifest = createValidManifest().copy(backupFormatVersion = 99)
         val result = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
         assertThat(result.code).isEqualTo(BackupValidationCode.MANIFEST_INVALID)
         assertThat(result.diagnostic).isEqualTo(BackupValidationDiagnostic.VERSION_MISMATCH)
@@ -58,17 +67,18 @@ class BackupManifestValidatorTest {
     @Test
     fun `rejects overlong attachment list`() {
         val manyAttachments = (1..BackupLimits.MAX_ATTACHMENT_COUNT + 1).map {
+            val id = it.toString().padStart(16, '0')
             BackupAttachmentMetadata(
-                attachmentId = "id$it".padStart(16, '0'),
-                archivePath = "path$it",
-                displayName = "name$it",
+                attachmentId = id,
+                archivePath = "attachments/$id/file.jpg",
+                displayName = "file.jpg",
                 mimeType = "image/jpeg",
                 sizeBytes = 10L,
                 checksumSha256 = "0".repeat(64),
                 referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
             )
         }
-        val manifest = createValidManifest().copy(attachments = manyAttachments)
+        val manifest = createValidManifest().copy(backupFormatVersion = 2, attachments = manyAttachments)
         val result = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
         assertThat(result.code).isEqualTo(BackupValidationCode.LIMIT_EXCEEDED)
     }

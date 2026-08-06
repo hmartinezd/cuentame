@@ -65,7 +65,7 @@ object Formatters {
     fun formatFileSize(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"
         val exp = (Math.log(bytes.toDouble()) / Math.log(1024.0)).toInt()
-        val unit = "KMGTPE"[exp - 1] + "iB"
+        val unit = "KMGTPE"[exp - 1] + "B"
         return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, exp.toDouble()), unit)
     }
 }

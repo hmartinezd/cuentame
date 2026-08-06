@@ -8,6 +8,7 @@ import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.entity.WasteEventEntity
+import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,17 +40,20 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         )
     }
 
-    override suspend fun replaceWithBackup(snapshot: BackupSnapshotDto) {
-        // Assert no attachments in incoming backup
-        require(snapshot.purchaseReceipts.all { it.attachmentId == null })
-        require(snapshot.wasteEvents.all { it.attachmentId == null })
-
+    override suspend fun replaceWithBackup(snapshot: BackupSnapshotDto, manifest: BackupManifest) {
+        val attachmentMapping = buildAttachmentMapping(manifest)
+        
         database.withTransaction {
             restoreDao.clearAllInOrder()
-            insertSnapshot(snapshot, useOriginalPaths = false, rollbackPaths = emptyMap(), rollbackWastePaths = emptyMap())
+            insertSnapshot(
+                snapshot = snapshot, 
+                useOriginalPaths = false, 
+                attachmentMapping = attachmentMapping,
+                rollbackPaths = emptyMap(), 
+                rollbackWastePaths = emptyMap()
+            )
             
-            // Verification inside transaction
-            if (!verifySnapshot(snapshot)) {
+            if (!verifySnapshot(snapshot, manifest)) {
                 throw IllegalStateException("Database verification failed after restore")
             }
         }
@@ -59,8 +63,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         database.withTransaction {
             restoreDao.clearAllInOrder()
             insertSnapshot(
-                rollback.snapshot, 
+                snapshot = rollback.snapshot, 
                 useOriginalPaths = true, 
+                attachmentMapping = emptyMap(),
                 rollbackPaths = rollback.purchaseReceiptAttachmentPaths,
                 rollbackWastePaths = rollback.wasteEventAttachmentPaths
             )
@@ -71,17 +76,33 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         }
     }
 
-    override suspend fun verifyMatchesBackup(snapshot: BackupSnapshotDto): Boolean {
-        return verifySnapshot(snapshot)
+    override suspend fun verifyMatchesBackup(snapshot: BackupSnapshotDto, manifest: BackupManifest): Boolean {
+        return verifySnapshot(snapshot, manifest)
     }
 
     override suspend fun verifyMatchesRollback(rollback: RestoreDatabaseRollbackSnapshot): Boolean {
         return verifyRollback(rollback)
     }
 
+    private fun buildAttachmentMapping(manifest: BackupManifest): Map<Pair<String, String>, String> {
+        val mapping = mutableMapOf<Pair<String, String>, String>()
+        for (att in manifest.attachments) {
+            for (ref in att.referencedBy) {
+                val livePath = when (ref.recordType) {
+                    "PURCHASE_RECEIPT" -> "attachments/purchases/${ref.recordId}/${att.displayName}"
+                    "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
+                    else -> "attachments/other/${att.attachmentId}/${att.displayName}"
+                }
+                mapping[ref.recordType to ref.recordId] = livePath
+            }
+        }
+        return mapping
+    }
+
     private suspend fun insertSnapshot(
         snapshot: BackupSnapshotDto,
         useOriginalPaths: Boolean,
+        attachmentMapping: Map<Pair<String, String>, String>,
         rollbackPaths: Map<String, String?>,
         rollbackWastePaths: Map<String, String?>
     ) {
@@ -102,7 +123,8 @@ class RoomRestoreDatabaseApplier @Inject constructor(
             if (useOriginalPaths) {
                 entity.copy(attachmentPath = rollbackPaths[dto.id])
             } else {
-                entity.copy(attachmentPath = null)
+                val livePath = dto.attachmentId?.let { attachmentMapping["PURCHASE_RECEIPT" to dto.id] }
+                entity.copy(attachmentPath = livePath)
             }
         }
         restoreDao.insertPurchaseReceipts(receipts)
@@ -117,7 +139,8 @@ class RoomRestoreDatabaseApplier @Inject constructor(
             if (useOriginalPaths) {
                 entity.copy(attachmentPath = rollbackWastePaths[dto.id])
             } else {
-                entity.copy(attachmentPath = null)
+                val livePath = dto.attachmentId?.let { attachmentMapping["WASTE_EVENT" to dto.id] }
+                entity.copy(attachmentPath = livePath)
             }
         }
         restoreDao.insertWasteEvents(waste)
@@ -127,16 +150,23 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         restoreDao.insertIngredientCostProjections(snapshot.ingredientCostProjections.map { BackupMapper.run { it.toEntity() } })
     }
 
-    private suspend fun verifySnapshot(expected: BackupSnapshotDto): Boolean {
+    private suspend fun verifySnapshot(expected: BackupSnapshotDto, manifest: BackupManifest): Boolean {
         val current = backupDao.createGlobalSnapshot()
-        val currentDto = BackupMapper.mapToDto(current, emptyMap())
         
-        // Verify identity and counts
-        if (currentDto.restaurants.size != expected.restaurants.size) return false
-        if (currentDto.restaurants != expected.restaurants) return false
+        val livePathToAttachmentId = mutableMapOf<String, String>()
+        for (att in manifest.attachments) {
+            for (ref in att.referencedBy) {
+                val livePath = when (ref.recordType) {
+                    "PURCHASE_RECEIPT" -> "attachments/purchases/${ref.recordId}/${att.displayName}"
+                    "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
+                    else -> "attachments/other/${att.attachmentId}/${att.displayName}"
+                }
+                livePathToAttachmentId[livePath] = att.attachmentId
+            }
+        }
         
-        // Detailed check for all tables
-        return currentDto == expected && current.purchaseReceipts.all { it.attachmentPath == null } && current.wasteEvents.all { it.attachmentPath == null }
+        val currentDto = BackupMapper.mapToDto(current, livePathToAttachmentId)
+        return currentDto == expected
     }
 
     private suspend fun verifyRollback(expected: RestoreDatabaseRollbackSnapshot): Boolean {

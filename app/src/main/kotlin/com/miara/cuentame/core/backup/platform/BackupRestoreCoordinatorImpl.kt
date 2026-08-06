@@ -24,6 +24,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
     private val storage: InternalBackupRestoreStorage,
     private val recoveryCoordinator: RestoreRecoveryCoordinator,
     private val operationGate: RestoreOperationGate,
+    private val stager: BackupArchiveRestoreStager,
+    private val attachmentInstaller: RestoreAttachmentInstaller,
+    private val backupDocumentStore: BackupDocumentStore,
     private val codecs: BackupJsonCodecs
 ) : BackupRestoreCoordinator {
 
@@ -69,9 +72,6 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         val inspection = restoreRepository.inspect(source)
         val archive = when (inspection) {
             is BackupArchiveInspectionResult.Ready -> {
-                if (inspection.eligibility is BackupRestoreEligibility.AttachmentsNotSupported) {
-                    return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
-                }
                 inspection.archive
             }
             is BackupArchiveInspectionResult.Failure -> return@withOperationalLock BackupRestoreApplyResult.Failure(inspection.reason)
@@ -80,18 +80,6 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         // 3. Verify fingerprint
         if (archive.fingerprint != expectedFingerprint) {
             return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.InspectionExpired)
-        }
-
-        // 4. Verify backup has no attachments
-        if (archive.manifest.attachments.isNotEmpty() || 
-            archive.snapshot.purchaseReceipts.any { it.attachmentId != null } ||
-            archive.snapshot.wasteEvents.any { it.attachmentId != null }) {
-            return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
-        }
-
-        // 5. Verify current live data has no attachment references
-        if (databaseApplier.hasExistingAttachmentReferences()) {
-            return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.AttachmentsNotSupported)
         }
 
         // 6. Validate incoming preferences
@@ -123,6 +111,12 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) { throw RestorePreparationException(e) }
 
+            // Capture attachment rollback
+            try {
+                attachmentInstaller.captureRollback(sessionId)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { throw RestorePreparationException(e) }
+
             // 8. Persist rollback snapshot atomically
             try {
                 storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
@@ -150,10 +144,27 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
             withContext(NonCancellable) {
                 try {
-                    // 11. Replace Room
+                    // 11. Staging and Installation
                     onProgress(BackupRestoreProgress.RestoringData)
+                    
+                    val stagingDir = try {
+                        backupDocumentStore.openForRead(source).use { input ->
+                            val result = stager.stage(sessionId, input)
+                            if (result is BackupArchiveStagingResult.Success) {
+                                result.stagingDir
+                            } else {
+                                throw RestoreDatabaseApplicationException(IllegalStateException("Staging failed"))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        throw RestoreDatabaseApplicationException(e)
+                    }
+
+                    attachmentInstaller.installStaged(sessionId, stagingDir)
+
+                    // 12. Replace Room
                     try {
-                        databaseApplier.replaceWithBackup(archive.snapshot)
+                        databaseApplier.replaceWithBackup(archive.snapshot, archive.manifest)
                     } catch (e: Exception) {
                         throw RestoreDatabaseApplicationException(e)
                     }
@@ -162,7 +173,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     journal.write(dbAppliedJournal)
                     currentJournal = dbAppliedJournal
 
-                    // 12. Apply Preferences
+                    // 13. Apply Preferences
                     onProgress(BackupRestoreProgress.RestoringSettings)
                     try {
                         preferencesApplier.apply(archive.preferences)
@@ -170,7 +181,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                         throw RestorePreferencesApplicationException(e)
                     }
                     
-                    // 13. Verify preferences
+                    // 14. Verify preferences
                     if (!preferencesApplier.verifyMatches(archive.preferences)) {
                         throw RestorePreferencesApplicationException(IllegalStateException("Preferences verification failed"))
                     }
@@ -179,9 +190,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     journal.write(prefsAppliedJournal)
                     currentJournal = prefsAppliedJournal
 
-                    // 14. Finalizing
+                    // 15. Finalizing
                     onProgress(BackupRestoreProgress.Finalizing)
-                    if (!databaseApplier.verifyMatchesBackup(archive.snapshot)) {
+                    if (!databaseApplier.verifyMatchesBackup(archive.snapshot, archive.manifest)) {
                         throw RestoreFinalVerificationException()
                     }
 
@@ -189,7 +200,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     journal.write(completedJournal)
                     currentJournal = completedJournal
 
-                    // 15. Cleanup
+                    // 16. Cleanup
                     storage.cleanupSessionOrThrow(sessionId)
                     journal.deleteOrThrow()
                 } catch (e: Exception) {
@@ -210,6 +221,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     try {
                         databaseApplier.restoreRollback(rollback)
                         preferencesApplier.apply(prevPrefs)
+                        attachmentInstaller.rollback(sessionId)
                         
                         if (!databaseApplier.verifyMatchesRollback(rollback)) {
                             throw IllegalStateException("Rollback verification failed")

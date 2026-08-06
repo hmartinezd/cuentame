@@ -27,7 +27,28 @@ class TestStateManager @Inject constructor(
     }
 
     private fun removeTestFiles() {
-        // ... (unchanged)
+        val testPatterns = listOf(
+            "integration_test",
+            "cuentame_test_backup",
+            "test_attachment",
+            "test_document"
+        )
+
+        fun shouldDelete(file: File): Boolean {
+            return testPatterns.any { pattern -> file.name.contains(pattern) }
+        }
+
+        fun deleteTargeted(file: File) {
+            if (shouldDelete(file)) {
+                file.deleteRecursively()
+            } else if (file.isDirectory) {
+                file.listFiles()?.forEach { deleteTargeted(it) }
+            }
+        }
+
+        listOf(context.cacheDir, context.filesDir).forEach { root ->
+            root.listFiles()?.forEach { deleteTargeted(it) }
+        }
     }
 
     suspend fun seedBaseline() {

@@ -18,6 +18,7 @@ import com.miara.cuentame.core.domain.usecase.VoidPurchaseUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +58,8 @@ class PurchaseDetailViewModelTest {
              val current = detailsFlow.value ?: return
              detailsFlow.value = current.copy(receipt = current.receipt.copy(status = DocumentStatus.VOIDED))
         }
+        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String) {}
+        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
@@ -189,6 +192,7 @@ class PurchaseDetailViewModelTest {
             SavedStateHandle(if (receiptId != null) mapOf("receiptId" to receiptId) else emptyMap()),
             ObservePurchaseDetailsUseCase(fakePurchaseRepository),
             VoidPurchaseUseCase(fakePurchaseRepository),
+            mockk(relaxed = true),
             fakeRestaurantRepository
         )
     }

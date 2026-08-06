@@ -600,7 +600,7 @@ class DefaultBackupArchiveReaderTest {
     }
 
     @Test
-    fun `inspect valid attachment-bearing archive returns Ready and AttachmentsNotSupported`() = runTest {
+    fun `inspect valid attachment-bearing archive returns Ready and Eligible`() = runTest {
         val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(jsonCodecs)
         
         val result = reader.inspect(ByteArrayInputStream(fixture.archiveBytes), docUri)
@@ -609,7 +609,7 @@ class DefaultBackupArchiveReaderTest {
         val ready = result as BackupArchiveInspectionResult.Ready
         assertThat(ready.archive.manifest.attachments).isNotEmpty()
         assertThat(ready.archive.manifest.attachments[0].attachmentId).isEqualTo(fixture.attachmentId)
-        assertThat(ready.eligibility).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreEligibility.AttachmentsNotSupported)
+        assertThat(ready.eligibility).isEqualTo(com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible)
     }
 
     private fun createValidEmptySnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(
@@ -635,7 +635,7 @@ class DefaultBackupArchiveReaderTest {
         val tables = BackupFormatV1Contract.expectedTablesForSchema(2)
             .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) }
         return com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 1,
+            backupFormatVersion = 2,
             createdAtUtc = "2026-01-01T12:00:00Z",
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",

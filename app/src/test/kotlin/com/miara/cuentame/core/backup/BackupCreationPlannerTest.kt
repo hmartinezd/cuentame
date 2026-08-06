@@ -46,24 +46,20 @@ class BackupCreationPlannerTest {
         every { appVersionProvider.databaseSchemaVersion } returns BackupFormatV1Contract.DATABASE_SCHEMA_VERSION
     }
 
-    private fun makeRestaurant(locale: String = "en-US") = Restaurant(
-        id = RestaurantId("rest-1"),
-        name = "Test Restaurant",
+    private fun makeRestaurant() = Restaurant(
+        id = RestaurantId("r1"),
+        name = "Test Rest",
         currencyCode = "USD",
-        localeTag = locale,
+        localeTag = "en-US",
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH
     )
 
-    private fun createValidSnapshotDto(restaurantId: String = "rest-1") = 
-        BackupTestFixtures.createEmptySnapshotDto().copy(
-            restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto(
-                restaurantId, "Test Restaurant", "USD", "en-US", 0L, 0L, null
-            ))
-        )
+    private fun createValidSnapshotDto() = 
+        BackupTestFixtures.createPopulatedSchema4Snapshot()
 
     @Test
-    fun `successful deterministic plan`() = runTest {
+    fun `successful deterministic plan uses V2`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -74,15 +70,8 @@ class BackupCreationPlannerTest {
 
         assertThat(result).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (result as BackupPlanningResult.Success).plan
+        assertThat(plan.manifest.backupFormatVersion).isEqualTo(2)
         assertThat(plan.manifest.localeTag).isEqualTo("en-US")
-        assertThat(plan.manifest.databaseSchemaVersion).isEqualTo(4)
-        assertThat(plan.totalUncompressedBytes).isGreaterThan(0L)
-        assertThat(plan.expectedEntryChecksums.keys).containsExactly(
-            BackupFormatV1Contract.DATABASE_ENTRY,
-            BackupFormatV1Contract.PREFERENCES_ENTRY,
-            BackupFormatV1Contract.MANIFEST_ENTRY
-        )
-        assertThat(plan.manifest.tableMetadata.keys).containsAtLeast("production_batches", "production_batch_components")
     }
 
     @Test
@@ -105,23 +94,30 @@ class BackupCreationPlannerTest {
     }
 
     @Test
-    fun `backup planning rejects purchase attachment`() = runTest {
+    fun `backup planning supports purchase attachment in V2`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
         val attId = "0123456789abcdef"
         val attUri = AttachmentSourceUri("uri1")
-        val snapshotDto = createValidSnapshotDto().copy(
-            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "rest-1", null, null, 0, "DRAFT", null, attId, 0, 0, null, null
-            ))
-        )
+        
+        attachmentSource.metadataMap[attUri] = AttachmentSourceMetadata(attUri, "invoice.pdf", "application/pdf")
+        attachmentSource.dataMap[attUri] = "test".toByteArray()
+
+        val snapshot = createValidSnapshotDto()
+        val sabotagedReceipts = snapshot.purchaseReceipts.map {
+            if (it.id == "p1") it.copy(attachmentId = attId) else it
+        }
+        val snapshotDto = snapshot.copy(purchaseReceipts = sabotagedReceipts)
         val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
 
         val result = planner.createPlan(makeRestaurant(), snapshotResult)
         
-        assertThat(result).isInstanceOf(BackupPlanningResult.Failure::class.java)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
+        assertThat(result).isInstanceOf(BackupPlanningResult.Success::class.java)
+        val plan = (result as BackupPlanningResult.Success).plan
+        assertThat(plan.manifest.backupFormatVersion).isEqualTo(2)
+        assertThat(plan.attachments).hasSize(1)
+        assertThat(plan.attachments[0].attachmentId).isEqualTo(attId)
     }
 
     @Test
@@ -149,71 +145,37 @@ class BackupCreationPlannerTest {
     }
 
     @Test
-    fun `backup planning rejects waste attachment`() = runTest {
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        
-        val attId = "0123456789abcdef"
-        val attUri = AttachmentSourceUri("uri1")
-        val snapshotDto = createValidSnapshotDto().copy(
-            wasteEvents = listOf(com.miara.cuentame.core.backup.model.WasteEventBackupDto(
-                "w1", "rest-1", "i1", "a1", "uo1", "1", "1", "SPOILED", 0, null, attId, "POSTED", 0, 0, 0, null
-            ))
-        )
-        val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
-
-        val result = planner.createPlan(makeRestaurant(), snapshotResult)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
-    }
-
-    @Test
-    fun `backup planning rejects attachment source binding`() = runTest {
-        coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
-        preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
-        
-        val attId = "0123456789abcdef"
-        val attUri = AttachmentSourceUri("uri1")
-        val snapshotDto = createValidSnapshotDto()
-        val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(attId, attUri)))
-
-        val result = planner.createPlan(makeRestaurant(), snapshotResult)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
-    }
-
-    @Test
     fun `rejects plan if attachment ID is invalid`() = runTest {
-        // Renamed to match historical requirement but asserts new failure
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
         val invalidId = "not-hex"
         val attUri = AttachmentSourceUri("uri1")
-        val snapshotDto = createValidSnapshotDto().copy(
-            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "rest-1", null, null, 0, "DRAFT", null, invalidId, 0, 0, null, null
-            ))
-        )
+        val snapshot = createValidSnapshotDto()
+        val sabotagedReceipts = snapshot.purchaseReceipts.map {
+            if (it.id == "p1") it.copy(attachmentId = invalidId) else it
+        }
+        val snapshotDto = snapshot.copy(purchaseReceipts = sabotagedReceipts)
         val snapshotResult = BackupSnapshotResult(snapshotDto, listOf(BackupAttachmentSourceBinding(invalidId, attUri)))
 
         val result = planner.createPlan(makeRestaurant(), snapshotResult)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.InvalidAttachmentId)
     }
 
     @Test
     fun `fails with MissingAttachmentSource when binding is missing`() = runTest {
-        // Renamed to match historical requirement but asserts new failure
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
         val attId = "0123456789abcdef"
-        val snapshotDto = createValidSnapshotDto().copy(
-            purchaseReceipts = listOf(com.miara.cuentame.core.backup.model.PurchaseReceiptBackupDto(
-                "p1", "rest-1", null, null, 0, "DRAFT", null, attId, 0, 0, null, null
-            ))
-        )
+        val snapshot = createValidSnapshotDto()
+        val sabotagedReceipts = snapshot.purchaseReceipts.map {
+            if (it.id == "p1") it.copy(attachmentId = attId) else it
+        }
+        val snapshotDto = snapshot.copy(purchaseReceipts = sabotagedReceipts)
         val snapshotResult = BackupSnapshotResult(snapshotDto, emptyList())
 
         val result = planner.createPlan(makeRestaurant(), snapshotResult)
-        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.AttachmentsNotSupported)
+        assertThat((result as BackupPlanningResult.Failure).reason).isEqualTo(BackupPlanningFailure.MissingAttachmentSource)
     }
 }

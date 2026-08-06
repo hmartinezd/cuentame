@@ -6,6 +6,8 @@ import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.backup.AndroidBackupRepository
 import com.miara.cuentame.core.backup.ChecksumProvider
 import com.miara.cuentame.core.backup.Sha256ChecksumProvider
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
+import com.miara.cuentame.core.backup.platform.AndroidPurchaseDocumentStore
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -33,4 +35,10 @@ abstract class BackupModule {
     abstract fun bindChecksumProvider(
         impl: Sha256ChecksumProvider
     ): ChecksumProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindPurchaseDocumentStore(
+        impl: AndroidPurchaseDocumentStore
+    ): PurchaseDocumentStore
 }

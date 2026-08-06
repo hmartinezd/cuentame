@@ -3,6 +3,8 @@ package com.miara.cuentame.feature.purchases.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
+import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
@@ -17,6 +19,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,6 +37,7 @@ data class PurchaseDetailUiState(
     val state: PurchaseDetailState = PurchaseDetailState.Loading,
     val currencyCode: String = "",
     val isVoiding: Boolean = false,
+    val documentMetadata: StoredPurchaseDocument? = null,
     val error: Throwable? = null
 )
 
@@ -46,6 +51,7 @@ class PurchaseDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val observePurchaseDetailsUseCase: ObservePurchaseDetailsUseCase,
     private val voidPurchaseUseCase: VoidPurchaseUseCase,
+    private val documentStore: PurchaseDocumentStore,
     private val restaurantRepository: RestaurantRepository
 ) : ViewModel() {
 
@@ -66,12 +72,21 @@ class PurchaseDetailViewModel @Inject constructor(
     
     private val restaurantFlow = restaurantRepository.observeRestaurant().filterNotNull()
 
+    private val documentMetadataFlow = detailsFlow.flatMapLatest { details ->
+        flow {
+            emit(details?.receipt?.attachmentPath?.let { path ->
+                documentStore.inspect(path)
+            })
+        }
+    }
+
     val uiState: StateFlow<PurchaseDetailUiState> = combine(
         detailsFlow,
         restaurantFlow,
+        documentMetadataFlow,
         _isVoiding,
         _error
-    ) { details, restaurant, voiding, error ->
+    ) { details, restaurant, documentMetadata, voiding, error ->
         val state = when {
             receiptId == null -> PurchaseDetailState.Error(Exception("Invalid purchase ID"))
             details != null -> PurchaseDetailState.Ready(details)
@@ -81,6 +96,7 @@ class PurchaseDetailViewModel @Inject constructor(
             state = state,
             currencyCode = restaurant.currencyCode,
             isVoiding = voiding,
+            documentMetadata = documentMetadata,
             error = error
         )
     }.stateIn(

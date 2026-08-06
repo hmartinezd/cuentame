@@ -26,6 +26,9 @@ class RestoreDurablePhaseTest {
     private val storage = mockk<InternalBackupRestoreStorage>(relaxed = true)
     private val journal = mockk<RestoreJournal>()
     private val operationGate = RestoreOperationGate()
+    private val stager = mockk<BackupArchiveRestoreStager>(relaxed = true)
+    private val attachmentInstaller = mockk<RestoreAttachmentInstaller>(relaxed = true)
+    private val backupDocumentStore = mockk<BackupDocumentStore>(relaxed = true)
     private val codecs = BackupJsonCodecs()
     
     private lateinit var recoveryCoordinator: RestoreRecoveryCoordinator
@@ -63,7 +66,8 @@ class RestoreDurablePhaseTest {
         
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
-            journal, storage, recoveryCoordinator, operationGate, codecs
+            journal, storage, recoveryCoordinator, operationGate, 
+            stager, attachmentInstaller, backupDocumentStore, codecs
         )
         
         // Mock default success for most things
@@ -75,7 +79,7 @@ class RestoreDurablePhaseTest {
             wasteEventAttachmentPaths = emptyMap<String, String>()
         )
         coEvery { preferencesApplier.verifyMatches(any()) } returns true
-        coEvery { databaseApplier.verifyMatchesBackup(any()) } returns true
+        coEvery { databaseApplier.verifyMatchesBackup(any(), any()) } returns true
         coEvery { databaseApplier.verifyMatchesRollback(any()) } returns true
         
         val rollbackFile = File(tempFolder.root, "rollback.json")
@@ -83,6 +87,15 @@ class RestoreDurablePhaseTest {
         every { storage.saveRollbackSnapshot(any(), any()) } answers {
             rollbackFile.writeText(secondArg())
         }
+
+        coEvery { backupDocumentStore.openForRead(any()) } returns "".byteInputStream()
+        coEvery { stager.stage(any(), any()) } returns BackupArchiveStagingResult.Success(
+            createMinimalSnapshot(), 
+            BackupPreferencesDto("SYSTEM", true, "en-US"), 
+            mockk(relaxed = true) { every { attachments } returns emptyList() }, 
+            BackupArchiveFingerprint("hash"), 
+            tempFolder.newFolder("staging")
+        )
     }
 
     private fun createMinimalSnapshot() = com.miara.cuentame.core.backup.model.BackupSnapshotDto(

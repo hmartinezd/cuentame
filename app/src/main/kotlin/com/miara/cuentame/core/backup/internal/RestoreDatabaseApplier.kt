@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.internal
 
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
+import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
 
 interface RestoreDatabaseApplier {
@@ -16,9 +17,8 @@ interface RestoreDatabaseApplier {
 
     /**
      * Replaces the entire database content with the provided snapshot.
-     * All attachment paths in the incoming snapshot must be null.
      */
-    suspend fun replaceWithBackup(snapshot: BackupSnapshotDto)
+    suspend fun replaceWithBackup(snapshot: BackupSnapshotDto, manifest: BackupManifest)
 
     /**
      * Restores the database from a previously captured internal rollback snapshot.
@@ -28,7 +28,7 @@ interface RestoreDatabaseApplier {
     /**
      * Verifies that the current database state exactly matches the provided backup snapshot.
      */
-    suspend fun verifyMatchesBackup(snapshot: BackupSnapshotDto): Boolean
+    suspend fun verifyMatchesBackup(snapshot: BackupSnapshotDto, manifest: BackupManifest): Boolean
 
     /**
      * Verifies that the current database state exactly matches the provided rollback snapshot.

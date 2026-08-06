@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
@@ -60,6 +62,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PurchaseDetailRoute(
     onBack: () -> Unit,
+    onNavigateToDocument: (PurchaseReceiptId) -> Unit,
     viewModel: PurchaseDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,6 +90,7 @@ fun PurchaseDetailRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
+        onViewDocument = { (uiState.state as? PurchaseDetailState.Ready)?.details?.receipt?.id?.let { onNavigateToDocument(it) } },
         onVoid = viewModel::onVoid
     )
 }
@@ -97,6 +101,7 @@ fun PurchaseDetailScreen(
     uiState: PurchaseDetailUiState,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
+    onViewDocument: () -> Unit,
     onVoid: () -> Unit
 ) {
     var showVoidConfirm by remember { mutableStateOf(false) }
@@ -168,6 +173,13 @@ fun PurchaseDetailScreen(
 
                     item {
                         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    }
+
+                    item {
+                        ReadOnlyPurchaseDocumentSection(
+                            uiState = uiState,
+                            onView = onViewDocument
+                        )
                     }
 
                     items(details.lines) { line ->
@@ -260,6 +272,59 @@ fun PurchaseDetailScreen(
         if (uiState.state is PurchaseDetailState.Ready && uiState.state.details.receipt.status == DocumentStatus.VOIDED) {
             showVoidConfirm = false
         }
+    }
+}
+
+@Composable
+fun ReadOnlyPurchaseDocumentSection(
+    uiState: PurchaseDetailUiState,
+    onView: () -> Unit
+) {
+    val metadata = uiState.documentMetadata
+    if (metadata != null) {
+        Column(modifier = Modifier.fillMaxWidth().testTag("purchase_document_section")) {
+            Text(
+                text = stringResource(R.string.purchase_invoice_document),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            ListItem(
+                modifier = Modifier.testTag("purchase_document_metadata"),
+                headlineContent = { 
+                    Text(
+                        text = metadata.displayName,
+                        modifier = Modifier.testTag("purchase_document_name")
+                    ) 
+                },
+                supportingContent = {
+                    Text(
+                        text = "${metadata.mimeType} • ${Formatters.formatFileSize(metadata.sizeBytes)}",
+                        modifier = Modifier.testTag("purchase_document_info")
+                    )
+                },
+                trailingContent = {
+                    IconButton(onClick = onView, modifier = Modifier.testTag("purchase_document_view")) {
+                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
+                    }
+                }
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+    } else if ((uiState.state as? PurchaseDetailState.Ready)?.details?.receipt?.attachmentPath != null) {
+        Column(modifier = Modifier.fillMaxWidth().testTag("purchase_document_section")) {
+            Text(
+                text = stringResource(R.string.purchase_invoice_document),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Text(
+                text = stringResource(R.string.purchase_document_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("purchase_document_unavailable")
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
     }
 }
 
