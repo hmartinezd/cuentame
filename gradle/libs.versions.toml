@@ -5,6 +5,7 @@ ksp = "2.1.0-1.0.29"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
+orchestrator = "1.4.2"
 espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material = "1.10.0"
@@ -26,6 +27,7 @@ mockk = "1.13.13"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-orchestrator = { group = "androidx.test", name = "orchestrator", version.ref = "orchestrator" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 javax-inject = { group = "javax.inject", name = "javax.inject", version = "1" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }

@@ -9,10 +9,8 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
-import org.junit.After
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
+import org.junit.*
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import javax.inject.Inject
 
@@ -25,6 +23,9 @@ class PreparationRecipeNavigationTest {
 
     @get:Rule(order = 1)
     val composeTestRule = createEmptyComposeRule()
+
+    @get:Rule(order = 2)
+    val timeoutRule: Timeout = Timeout.seconds(60)
 
     @Inject
     lateinit var testStateManager: TestStateManager
@@ -48,7 +49,7 @@ class PreparationRecipeNavigationTest {
     fun navigateToPreparationRecipes_fromHome() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
             composeTestRule.onNodeWithTag("preparation_recipe_list_screen").assertIsDisplayed()
         }
     }
@@ -57,7 +58,7 @@ class PreparationRecipeNavigationTest {
     fun createRecipeAndBack_returnsToList() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
             
             composeTestRule.onNodeWithTag("preparation_recipe_editor_screen").assertIsDisplayed()

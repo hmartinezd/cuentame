@@ -49,7 +49,8 @@ android {
     }
 
     testOptions {
-        animationsDisabled = false
+        animationsDisabled = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
         unitTests.all { testTask ->
             testTask.jvmArgs("-Xmx4096m", "-XX:MaxMetaspaceSize=1024m")
             testTask.maxParallelForks = 1
@@ -124,6 +125,7 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.turbine)
     androidTestImplementation(libs.mockkAndroid)
+    androidTestUtil(libs.androidx.orchestrator)
     kspAndroidTest(libs.hilt.compiler)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

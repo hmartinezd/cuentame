@@ -1,9 +1,9 @@
 package com.miara.cuentame.feature.preparations
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.R
 import com.miara.cuentame.core.backup.api.RestoreStartupState
@@ -11,20 +11,16 @@ import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
-import com.miara.cuentame.core.database.entity.IngredientEntity
-import com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity
-import com.miara.cuentame.core.database.entity.InventoryAreaEntity
-import com.miara.cuentame.core.database.entity.RestaurantEntity
-import com.miara.cuentame.core.database.entity.UnitEntity
+import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.test.TestSeeder
+import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
-import org.junit.After
+import org.junit.*
 import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import java.math.BigDecimal
 import javax.inject.Inject
@@ -39,6 +35,9 @@ class PreparationRecipeUiTest {
     @get:Rule(order = 1)
     val composeTestRule = createEmptyComposeRule()
 
+    @get:Rule(order = 2)
+    val timeoutRule: Timeout = Timeout.seconds(60)
+
     @Inject
     lateinit var database: RestaurantInventoryDatabase
 
@@ -46,49 +45,41 @@ class PreparationRecipeUiTest {
     lateinit var preferencesRepository: AppPreferencesRepository
 
     @Inject
+    lateinit var testStateManager: TestStateManager
+
+    @Inject
     lateinit var restoreGate: RestoreOperationGate
 
     private val context get() = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
-    private val restaurantId = RestaurantId("r1")
+    private val restaurantId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
+            testStateManager.seedBaseline()
             
-            // 1. Restaurant
-            database.restaurantDao().insert(RestaurantEntity(restaurantId.value, "Test Rest", "USD", "en-US", 0, 0, null))
-            
-            // 2. Inventory Area
-            database.inventoryAreaDao().upsert(InventoryAreaEntity("a1", restaurantId.value, "Stock", "stock", 0, true, 0, 0, null))
-
-            // 3. Unit
-            database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "Unit", "u", "COUNT", BigDecimal.ONE, true, 0)))
-            
-            // 4. Ingredients & unit options
-            seedIngredient("i1", "Onion")
+            // Seed additional ingredients needed for these tests
             seedIngredient("i2", "Water")
             seedIngredient("out1", "Onion Soup")
-
-            // 5. Preferences
-            preferencesRepository.setAppLocaleTag("en")
-            preferencesRepository.setOnboardingCompleted(true)
-            restoreGate.updateRecoveryState(RestoreStartupState.Ready)
+            // "i1" (Onion) is already seeded as ING_ID in baseline, but let's make it explicit if needed.
+            // Actually baseline seeds "ing-test-1" as "Chicken".
+            // I'll seed "i1" as "Onion"
+            seedIngredient("i1", "Onion")
         }
     }
 
     private suspend fun seedIngredient(id: String, name: String) {
         database.ingredientDao().insert(IngredientEntity(
             id = id, restaurantId = restaurantId.value, name = name, normalizedName = name.lowercase(),
-            categoryId = null, baseUnitId = "u1", defaultAreaId = "a1", sku = null, notes = null,
+            categoryId = null, baseUnitId = TestSeeder.UNIT_ID, defaultAreaId = TestSeeder.AREA_ID, sku = null, notes = null,
             reorderPointBase = null, isActive = true, createdAt = 0, updatedAt = 0, deletedAt = null
         ))
         database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(
             id = "o-$id", ingredientId = id, displayName = "Unit", shortLabel = "u",
-            standardUnitId = "u1", factorToBase = BigDecimal.ONE, isBase = true, isDefaultCount = true,
+            standardUnitId = TestSeeder.UNIT_ID, factorToBase = BigDecimal.ONE, isBase = true, isDefaultCount = true,
             isDefaultPurchase = true, isActive = true, createdAt = 0, updatedAt = 0, deletedAt = null
         ))
     }
@@ -96,7 +87,7 @@ class PreparationRecipeUiTest {
     @After
     fun teardown() {
         runBlocking {
-            database.clearAllTables()
+            testStateManager.resetAll()
         }
     }
 
@@ -106,13 +97,13 @@ class PreparationRecipeUiTest {
             waitForHome()
 
             // 1. Navigate to Preparation Recipes from Home
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
-            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("preparation_list_back").assertIsDisplayed()
 
             // 2. Click Add FAB
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").assertIsDisplayed().performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("preparation_recipe_editor_screen")
 
             // 3. Select Output Ingredient
             composeTestRule.onNodeWithTag("preparation_back_button").assertIsDisplayed()
@@ -122,30 +113,28 @@ class PreparationRecipeUiTest {
             composeTestRule.onNodeWithTag("ingredient_option_out1").performClick()
             
             // 4. Fill Header
-            // Recipe name can be blank - should default to ingredient name
             composeTestRule.onNodeWithTag("recipe_yield_quantity_field").performTextInput("10")
             composeTestRule.onNodeWithTag("recipe_yield_unit_selector").performClick()
             composeTestRule.onNodeWithTag("unit_option_o-out1").performClick()
             
             // 5. Save Draft
             composeTestRule.onNodeWithTag("recipe_editor_save").assertIsDisplayed().performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("add_recipe_component")
 
             // 6. Add Component
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodesWithTag("add_recipe_component").fetchSemanticsNodes().isNotEmpty()
-            }
             composeTestRule.onNodeWithTag("add_recipe_component", useUnmergedTree = true).assertIsDisplayed().performClick()
+            waitForTag("preparation_recipe_component_screen")
+
             composeTestRule.onNodeWithTag("recipe_component_ingredient_selector").performClick()
             composeTestRule.onNodeWithTag("ingredient_option_i1").performClick()
             composeTestRule.onNodeWithTag("recipe_component_quantity_field").performTextInput("5")
             composeTestRule.onNodeWithTag("recipe_component_unit_selector").performClick()
             composeTestRule.onNodeWithTag("unit_option_o-i1").performClick()
             composeTestRule.onNodeWithTag("recipe_component_save").assertIsDisplayed().performClick()
-            composeTestRule.waitForIdle()
+            
+            waitForTag("preparation_recipe_editor_screen")
 
             // 7. Verify Component in List
-            // Find component ID from DB
             val recipe = runBlocking { database.preparationRecipeDao().getActiveOrDraftByOutputIngredient(restaurantId.value, "out1") }
             val components = runBlocking { database.preparationRecipeDao().getComponentsForRecipe(recipe!!.id) }
             val componentId = components.first { it.componentIngredientId == "i1" }.id
@@ -171,8 +160,10 @@ class PreparationRecipeUiTest {
     fun recipe_editor_save_validation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
+            waitForTag("preparation_recipe_editor_screen")
             
             // Save without output ingredient
             composeTestRule.onNodeWithTag("recipe_editor_save").performClick()
@@ -184,8 +175,10 @@ class PreparationRecipeUiTest {
     fun recipe_editor_discard_confirmation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
+            waitForTag("preparation_recipe_editor_screen")
             
             // Modify name
             composeTestRule.onNodeWithTag("recipe_name_field").performTextInput("Dirty")
@@ -204,7 +197,7 @@ class PreparationRecipeUiTest {
             composeTestRule.onNodeWithTag("preparation_back_button").performClick()
             composeTestRule.onNodeWithText(context.getString(R.string.action_discard)).performClick()
             
-            composeTestRule.onNodeWithTag("preparation_recipe_list_screen").assertIsDisplayed()
+            waitForTag("preparation_recipe_list_screen")
         }
     }
 
@@ -212,25 +205,24 @@ class PreparationRecipeUiTest {
     fun component_editor_cancel_returns_to_draft() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
+            waitForTag("preparation_recipe_editor_screen")
             
             // First save header to get into Draft mode
             composeTestRule.onNodeWithTag("recipe_output_ingredient_selector").performClick()
             composeTestRule.onNodeWithTag("ingredient_option_out1").performClick()
             composeTestRule.onNodeWithTag("recipe_editor_save").performClick()
-            composeTestRule.waitForIdle()
+            waitForTag("add_recipe_component")
             
             // Add component
-            composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodesWithTag("add_recipe_component", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
             composeTestRule.onNodeWithTag("add_recipe_component", useUnmergedTree = true).performClick()
-            composeTestRule.onNodeWithTag("preparation_recipe_component_screen").assertIsDisplayed()
+            waitForTag("preparation_recipe_component_screen")
             
             // Cancel
             composeTestRule.onNodeWithTag("preparation_back_button").performClick()
-            composeTestRule.onNodeWithTag("preparation_recipe_editor_screen").assertIsDisplayed()
+            waitForTag("preparation_recipe_editor_screen")
             
             // Verify no component was added
             composeTestRule.onNodeWithText("Onion").assertDoesNotExist()
@@ -244,7 +236,7 @@ class PreparationRecipeUiTest {
             
             // Seed an active recipe manually in DB
             runBlocking {
-                database.preparationRecipeDao().insert(com.miara.cuentame.core.database.entity.PreparationRecipeEntity(
+                database.preparationRecipeDao().insert(PreparationRecipeEntity(
                     id = "r-active", 
                     restaurantId = restaurantId.value, 
                     outputIngredientId = "out1",
@@ -261,27 +253,40 @@ class PreparationRecipeUiTest {
                 ))
             }
             
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            waitForTag("preparation_recipe_list_screen")
             
             // Click the recipe to go to details
             composeTestRule.onNodeWithTag("preparation_recipe_item_r-active").performClick()
-            composeTestRule.onNodeWithTag("preparation_recipe_detail_screen").assertIsDisplayed()
+            waitForTag("preparation_recipe_detail_screen")
             
             // Back
             composeTestRule.onNodeWithTag("preparation_back_button").performClick()
-            composeTestRule.onNodeWithTag("preparation_recipe_list_screen").assertIsDisplayed()
+            waitForTag("preparation_recipe_list_screen")
         }
     }
 
     private fun waitForHome() {
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
+        composeTestRule.waitUntil(
+            conditionDescription = "Home screen did not appear",
+            timeoutMillis = 15_000
+        ) {
+            composeTestRule
+                .onAllNodesWithTag("home_screen")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+    }
+
+    private fun waitForTag(tag: String, timeoutMillis: Long = 10_000) {
+        composeTestRule.waitUntil(
+            conditionDescription = "Node with tag $tag did not appear",
+            timeoutMillis = timeoutMillis
+        ) {
+            composeTestRule
+                .onAllNodesWithTag(tag)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
-        composeTestRule.waitForIdle()
     }
 }
