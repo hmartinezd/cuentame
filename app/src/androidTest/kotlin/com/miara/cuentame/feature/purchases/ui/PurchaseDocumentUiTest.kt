@@ -4,32 +4,23 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.R
-import com.miara.cuentame.core.backup.api.BackupDocumentUri
-import com.miara.cuentame.core.backup.api.BackupArchiveInspectionResult
-import com.miara.cuentame.core.backup.api.BackupRestoreApplyResult
-import com.miara.cuentame.core.backup.api.BackupRestoreCoordinator
 import com.miara.cuentame.core.backup.api.RestoreStartupState
 import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
-import com.miara.cuentame.core.domain.repository.BackupOperationStatus
-import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import javax.inject.Inject
 
@@ -51,12 +42,6 @@ class PurchaseDocumentUiTest {
 
     @Inject
     lateinit var testStateManager: TestStateManager
-
-    @Inject
-    lateinit var backupRepository: BackupRepository
-
-    @Inject
-    lateinit var restoreCoordinator: BackupRestoreCoordinator
 
     @Inject
     lateinit var restoreGate: RestoreOperationGate
@@ -100,7 +85,7 @@ class PurchaseDocumentUiTest {
     }
 
     @Test
-    fun documentSection_showsImportAfterFirstSave() {
+    fun documentSection_showsCaptureActionsAfterFirstSave() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHomeScreen()
             composeTestRule.onNodeWithTag("nav_purchases", useUnmergedTree = true).performClick()
@@ -113,10 +98,11 @@ class PurchaseDocumentUiTest {
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
             
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("purchase_document_import")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("purchase_document_scan")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            composeTestRule.onNodeWithTag("purchase_document_import").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("purchase_document_scan").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("purchase_document_choose_file").assertIsDisplayed()
         }
     }
 
@@ -158,67 +144,6 @@ class PurchaseDocumentUiTest {
             
             val unavailableMsg = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.purchase_document_unavailable)
             composeTestRule.onNodeWithText(unavailableMsg).assertIsDisplayed()
-        }
-    }
-
-    @Test
-    fun complete_backup_restore_roundtrip_with_attachment() {
-        runBlocking {
-            val now = Instant.now().toEpochMilli()
-            val receiptId = "p_roundtrip"
-            // Use a filename that matches TestStateManager cleanup patterns
-            val attachmentPath = "attachments/purchases/$receiptId/test_attachment_invoice.pdf"
-            val attachmentFile = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, attachmentPath)
-            attachmentFile.parentFile?.mkdirs()
-            attachmentFile.writeText("pdf-content")
-            
-            database.purchaseDao().insertReceipt(
-                PurchaseReceiptEntity(
-                    id = receiptId,
-                    restaurantId = TestSeeder.RESTAURANT_ID,
-                    supplierId = null,
-                    invoiceNumber = "INV-RT",
-                    purchaseDate = now,
-                    status = DocumentStatus.DRAFT.name,
-                    notes = null,
-                    attachmentPath = attachmentPath,
-                    attachmentDisplayName = null,
-                    createdAt = now,
-                    updatedAt = now,
-                    postedAt = null,
-                    voidedAt = null
-                )
-            )
-            
-            // 2. Create backup
-            val backupFile = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "test_roundtrip_backup.zip")
-            val backupUri = backupFile.absolutePath
-            val backupStatuses = backupRepository.createBackup(backupUri).toList()
-            assertThat(backupStatuses.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
-            
-            // 3. Clear data
-            testStateManager.resetAll()
-            assertThat(database.purchaseDao().getReceiptById(receiptId)).isNull()
-            assertThat(attachmentFile.exists()).isFalse()
-            
-            // 4. Restore
-            val docUri = BackupDocumentUri("file://$backupUri")
-            val inspection = restoreCoordinator.inspect(docUri)
-            assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-            val ready = inspection as BackupArchiveInspectionResult.Ready
-            
-            val restoreResult = restoreCoordinator.apply(docUri, ready.archive.fingerprint) {}
-            assertThat(restoreResult).isEqualTo(BackupRestoreApplyResult.Success)
-            
-            // 5. Verify restored
-            val restoredReceipt = database.purchaseDao().getReceiptById(receiptId)
-            assertThat(restoredReceipt).isNotNull()
-            assertThat(restoredReceipt?.attachmentPath).isEqualTo(attachmentPath)
-            assertThat(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, attachmentPath).exists()).isTrue()
-            assertThat(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, attachmentPath).readText()).isEqualTo("pdf-content")
-            
-            // Cleanup backup file
-            backupFile.delete()
         }
     }
 }

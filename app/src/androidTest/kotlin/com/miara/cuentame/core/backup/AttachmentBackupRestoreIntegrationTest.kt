@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
+import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
@@ -151,7 +152,11 @@ class AttachmentBackupRestoreIntegrationTest {
         File(filesDir, "construction").deleteRecursively()
         
         val cacheDir = InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
-        cacheDir.listFiles()?.forEach { it.delete() }
+        cacheDir.listFiles()?.forEach { 
+            if (it.name.startsWith("test_") || it.name.startsWith("backup_")) {
+                it.delete()
+            }
+        }
         
         testStateManager.seedBaseline()
         // Ensure gate is Ready for normal tests
@@ -259,7 +264,8 @@ class AttachmentBackupRestoreIntegrationTest {
             
             // 5. Verify failure and rollback
             assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
-            assertThat(result).isNotInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+            val failure = result as BackupRestoreApplyResult.Failure
+            assertThat(failure.reason).isNotEqualTo(BackupRestoreFailure.RecoveryRequired)
             
             // Room restored (original empty state)
             assertThat(database.purchaseDao().getReceiptById(receiptId)).isNull()
@@ -368,7 +374,8 @@ class AttachmentBackupRestoreIntegrationTest {
             
             // 5. Verify rollback to original
             assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
-            assertThat(result).isNotInstanceOf(RestoreRecoveryResult.RecoveryRequired::class.java)
+            val failure = result as BackupRestoreApplyResult.Failure
+            assertThat(failure.reason).isNotEqualTo(BackupRestoreFailure.RecoveryRequired)
             
             val restoredReceipt = database.purchaseDao().getReceiptById(originalId)
             assertThat(restoredReceipt).isNotNull()

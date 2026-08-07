@@ -280,18 +280,24 @@ class RoomPurchaseRepository @Inject constructor(
     }
 
     override suspend fun deleteDraft(id: PurchaseReceiptId) {
-        database.withTransaction {
+        val attachmentPath = database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             val receipt = referenceValidator.validateReceiptOwnership(id, activeRestaurant)
 
             if (receipt.status != DocumentStatus.DRAFT.name) throw ValidationError.PurchaseNotDraft
 
-            val attachmentPath = receipt.attachmentPath
+            val path = receipt.attachmentPath
 
             purchaseDao.deleteDraftWithLines(id.value)
 
-            if (attachmentPath != null) {
+            path
+        }
+
+        if (attachmentPath != null) {
+            try {
                 documentStore.delete(attachmentPath)
+            } catch (e: Exception) {
+                // Best-effort cleanup failure must not fail the draft deletion
             }
         }
     }
@@ -315,7 +321,7 @@ class RoomPurchaseRepository @Inject constructor(
         storedLocation: String,
         displayName: String
     ) {
-        database.withTransaction {
+        val oldLocation = database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
@@ -323,7 +329,7 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.PurchaseNotDraft
             }
 
-            val oldLocation = existing.attachmentPath
+            val previousPath = existing.attachmentPath
 
             val updated = existing.copy(
                 attachmentPath = storedLocation,
@@ -331,11 +337,20 @@ class RoomPurchaseRepository @Inject constructor(
                 updatedAt = timeProvider.now().toEpochMilli()
             )
 
-            purchaseDao.updateReceipt(updated)
+            val affected = purchaseDao.updateReceipt(updated)
+            if (affected != 1) {
+                throw ValidationError.PurchaseNotFound
+            }
 
-            // Clean up old file if it existed
-            if (oldLocation != null && oldLocation != storedLocation) {
+            previousPath
+        }
+
+        // Clean up old file if it existed, after successful commit
+        if (oldLocation != null && oldLocation != storedLocation) {
+            try {
                 documentStore.delete(oldLocation)
+            } catch (e: Exception) {
+                // Best-effort cleanup failure must not fail the attachment operation
             }
         }
     }
@@ -343,7 +358,7 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun removeDocument(
         receiptId: PurchaseReceiptId
     ) {
-        database.withTransaction {
+        val oldLocation = database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
@@ -351,7 +366,7 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.PurchaseNotDraft
             }
 
-            val oldLocation = existing.attachmentPath
+            val previousPath = existing.attachmentPath
 
             val updated = existing.copy(
                 attachmentPath = null,
@@ -359,10 +374,19 @@ class RoomPurchaseRepository @Inject constructor(
                 updatedAt = timeProvider.now().toEpochMilli()
             )
 
-            purchaseDao.updateReceipt(updated)
+            val affected = purchaseDao.updateReceipt(updated)
+            if (affected != 1) {
+                throw ValidationError.PurchaseNotFound
+            }
 
-            if (oldLocation != null) {
+            previousPath
+        }
+
+        if (oldLocation != null) {
+            try {
                 documentStore.delete(oldLocation)
+            } catch (e: Exception) {
+                // Best-effort cleanup failure must not fail the removal operation
             }
         }
     }

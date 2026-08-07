@@ -24,6 +24,7 @@ import com.miara.cuentame.core.domain.usecase.PostPurchaseUseCase
 import com.miara.cuentame.core.domain.usecase.UpdatePurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.AttachPurchaseDocumentUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUseCase
+import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.core.model.supplier.Supplier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 
 data class PurchaseDraftUiState(
@@ -105,6 +107,24 @@ class PurchaseDraftViewModel @Inject constructor(
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _scannerError = MutableStateFlow<PurchaseInvoiceScannerFailure?>(null)
     private val operationMutex = Mutex()
+
+    init {
+        // Handle restoration of pending scan state
+        if (savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID) != null) {
+            _captureState.value = InvoiceCaptureState.ScannerOpen
+        }
+    }
+
+    private fun canStartMutation(): Boolean {
+        val currentState = _captureState.value
+        return currentState == InvoiceCaptureState.Idle &&
+                savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID) == null &&
+                !_isSaving.value &&
+                !_isPosting.value &&
+                !_isDeletingDraft.value &&
+                !_isRemovingDocument.value &&
+                _deletingLineId.value == null
+    }
 
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -198,40 +218,41 @@ class PurchaseDraftViewModel @Inject constructor(
         notes: String?
     ) {
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _isSaving.value = true
-                _error.value = null
-                
-                val currentState = uiState.value
-                if (currentState.receiptId == null) {
-                    val restaurant = restaurantRepository.getRestaurant() ?: throw Exception("No restaurant")
-                    val newId = createPurchaseDraftUseCase(
-                        CreatePurchaseDraftCommand(
-                            restaurantId = restaurant.id,
-                            supplierId = supplierId,
-                            invoiceNumber = invoiceNumber,
-                            purchaseDate = purchaseDate,
-                            notes = notes
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _isSaving.value = true
+                    _error.value = null
+                    
+                    val currentState = uiState.value
+                    if (currentState.receiptId == null) {
+                        val restaurant = restaurantRepository.getRestaurant() ?: throw Exception("No restaurant")
+                        val newId = createPurchaseDraftUseCase(
+                            CreatePurchaseDraftCommand(
+                                restaurantId = restaurant.id,
+                                supplierId = supplierId,
+                                invoiceNumber = invoiceNumber,
+                                purchaseDate = purchaseDate,
+                                notes = notes
+                            )
                         )
-                    )
-                    _events.send(PurchaseDraftEvent.Created(newId))
-                } else {
-                    updatePurchaseDraftUseCase(
-                        UpdatePurchaseDraftCommand(
-                            receiptId = currentState.receiptId,
-                            supplierId = supplierId,
-                            invoiceNumber = invoiceNumber,
-                            purchaseDate = purchaseDate,
-                            notes = notes
+                        _events.send(PurchaseDraftEvent.Created(newId))
+                    } else {
+                        updatePurchaseDraftUseCase(
+                            UpdatePurchaseDraftCommand(
+                                receiptId = currentState.receiptId,
+                                supplierId = supplierId,
+                                invoiceNumber = invoiceNumber,
+                                purchaseDate = purchaseDate,
+                                notes = notes
+                            )
                         )
-                    )
+                    }
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _isSaving.value = false
                 }
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _isSaving.value = false
-                operationMutex.unlock()
             }
         }
     }
@@ -239,92 +260,114 @@ class PurchaseDraftViewModel @Inject constructor(
     fun onAttachDocument(uri: android.net.Uri) {
         val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _captureState.value = InvoiceCaptureState.ImportingFile
-                _error.value = null
-                attachPurchaseDocumentUseCase(currentReceiptId, uri)
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _captureState.value = InvoiceCaptureState.Idle
-                operationMutex.unlock()
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _captureState.value = InvoiceCaptureState.ImportingFile
+                    _error.value = null
+                    attachPurchaseDocumentUseCase(currentReceiptId, uri)
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _captureState.value = InvoiceCaptureState.Idle
+                }
             }
         }
     }
 
-    fun onPrepareScanner(activity: android.app.Activity, onIntentReady: (android.content.IntentSender) -> Unit) {
+    fun onPrepareScanner(context: android.content.Context, onIntentReady: (android.content.IntentSender) -> Unit) {
+        val activity = context.findActivity() ?: run {
+            _scannerError.value = PurchaseInvoiceScannerFailure.Unavailable
+            return
+        }
+        
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _captureState.value = InvoiceCaptureState.PreparingScanner
-                _scannerError.value = null
-                val intentSender = invoiceScanner.getStartScanIntent(activity)
-                _captureState.value = InvoiceCaptureState.ScannerOpen
-                onIntentReady(intentSender)
-            } catch (e: Exception) {
-                _scannerError.value = PurchaseInvoiceScannerFailure.LaunchFailed
-                _captureState.value = InvoiceCaptureState.Idle
-                operationMutex.unlock() // Unlocking early on failure
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _captureState.value = InvoiceCaptureState.PreparingScanner
+                    _scannerError.value = null
+                    val intentSender = invoiceScanner.getStartScanIntent(activity)
+                    
+                    // Generate and persist session ID before releasing mutex
+                    val sessionId = UUID.randomUUID().toString()
+                    savedStateHandle[KEY_PENDING_SCAN_SESSION_ID] = sessionId
+                    
+                    _captureState.value = InvoiceCaptureState.ScannerOpen
+                    onIntentReady(intentSender)
+                } catch (e: Exception) {
+                    _scannerError.value = PurchaseInvoiceScannerFailure.LaunchFailed
+                    _captureState.value = InvoiceCaptureState.Idle
+                    savedStateHandle[KEY_PENDING_SCAN_SESSION_ID] = null
+                    _error.value = e
+                }
+                // Mutex is released here. The pending session protects against concurrent mutations.
             }
-            // If success, we don't unlock here; it stays locked until result or cancelled
         }
     }
 
     fun onScannerResult(resultCode: Int, data: android.content.Intent?) {
         val currentReceiptId = receiptId ?: run {
-             operationMutex.unlock()
+             consumePendingScanSession()
              _captureState.value = InvoiceCaptureState.Idle
              return
         }
+
+        // Atomically claim the session
+        if (consumePendingScanSession() == null) return
+
         viewModelScope.launch {
-            try {
-                val result = invoiceScanner.parseResult(resultCode, data)
-                when (result) {
-                    is PurchaseInvoiceScanResult.Success -> {
-                        _captureState.value = InvoiceCaptureState.ImportingScan
-                        val dateStr = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.now())
-                        val displayName = "Scanned invoice - $dateStr.pdf"
-                        attachPurchaseDocumentUseCase(currentReceiptId, result.pdfUri, displayName)
+            operationMutex.withLock {
+                try {
+                    val result = invoiceScanner.parseResult(resultCode, data)
+                    when (result) {
+                        is PurchaseInvoiceScanResult.Success -> {
+                            _captureState.value = InvoiceCaptureState.ImportingScan
+                            val dateStr = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.now())
+                            val displayName = "Scanned invoice - $dateStr.pdf"
+                            attachPurchaseDocumentUseCase(currentReceiptId, result.pdfUri, displayName)
+                        }
+                        is PurchaseInvoiceScanResult.Failure -> {
+                            _scannerError.value = result.reason
+                        }
+                        PurchaseInvoiceScanResult.Cancelled -> {
+                            // Silent
+                        }
                     }
-                    is PurchaseInvoiceScanResult.Failure -> {
-                        _scannerError.value = result.reason
-                    }
-                    PurchaseInvoiceScanResult.Cancelled -> {
-                        // Silent
-                    }
-                }
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _captureState.value = InvoiceCaptureState.Idle
-                if (operationMutex.isLocked) {
-                    operationMutex.unlock()
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _captureState.value = InvoiceCaptureState.Idle
                 }
             }
         }
     }
 
+    private fun consumePendingScanSession(): String? {
+        val id = savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID)
+        savedStateHandle[KEY_PENDING_SCAN_SESSION_ID] = null
+        return id
+    }
+
     fun onScannerCancelled() {
-        if (operationMutex.isLocked) {
-            operationMutex.unlock()
-        }
+        consumePendingScanSession()
         _captureState.value = InvoiceCaptureState.Idle
     }
 
     fun onRemoveDocument() {
         val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _isRemovingDocument.value = true
-                _error.value = null
-                removePurchaseDocumentUseCase(currentReceiptId)
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _isRemovingDocument.value = false
-                operationMutex.unlock()
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _isRemovingDocument.value = true
+                    _error.value = null
+                    removePurchaseDocumentUseCase(currentReceiptId)
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _isRemovingDocument.value = false
+                }
             }
         }
     }
@@ -332,17 +375,18 @@ class PurchaseDraftViewModel @Inject constructor(
     fun onPost() {
         val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _isPosting.value = true
-                _error.value = null
-                postPurchaseUseCase(currentReceiptId)
-                _events.send(PurchaseDraftEvent.Posted)
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _isPosting.value = false
-                operationMutex.unlock()
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _isPosting.value = true
+                    _error.value = null
+                    postPurchaseUseCase(currentReceiptId)
+                    _events.send(PurchaseDraftEvent.Posted)
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _isPosting.value = false
+                }
             }
         }
     }
@@ -350,17 +394,18 @@ class PurchaseDraftViewModel @Inject constructor(
     fun onDeleteDraft() {
         val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _isDeletingDraft.value = true
-                _error.value = null
-                deletePurchaseDraftUseCase(currentReceiptId)
-                _events.send(PurchaseDraftEvent.Deleted)
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _isDeletingDraft.value = false
-                operationMutex.unlock()
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _isDeletingDraft.value = true
+                    _error.value = null
+                    deletePurchaseDraftUseCase(currentReceiptId)
+                    _events.send(PurchaseDraftEvent.Deleted)
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _isDeletingDraft.value = false
+                }
             }
         }
     }
@@ -368,17 +413,18 @@ class PurchaseDraftViewModel @Inject constructor(
     fun onDeleteLine(lineId: PurchaseLineId) {
         val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
-            if (!operationMutex.tryLock()) return@launch
-            try {
-                _deletingLineId.value = lineId
-                _error.value = null
-                deletePurchaseLineUseCase(currentReceiptId, lineId)
-                _events.send(PurchaseDraftEvent.LineDeleted(lineId))
-            } catch (e: Exception) {
-                _error.value = e
-            } finally {
-                _deletingLineId.value = null
-                operationMutex.unlock()
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _deletingLineId.value = lineId
+                    _error.value = null
+                    deletePurchaseLineUseCase(currentReceiptId, lineId)
+                    _events.send(PurchaseDraftEvent.LineDeleted(lineId))
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _deletingLineId.value = null
+                }
             }
         }
     }
@@ -386,5 +432,9 @@ class PurchaseDraftViewModel @Inject constructor(
     fun clearError() {
         _error.value = null
         _scannerError.value = null
+    }
+
+    companion object {
+        private const val KEY_PENDING_SCAN_SESSION_ID = "pendingInvoiceScanSessionId"
     }
 }

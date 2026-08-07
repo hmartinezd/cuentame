@@ -29,7 +29,15 @@ import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.Supplier
+import android.net.Uri
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
+import com.miara.cuentame.core.backup.fakes.FakePurchaseInvoiceScanner
+import com.miara.cuentame.core.presentation.ui.findActivity
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -80,12 +88,16 @@ class PurchaseDraftViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(Uri::class)
+        io.mockk.every { Uri.parse(any()) } returns mockk(relaxed = true)
+        mockkStatic("com.miara.cuentame.core.presentation.ui.ContextUtilsKt")
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkAll()
     }
 
     @Test
@@ -117,7 +129,75 @@ class PurchaseDraftViewModelTest {
         }
     }
 
-    private fun createViewModel(receiptId: String?): PurchaseDraftViewModel {
+    @Test
+    fun `onPrepareScanner transitions state and persists session`() = runTest {
+        val scanner = FakePurchaseInvoiceScanner()
+        scanner.preparationDelayMillis = 10 // Ensure distinct emissions
+        val viewModel = createViewModel("p1", scanner)
+        val mockContext = mockk<android.content.Context>(relaxed = true)
+        val mockActivity = mockk<android.app.Activity>(relaxed = true)
+        io.mockk.every { mockContext.findActivity() } returns mockActivity
+        
+        viewModel.uiState.test {
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.Idle)
+            
+            viewModel.onPrepareScanner(mockContext) {}
+            
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.PreparingScanner)
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.ScannerOpen)
+        }
+    }
+
+    @Test
+    fun `onScannerResult claimed exactly once`() = runTest {
+        mockkStatic("com.miara.cuentame.core.presentation.ui.ContextUtilsKt")
+        val scanner = FakePurchaseInvoiceScanner()
+        val viewModel = createViewModel("p1", scanner)
+        scanner.nextResult = PurchaseInvoiceScanResult.Success(Uri.parse("file://test.pdf"), 1)
+        
+        val mockContext = mockk<android.content.Context>(relaxed = true)
+        val mockActivity = mockk<android.app.Activity>(relaxed = true)
+        io.mockk.every { mockContext.findActivity() } returns mockActivity
+        
+        viewModel.onPrepareScanner(mockContext) {}
+        runCurrent()
+        
+        viewModel.onScannerResult(android.app.Activity.RESULT_OK, null)
+        runCurrent()
+        
+        // Second call should be ignored because session is consumed
+        viewModel.onScannerResult(android.app.Activity.RESULT_OK, null)
+        runCurrent()
+        
+        assertThat(viewModel.uiState.value.captureState).isEqualTo(InvoiceCaptureState.Idle)
+    }
+
+    @Test
+    fun `mutation admission blocks concurrent actions`() = runTest {
+        val scanner = FakePurchaseInvoiceScanner()
+        scanner.preparationDelayMillis = 10
+        val viewModel = createViewModel("p1", scanner)
+        val mockContext = mockk<android.content.Context>(relaxed = true)
+        val mockActivity = mockk<android.app.Activity>(relaxed = true)
+        io.mockk.every { mockContext.findActivity() } returns mockActivity
+        
+        viewModel.uiState.test {
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.Idle)
+            
+            viewModel.onPrepareScanner(mockContext) {}
+            
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.PreparingScanner)
+            assertThat(awaitItem().captureState).isEqualTo(InvoiceCaptureState.ScannerOpen)
+            
+            viewModel.onDeleteDraft()
+            runCurrent()
+            
+            assertThat(viewModel.uiState.value.isDeletingDraft).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun createViewModel(receiptId: String?, scanner: com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner = mockk(relaxed = true)): PurchaseDraftViewModel {
         return PurchaseDraftViewModel(
             SavedStateHandle(if (receiptId != null) mapOf("receiptId" to receiptId) else emptyMap()),
             CreatePurchaseDraftUseCase(fakePurchaseRepository),
@@ -138,7 +218,7 @@ class PurchaseDraftViewModelTest {
             RemovePurchaseDocumentUseCase(fakePurchaseRepository),
             mockk(relaxed = true),
             fakeRestaurantRepository,
-            mockk(relaxed = true)
+            scanner
         )
     }
 }
