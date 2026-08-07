@@ -58,7 +58,6 @@ object BackupSnapshotIntegrityValidator {
 
             return Result.success(Unit)
         } catch (e: Exception) {
-            android.util.Log.e("INTEGRITY_BUG", "🚨 INTEGRITY VALIDATION FAILED: ${e.message}", e)
             return Result.failure(e)
         }
     }

@@ -3,12 +3,12 @@ package com.miara.cuentame.core.backup.platform
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
+import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.StateFlow
-import android.util.Log
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -74,16 +74,21 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         val inspection = try {
             restoreRepository.inspect(source)
         } catch (e: Exception) {
-            Log.e("BackupRestore", "Inspection failed during apply", e)
             return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.GenericIo)
         }
 
         val archive = when (inspection) {
             is BackupArchiveInspectionResult.Ready -> {
+                if (inspection.eligibility != BackupRestoreEligibility.Eligible) {
+                    val failure = when (inspection.eligibility) {
+                        BackupRestoreEligibility.Eligible -> throw IllegalStateException()
+                        BackupRestoreEligibility.AttachmentsNotSupported -> BackupRestoreFailure.AttachmentsNotSupported
+                    }
+                    return@withOperationalLock BackupRestoreApplyResult.Failure(failure)
+                }
                 inspection.archive
             }
             is BackupArchiveInspectionResult.Failure -> {
-                Log.e("BackupRestore", "Inspection failure during apply: ${inspection.reason}")
                 return@withOperationalLock BackupRestoreApplyResult.Failure(inspection.reason)
             }
         }
@@ -237,9 +242,8 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                 // 16. Cleanup
                 storage.cleanupSessionOrThrow(sessionId)
                 journal.deleteOrThrow()
-            } catch (e: Throwable) {
-                Log.e("BackupRestore", "Restore failed at phase ${currentJournal.phase}", e)
-                if (e is CancellationException && (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED || currentJournal.phase == RestorePhase.MUTATION_STARTED)) {
+            } catch (e: Exception) {
+                if (e is CancellationException && currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED) {
                     // Pre-mutation cancellation: clean up and rethrow
                     try {
                         storage.cleanupSessionOrThrow(sessionId)
@@ -271,7 +275,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                 return@withOperationalLock when (rollbackResult) {
                     RestoreRollbackOutcome.RestoredAndCleaned -> {
                         if (e is CancellationException) throw e
-                        BackupRestoreApplyResult.Failure(mapException(e as Exception))
+                        BackupRestoreApplyResult.Failure(mapException(e))
                     }
                     is RestoreRollbackOutcome.RecoveryRequired -> {
                         operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
@@ -285,14 +289,17 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            var cleanupFailed = false
             if (currentJournal.phase == RestorePhase.ROLLBACK_CAPTURED) {
                  try {
                      storage.cleanupSessionOrThrow(sessionId)
                      journal.deleteOrThrow()
-                 } catch (ignore: Exception) {}
+                 } catch (cleanupException: Exception) {
+                     cleanupFailed = true
+                 }
             }
             
-            if (currentJournal.phase != RestorePhase.ROLLBACK_COMPLETED && currentJournal.phase != RestorePhase.ROLLBACK_CAPTURED) {
+            if (cleanupFailed || (currentJournal.phase != RestorePhase.ROLLBACK_COMPLETED && currentJournal.phase != RestorePhase.ROLLBACK_CAPTURED)) {
                 operationGate.updateRecoveryState(RestoreStartupState.RecoveryRequired)
                 return@withOperationalLock BackupRestoreApplyResult.Failure(BackupRestoreFailure.RecoveryRequired)
             }

@@ -20,6 +20,7 @@ enum class RestoreCheckpoint {
  */
 interface RestoreFailureInjector {
     fun onCheckpoint(checkpoint: RestoreCheckpoint)
+    fun injectCancellation(checkpoint: RestoreCheckpoint)
 }
 
 /**
@@ -28,4 +29,5 @@ interface RestoreFailureInjector {
 @Singleton
 class NoOpRestoreFailureInjector @Inject constructor() : RestoreFailureInjector {
     override fun onCheckpoint(checkpoint: RestoreCheckpoint) = Unit
+    override fun injectCancellation(checkpoint: RestoreCheckpoint) = Unit
 }

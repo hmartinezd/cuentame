@@ -137,7 +137,8 @@ class PurchaseDraftViewModelTest {
             AttachPurchaseDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true)),
             RemovePurchaseDocumentUseCase(fakePurchaseRepository),
             mockk(relaxed = true),
-            fakeRestaurantRepository
+            fakeRestaurantRepository,
+            mockk(relaxed = true)
         )
     }
 }

@@ -12,9 +12,10 @@ class AttachPurchaseDocumentUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         receiptId: PurchaseReceiptId,
-        sourceUri: Uri
+        sourceUri: Uri,
+        displayNameOverride: String? = null
     ) {
-        val stored = documentStore.importDocument(receiptId, sourceUri)
+        val stored = documentStore.importDocument(receiptId, sourceUri, displayNameOverride)
         try {
             repository.attachDocument(receiptId, stored.location, stored.displayName)
         } catch (e: Exception) {

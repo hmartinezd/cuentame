@@ -18,7 +18,8 @@ interface PurchaseDocumentStore {
      */
     suspend fun importDocument(
         receiptId: PurchaseReceiptId,
-        sourceUri: Uri
+        sourceUri: Uri,
+        displayNameOverride: String? = null
     ): StoredPurchaseDocument
 
     /**

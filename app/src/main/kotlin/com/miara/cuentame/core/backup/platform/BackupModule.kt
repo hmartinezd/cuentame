@@ -57,6 +57,10 @@ interface BackupModule {
     @Singleton
     fun bindBackupRestoreCoordinator(impl: BackupRestoreCoordinatorImpl): BackupRestoreCoordinator
 
+    @Binds
+    @Singleton
+    fun bindPurchaseInvoiceScanner(impl: GmsPurchaseInvoiceScanner): PurchaseInvoiceScanner
+
     companion object {
         @Provides
         @Singleton

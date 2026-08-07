@@ -75,6 +75,12 @@ object BackupManifestContractValidator {
         val seenArchivePaths = mutableSetOf<String>()
         val seenRecordReferences = mutableSetOf<String>()
 
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (manifest.attachments.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
         for (att in manifest.attachments) {
             try {
                 PurchaseAttachmentLocation.validateSegment(att.attachmentId, "attachmentId")
@@ -156,8 +162,14 @@ object BackupManifestContractValidator {
         if (zipPayloadPaths.any { !it.startsWith("attachments/") }) {
             return BackupRestoreFailure.UnexpectedEntry
         }
+        
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (zipPayloadPaths.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
         if (zipPayloadPaths != seenArchivePaths) {
-            android.util.Log.w("FIXME_BIJECTION", "Bijection failed. ZIP keys (count=${zipPayloadPaths.size}): $zipPayloadPaths, Manifest keys (count=${seenArchivePaths.size}): $seenArchivePaths")
             return BackupRestoreFailure.ManifestMismatch
         }
 
@@ -233,6 +245,12 @@ object BackupManifestContractValidator {
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 manifestRefs.add(AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId))
+            }
+        }
+
+        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
+            if (snapshotRefs.isNotEmpty() || manifestRefs.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
             }
         }
 

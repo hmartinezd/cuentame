@@ -590,7 +590,12 @@
     <string name="error_multiplier_positive">Multiplier must be positive</string>
     <string name="error_missing_component_area">One or more components are missing a source area</string>
     <string name="error_cost_unavailable">Cost is unavailable for one or more components</string>
+    <string name="error_unknown">An unknown error occurred</string>
     <string name="error_restricted_by_archive">This operation is restricted by an archived inventory period</string>
+    <string name="error_scanner_unavailable">Scanner unavailable on this device</string>
+    <string name="error_scanner_module_downloading">Preparing scanner module. Please try again in a moment.</string>
+    <string name="error_scanner_launch_failed">Failed to start scanner</string>
+    <string name="error_scanner_invalid_result">Malformed scanner result</string>
     <string name="production_recipe_selector">Recipe</string>
     <string name="production_output_area_selector">Output area</string>
     <string name="production_output_unit_selector">Output unit</string>
@@ -770,6 +775,10 @@
     <!-- Invoice Documents -->
     <string name="purchase_invoice_document">Invoice document</string>
     <string name="purchase_import_document">Import document</string>
+    <string name="purchase_scan_invoice">Scan invoice</string>
+    <string name="purchase_choose_file">Choose file</string>
+    <string name="purchase_scan_replacement">Scan replacement</string>
+    <string name="purchase_choose_replacement_file">Choose replacement file</string>
     <string name="purchase_replace_document">Replace document</string>
     <string name="purchase_remove_document">Remove document</string>
     <string name="purchase_view_document">View document</string>

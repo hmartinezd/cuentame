@@ -47,7 +47,6 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 attachmentInventory = emptyList() // Will be populated by coordinator during capture
             )
         } catch (e: Exception) {
-            android.util.Log.e("RoomApplier", "captureRollbackSnapshot failed", e)
             throw e
         }
     }

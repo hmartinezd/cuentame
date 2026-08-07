@@ -16,6 +16,9 @@ import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
 import com.miara.cuentame.core.domain.usecase.locale.LocaleReconciliationResult
 import com.miara.cuentame.core.model.backup.BackupRestoreEligibility
+import com.miara.cuentame.core.model.backup.BackupRestoreFailure
+import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.RestoreDatabaseRollbackSnapshot
 import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import kotlinx.serialization.encodeToString
@@ -414,31 +417,141 @@ class BackupProductionIntegrationTest {
     }
 
     @Test
-    fun inspection_detects_attachments_in_archive() = runBlocking {
-        // 1. Build valid attachment fixture (V2)
-        val fixture = BackupTestFixtures.createValidV2AttachmentArchiveFixture(codecs)
-        val backupUri = "content://backup/valid-att.zip"
+    fun v1_no_attachment_backup_is_accepted() = runBlocking {
+        val fixture = BackupTestFixtures.createValidV1NoAttachmentArchiveFixture(codecs)
+        val backupUri = "content://backup/valid-v1.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 
-        // 2. Inspect
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
         assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
         
         val ready = inspection as BackupArchiveInspectionResult.Ready
         assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
         
-        // Assertions from Requirement 2
-        val manifest = ready.archive.manifest
-        assertThat(manifest.attachments).hasSize(1)
-        val inspectedAtt = manifest.attachments[0]
-        assertThat(inspectedAtt.attachmentId).isEqualTo(fixture.attachmentId)
-        assertThat(inspectedAtt.archivePath).isEqualTo(fixture.attachmentPath)
-        assertThat(inspectedAtt.sizeBytes).isEqualTo(fixture.attachmentBytes.size.toLong())
-        assertThat(inspectedAtt.checksumSha256).isEqualTo(fixture.manifest.attachments[0].checksumSha256)
+        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
+    }
+
+    @Test
+    fun v1_with_manifest_attachment_is_rejected() = runBlocking {
+        val fixture = BackupTestFixtures.createInvalidV1WithAttachmentArchiveFixture(codecs)
+        val backupUri = "content://backup/invalid-v1.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
+
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((inspection as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun v1_with_database_attachment_reference_is_rejected() = runBlocking {
+        // Build an archive with V1 manifest (no attachments) but Snapshot HAS an attachment reference
+        val snapshot = BackupTestFixtures.createPopulatedSchema4Snapshot()
+        val snapshotWithRef = snapshot.copy(
+            purchaseReceipts = snapshot.purchaseReceipts.map { 
+                if (it.id == "p1") it.copy(attachmentId = "some-id") else it 
+            }
+        )
         
-        val snapshot = ready.archive.snapshot
-        val receipt = snapshot.purchaseReceipts.find { it.id == "p1" }!!
-        assertThat(receipt.attachmentId).isEqualTo(fixture.attachmentId)
+        val fixture = BackupTestFixtures.createValidV1NoAttachmentArchiveFixture(codecs)
+        // Re-build with the "dirty" snapshot and valid checksums
+        val manifest = fixture.manifest
+        val snapshotJson = codecs.writer.encodeToString(snapshotWithRef).toByteArray()
+        val manifestJson = codecs.writer.encodeToString(manifest).toByteArray()
+        val prefs = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
+        val prefsJson = codecs.writer.encodeToString(prefs).toByteArray()
+
+        val checksums = mutableMapOf(
+            "manifest.json" to sha256(manifestJson),
+            "data/database.json" to sha256(snapshotJson),
+            "preferences/settings.json" to sha256(prefsJson)
+        )
+        val checksumsJson = codecs.writer.encodeToString<Map<String, String>>(checksums).toByteArray()
+
+        val bos = java.io.ByteArrayOutputStream()
+        val zos = java.util.zip.ZipOutputStream(bos)
+        fun add(name: String, content: ByteArray) {
+            val entry = java.util.zip.ZipEntry(name)
+            zos.putNextEntry(entry)
+            zos.write(content)
+            zos.closeEntry()
+        }
+        add("manifest.json", manifestJson)
+        add("data/database.json", snapshotJson)
+        add("preferences/settings.json", prefsJson)
+        add("checksums.json", checksumsJson)
+        zos.close()
+        
+        val backupUri = "content://backup/invalid-v1-ref.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bos.toByteArray()) }
+
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        // validateSnapshotConsistency should catch this
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((inspection as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun v1_with_physical_attachment_zip_entry_is_rejected() = runBlocking {
+        // Build an archive with V1 manifest (no attachments) but ZIP contains a stray entry
+        // AND checksums.json IS UPDATED to include it (so it passes checksum validation)
+        val fixture = BackupTestFixtures.createValidV1NoAttachmentArchiveFixture(codecs)
+        
+        val bos = java.io.ByteArrayOutputStream()
+        val zis = java.util.zip.ZipInputStream(fixture.archiveBytes.inputStream())
+        val zos = java.util.zip.ZipOutputStream(bos)
+        
+        val entryContents = mutableMapOf<String, ByteArray>()
+        var entry = zis.nextEntry
+        while (entry != null) {
+            val content = zis.readBytes()
+            entryContents[entry.name] = content
+            entry = zis.nextEntry
+        }
+        
+        // Add stray entry
+        val strayPath = "attachments/stray.jpg"
+        val strayContent = "stray".toByteArray()
+        entryContents[strayPath] = strayContent
+        
+        // Recalculate checksums
+        val newChecksums = entryContents.filter { it.key != "checksums.json" }
+            .mapValues { sha256(it.value) }
+        
+        val newChecksumsJson = codecs.writer.encodeToString<Map<String, String>>(newChecksums).toByteArray()
+        entryContents["checksums.json"] = newChecksumsJson
+        
+        // Write new ZIP
+        entryContents.forEach { (name, bytes) ->
+            zos.putNextEntry(java.util.zip.ZipEntry(name))
+            zos.write(bytes)
+            zos.closeEntry()
+        }
+        zos.close()
+        
+        val backupUri = "content://backup/invalid-v1-stray.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(bos.toByteArray()) }
+
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        // validateManifestStructure bijection should catch this now (after passing checksums)
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((inspection as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+    }
+
+    @Test
+    fun v2_attachment_backup_is_accepted() = runBlocking {
+        val fixture = BackupTestFixtures.createValidV2AttachmentArchiveFixture(codecs)
+        val backupUri = "content://backup/valid-v2.zip"
+        documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
+
+        val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
+        
+        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
+        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
     }
 
     @Test

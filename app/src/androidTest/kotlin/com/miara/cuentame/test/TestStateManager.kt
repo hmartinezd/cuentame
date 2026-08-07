@@ -23,30 +23,24 @@ class TestStateManager @Inject constructor(
         database.clearAllTables()
         dataStoreOwner.clear()
         removeTestFiles()
+        restoreGate.updateRecoveryState(RestoreStartupState.NotStarted)
     }
 
     private fun removeTestFiles() {
-        val testPatterns = listOf(
-            "integration_test",
-            "cuentame_test_backup",
-            "test_attachment",
-            "test_document"
-        )
-
-        fun shouldDelete(file: File): Boolean {
-            return testPatterns.any { pattern -> file.name.contains(pattern) }
+        // Targeted recursive cleanup of known test artifact paths
+        val filesDirPaths = listOf("attachments", "backup_restore", "construction")
+        filesDirPaths.forEach { path ->
+            File(context.filesDir, path).deleteRecursively()
         }
 
-        fun deleteTargeted(file: File) {
-            if (shouldDelete(file)) {
+        val cacheDir = context.cacheDir
+        cacheDir.listFiles()?.forEach { file ->
+            val name = file.name
+            if (name.startsWith("integration_test_backup") || 
+                name.startsWith("backup_integration_staging") ||
+                name.contains("cuentame_test_backup")) {
                 file.deleteRecursively()
-            } else if (file.isDirectory) {
-                file.listFiles()?.forEach { deleteTargeted(it) }
             }
-        }
-
-        listOf(context.cacheDir, context.filesDir).forEach { root ->
-            root.listFiles()?.forEach { deleteTargeted(it) }
         }
     }
 

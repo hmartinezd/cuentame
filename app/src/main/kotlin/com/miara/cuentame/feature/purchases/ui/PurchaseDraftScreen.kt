@@ -68,6 +68,8 @@ import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
+import com.miara.cuentame.feature.purchases.presentation.toUserMessageRes
+import com.miara.cuentame.feature.purchases.viewmodel.InvoiceCaptureState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftUiState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftViewModel
@@ -112,10 +114,23 @@ fun PurchaseDraftRoute(
         }
     }
 
+    LaunchedEffect(uiState.scannerError) {
+        uiState.scannerError?.let {
+            snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
+            viewModel.clearError() // Assuming clearError also clears scannerError or add a specific one
+        }
+    }
+
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: android.net.Uri? ->
         uri?.let { viewModel.onAttachDocument(it) }
+    }
+
+    val scannerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        viewModel.onScannerResult(result.resultCode, result.data)
     }
 
     PurchaseDraftScreen(
@@ -124,7 +139,15 @@ fun PurchaseDraftRoute(
         lastDeletedLineId = lastDeletedLineId,
         onBack = onBack,
         onSaveHeader = viewModel::onSaveHeader,
-        onImportDocument = { pickerLauncher.launch(arrayOf("application/pdf", "image/*")) },
+        onScanInvoice = { 
+            val activity = context as? android.app.Activity
+            if (activity != null) {
+                viewModel.onPrepareScanner(activity) { intentSender ->
+                    scannerLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
+                }
+            }
+        },
+        onChooseFile = { pickerLauncher.launch(arrayOf("application/pdf", "image/*")) },
         onRemoveDocument = viewModel::onRemoveDocument,
         onViewDocument = { uiState.receiptId?.let { onNavigateToDocument(it) } },
         onAddLine = { purchaseId?.let { onAddLine(it) } },
@@ -144,7 +167,8 @@ fun PurchaseDraftScreen(
     lastDeletedLineId: PurchaseLineId?,
     onBack: () -> Unit,
     onSaveHeader: (SupplierId?, String?, Instant, String?) -> Unit,
-    onImportDocument: () -> Unit,
+    onScanInvoice: () -> Unit,
+    onChooseFile: () -> Unit,
     onRemoveDocument: () -> Unit,
     onViewDocument: () -> Unit,
     onAddLine: () -> Unit,
@@ -217,7 +241,8 @@ fun PurchaseDraftScreen(
                 item {
                     PurchaseDocumentSection(
                         uiState = uiState,
-                        onImport = onImportDocument,
+                        onScan = onScanInvoice,
+                        onChooseFile = onChooseFile,
                         onRemove = onRemoveDocument,
                         onView = onViewDocument
                     )
@@ -361,7 +386,8 @@ fun PurchaseDraftScreen(
 @Composable
 fun PurchaseDocumentSection(
     uiState: PurchaseDraftUiState,
-    onImport: () -> Unit,
+    onScan: () -> Unit,
+    onChooseFile: () -> Unit,
     onRemove: () -> Unit,
     onView: () -> Unit
 ) {
@@ -381,15 +407,30 @@ fun PurchaseDocumentSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else if (uiState.documentMetadata == null) {
-            Button(
-                onClick = onImport,
-                enabled = !uiState.isImportingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
-                modifier = Modifier.testTag("purchase_document_import")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (uiState.isImportingDocument) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                Button(
+                    onClick = onScan,
+                    enabled = uiState.captureState == InvoiceCaptureState.Idle && !uiState.isPosting && !uiState.isDeletingDraft,
+                    modifier = Modifier.weight(1f).testTag("purchase_document_scan")
+                ) {
+                    if (uiState.captureState == InvoiceCaptureState.PreparingScanner || uiState.captureState == InvoiceCaptureState.ImportingScan) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                    }
+                    Text(stringResource(R.string.purchase_scan_invoice))
                 }
-                Text(stringResource(R.string.purchase_import_document))
+                Button(
+                    onClick = onChooseFile,
+                    enabled = uiState.captureState == InvoiceCaptureState.Idle && !uiState.isPosting && !uiState.isDeletingDraft,
+                    modifier = Modifier.weight(1f).testTag("purchase_document_choose_file")
+                ) {
+                    if (uiState.captureState == InvoiceCaptureState.ImportingFile) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                    }
+                    Text(stringResource(R.string.purchase_choose_file))
+                }
             }
         } else {
             ListItem(
@@ -411,13 +452,34 @@ fun PurchaseDocumentSection(
                         IconButton(onClick = onView, modifier = Modifier.testTag("purchase_document_view")) {
                             Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
                         }
-                        IconButton(
-                            onClick = onImport, 
-                            enabled = !uiState.isImportingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
-                            modifier = Modifier.testTag("purchase_document_replace")
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.purchase_replace_document))
+                        
+                        var showReplaceMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(
+                                onClick = { showReplaceMenu = true }, 
+                                enabled = uiState.captureState == InvoiceCaptureState.Idle && !uiState.isPosting && !uiState.isDeletingDraft,
+                                modifier = Modifier.testTag("purchase_document_replace")
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.purchase_replace_document))
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showReplaceMenu,
+                                onDismissRequest = { showReplaceMenu = false },
+                                modifier = Modifier.testTag("purchase_document_replace_menu")
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.purchase_scan_replacement)) },
+                                    onClick = { onScan(); showReplaceMenu = false },
+                                    modifier = Modifier.testTag("purchase_document_replace_scan")
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.purchase_choose_replacement_file)) },
+                                    onClick = { onChooseFile(); showReplaceMenu = false },
+                                    modifier = Modifier.testTag("purchase_document_replace_file")
+                                )
+                            }
                         }
+
                         IconButton(
                             onClick = { showRemoveConfirm = true }, 
                             enabled = !uiState.isRemovingDocument && !uiState.isPosting && !uiState.isDeletingDraft,

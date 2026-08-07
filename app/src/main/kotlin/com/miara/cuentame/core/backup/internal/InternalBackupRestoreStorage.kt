@@ -18,11 +18,11 @@ class InternalBackupRestoreStorage @Inject constructor(
      * @deprecated Not used by Backup and Restore v1.
      */
     fun getStagingDir(sessionId: String): File {
-        return File(baseDir, "staging/$sessionId").apply { mkdirs() }
+        return File(baseDir, "staging/$sessionId")
     }
 
     fun getRollbackDir(sessionId: String): File {
-        return File(baseDir, "rollback/$sessionId").apply { mkdirs() }
+        return File(baseDir, "rollback/$sessionId")
     }
 
     fun getRollbackSnapshotFile(sessionId: String): File {

@@ -4,6 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
 import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
@@ -45,7 +48,7 @@ data class PurchaseDraftUiState(
     val isSaving: Boolean = false,
     val isPosting: Boolean = false,
     val isDeletingDraft: Boolean = false,
-    val isImportingDocument: Boolean = false,
+    val captureState: InvoiceCaptureState = InvoiceCaptureState.Idle,
     val isRemovingDocument: Boolean = false,
     val documentMetadata: StoredPurchaseDocument? = null,
     val deletingLineId: PurchaseLineId? = null,
@@ -53,8 +56,17 @@ data class PurchaseDraftUiState(
     val receiptId: PurchaseReceiptId? = null,
     val details: PurchaseDetails? = null,
     val suppliers: List<Supplier> = emptyList(),
-    val error: Throwable? = null
+    val error: Throwable? = null,
+    val scannerError: PurchaseInvoiceScannerFailure? = null
 )
+
+sealed interface InvoiceCaptureState {
+    data object Idle : InvoiceCaptureState
+    data object PreparingScanner : InvoiceCaptureState
+    data object ScannerOpen : InvoiceCaptureState
+    data object ImportingScan : InvoiceCaptureState
+    data object ImportingFile : InvoiceCaptureState
+}
 
 sealed interface PurchaseDraftEvent {
     data class Created(val receiptId: PurchaseReceiptId) : PurchaseDraftEvent
@@ -66,7 +78,7 @@ sealed interface PurchaseDraftEvent {
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PurchaseDraftViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val createPurchaseDraftUseCase: CreatePurchaseDraftUseCase,
     private val updatePurchaseDraftUseCase: UpdatePurchaseDraftUseCase,
     private val deletePurchaseDraftUseCase: DeletePurchaseDraftUseCase,
@@ -77,19 +89,21 @@ class PurchaseDraftViewModel @Inject constructor(
     private val attachPurchaseDocumentUseCase: AttachPurchaseDocumentUseCase,
     private val removePurchaseDocumentUseCase: RemovePurchaseDocumentUseCase,
     private val documentStore: PurchaseDocumentStore,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val invoiceScanner: PurchaseInvoiceScanner
 ) : ViewModel() {
 
-    private val receiptIdStr: String? = savedStateHandle["receiptId"]
-    private val receiptId = receiptIdStr?.let { PurchaseReceiptId(it) }
+    private val receiptId: PurchaseReceiptId? 
+        get() = savedStateHandle.get<String>("receiptId")?.let { PurchaseReceiptId(it) }
 
     private val _isSaving = MutableStateFlow(false)
     private val _isPosting = MutableStateFlow(false)
     private val _isDeletingDraft = MutableStateFlow(false)
-    private val _isImportingDocument = MutableStateFlow(false)
+    private val _captureState = MutableStateFlow<InvoiceCaptureState>(InvoiceCaptureState.Idle)
     private val _isRemovingDocument = MutableStateFlow(false)
     private val _deletingLineId = MutableStateFlow<PurchaseLineId?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
+    private val _scannerError = MutableStateFlow<PurchaseInvoiceScannerFailure?>(null)
     private val operationMutex = Mutex()
 
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
@@ -102,11 +116,14 @@ class PurchaseDraftViewModel @Inject constructor(
         observeSuppliersUseCase(res.id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val detailsFlow = if (receiptId == null) {
-        kotlinx.coroutines.flow.flowOf(null)
-    } else {
-        observePurchaseDetailsUseCase(receiptId)
-    }
+    private val detailsFlow = savedStateHandle.getStateFlow<String?>("receiptId", null)
+        .flatMapLatest { idStr ->
+            if (idStr == null) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                observePurchaseDetailsUseCase(PurchaseReceiptId(idStr))
+            }
+        }
 
     private val documentMetadataFlow = detailsFlow.flatMapLatest { details ->
         flow {
@@ -131,10 +148,11 @@ class PurchaseDraftViewModel @Inject constructor(
         _isSaving,
         _isPosting,
         _isDeletingDraft,
-        _isImportingDocument,
+        _captureState,
         _isRemovingDocument,
         _deletingLineId,
-        _error
+        _error,
+        _scannerError
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val details = args[0] as PurchaseDetails?
@@ -145,17 +163,18 @@ class PurchaseDraftViewModel @Inject constructor(
         val saving = args[4] as Boolean
         val posting = args[5] as Boolean
         val deletingDraft = args[6] as Boolean
-        val importingDocument = args[7] as Boolean
+        val captureState = args[7] as InvoiceCaptureState
         val removingDocument = args[8] as Boolean
         val deletingLineId = args[9] as PurchaseLineId?
         val error = args[10] as Throwable?
+        val scannerError = args[11] as PurchaseInvoiceScannerFailure?
 
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
             isSaving = saving,
             isPosting = posting,
             isDeletingDraft = deletingDraft,
-            isImportingDocument = importingDocument,
+            captureState = captureState,
             isRemovingDocument = removingDocument,
             documentMetadata = documentMetadata,
             deletingLineId = deletingLineId,
@@ -163,7 +182,8 @@ class PurchaseDraftViewModel @Inject constructor(
             receiptId = receiptId,
             details = details,
             suppliers = suppliers,
-            error = error
+            error = error,
+            scannerError = scannerError
         )
     }.stateIn(
         scope = viewModelScope,
@@ -221,16 +241,75 @@ class PurchaseDraftViewModel @Inject constructor(
         viewModelScope.launch {
             if (!operationMutex.tryLock()) return@launch
             try {
-                _isImportingDocument.value = true
+                _captureState.value = InvoiceCaptureState.ImportingFile
                 _error.value = null
                 attachPurchaseDocumentUseCase(currentReceiptId, uri)
             } catch (e: Exception) {
                 _error.value = e
             } finally {
-                _isImportingDocument.value = false
+                _captureState.value = InvoiceCaptureState.Idle
                 operationMutex.unlock()
             }
         }
+    }
+
+    fun onPrepareScanner(activity: android.app.Activity, onIntentReady: (android.content.IntentSender) -> Unit) {
+        viewModelScope.launch {
+            if (!operationMutex.tryLock()) return@launch
+            try {
+                _captureState.value = InvoiceCaptureState.PreparingScanner
+                _scannerError.value = null
+                val intentSender = invoiceScanner.getStartScanIntent(activity)
+                _captureState.value = InvoiceCaptureState.ScannerOpen
+                onIntentReady(intentSender)
+            } catch (e: Exception) {
+                _scannerError.value = PurchaseInvoiceScannerFailure.LaunchFailed
+                _captureState.value = InvoiceCaptureState.Idle
+                operationMutex.unlock() // Unlocking early on failure
+            }
+            // If success, we don't unlock here; it stays locked until result or cancelled
+        }
+    }
+
+    fun onScannerResult(resultCode: Int, data: android.content.Intent?) {
+        val currentReceiptId = receiptId ?: run {
+             operationMutex.unlock()
+             _captureState.value = InvoiceCaptureState.Idle
+             return
+        }
+        viewModelScope.launch {
+            try {
+                val result = invoiceScanner.parseResult(resultCode, data)
+                when (result) {
+                    is PurchaseInvoiceScanResult.Success -> {
+                        _captureState.value = InvoiceCaptureState.ImportingScan
+                        val dateStr = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.now())
+                        val displayName = "Scanned invoice - $dateStr.pdf"
+                        attachPurchaseDocumentUseCase(currentReceiptId, result.pdfUri, displayName)
+                    }
+                    is PurchaseInvoiceScanResult.Failure -> {
+                        _scannerError.value = result.reason
+                    }
+                    PurchaseInvoiceScanResult.Cancelled -> {
+                        // Silent
+                    }
+                }
+            } catch (e: Exception) {
+                _error.value = e
+            } finally {
+                _captureState.value = InvoiceCaptureState.Idle
+                if (operationMutex.isLocked) {
+                    operationMutex.unlock()
+                }
+            }
+        }
+    }
+
+    fun onScannerCancelled() {
+        if (operationMutex.isLocked) {
+            operationMutex.unlock()
+        }
+        _captureState.value = InvoiceCaptureState.Idle
     }
 
     fun onRemoveDocument() {
@@ -306,5 +385,6 @@ class PurchaseDraftViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+        _scannerError.value = null
     }
 }

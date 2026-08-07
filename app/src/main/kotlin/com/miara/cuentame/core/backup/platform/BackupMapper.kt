@@ -36,7 +36,6 @@ object BackupMapper {
                 productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id }
             )
         } catch (e: Exception) {
-            android.util.Log.e("MAPPER_BUG", "🚨 MAPPER FAILED: ${e.message}", e)
             throw e
         }
     }

@@ -590,7 +590,12 @@
     <string name="error_multiplier_positive">El multiplicador debe ser positivo</string>
     <string name="error_missing_component_area">Uno o más componentes no tienen un área de origen</string>
     <string name="error_cost_unavailable">El costo no está disponible para uno o más componentes</string>
+    <string name="error_unknown">Se ha producido un error desconocido</string>
     <string name="error_restricted_by_archive">Esta operación está restringida por un período de inventario archivado</string>
+    <string name="error_scanner_unavailable">Escáner no disponible en este dispositivo</string>
+    <string name="error_scanner_module_downloading">Preparando el módulo del escáner. Por favor, inténtelo de nuevo en un momento.</string>
+    <string name="error_scanner_launch_failed">No se pudo iniciar el escáner</string>
+    <string name="error_scanner_invalid_result">Resultado del escáner malformado</string>
     <string name="production_recipe_selector">Receta</string>
     <string name="production_output_area_selector">Área de salida</string>
     <string name="production_output_unit_selector">Unidad de salida</string>
@@ -770,6 +775,10 @@
     <!-- Documentos de Factura -->
     <string name="purchase_invoice_document">Documento de factura</string>
     <string name="purchase_import_document">Importar documento</string>
+    <string name="purchase_scan_invoice">Escanear factura</string>
+    <string name="purchase_choose_file">Elegir archivo</string>
+    <string name="purchase_scan_replacement">Escanear reemplazo</string>
+    <string name="purchase_choose_replacement_file">Elegir archivo de reemplazo</string>
     <string name="purchase_replace_document">Reemplazar documento</string>
     <string name="purchase_remove_document">Eliminar documento</string>
     <string name="purchase_view_document">Ver documento</string>

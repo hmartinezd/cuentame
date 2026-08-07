@@ -29,26 +29,40 @@ class AndroidPurchaseDocumentStore @Inject constructor(
 
     override suspend fun importDocument(
         receiptId: PurchaseReceiptId,
-        sourceUri: Uri
+        sourceUri: Uri,
+        displayNameOverride: String?
     ): StoredPurchaseDocument = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
-        val mimeType = resolver.getType(sourceUri) ?: throw IllegalArgumentException("Could not determine MIME type")
+        
+        var mimeType = resolver.getType(sourceUri)
+        if (mimeType == null && sourceUri.scheme == "file") {
+            mimeType = inferMimeType(File(sourceUri.path ?: ""))
+        }
+
+        if (mimeType == null) {
+            throw IllegalArgumentException("Could not determine MIME type")
+        }
         
         if (mimeType !in PurchaseDocumentStore.SUPPORTED_MIME_TYPES) {
             throw IllegalArgumentException("Unsupported MIME type: $mimeType")
         }
 
-        val metadata = resolver.query(sourceUri, null, null, null, null)?.use { cursor ->
-            val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
-            if (cursor.moveToFirst()) {
-                val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
-                val size = if (sizeIdx != -1) cursor.getLong(sizeIdx) else -1L
-                name to size
-            } else null
-        }
+        val metadata = if (sourceUri.scheme == "content") {
+            resolver.query(sourceUri, null, null, null, null)?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst()) {
+                    val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
+                    val size = if (sizeIdx != -1) cursor.getLong(sizeIdx) else -1L
+                    name to size
+                } else null
+            }
+        } else if (sourceUri.scheme == "file") {
+            val file = File(sourceUri.path ?: "")
+            file.name to file.length()
+        } else null
         
-        val originalName = metadata?.first
+        val originalName = displayNameOverride ?: metadata?.first
         val reportedSize = metadata?.second ?: -1L
 
         if (reportedSize > BackupLimits.MAX_SINGLE_DOCUMENT_BYTES) {
