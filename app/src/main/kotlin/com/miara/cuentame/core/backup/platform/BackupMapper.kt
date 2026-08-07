@@ -10,30 +10,35 @@ object BackupMapper {
         snapshot: BackupSnapshot,
         attachmentIdMap: Map<String, String> // URI -> ID
     ): BackupSnapshotDto {
-        return BackupSnapshotDto(
-            restaurants = snapshot.restaurants.map { it.toDto() }.sortedBy { it.id },
-            inventoryAreas = snapshot.inventoryAreas.map { it.toDto() }.sortedBy { it.id },
-            ingredientCategories = snapshot.ingredientCategories.map { it.toDto() }.sortedBy { it.id },
-            units = snapshot.units.map { it.toDto() }.sortedBy { it.id },
-            ingredients = snapshot.ingredients.map { it.toDto() }.sortedBy { it.id },
-            ingredientUnitOptions = snapshot.ingredientUnitOptions.map { it.toDto() }.sortedBy { it.id },
-            suppliers = snapshot.suppliers.map { it.toDto() }.sortedBy { it.id },
-            purchaseReceipts = snapshot.purchaseReceipts.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
-            purchaseLines = snapshot.purchaseLines.map { it.toDto() }.sortedBy { it.id },
-            stockCounts = snapshot.stockCounts.map { it.toDto() }.sortedBy { it.id },
-            stockCountAreas = snapshot.stockCountAreas.map { it.toDto() }.sortedBy { it.id },
-            stockCountLines = snapshot.stockCountLines.map { it.toDto() }.sortedBy { it.id },
-            wasteEvents = snapshot.wasteEvents.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
-            inventoryMovements = snapshot.inventoryMovements.map { it.toDto() }.sortedBy { it.id },
-            inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() }
-                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }, { it.areaId })),
-            ingredientCostProjections = snapshot.ingredientCostProjections.map { it.toDto() }
-                .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId })),
-            preparationRecipes = snapshot.preparationRecipes.map { it.toDto() }.sortedBy { it.id },
-            preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id },
-            productionBatches = snapshot.productionBatches.map { it.toDto() }.sortedBy { it.id },
-            productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id }
-        )
+        try {
+            return BackupSnapshotDto(
+                restaurants = snapshot.restaurants.map { it.toDto() }.sortedBy { it.id },
+                inventoryAreas = snapshot.inventoryAreas.map { it.toDto() }.sortedBy { it.id },
+                ingredientCategories = snapshot.ingredientCategories.map { it.toDto() }.sortedBy { it.id },
+                units = snapshot.units.map { it.toDto() }.sortedBy { it.id },
+                ingredients = snapshot.ingredients.map { it.toDto() }.sortedBy { it.id },
+                ingredientUnitOptions = snapshot.ingredientUnitOptions.map { it.toDto() }.sortedBy { it.id },
+                suppliers = snapshot.suppliers.map { it.toDto() }.sortedBy { it.id },
+                purchaseReceipts = snapshot.purchaseReceipts.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
+                purchaseLines = snapshot.purchaseLines.map { it.toDto() }.sortedBy { it.id },
+                stockCounts = snapshot.stockCounts.map { it.toDto() }.sortedBy { it.id },
+                stockCountAreas = snapshot.stockCountAreas.map { it.toDto() }.sortedBy { it.id },
+                stockCountLines = snapshot.stockCountLines.map { it.toDto() }.sortedBy { it.id },
+                wasteEvents = snapshot.wasteEvents.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
+                inventoryMovements = snapshot.inventoryMovements.map { it.toDto() }.sortedBy { it.id },
+                inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() }
+                    .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId }, { it.areaId })),
+                ingredientCostProjections = snapshot.ingredientCostProjections.map { it.toDto() }
+                    .sortedWith(compareBy({ it.restaurantId }, { it.ingredientId })),
+                preparationRecipes = snapshot.preparationRecipes.map { it.toDto() }.sortedBy { it.id },
+                preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id },
+                productionBatches = snapshot.productionBatches.map { it.toDto() }.sortedBy { it.id },
+                productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id }
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("MAPPER_BUG", "🚨 MAPPER FAILED: ${e.message}", e)
+            throw e
+        }
     }
 
     internal fun RestaurantEntity.toDto() = RestaurantBackupDto(
@@ -505,7 +510,7 @@ object BackupMapper {
         quantityBase = quantityBase,
         reason = reason,
         effectiveAt = effectiveAt,
-        notes = notes,
+        notes = notes, 
         attachmentPath = attachmentId,
         attachmentDisplayName = attachmentDisplayName,
         status = status,

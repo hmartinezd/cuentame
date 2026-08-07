@@ -12,18 +12,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class RestoreRecoveryBootstrapper @Inject constructor(
+class DefaultRecoveryBootstrapper @Inject constructor(
     private val recoveryCoordinator: RestoreRecoveryCoordinator,
     private val operationGate: RestoreOperationGate,
     private val cleanupCoordinator: PurchaseAttachmentCleanupCoordinator
-) {
+) : RecoveryBootstrapper {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val started = AtomicBoolean(false)
 
-    fun bootstrap() {
+    override fun bootstrap() {
         if (!started.compareAndSet(false, true)) return
         
-        // Synchronously publish Recovering before returning
         operationGate.updateRecoveryState(RestoreStartupState.Recovering)
 
         scope.launch {

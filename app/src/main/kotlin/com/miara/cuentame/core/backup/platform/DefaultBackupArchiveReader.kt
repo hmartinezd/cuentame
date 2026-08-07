@@ -146,7 +146,11 @@ class DefaultBackupArchiveReader @Inject constructor(
             totalAttachmentBytes = totalAttachmentBytes
         )
 
-        val eligibility = com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible
+        val eligibility = if (manifest.backupFormatVersion < 2 && manifest.attachments.isNotEmpty()) {
+            com.miara.cuentame.core.model.backup.BackupRestoreEligibility.AttachmentsNotSupported
+        } else {
+            com.miara.cuentame.core.model.backup.BackupRestoreEligibility.Eligible
+        }
 
         return BackupArchiveInspectionResult.Ready(
             archive = InspectedBackupArchive.create(

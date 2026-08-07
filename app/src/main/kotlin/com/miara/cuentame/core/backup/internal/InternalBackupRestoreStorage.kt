@@ -11,7 +11,8 @@ import javax.inject.Singleton
 class InternalBackupRestoreStorage @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val baseDir = File(context.filesDir, "backup_restore").apply { mkdirs() }
+    private val baseDir: File
+        get() = File(context.filesDir, "backup_restore").apply { if (!exists()) mkdirs() }
 
     /**
      * @deprecated Not used by Backup and Restore v1.
@@ -32,6 +33,7 @@ class InternalBackupRestoreStorage @Inject constructor(
 
     fun saveRollbackSnapshot(sessionId: String, json: String) {
         val file = getRollbackSnapshotFile(sessionId)
+        file.parentFile?.mkdirs()
         val atomicFile = AtomicFile(file)
         val fos = atomicFile.startWrite()
         try {
@@ -47,7 +49,7 @@ class InternalBackupRestoreStorage @Inject constructor(
      * @deprecated Not used by Backup and Restore v1.
      */
     fun getLiveAttachmentDir(): File {
-        return File(context.filesDir, "attachments").apply { mkdirs() }
+        return File(context.filesDir, "attachments").apply { if (!exists()) mkdirs() }
     }
 
     fun getJournalFile(): File {

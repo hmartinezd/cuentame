@@ -247,6 +247,19 @@ object BackupTestFixtures {
     fun createValidAttachmentArchiveFixture(
         jsonCodecs: com.miara.cuentame.core.backup.api.BackupJsonCodecs
     ): ValidAttachmentArchiveFixture {
+        return createAttachmentArchiveFixture(jsonCodecs, formatVersion = 1)
+    }
+
+    fun createValidV2AttachmentArchiveFixture(
+        jsonCodecs: com.miara.cuentame.core.backup.api.BackupJsonCodecs
+    ): ValidAttachmentArchiveFixture {
+        return createAttachmentArchiveFixture(jsonCodecs, formatVersion = 2)
+    }
+
+    private fun createAttachmentArchiveFixture(
+        jsonCodecs: com.miara.cuentame.core.backup.api.BackupJsonCodecs,
+        formatVersion: Int
+    ): ValidAttachmentArchiveFixture {
         val attachmentId = "a1b2c3d4e5f60708"
         val attachmentBytes = "attachment-content".toByteArray(Charsets.UTF_8)
         val checksumSha256 = MessageDigest.getInstance("SHA-256")
@@ -260,7 +273,7 @@ object BackupTestFixtures {
         val snapshotWithAttachment = snapshot.copy(purchaseReceipts = sabotagedReceipts)
 
         val manifest = BackupManifest(
-            backupFormatVersion = 1,
+            backupFormatVersion = formatVersion,
             createdAtUtc = "2026-08-02T12:00:00Z",
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",
@@ -316,9 +329,9 @@ object BackupTestFixtures {
         val settingsJson = jsonCodecs.writer.encodeToString(preferences).toByteArray(Charsets.UTF_8)
 
         val checksumMap = mapOf(
-            "data/database.json" to MessageDigest.getInstance("SHA-256").digest(snapshotJson).joinToString("") { "%02x".format(it) },
-            "manifest.json" to MessageDigest.getInstance("SHA-256").digest(manifestJson).joinToString("") { "%02x".format(it) },
-            "preferences/settings.json" to MessageDigest.getInstance("SHA-256").digest(settingsJson).joinToString("") { "%02x".format(it) },
+            "data/database.json" to sha256(snapshotJson),
+            "manifest.json" to sha256(manifestJson),
+            "preferences/settings.json" to sha256(settingsJson),
             "attachments/$attachmentId/file.jpg" to checksumSha256
         )
         val serializer = MapSerializer(String.serializer(), String.serializer())
@@ -350,6 +363,11 @@ object BackupTestFixtures {
             attachmentBytes = attachmentBytes,
             archiveBytes = baos.toByteArray()
         )
+    }
+
+    private fun sha256(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(bytes).joinToString("") { "%02x".format(it) }
     }
 
     fun addPostedProduction(

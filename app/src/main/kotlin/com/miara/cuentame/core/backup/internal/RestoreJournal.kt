@@ -46,6 +46,7 @@ class RestoreJournal @Inject constructor(
 
     fun write(dto: RestoreJournalDto) {
         val file = storage.getJournalFile()
+        file.parentFile?.mkdirs()
         val atomicFile = AtomicFile(file)
         val fos = atomicFile.startWrite()
         try {

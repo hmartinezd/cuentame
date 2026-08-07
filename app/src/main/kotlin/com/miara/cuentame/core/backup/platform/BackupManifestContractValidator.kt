@@ -8,6 +8,7 @@ import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
+import android.util.Log
 
 /**
  * Pure validator for cross-checking BackupManifest metadata against the actual
@@ -156,14 +157,8 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.UnexpectedEntry
         }
         if (zipPayloadPaths != seenArchivePaths) {
+            android.util.Log.w("FIXME_BIJECTION", "Bijection failed. ZIP keys (count=${zipPayloadPaths.size}): $zipPayloadPaths, Manifest keys (count=${seenArchivePaths.size}): $seenArchivePaths")
             return BackupRestoreFailure.ManifestMismatch
-        }
-
-        // V1 must not have attachments
-        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            if (manifest.attachments.isNotEmpty() || seenArchivePaths.isNotEmpty()) {
-                return BackupRestoreFailure.ManifestMismatch
-            }
         }
 
         return null
@@ -243,13 +238,6 @@ object BackupManifestContractValidator {
 
         if (snapshotRefs != manifestRefs) {
             return BackupRestoreFailure.ManifestMismatch
-        }
-
-        // V1 must not have attachments
-        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            if (snapshotRefs.isNotEmpty() || manifestRefs.isNotEmpty()) {
-                return BackupRestoreFailure.ManifestMismatch
-            }
         }
 
         return null

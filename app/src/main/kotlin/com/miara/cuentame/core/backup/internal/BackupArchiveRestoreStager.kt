@@ -39,9 +39,7 @@ class BackupArchiveRestoreStager @Inject constructor(
 
             override suspend fun onAttachment(name: String, inputStream: InputStream, expectedSize: Long) {
                 // name is "attachments/<id>/<displayName>"
-                // We want to store it in stagingDir/<id>/<displayName>
-                val relativePath = name.removePrefix("attachments/")
-                val targetFile = File(stagingDir, relativePath)
+                val targetFile = File(stagingDir, name)
                 targetFile.parentFile?.mkdirs()
                 
                 FileOutputStream(targetFile).use { out ->

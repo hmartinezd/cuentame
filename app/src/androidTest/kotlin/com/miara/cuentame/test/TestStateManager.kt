@@ -23,7 +23,6 @@ class TestStateManager @Inject constructor(
         database.clearAllTables()
         dataStoreOwner.clear()
         removeTestFiles()
-        restoreGate.updateRecoveryState(RestoreStartupState.NotStarted)
     }
 
     private fun removeTestFiles() {

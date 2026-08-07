@@ -69,7 +69,8 @@ class BackupProductionIntegrationTest {
         
         val backupDao = db.backupDao()
         val restoreDao = db.restoreDao()
-        val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
+        val checksumProvider = Sha256ChecksumProvider()
+        val snapshotSource = RoomBackupSnapshotSource(backupDao, checksumProvider)
         documentStore = FakeInternalDocumentStore(tempFolder.newFolder("backups"))
         
         val planner = BackupCreationPlanner(
@@ -110,10 +111,11 @@ class BackupProductionIntegrationTest {
         val preferencesApplier = mockk<RestorePreferencesApplier>(relaxed = true) {
             coEvery { validate(any()) } returns true
             coEvery { verifyMatches(any()) } returns true
+            coEvery { captureRollback() } returns com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         }
         val storage = InternalBackupRestoreStorage(context)
         val journal = RestoreJournal(storage, codecs)
-        val attachmentInstaller = RestoreAttachmentInstaller(storage, mockk(relaxed = true))
+        val attachmentInstaller = RestoreAttachmentInstaller(storage, checksumProvider)
         val recoveryCoordinator = RestoreRecoveryCoordinator(journal, storage, databaseApplier, preferencesApplier, attachmentInstaller, codecs)
         
         val stager = BackupArchiveRestoreStager(codecs, processor, storage, fingerprinter)
@@ -217,6 +219,10 @@ class BackupProductionIntegrationTest {
         // 4. Capture and persist rollback snapshot
         val rollback = databaseApplier().captureRollbackSnapshot()
         storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString<RestoreDatabaseRollbackSnapshot>(rollback))
+        
+        // Instruction 15: Always create attachments dir in rollback path even if empty
+        val rollbackAttachmentsDir = File(storage.getRollbackDir(sessionId), "attachments")
+        rollbackAttachmentsDir.mkdirs()
 
         
         // 5. Write journal in ROLLING_BACK state
@@ -310,7 +316,7 @@ class BackupProductionIntegrationTest {
         ))
 
         db.stockCountDao().insertCount(StockCountEntity("sc1", "r1", "Count 1", 1000, 1000, null, "DRAFT", "Notes", 100, 100, null))
-        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "DRAFT", null, null, 1)))
+        db.stockCountDao().insertCountAreas(listOf(StockCountAreaEntity("sca1", "sc1", "a1", "NOT_STARTED", null, null, 1)))
         db.stockCountDao().insertCountLine(StockCountLineEntity("scl1", "sca1", "i1", "o1", "5", "5", null, null, "Notes", 100, 100))
         
         db.wasteDao().insert(WasteEventEntity("w1", "r1", "i1", "a1", "o1", "2", "2", "SPOILED", 1200, "Notes", null, null, "POSTED", 100, 100, 1200, null))
@@ -409,8 +415,8 @@ class BackupProductionIntegrationTest {
 
     @Test
     fun inspection_detects_attachments_in_archive() = runBlocking {
-        // 1. Build valid attachment fixture
-        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
+        // 1. Build valid attachment fixture (V2)
+        val fixture = BackupTestFixtures.createValidV2AttachmentArchiveFixture(codecs)
         val backupUri = "content://backup/valid-att.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 

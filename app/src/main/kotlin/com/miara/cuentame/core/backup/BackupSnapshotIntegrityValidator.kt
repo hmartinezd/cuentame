@@ -38,24 +38,29 @@ object BackupSnapshotIntegrityValidator {
         val manifestRestaurantId = manifest.restaurantId
             ?: return fail(RESTAURANT_ID_MISMATCH, "Manifest missing restaurantId")
 
-        validateRestaurant(dto, manifest, manifestRestaurantId)?.let { return Result.failure(it) }
+        try {
+            validateRestaurant(dto, manifest, manifestRestaurantId)?.let { throw it }
 
-        // Build lookup maps once
-        val ctx = ValidationContext(dto, manifestRestaurantId)
+            // Build lookup maps once
+            val ctx = ValidationContext(dto, manifestRestaurantId)
 
-        validatePrimaryKeys(dto)?.let { return Result.failure(it) }
-        validateIsolation(dto, manifestRestaurantId)?.let { return Result.failure(it) }
-        validateForeignKeys(dto, ctx)?.let { return Result.failure(it) }
-        validateNumericFields(dto)?.let { return Result.failure(it) }
-        validateDocumentTimestamps(dto)?.let { return Result.failure(it) }
-        validateMovementGraph(dto, ctx)?.let { return Result.failure(it) }
-        validateDocumentLifecycle(dto)?.let { return Result.failure(it) }
-        validateBalanceProjections(dto)?.let { return Result.failure(it) }
-        validateCostProjections(dto, ctx)?.let { return Result.failure(it) }
-        validateRecipes(dto, ctx)?.let { return Result.failure(it) }
-        validateProductionBatches(dto, ctx)?.let { return Result.failure(it) }
+            validatePrimaryKeys(dto)?.let { throw it }
+            validateIsolation(dto, manifestRestaurantId)?.let { throw it }
+            validateForeignKeys(dto, ctx)?.let { throw it }
+            validateNumericFields(dto)?.let { throw it }
+            validateDocumentTimestamps(dto)?.let { throw it }
+            validateMovementGraph(dto, ctx)?.let { throw it }
+            validateDocumentLifecycle(dto)?.let { throw it }
+            validateBalanceProjections(dto)?.let { throw it }
+            validateCostProjections(dto, ctx)?.let { throw it }
+            validateRecipes(dto, ctx)?.let { throw it }
+            validateProductionBatches(dto, ctx)?.let { throw it }
 
-        return Result.success(Unit)
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            android.util.Log.e("INTEGRITY_BUG", "🚨 INTEGRITY VALIDATION FAILED: ${e.message}", e)
+            return Result.failure(e)
+        }
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

@@ -29,22 +29,27 @@ class RoomRestoreDatabaseApplier @Inject constructor(
     }
 
     override suspend fun captureRollbackSnapshot(): RestoreDatabaseRollbackSnapshot {
-        val entitySnapshot = backupDao.createGlobalSnapshot()
-        val dto = BackupMapper.mapToDto(entitySnapshot, emptyMap())
-        
-        val purchasePaths = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentPath }
-        val purchaseNames = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentDisplayName }
-        val wastePaths = entitySnapshot.wasteEvents.associate { it.id to it.attachmentPath }
-        val wasteNames = entitySnapshot.wasteEvents.associate { it.id to it.attachmentDisplayName }
-        
-        return RestoreDatabaseRollbackSnapshot(
-            snapshot = dto,
-            purchaseReceiptAttachmentPaths = purchasePaths,
-            purchaseReceiptAttachmentDisplayNames = purchaseNames,
-            wasteEventAttachmentPaths = wastePaths,
-            wasteEventAttachmentDisplayNames = wasteNames,
-            attachmentInventory = emptyList() // Will be populated by coordinator during capture
-        )
+        try {
+            val entitySnapshot = backupDao.createGlobalSnapshot()
+            val dto = BackupMapper.mapToDto(entitySnapshot, emptyMap())
+            
+            val purchasePaths = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentPath }
+            val purchaseNames = entitySnapshot.purchaseReceipts.associate { it.id to it.attachmentDisplayName }
+            val wastePaths = entitySnapshot.wasteEvents.associate { it.id to it.attachmentPath }
+            val wasteNames = entitySnapshot.wasteEvents.associate { it.id to it.attachmentDisplayName }
+            
+            return RestoreDatabaseRollbackSnapshot(
+                snapshot = dto,
+                purchaseReceiptAttachmentPaths = purchasePaths,
+                purchaseReceiptAttachmentDisplayNames = purchaseNames,
+                wasteEventAttachmentPaths = wastePaths,
+                wasteEventAttachmentDisplayNames = wasteNames,
+                attachmentInventory = emptyList() // Will be populated by coordinator during capture
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("RoomApplier", "captureRollbackSnapshot failed", e)
+            throw e
+        }
     }
 
     override suspend fun replaceWithBackup(snapshot: BackupSnapshotDto, manifest: BackupManifest) {

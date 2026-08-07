@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
+import com.miara.cuentame.core.backup.api.RestoreStartupState
+import com.miara.cuentame.core.backup.internal.RecoveryBootstrapper
+import com.miara.cuentame.core.backup.internal.RecoveryModule
+import com.miara.cuentame.core.backup.internal.RestoreOperationGate
 import com.miara.cuentame.core.common.attachment.LocalAttachmentPermissionManager
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.*
@@ -34,7 +38,8 @@ import javax.inject.Singleton
         DatabaseModule::class, 
         PreferencesModule::class,
         IntegrationModule::class,
-        LocalAttachmentModule::class
+        LocalAttachmentModule::class,
+        RecoveryModule::class
     ]
 )
 object TestStorageModule {
@@ -129,5 +134,13 @@ object TestStorageModule {
     fun provideJson(): Json = Json {
         ignoreUnknownKeys = false
         coerceInputValues = true
+    }
+
+    @Provides
+    @Singleton
+    fun provideRecoveryBootstrapper(): RecoveryBootstrapper = object : RecoveryBootstrapper {
+        override fun bootstrap() {
+            // No-op for integration tests to avoid deadlock with test setup
+        }
     }
 }

@@ -41,13 +41,20 @@ import com.miara.cuentame.core.backup.internal.RestoreAttachmentInstaller
 import com.miara.cuentame.core.backup.platform.BackupRestoreCoordinatorImpl
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import kotlinx.serialization.encodeToString
+import org.junit.rules.Timeout
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import dagger.hilt.android.testing.BindValue
 
 @HiltAndroidTest
 @UninstallModules(RestoreFailureModule::class)
 class AttachmentBackupRestoreIntegrationTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val timeoutRule: Timeout = Timeout.seconds(120)
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -68,9 +75,6 @@ class AttachmentBackupRestoreIntegrationTest {
     lateinit var documentStore: PurchaseDocumentStore
 
     @Inject
-    lateinit var failureInjector: TestFailureInjector
-
-    @Inject
     lateinit var journal: RestoreJournal
 
     @Inject
@@ -79,28 +83,89 @@ class AttachmentBackupRestoreIntegrationTest {
     @Inject
     lateinit var recoveryCoordinator: RestoreRecoveryCoordinator
 
-    class TestFailureInjector : RestoreFailureInjector {
+    class TestRestoreFailureInjector : RestoreFailureInjector {
+        @Volatile
         var failAt: RestoreCheckpoint? = null
+        
+        @Volatile
+        var lastObserved: RestoreCheckpoint? = null
+
         override fun onCheckpoint(checkpoint: RestoreCheckpoint) {
+            lastObserved = checkpoint
             if (checkpoint == failAt) {
-                throw RuntimeException("Injected failure at $checkpoint")
+                throw InjectedRestoreFailure(checkpoint)
             }
         }
+
+        fun reset() {
+            failAt = null
+            lastObserved = null
+        }
     }
+
+    class InjectedRestoreFailure(val checkpoint: RestoreCheckpoint) : 
+        RuntimeException("Injected failure at $checkpoint")
+
+    private val testFailureInjector = TestRestoreFailureInjector()
+
+    @BindValue
+    @JvmField
+    val boundFailureInjector: RestoreFailureInjector = testFailureInjector
 
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            testStateManager.resetAll()
-            testStateManager.seedBaseline()
+            fullReset()
             restoreGate.updateRecoveryState(RestoreStartupState.Ready)
         }
     }
 
     @After
     fun tearDown() {
-        runBlocking { testStateManager.resetAll() }
+        runBlocking { fullReset() }
+    }
+
+    private suspend fun fullReset() {
+        // Deterministic reset of all backup/restore artifacts
+        testStateManager.resetAll()
+        testFailureInjector.reset()
+        
+        val filesDir = storage.getFilesDir()
+        File(filesDir, "attachments").deleteRecursively()
+        File(filesDir, "backup_restore").deleteRecursively()
+        File(filesDir, "construction").deleteRecursively()
+        
+        val cacheDir = InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
+        cacheDir.listFiles()?.forEach { it.delete() }
+        
+        testStateManager.seedBaseline()
+        // Ensure gate is Ready for normal tests
+        restoreGate.updateRecoveryState(RestoreStartupState.Ready)
+    }
+
+    private suspend fun <T> boundedStep(
+        name: String,
+        timeoutMillis: Long = 30_000,
+        block: suspend () -> T
+    ): T {
+        return try {
+            withTimeout(timeoutMillis) {
+                block()
+            }
+        } catch (error: TimeoutCancellationException) {
+            val diagnostic = buildString {
+                appendLine("Step '$name' timed out after ${timeoutMillis}ms")
+                appendLine("Restore Gate: ${restoreGate.recoveryState.value}")
+                appendLine("Journal: ${journal.read()}")
+                appendLine("Fail At: ${testFailureInjector.failAt}")
+                appendLine("Last Observed: ${testFailureInjector.lastObserved}")
+                val filesDir = storage.getFilesDir()
+                appendLine("Attachments Count: ${File(filesDir, "attachments").walkTopDown().filter { it.isFile }.count()}")
+                appendLine("Rollback Sessions: ${File(filesDir, "backup_restore/rollback").listFiles()?.size ?: 0}")
+            }
+            throw AssertionError(diagnostic, error)
+        }
     }
 
     private fun createMinimalPdf(file: File) {
@@ -119,9 +184,11 @@ class AttachmentBackupRestoreIntegrationTest {
     fun synchronous_rollback_after_failure_with_originally_empty_tree() {
         runBlocking {
             // 1. Start with no attachments
-            testStateManager.resetAll()
-            testStateManager.seedBaseline()
-            val filesDir = InstrumentationRegistry.getInstrumentation().targetContext.filesDir
+            boundedStep("Reset and seed baseline") {
+                fullReset()
+            }
+            
+            val filesDir = storage.getFilesDir()
             val liveDir = File(filesDir, "attachments")
             liveDir.deleteRecursively()
             assertThat(liveDir.exists()).isFalse()
@@ -130,44 +197,51 @@ class AttachmentBackupRestoreIntegrationTest {
             val backupFile = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "backup_for_rollback_empty.zip")
             val receiptId = "p_rollback_empty"
             val relativePath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(receiptId), "temp.pdf")
-            val file = File(filesDir, relativePath)
-            file.parentFile?.mkdirs()
-            createMinimalPdf(file)
             
-            database.purchaseDao().insertReceipt(
-                PurchaseReceiptEntity(
-                    id = receiptId,
-                    restaurantId = TestSeeder.RESTAURANT_ID,
-                    supplierId = null,
-                    invoiceNumber = "TMP",
-                    purchaseDate = System.currentTimeMillis(),
-                    status = DocumentStatus.DRAFT.name,
-                    notes = null,
-                    attachmentPath = relativePath,
-                    attachmentDisplayName = "Temp.pdf",
-                    createdAt = System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis(),
-                    postedAt = null,
-                    voidedAt = null
+            boundedStep("Create source backup") {
+                val file = File(filesDir, relativePath)
+                file.parentFile?.mkdirs()
+                createMinimalPdf(file)
+                
+                database.purchaseDao().insertReceipt(
+                    PurchaseReceiptEntity(
+                        id = receiptId,
+                        restaurantId = TestSeeder.RESTAURANT_ID,
+                        supplierId = null,
+                        invoiceNumber = "TMP",
+                        purchaseDate = System.currentTimeMillis(),
+                        status = DocumentStatus.DRAFT.name,
+                        notes = null,
+                        attachmentPath = relativePath,
+                        attachmentDisplayName = "Temp.pdf",
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        postedAt = null,
+                        voidedAt = null
+                    )
                 )
-            )
-            
-            val statuses = backupRepository.createBackup(backupFile.absolutePath).toList()
-            assertThat(statuses.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
-            
-            // Clear again to simulate incoming restore
-            testStateManager.resetAll()
-            testStateManager.seedBaseline()
-            liveDir.deleteRecursively()
+                
+                val statuses = backupRepository.createBackup(backupFile.absolutePath).toList()
+                assertThat(statuses.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+                
+                // Clear again to simulate incoming restore
+                testStateManager.resetAll()
+                testStateManager.seedBaseline()
+                liveDir.deleteRecursively()
+            }
             
             // 3. Inject failure after attachments installed
-            failureInjector.failAt = RestoreCheckpoint.AFTER_LIVE_ATTACHMENTS_INSTALLED
+            testFailureInjector.failAt = RestoreCheckpoint.AFTER_LIVE_ATTACHMENTS_INSTALLED
             
             // 4. Attempt restore
             val docUri = BackupDocumentUri("file://${backupFile.absolutePath}")
-            val inspection = restoreCoordinator.inspect(docUri) as BackupArchiveInspectionResult.Ready
+            val inspection = boundedStep("Inspect backup") {
+                restoreCoordinator.inspect(docUri) as BackupArchiveInspectionResult.Ready
+            }
             
-            val result = restoreCoordinator.apply(docUri, inspection.archive.fingerprint) {}
+            val result = boundedStep("Apply restore with injected failure") {
+                restoreCoordinator.apply(docUri, inspection.archive.fingerprint) {}
+            }
             
             // 5. Verify failure and rollback
             assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
@@ -191,38 +265,43 @@ class AttachmentBackupRestoreIntegrationTest {
     fun synchronous_rollback_after_failure_with_originally_nonempty_tree() {
         runBlocking {
             // 1. Seed original state with attachment
-            testStateManager.resetAll()
-            testStateManager.seedBaseline()
-            val filesDir = InstrumentationRegistry.getInstrumentation().targetContext.filesDir
+            boundedStep("Reset and seed baseline") {
+                fullReset()
+            }
+            
+            val filesDir = storage.getFilesDir()
             
             val originalId = "p_original_rollback"
             val originalPath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(originalId), "original.pdf")
             val originalFile = File(filesDir, originalPath)
-            originalFile.parentFile?.mkdirs()
-            createMinimalPdf(originalFile)
-            val originalBytes = originalFile.readBytes()
-            
-            database.purchaseDao().insertReceipt(
-                PurchaseReceiptEntity(
-                    id = originalId,
-                    restaurantId = TestSeeder.RESTAURANT_ID,
-                    supplierId = null,
-                    invoiceNumber = "ORIGINAL",
-                    purchaseDate = System.currentTimeMillis(),
-                    status = DocumentStatus.DRAFT.name,
-                    notes = null,
-                    attachmentPath = originalPath,
-                    attachmentDisplayName = "Original.pdf",
-                    createdAt = System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis(),
-                    postedAt = null,
-                    voidedAt = null
+            val originalBytes = boundedStep("Prepare original data") {
+                originalFile.parentFile?.mkdirs()
+                createMinimalPdf(originalFile)
+                val bytes = originalFile.readBytes()
+                
+                database.purchaseDao().insertReceipt(
+                    PurchaseReceiptEntity(
+                        id = originalId,
+                        restaurantId = TestSeeder.RESTAURANT_ID,
+                        supplierId = null,
+                        invoiceNumber = "ORIGINAL",
+                        purchaseDate = System.currentTimeMillis(),
+                        status = DocumentStatus.DRAFT.name,
+                        notes = null,
+                        attachmentPath = originalPath,
+                        attachmentDisplayName = "Original.pdf",
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        postedAt = null,
+                        voidedAt = null
+                    )
                 )
-            )
+                bytes
+            }
 
             // 2. Prepare incoming backup with DIFFERENT data
             val backupFile = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "backup_incoming.zip")
-            run {
+            boundedStep("Prepare incoming backup") {
                 val incomingId = "p_incoming"
                 val incomingPath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(incomingId), "incoming.pdf")
                 val incomingFile = File(filesDir, incomingPath)
@@ -255,12 +334,16 @@ class AttachmentBackupRestoreIntegrationTest {
             }
             
             // 3. Inject failure
-            failureInjector.failAt = RestoreCheckpoint.AFTER_LIVE_ATTACHMENTS_INSTALLED
+            testFailureInjector.failAt = RestoreCheckpoint.AFTER_LIVE_ATTACHMENTS_INSTALLED
             
             // 4. Attempt restore
             val docUri = BackupDocumentUri("file://${backupFile.absolutePath}")
-            val inspection = restoreCoordinator.inspect(docUri) as BackupArchiveInspectionResult.Ready
-            val result = restoreCoordinator.apply(docUri, inspection.archive.fingerprint) {}
+            val inspection = boundedStep("Inspect backup") {
+                restoreCoordinator.inspect(docUri) as BackupArchiveInspectionResult.Ready
+            }
+            val result = boundedStep("Apply restore with injected failure") {
+                restoreCoordinator.apply(docUri, inspection.archive.fingerprint) {}
+            }
             
             // 5. Verify rollback to original
             assertThat(result).isInstanceOf(BackupRestoreApplyResult.Failure::class.java)
@@ -286,43 +369,53 @@ class AttachmentBackupRestoreIntegrationTest {
     fun startup_recovery_after_interrupted_restore_with_originally_nonempty_tree() {
         runBlocking {
             // 1. Prepare original state
-            testStateManager.resetAll()
-            testStateManager.seedBaseline()
-            val filesDir = InstrumentationRegistry.getInstrumentation().targetContext.filesDir
+            boundedStep("Reset and seed baseline") {
+                fullReset()
+            }
+            val filesDir = storage.getFilesDir()
             
             val originalId = "p_recovery_original"
             val originalPath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(originalId), "orig.pdf")
             val originalFile = File(filesDir, originalPath)
-            originalFile.parentFile?.mkdirs()
-            createMinimalPdf(originalFile)
-            val originalBytes = originalFile.readBytes()
+            val originalBytes = boundedStep("Prepare original data") {
+                originalFile.parentFile?.mkdirs()
+                createMinimalPdf(originalFile)
+                val bytes = originalFile.readBytes()
+                bytes
+            }
             
             // 2. Capture rollback and write a journal manually to simulate interruption
             val sessionId = "recovery-session-test"
-            val inventory = attachmentInstaller.captureRollback(sessionId)
-            val rollback = databaseApplier.captureRollbackSnapshot().copy(attachmentInventory = inventory)
-            
-            val journalDto = RestoreJournalDto(
-                sessionId = sessionId,
-                phase = RestorePhase.MUTATION_STARTED,
-                expectedArchiveFingerprint = "dummy",
-                previousPreferences = preferencesApplier.captureRollback(),
-                attachmentInventory = inventory,
-                startedAt = System.currentTimeMillis()
-            )
-            
-            journal.write(journalDto)
-            storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+            boundedStep("Manual journal and rollback setup") {
+                val inventory = attachmentInstaller.captureRollback(sessionId)
+                val rollback = databaseApplier.captureRollbackSnapshot().copy(attachmentInventory = inventory)
+                
+                val journalDto = RestoreJournalDto(
+                    sessionId = sessionId,
+                    phase = RestorePhase.MUTATION_STARTED,
+                    expectedArchiveFingerprint = "dummy",
+                    previousPreferences = preferencesApplier.captureRollback(),
+                    attachmentInventory = inventory,
+                    startedAt = System.currentTimeMillis()
+                )
+                
+                journal.write(journalDto)
+                storage.saveRollbackSnapshot(sessionId, codecs.writer.encodeToString(rollback))
+            }
             
             // 3. Mutate live tree (simulate interruption after some mutation)
             val incomingId = "p_recovery_incoming"
             val incomingPath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(incomingId), "inc.pdf")
-            val incomingFile = File(filesDir, incomingPath)
-            incomingFile.parentFile?.mkdirs()
-            createMinimalPdf(incomingFile)
+            boundedStep("Simulate interruption mutation") {
+                val incomingFile = File(filesDir, incomingPath)
+                incomingFile.parentFile?.mkdirs()
+                createMinimalPdf(incomingFile)
+            }
             
             // 4. Invoke recovery
-            val recoveryResult = recoveryCoordinator.retryRecovery()
+            val recoveryResult = boundedStep("Retry recovery") {
+                restoreCoordinator.retryRecovery()
+            }
             assertThat(recoveryResult).isInstanceOf(RestoreRecoveryResult.Recovered::class.java)
             
             // 5. Verify original state restored
@@ -330,7 +423,7 @@ class AttachmentBackupRestoreIntegrationTest {
             assertThat(restoredFile.exists()).isTrue()
             assertThat(restoredFile.readBytes()).isEqualTo(originalBytes)
             
-            assertThat(incomingFile.exists()).isFalse()
+            assertThat(File(filesDir, incomingPath).exists()).isFalse()
             
             // Journal and session cleaned
             assertThat(journal.read()).isEqualTo(RestoreJournalReadResult.Absent)
@@ -359,68 +452,82 @@ class AttachmentBackupRestoreIntegrationTest {
     @Test
     fun complete_backup_restore_roundtrip_with_valid_pdf() {
         runBlocking {
+            boundedStep("Reset and seed baseline") {
+                fullReset()
+            }
             val now = Instant.now().toEpochMilli()
             val receiptId = "p_roundtrip_valid"
-            val displayName = "Original Invoice.pdf"
-            val storageFilename = "test_attachment_invoice_${System.currentTimeMillis()}.pdf"
+            val displayName = "test_attachment_invoice.pdf"
+            val storageFilename = "test_attachment_invoice.pdf"
             val relativePath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(receiptId), storageFilename)
-            val targetFile = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, relativePath)
-            targetFile.parentFile?.mkdirs()
+            val filesDir = storage.getFilesDir()
+            val targetFile = File(filesDir, relativePath)
             
-            createMinimalPdf(targetFile)
-            val originalBytes = targetFile.readBytes()
-            
-            database.purchaseDao().insertReceipt(
-                PurchaseReceiptEntity(
-                    id = receiptId,
-                    restaurantId = TestSeeder.RESTAURANT_ID,
-                    supplierId = null,
-                    invoiceNumber = "INV-RT-VALID",
-                    purchaseDate = now,
-                    status = DocumentStatus.DRAFT.name,
-                    notes = null,
-                    attachmentPath = relativePath,
-                    attachmentDisplayName = displayName,
-                    createdAt = now,
-                    updatedAt = now,
-                    postedAt = null,
-                    voidedAt = null
+            val originalBytes = boundedStep("Create source data and backup") {
+                targetFile.parentFile?.mkdirs()
+                createMinimalPdf(targetFile)
+                val bytes = targetFile.readBytes()
+                
+                database.purchaseDao().insertReceipt(
+                    PurchaseReceiptEntity(
+                        id = receiptId,
+                        restaurantId = TestSeeder.RESTAURANT_ID,
+                        supplierId = null,
+                        invoiceNumber = "INV-RT-VALID",
+                        purchaseDate = now,
+                        status = DocumentStatus.DRAFT.name,
+                        notes = null,
+                        attachmentPath = relativePath,
+                        attachmentDisplayName = displayName,
+                        createdAt = now,
+                        updatedAt = now,
+                        postedAt = null,
+                        voidedAt = null
+                    )
                 )
-            )
+                
+                // 2. Create backup
+                val backupFile = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "test_valid_pdf_roundtrip.zip")
+                val backupUri = backupFile.absolutePath
+                val backupStatuses = backupRepository.createBackup(backupUri).toList()
+                assertThat(backupStatuses.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
+                bytes
+            }
             
-            // 2. Create backup
             val backupFile = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "test_valid_pdf_roundtrip.zip")
-            val backupUri = backupFile.absolutePath
-            val backupStatuses = backupRepository.createBackup(backupUri).toList()
-            assertThat(backupStatuses.last()).isInstanceOf(BackupOperationStatus.Success::class.java)
-            
-            // 3. Clear data
-            testStateManager.resetAll()
-            assertThat(database.purchaseDao().getReceiptById(receiptId)).isNull()
-            assertThat(targetFile.exists()).isFalse()
+
+            boundedStep("Clear data before restore") {
+                testStateManager.resetAll()
+                assertThat(database.purchaseDao().getReceiptById(receiptId)).isNull()
+                assertThat(targetFile.exists()).isFalse()
+            }
             
             // 4. Restore
-            val docUri = BackupDocumentUri("file://$backupUri")
-            val inspection = restoreCoordinator.inspect(docUri)
-            assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-            val ready = inspection as BackupArchiveInspectionResult.Ready
+            val docUri = BackupDocumentUri("file://${backupFile.absolutePath}")
+            val ready = boundedStep("Inspect backup") {
+                restoreCoordinator.inspect(docUri) as BackupArchiveInspectionResult.Ready
+            }
             
-            val restoreResult = restoreCoordinator.apply(docUri, ready.archive.fingerprint) {}
+            val restoreResult = boundedStep("Apply restore") {
+                restoreCoordinator.apply(docUri, ready.archive.fingerprint) {}
+            }
             assertThat(restoreResult).isEqualTo(BackupRestoreApplyResult.Success)
             
             // 5. Verify restored
-            val restoredReceipt = database.purchaseDao().getReceiptById(receiptId)
-            assertThat(restoredReceipt).isNotNull()
-            assertThat(restoredReceipt?.attachmentPath).isEqualTo(relativePath)
-            assertThat(restoredReceipt?.attachmentDisplayName).isEqualTo(displayName)
-            
-            val restoredFile = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, relativePath)
-            assertThat(restoredFile.exists()).isTrue()
-            assertThat(restoredFile.readBytes()).isEqualTo(originalBytes)
-            
-            // Verify PurchaseDocumentStore.inspect() succeeds
-            val metadata = documentStore.inspect(relativePath)
-            assertThat(metadata).isNotNull()
+            boundedStep("Verify restored state") {
+                val restoredReceipt = database.purchaseDao().getReceiptById(receiptId)
+                assertThat(restoredReceipt).isNotNull()
+                assertThat(restoredReceipt?.attachmentPath).isEqualTo(relativePath)
+                assertThat(restoredReceipt?.attachmentDisplayName).isEqualTo(displayName)
+                
+                val restoredFile = File(filesDir, relativePath)
+                assertThat(restoredFile.exists()).isTrue()
+                assertThat(restoredFile.readBytes()).isEqualTo(originalBytes)
+                
+                // Verify PurchaseDocumentStore.inspect() succeeds
+                val metadata = documentStore.inspect(relativePath)
+                assertThat(metadata).isNotNull()
+            }
             
             backupFile.delete()
         }
