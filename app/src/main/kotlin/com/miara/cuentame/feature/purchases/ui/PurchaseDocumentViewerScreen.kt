@@ -1,8 +1,7 @@
 package com.miara.cuentame.feature.purchases.ui
 
 import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,17 +36,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.miara.cuentame.R
-import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.backup.api.PurchasePdfPageRenderResult
+import com.miara.cuentame.core.backup.api.PurchasePdfRenderFailure
+import com.miara.cuentame.core.backup.api.PurchasePdfRenderer
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDocumentViewerState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDocumentViewerViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.io.File
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface PurchaseDocumentViewerEntryPoint {
+    fun pdfRenderer(): PurchasePdfRenderer
+}
 
 @Composable
 fun PurchaseDocumentViewerRoute(
@@ -55,10 +61,15 @@ fun PurchaseDocumentViewerRoute(
     viewModel: PurchaseDocumentViewerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val renderer = remember {
+        EntryPointAccessors.fromApplication(context, PurchaseDocumentViewerEntryPoint::class.java).pdfRenderer()
+    }
 
     PurchaseDocumentViewerScreen(
         uiState = uiState,
-        onBack = onBack
+        onBack = onBack,
+        renderer = renderer
     )
 }
 
@@ -66,7 +77,8 @@ fun PurchaseDocumentViewerRoute(
 @Composable
 fun PurchaseDocumentViewerScreen(
     uiState: PurchaseDocumentViewerState,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    renderer: PurchasePdfRenderer
 ) {
     Scaffold(
         modifier = Modifier.testTag("purchase_document_viewer"),
@@ -101,14 +113,14 @@ fun PurchaseDocumentViewerScreen(
                 }
                 is PurchaseDocumentViewerState.Error -> {
                     Text(
-                        text = stringResource(R.string.error_generic),
+                        text = uiState.message ?: stringResource(R.string.error_generic),
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
                 is PurchaseDocumentViewerState.Ready -> {
                     val file = File(LocalContext.current.filesDir, uiState.document.location)
                     if (uiState.document.mimeType == "application/pdf") {
-                        PdfViewer(file)
+                        PdfViewer(file, uiState.pageCount, renderer)
                     } else {
                         ImageViewer(file)
                     }
@@ -119,123 +131,105 @@ fun PurchaseDocumentViewerScreen(
 }
 
 @Composable
-fun PdfViewer(file: File) {
-    var renderer by remember(file) { mutableStateOf<PdfRenderer?>(null) }
-    var error by remember { mutableStateOf<Throwable?>(null) }
-    val mutex = remember { Mutex() }
-
-    LaunchedEffect(file) {
-        withContext(Dispatchers.IO) {
-            try {
-                val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                renderer = PdfRenderer(pfd)
-            } catch (e: Exception) {
-                error = e
-            }
-        }
-    }
-
-    if (error != null) {
+fun PdfViewer(file: File, pageCount: Int, renderer: PurchasePdfRenderer) {
+    if (pageCount == 0) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                text = stringResource(R.string.purchase_pdf_render_failure),
-                modifier = Modifier.testTag("purchase_document_pdf_error")
+                text = stringResource(R.string.purchase_pdf_empty),
+                modifier = Modifier.testTag("purchase_document_pdf_empty")
             )
         }
-    } else if (renderer != null) {
-        val pageCount = renderer!!.pageCount
-        if (pageCount == 0) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.purchase_pdf_empty))
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().testTag("purchase_document_pdf_list"),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                items(pageCount) { pageIndex ->
-                    PdfPage(renderer!!, pageIndex, mutex)
-                }
-            }
-        }
     } else {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-    }
-
-    DisposableEffect(renderer) {
-        onDispose {
-            renderer?.close()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().testTag("purchase_document_pdf_list"),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            items(pageCount) { pageIndex ->
+                PdfPage(file, pageIndex, renderer)
+            }
         }
     }
 }
 
 @Composable
-fun PdfPage(renderer: PdfRenderer, pageIndex: Int, mutex: Mutex) {
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var error by remember { mutableStateOf<Boolean>(false) }
+fun PdfPage(file: File, pageIndex: Int, renderer: PurchasePdfRenderer) {
+    var pageState by remember { mutableStateOf<PdfPageState>(PdfPageState.Loading) }
     
-    LaunchedEffect(pageIndex) {
-        withContext(Dispatchers.IO) {
-            mutex.withLock {
-                try {
-                    val page = renderer.openPage(pageIndex)
-                    try {
-                        // Cap bitmap dimensions based on viewport and memory limits
-                        val maxWidth = 2048 
-                        val scale = if (page.width > maxWidth) maxWidth.toFloat() / page.width else 1.0f
-                        val width = (page.width * scale).toInt().coerceAtLeast(1)
-                        val height = (page.height * scale).toInt().coerceAtLeast(1)
-                        
-                        val b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                        page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        bitmap = b
-                    } finally {
-                        page.close()
-                    }
-                } catch (e: Exception) {
-                    error = true
-                }
+    LaunchedEffect(file, pageIndex) {
+        pageState = PdfPageState.Loading
+        val result = renderer.renderPage(file, pageIndex, maxWidthPx = 2048)
+        pageState = when (result) {
+            is PurchasePdfPageRenderResult.Success -> {
+                PdfPageState.Ready(result.bitmap)
+            }
+            is PurchasePdfPageRenderResult.Failure -> {
+                Log.e("PdfViewer", "Failed to render page $pageIndex: ${result.reason}")
+                PdfPageState.Error(result.reason)
             }
         }
     }
 
-    DisposableEffect(bitmap) {
+    DisposableEffect(pageState) {
         onDispose {
-            // Bitmaps should be managed carefully to avoid OOM
-            val b = bitmap
-            bitmap = null
-            b?.recycle()
+            if (pageState is PdfPageState.Ready) {
+                val bitmap = (pageState as PdfPageState.Ready).bitmap
+                // Do not recycle if the state changed but the bitmap might still be drawn.
+                // However, our state ownership is clear here.
+                // To be extra safe with Compose drawing, we only recycle when the entire composable is disposed
+                // and the state is explicitly captured.
+            }
         }
     }
     
-    if (error) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(8.dp)
-                .testTag("purchase_document_pdf_page_error_$pageIndex"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(stringResource(R.string.purchase_pdf_page_render_failure, pageIndex + 1), color = MaterialTheme.colorScheme.error)
-        }
-    } else if (bitmap != null) {
-        Image(
-            bitmap = bitmap!!.asImageBitmap(),
-            contentDescription = stringResource(R.string.purchase_document_pdf_page_desc, pageIndex + 1),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .testTag("purchase_document_pdf_page_$pageIndex"),
-            contentScale = ContentScale.FillWidth
-        )
-    } else {
-        Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+    // Captured bitmap for safe disposal on composition leave
+    DisposableEffect(Unit) {
+        onDispose {
+            val currentState = pageState
+            if (currentState is PdfPageState.Ready) {
+                currentState.bitmap.recycle()
+            }
         }
     }
+
+    when (val state = pageState) {
+        is PdfPageState.Loading -> {
+            Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is PdfPageState.Ready -> {
+            Image(
+                bitmap = state.bitmap.asImageBitmap(),
+                contentDescription = stringResource(R.string.purchase_document_pdf_page_desc, pageIndex + 1),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .testTag("purchase_document_pdf_page_$pageIndex"),
+                contentScale = ContentScale.FillWidth
+            )
+        }
+        is PdfPageState.Error -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(8.dp)
+                    .testTag("purchase_document_pdf_page_error_$pageIndex"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.purchase_pdf_page_render_failure, pageIndex + 1),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+sealed interface PdfPageState {
+    data object Loading : PdfPageState
+    data class Ready(val bitmap: Bitmap) : PdfPageState
+    data class Error(val reason: PurchasePdfRenderFailure) : PdfPageState
 }
 
 @Composable

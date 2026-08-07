@@ -33,6 +33,11 @@ sealed interface PurchaseInvoiceScanResult {
     ) : PurchaseInvoiceScanResult
 }
 
+class PurchaseInvoiceScannerException(
+    val reason: PurchaseInvoiceScannerFailure,
+    cause: Throwable? = null
+) : Exception("Scanner failed: ${reason.name}", cause)
+
 enum class PurchaseInvoiceScannerFailure {
     Unavailable,
     UnsupportedDevice,

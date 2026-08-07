@@ -7,6 +7,7 @@ import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerException
 import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
@@ -296,10 +297,13 @@ class PurchaseDraftViewModel @Inject constructor(
                     _captureState.value = InvoiceCaptureState.ScannerOpen
                     onIntentReady(intentSender)
                 } catch (e: Exception) {
-                    _scannerError.value = PurchaseInvoiceScannerFailure.LaunchFailed
+                    val reason = (e as? PurchaseInvoiceScannerException)?.reason ?: PurchaseInvoiceScannerFailure.LaunchFailed
+                    _scannerError.value = reason
                     _captureState.value = InvoiceCaptureState.Idle
                     savedStateHandle[KEY_PENDING_SCAN_SESSION_ID] = null
-                    _error.value = e
+                    if (e !is PurchaseInvoiceScannerException) {
+                        _error.value = e
+                    }
                 }
                 // Mutex is released here. The pending session protects against concurrent mutations.
             }
@@ -429,8 +433,11 @@ class PurchaseDraftViewModel @Inject constructor(
         }
     }
 
-    fun clearError() {
+    fun clearGeneralError() {
         _error.value = null
+    }
+
+    fun clearScannerError() {
         _scannerError.value = null
     }
 

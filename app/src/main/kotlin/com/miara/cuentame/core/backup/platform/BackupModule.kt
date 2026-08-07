@@ -61,6 +61,10 @@ interface BackupModule {
     @Singleton
     fun bindPurchaseInvoiceScanner(impl: GmsPurchaseInvoiceScanner): PurchaseInvoiceScanner
 
+    @Binds
+    @Singleton
+    fun bindPurchasePdfRenderer(impl: AndroidPurchasePdfRenderer): PurchasePdfRenderer
+
     companion object {
         @Provides
         @Singleton

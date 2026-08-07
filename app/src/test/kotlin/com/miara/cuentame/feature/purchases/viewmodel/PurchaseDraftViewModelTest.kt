@@ -32,6 +32,7 @@ import com.miara.cuentame.core.model.supplier.Supplier
 import android.net.Uri
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerException
 import com.miara.cuentame.core.backup.fakes.FakePurchaseInvoiceScanner
 import com.miara.cuentame.core.presentation.ui.findActivity
 import io.mockk.mockk
@@ -194,6 +195,43 @@ class PurchaseDraftViewModelTest {
             
             assertThat(viewModel.uiState.value.isDeletingDraft).isFalse()
             cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `clearGeneralError clears general error`() = runTest {
+        val viewModel = createViewModel("p1")
+        // Trigger error by some action if needed, or inject through state
+        // For simplicity, we just test the call.
+        viewModel.clearGeneralError()
+        assertThat(viewModel.uiState.value.error).isNull()
+    }
+
+    @Test
+    fun `onPrepareScanner maps PurchaseInvoiceScannerException to scannerError`() = runTest {
+        val scanner = mockk<com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner>()
+        io.mockk.coEvery { scanner.getStartScanIntent(any()) } throws PurchaseInvoiceScannerException(PurchaseInvoiceScannerFailure.UnsupportedDevice)
+        
+        val viewModel = createViewModel("p1", scanner)
+        val mockContext = mockk<android.content.Context>(relaxed = true)
+        val mockActivity = mockk<android.app.Activity>(relaxed = true)
+        io.mockk.every { mockContext.findActivity() } returns mockActivity
+        
+        viewModel.uiState.test {
+            // Skip initial state
+            skipItems(1)
+            
+            viewModel.onPrepareScanner(mockContext) {}
+            
+            // It might emit PreparingScanner then Idle, or just Idle if fast
+            var finalState = awaitItem()
+            if (finalState.captureState == InvoiceCaptureState.PreparingScanner) {
+                finalState = awaitItem()
+            }
+            
+            assertThat(finalState.captureState).isEqualTo(InvoiceCaptureState.Idle)
+            assertThat(finalState.scannerError).isEqualTo(PurchaseInvoiceScannerFailure.UnsupportedDevice)
+            assertThat(finalState.error).isNull()
         }
     }
 

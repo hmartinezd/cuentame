@@ -3,7 +3,6 @@ package com.miara.cuentame.core.backup.platform
 import android.app.Activity
 import android.content.Intent
 import android.content.IntentSender
-import com.google.android.gms.common.api.ApiException
 import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
@@ -11,6 +10,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
+import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerException
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,11 +33,9 @@ class GmsPurchaseInvoiceScanner @Inject constructor() : PurchaseInvoiceScanner {
             val failure = when {
                 e is MlKitException && e.errorCode == MlKitException.UNSUPPORTED -> 
                     PurchaseInvoiceScannerFailure.UnsupportedDevice
-                e is ApiException && e.statusCode == 17 -> // Often used for module unavailable in some SDKs, but let's be conservative
-                    PurchaseInvoiceScannerFailure.ModuleUnavailable
-                else -> throw e
+                else -> PurchaseInvoiceScannerFailure.LaunchFailed
             }
-            throw Exception("Scanner launch failed: ${failure.name}", e)
+            throw PurchaseInvoiceScannerException(failure, e)
         }
     }
 

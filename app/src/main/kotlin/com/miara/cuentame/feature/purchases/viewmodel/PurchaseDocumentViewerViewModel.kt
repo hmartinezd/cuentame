@@ -1,13 +1,17 @@
 package com.miara.cuentame.feature.purchases.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
+import com.miara.cuentame.core.backup.api.PurchasePdfRenderer
 import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,16 +19,24 @@ import javax.inject.Inject
 
 sealed interface PurchaseDocumentViewerState {
     data object Loading : PurchaseDocumentViewerState
-    data class Ready(val document: StoredPurchaseDocument) : PurchaseDocumentViewerState
+    data class Ready(
+        val document: StoredPurchaseDocument,
+        val pageCount: Int = 0
+    ) : PurchaseDocumentViewerState
     data object NotFound : PurchaseDocumentViewerState
-    data class Error(val throwable: Throwable) : PurchaseDocumentViewerState
+    data class Error(
+        val throwable: Throwable,
+        val message: String? = null
+    ) : PurchaseDocumentViewerState
 }
 
 @HiltViewModel
 class PurchaseDocumentViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val purchaseRepository: PurchaseRepository,
-    private val documentStore: PurchaseDocumentStore
+    private val documentStore: PurchaseDocumentStore,
+    private val pdfRenderer: PurchasePdfRenderer,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val receiptIdStr: String? = savedStateHandle["receiptId"]
@@ -53,7 +65,13 @@ class PurchaseDocumentViewerViewModel @Inject constructor(
                         if (displayName != null) m.copy(displayName = displayName) else m
                     }
                     if (metadata != null) {
-                        _uiState.value = PurchaseDocumentViewerState.Ready(metadata)
+                        var pageCount = 0
+                        if (metadata.mimeType == "application/pdf") {
+                            val file = PurchaseAttachmentLocation.resolvePurchaseDocument(context.filesDir, path)
+                            val info = pdfRenderer.inspect(file)
+                            pageCount = info.pageCount
+                        }
+                        _uiState.value = PurchaseDocumentViewerState.Ready(metadata, pageCount)
                     } else {
                         _uiState.value = PurchaseDocumentViewerState.NotFound
                     }

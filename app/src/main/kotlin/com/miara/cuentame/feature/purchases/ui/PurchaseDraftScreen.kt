@@ -68,6 +68,7 @@ import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
+import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.feature.purchases.presentation.toUserMessageRes
 import com.miara.cuentame.feature.purchases.viewmodel.InvoiceCaptureState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
@@ -110,14 +111,14 @@ fun PurchaseDraftRoute(
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
-            viewModel.clearError()
+            viewModel.clearGeneralError()
         }
     }
 
     LaunchedEffect(uiState.scannerError) {
         uiState.scannerError?.let {
             snackbarHostState.showSnackbar(context.getString(it.toUserMessageRes()))
-            viewModel.clearError() // Assuming clearError also clears scannerError or add a specific one
+            viewModel.clearScannerError()
         }
     }
 
@@ -140,7 +141,7 @@ fun PurchaseDraftRoute(
         onBack = onBack,
         onSaveHeader = viewModel::onSaveHeader,
         onScanInvoice = { 
-            val activity = context as? android.app.Activity
+            val activity = context.findActivity()
             if (activity != null) {
                 viewModel.onPrepareScanner(activity) { intentSender ->
                     scannerLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
