@@ -13,6 +13,7 @@ import com.miara.cuentame.feature.purchases.ui.PurchaseDocumentViewerRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDraftRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseLineRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseListRoute
+import com.miara.cuentame.feature.purchases.ui.RawOcrViewerScreen
 
 fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
     composable(route = TopLevelDestination.ACTIVITY.route) {
@@ -35,6 +36,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 }
             },
             onNavigateToDocument = { id -> navController.navigate(AppRoutes.purchaseDocument(id)) },
+            onNavigateToRawOcr = { id -> navController.navigate(AppRoutes.purchaseRawOcr(id)) },
             onAddLine = {},
             onEditLine = { _, _ -> },
             onPostSuccess = {}
@@ -49,6 +51,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 onBack = { navController.popBackStack() },
                 onNavigateToDraft = {},
                 onNavigateToDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) },
+                onNavigateToRawOcr = { rid -> navController.navigate(AppRoutes.purchaseRawOcr(rid)) },
                 onAddLine = { rid -> navController.navigate(AppRoutes.purchaseLineCreate(rid)) },
                 onEditLine = { rid, lid -> navController.navigate(AppRoutes.purchaseLineEdit(rid, lid)) },
                 onPostSuccess = { rid ->
@@ -58,6 +61,11 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 }
             )
         }
+    }
+    composable(route = Destination.PURCHASE_RAW_OCR.route) {
+        RawOcrViewerScreen(
+            onBack = { navController.popBackStack() }
+        )
     }
     composable(route = Destination.PURCHASE_LINE_CREATE.route) {
         PurchaseLineRoute(

@@ -33,12 +33,5 @@ abstract class PreferencesModule {
         fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
             return context.dataStore
         }
-
-        @Provides
-        @Singleton
-        fun provideJson(): Json = Json {
-            ignoreUnknownKeys = true
-            coerceInputValues = true
-        }
     }
 }

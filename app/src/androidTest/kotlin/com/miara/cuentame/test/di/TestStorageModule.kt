@@ -84,6 +84,8 @@ object TestStorageModule {
     @Provides
     fun provideProductionBatchDao(db: RestaurantInventoryDatabase) = db.productionBatchDao()
     @Provides
+    fun providePurchaseOcrDao(db: RestaurantInventoryDatabase) = db.purchaseOcrDao()
+    @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase) = db.backupDao()
     @Provides
     fun provideRestoreDao(db: RestaurantInventoryDatabase) = db.restoreDao()
@@ -128,13 +130,6 @@ object TestStorageModule {
     @Provides
     @Singleton
     fun provideLocalAttachmentPermissionManager(): LocalAttachmentPermissionManager = ConfigurableAttachmentPermissionManager()
-
-    @Provides
-    @Singleton
-    fun provideJson(): Json = Json {
-        ignoreUnknownKeys = false
-        coerceInputValues = true
-    }
 
     @Provides
     @Singleton

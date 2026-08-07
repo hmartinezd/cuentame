@@ -23,7 +23,32 @@ data class BackupSnapshotDto(
     val preparationRecipes: List<PreparationRecipeBackupDto> = emptyList(),
     val preparationRecipeComponents: List<PreparationRecipeComponentBackupDto> = emptyList(),
     val productionBatches: List<ProductionBatchBackupDto> = emptyList(),
-    val productionBatchComponents: List<ProductionBatchComponentBackupDto> = emptyList()
+    val productionBatchComponents: List<ProductionBatchComponentBackupDto> = emptyList(),
+    val purchaseInvoiceOcrResults: List<PurchaseInvoiceOcrResultBackupDto> = emptyList(),
+    val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageBackupDto> = emptyList()
+)
+
+@Serializable
+data class PurchaseInvoiceOcrResultBackupDto(
+    val id: String,
+    val purchaseReceiptId: String,
+    val sourceDocumentSha256: String,
+    val sourceMimeType: String,
+    val engine: String,
+    val evidenceSchemaVersion: Int,
+    val pageCount: Int,
+    val fullText: String,
+    val processedAt: Long
+)
+
+@Serializable
+data class PurchaseInvoiceOcrPageBackupDto(
+    val ocrResultId: String,
+    val pageIndex: Int,
+    val widthPx: Int,
+    val heightPx: Int,
+    val text: String,
+    val evidenceJson: String
 )
 
 @Serializable

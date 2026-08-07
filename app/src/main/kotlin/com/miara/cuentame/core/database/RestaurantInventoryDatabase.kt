@@ -30,7 +30,9 @@ import com.miara.cuentame.core.database.DatabaseSchema
         PreparationRecipeEntity::class,
         PreparationRecipeComponentEntity::class,
         ProductionBatchEntity::class,
-        ProductionBatchComponentEntity::class
+        ProductionBatchComponentEntity::class,
+        PurchaseInvoiceOcrResultEntity::class,
+        PurchaseInvoiceOcrPageEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -52,6 +54,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun ingredientCostProjectionDao(): IngredientCostProjectionDao
     abstract fun preparationRecipeDao(): PreparationRecipeDao
     abstract fun productionBatchDao(): ProductionBatchDao
+    abstract fun purchaseOcrDao(): PurchaseOcrDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -230,6 +233,45 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `purchase_receipts` ADD COLUMN `attachmentDisplayName` TEXT")
                 db.execSQL("ALTER TABLE `waste_events` ADD COLUMN `attachmentDisplayName` TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_ocr_results` (
+                        `id` TEXT NOT NULL, 
+                        `purchaseReceiptId` TEXT NOT NULL, 
+                        `sourceDocumentSha256` TEXT NOT NULL, 
+                        `sourceMimeType` TEXT NOT NULL, 
+                        `engine` TEXT NOT NULL, 
+                        `evidenceSchemaVersion` INTEGER NOT NULL, 
+                        `pageCount` INTEGER NOT NULL, 
+                        `fullText` TEXT NOT NULL, 
+                        `processedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`purchaseReceiptId`) REFERENCES `purchase_receipts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_purchaseReceiptId` ON `purchase_invoice_ocr_results` (`purchaseReceiptId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_sourceDocumentSha256` ON `purchase_invoice_ocr_results` (`sourceDocumentSha256`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_processedAt` ON `purchase_invoice_ocr_results` (`processedAt`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_ocr_pages` (
+                        `ocrResultId` TEXT NOT NULL, 
+                        `pageIndex` INTEGER NOT NULL, 
+                        `widthPx` INTEGER NOT NULL, 
+                        `heightPx` INTEGER NOT NULL, 
+                        `text` TEXT NOT NULL, 
+                        `evidenceJson` TEXT NOT NULL, 
+                        PRIMARY KEY(`ocrResultId`, `pageIndex`), 
+                        FOREIGN KEY(`ocrResultId`) REFERENCES `purchase_invoice_ocr_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_pages_ocrResultId` ON `purchase_invoice_ocr_pages` (`ocrResultId`)")
             }
         }
     }

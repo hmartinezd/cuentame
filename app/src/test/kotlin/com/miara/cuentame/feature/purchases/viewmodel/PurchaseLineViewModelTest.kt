@@ -26,6 +26,8 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
 import com.miara.cuentame.core.model.purchase.PurchaseLine
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,6 +75,10 @@ class PurchaseLineViewModelTest {
         override suspend fun void(id: PurchaseReceiptId) {}
         override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
+        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = flowOf(null)
+        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
+        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
+        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
     }
 
     private val fakeIngredientRepository = object : com.miara.cuentame.core.domain.repository.IngredientRepository {

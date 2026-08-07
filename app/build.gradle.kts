@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.coil.compose)
 
     // Hilt
@@ -106,6 +107,7 @@ dependencies {
     
     // ML Kit
     implementation(libs.google.mlkit.document.scanner)
+    implementation(libs.google.mlkit.text.recognition)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

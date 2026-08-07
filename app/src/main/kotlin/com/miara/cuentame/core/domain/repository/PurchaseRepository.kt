@@ -10,6 +10,8 @@ import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
 import java.time.Instant
@@ -116,6 +118,23 @@ interface PurchaseRepository {
     )
 
     suspend fun removeDocument(
+        receiptId: PurchaseReceiptId
+    )
+
+    fun observeOcrResult(
+        receiptId: PurchaseReceiptId
+    ): Flow<PurchaseInvoiceOcrResult?>
+
+    suspend fun getOcrPages(
+        resultId: String
+    ): List<PurchaseInvoiceOcrPage>
+
+    suspend fun saveOcrResult(
+        result: PurchaseInvoiceOcrResult,
+        pages: List<PurchaseInvoiceOcrPage>
+    )
+
+    suspend fun deleteOcrResult(
         receiptId: PurchaseReceiptId
     )
 }

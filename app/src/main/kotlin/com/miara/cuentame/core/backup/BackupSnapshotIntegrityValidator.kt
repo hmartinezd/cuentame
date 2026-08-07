@@ -55,6 +55,7 @@ object BackupSnapshotIntegrityValidator {
             validateCostProjections(dto, ctx)?.let { throw it }
             validateRecipes(dto, ctx)?.let { throw it }
             validateProductionBatches(dto, ctx)?.let { throw it }
+            validateOcr(dto, manifest, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: Exception) {
@@ -124,6 +125,7 @@ object BackupSnapshotIntegrityValidator {
         val batchById = dto.productionBatches.associateBy { it.id }
         val batchComponentById = dto.productionBatchComponents.associateBy { it.id }
         val componentsByBatchId = dto.productionBatchComponents.groupBy { it.productionBatchId }
+        val ocrResultById = dto.purchaseInvoiceOcrResults.associateBy { it.id }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -169,6 +171,7 @@ object BackupSnapshotIntegrityValidator {
         check(dto.preparationRecipeComponents, { it.id }, "preparation_recipe_components")?.let { return it }
         check(dto.productionBatches, { it.id }, "production_batches")?.let { return it }
         check(dto.productionBatchComponents, { it.id }, "production_batch_components")?.let { return it }
+        check(dto.purchaseInvoiceOcrResults, { it.id }, "purchase_invoice_ocr_results")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -177,6 +180,12 @@ object BackupSnapshotIntegrityValidator {
         }
         if (balanceKeys.distinct().size != balanceKeys.size) {
             return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in inventory_balance_projection")
+        }
+
+        // OCR page composite keys
+        val ocrPageKeys = dto.purchaseInvoiceOcrPages.map { it.ocrResultId to it.pageIndex }
+        if (ocrPageKeys.distinct().size != ocrPageKeys.size) {
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in purchase_invoice_ocr_pages")
         }
 
         // Cost projection composite keys
@@ -204,6 +213,12 @@ object BackupSnapshotIntegrityValidator {
         if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projection")
         if (dto.preparationRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in preparation_recipes")
         if (dto.productionBatches.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in production_batches")
+
+        val receiptById = dto.purchaseReceipts.associateBy { it.id }
+        if (dto.purchaseInvoiceOcrResults.any { ocr ->
+                val parent = receiptById[ocr.purchaseReceiptId]
+                parent == null || parent.restaurantId != restaurantId
+            }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_ocr_results")
 
         return null
     }
@@ -1649,6 +1664,48 @@ object BackupSnapshotIntegrityValidator {
             
             if (reversal.effectiveAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal effectiveAt mismatch")
             if (reversal.createdAt != batch.voidedAt) return err(INVALID_TIMESTAMP_ORDER, "Reversal createdAt mismatch")
+        }
+
+        return null
+    }
+
+    private fun validateOcr(
+        dto: BackupSnapshotDto,
+        manifest: BackupManifest,
+        ctx: ValidationContext
+    ): BackupSnapshotIntegrityException? {
+        val manifestChecksums = manifest.attachments.associate { it.attachmentId to it.checksumSha256 }
+
+        for (result in dto.purchaseInvoiceOcrResults) {
+            val receipt = ctx.receiptById[result.purchaseReceiptId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: OCR result to purchase receipt")
+            
+            if (receipt.attachmentId == null) {
+                return err(RELATIONSHIP_MISMATCH, "OCR result exists for purchase without attachment")
+            }
+
+            val expectedChecksum = manifestChecksums[receipt.attachmentId]
+                ?: return err(RELATIONSHIP_MISMATCH, "OCR attachment not found in manifest")
+
+            if (result.sourceDocumentSha256 != expectedChecksum) {
+                return err(RELATIONSHIP_MISMATCH, "OCR checksum mismatch with manifest attachment")
+            }
+
+            val pages = dto.purchaseInvoiceOcrPages.filter { it.ocrResultId == result.id }
+            if (pages.size != result.pageCount) {
+                return err(RELATIONSHIP_MISMATCH, "OCR page count mismatch")
+            }
+
+            val pageIndexes = pages.map { it.pageIndex }.sorted()
+            if (pageIndexes != (0 until result.pageCount).toList()) {
+                return err(RELATIONSHIP_MISMATCH, "OCR page indexes must be contiguous 0..N-1")
+            }
+        }
+
+        for (page in dto.purchaseInvoiceOcrPages) {
+            if (!ctx.ocrResultById.containsKey(page.ocrResultId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: OCR page to result")
+            }
         }
 
         return null

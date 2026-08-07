@@ -22,5 +22,7 @@ data class BackupSnapshot(
     val preparationRecipes: List<PreparationRecipeEntity>,
     val preparationRecipeComponents: List<PreparationRecipeComponentEntity>,
     val productionBatches: List<ProductionBatchEntity>,
-    val productionBatchComponents: List<ProductionBatchComponentEntity>
+    val productionBatchComponents: List<ProductionBatchComponentEntity>,
+    val purchaseInvoiceOcrResults: List<PurchaseInvoiceOcrResultEntity> = emptyList(),
+    val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageEntity> = emptyList()
 )

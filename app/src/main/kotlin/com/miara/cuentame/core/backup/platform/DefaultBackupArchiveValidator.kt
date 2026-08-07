@@ -241,6 +241,10 @@ class DefaultBackupArchiveValidator @Inject constructor(
             tables["production_batches"] = TableMetadata(dbDto.productionBatches.size, false)
             tables["production_batch_components"] = TableMetadata(dbDto.productionBatchComponents.size, false)
         }
+        if (schemaVersion >= 6) {
+            tables["purchase_invoice_ocr_results"] = TableMetadata(dbDto.purchaseInvoiceOcrResults.size, false)
+            tables["purchase_invoice_ocr_pages"] = TableMetadata(dbDto.purchaseInvoiceOcrPages.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 

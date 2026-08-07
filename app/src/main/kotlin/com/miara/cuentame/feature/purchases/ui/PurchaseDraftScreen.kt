@@ -40,10 +40,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,6 +73,7 @@ import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.feature.purchases.presentation.toUserMessageRes
 import com.miara.cuentame.feature.purchases.viewmodel.InvoiceCaptureState
+import com.miara.cuentame.feature.purchases.viewmodel.OcrAnalysisState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftEvent
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftUiState
 import com.miara.cuentame.feature.purchases.viewmodel.PurchaseDraftViewModel
@@ -84,6 +87,7 @@ fun PurchaseDraftRoute(
     onBack: () -> Unit,
     onNavigateToDraft: (PurchaseReceiptId) -> Unit,
     onNavigateToDocument: (PurchaseReceiptId) -> Unit,
+    onNavigateToRawOcr: (PurchaseReceiptId) -> Unit,
     onAddLine: (PurchaseReceiptId) -> Unit,
     onEditLine: (PurchaseReceiptId, PurchaseLineId) -> Unit,
     onPostSuccess: (PurchaseReceiptId) -> Unit,
@@ -151,6 +155,9 @@ fun PurchaseDraftRoute(
         onChooseFile = { pickerLauncher.launch(arrayOf("application/pdf", "image/*")) },
         onRemoveDocument = viewModel::onRemoveDocument,
         onViewDocument = { uiState.receiptId?.let { onNavigateToDocument(it) } },
+        onAnalyzeInvoice = viewModel::onAnalyzeInvoice,
+        onViewRawOcr = { uiState.receiptId?.let { onNavigateToRawOcr(it) } },
+        onClearOcrError = viewModel::clearOcrError,
         onAddLine = { purchaseId?.let { onAddLine(it) } },
         onEditLine = { lineId -> purchaseId?.let { onEditLine(it, lineId) } },
         onDeleteLine = viewModel::onDeleteLine,
@@ -172,6 +179,9 @@ fun PurchaseDraftScreen(
     onChooseFile: () -> Unit,
     onRemoveDocument: () -> Unit,
     onViewDocument: () -> Unit,
+    onAnalyzeInvoice: () -> Unit,
+    onViewRawOcr: () -> Unit,
+    onClearOcrError: () -> Unit,
     onAddLine: () -> Unit,
     onEditLine: (PurchaseLineId) -> Unit,
     onDeleteLine: (PurchaseLineId) -> Unit,
@@ -245,7 +255,10 @@ fun PurchaseDraftScreen(
                         onScan = onScanInvoice,
                         onChooseFile = onChooseFile,
                         onRemove = onRemoveDocument,
-                        onView = onViewDocument
+                        onView = onViewDocument,
+                        onAnalyze = onAnalyzeInvoice,
+                        onViewOcr = onViewRawOcr,
+                        onClearOcrError = onClearOcrError
                     )
                 }
 
@@ -390,7 +403,10 @@ fun PurchaseDocumentSection(
     onScan: () -> Unit,
     onChooseFile: () -> Unit,
     onRemove: () -> Unit,
-    onView: () -> Unit
+    onView: () -> Unit,
+    onAnalyze: () -> Unit,
+    onViewOcr: () -> Unit,
+    onClearOcrError: () -> Unit
 ) {
     var showRemoveConfirm by remember { mutableStateOf(false) }
 
@@ -434,63 +450,72 @@ fun PurchaseDocumentSection(
                 }
             }
         } else {
-            ListItem(
-                modifier = Modifier.testTag("purchase_document_metadata"),
-                headlineContent = { 
-                    Text(
-                        text = uiState.documentMetadata.displayName,
-                        modifier = Modifier.testTag("purchase_document_name")
-                    ) 
-                },
-                supportingContent = {
-                    Text(
-                        text = "${uiState.documentMetadata.mimeType} • ${Formatters.formatFileSize(uiState.documentMetadata.sizeBytes)}",
-                        modifier = Modifier.testTag("purchase_document_info")
-                    )
-                },
-                trailingContent = {
-                    Row {
-                        IconButton(onClick = onView, modifier = Modifier.testTag("purchase_document_view")) {
-                            Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
-                        }
-                        
-                        var showReplaceMenu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(
-                                onClick = { showReplaceMenu = true }, 
-                                enabled = uiState.captureState == InvoiceCaptureState.Idle && !uiState.isPosting && !uiState.isDeletingDraft,
-                                modifier = Modifier.testTag("purchase_document_replace")
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.purchase_replace_document))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ListItem(
+                    modifier = Modifier.testTag("purchase_document_metadata"),
+                    headlineContent = { 
+                        Text(
+                            text = uiState.documentMetadata.displayName,
+                            modifier = Modifier.testTag("purchase_document_name")
+                        ) 
+                    },
+                    supportingContent = {
+                        Text(
+                            text = "${uiState.documentMetadata.mimeType} • ${Formatters.formatFileSize(uiState.documentMetadata.sizeBytes)}",
+                            modifier = Modifier.testTag("purchase_document_info")
+                        )
+                    },
+                    trailingContent = {
+                        Row {
+                            IconButton(onClick = onView, modifier = Modifier.testTag("purchase_document_view")) {
+                                Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
                             }
-                            androidx.compose.material3.DropdownMenu(
-                                expanded = showReplaceMenu,
-                                onDismissRequest = { showReplaceMenu = false },
-                                modifier = Modifier.testTag("purchase_document_replace_menu")
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.purchase_scan_replacement)) },
-                                    onClick = { onScan(); showReplaceMenu = false },
-                                    modifier = Modifier.testTag("purchase_document_replace_scan")
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.purchase_choose_replacement_file)) },
-                                    onClick = { onChooseFile(); showReplaceMenu = false },
-                                    modifier = Modifier.testTag("purchase_document_replace_file")
-                                )
+                            
+                            var showReplaceMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showReplaceMenu = true }, 
+                                    enabled = uiState.captureState == InvoiceCaptureState.Idle && !uiState.isPosting && !uiState.isDeletingDraft,
+                                    modifier = Modifier.testTag("purchase_document_replace")
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.purchase_replace_document))
+                                }
+                                androidx.compose.material3.DropdownMenu(
+                                    expanded = showReplaceMenu,
+                                    onDismissRequest = { showReplaceMenu = false },
+                                    modifier = Modifier.testTag("purchase_document_replace_menu")
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.purchase_scan_replacement)) },
+                                        onClick = { onScan(); showReplaceMenu = false },
+                                        modifier = Modifier.testTag("purchase_document_replace_scan")
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.purchase_choose_replacement_file)) },
+                                        onClick = { onChooseFile(); showReplaceMenu = false },
+                                        modifier = Modifier.testTag("purchase_document_replace_file")
+                                    )
+                                }
                             }
-                        }
 
-                        IconButton(
-                            onClick = { showRemoveConfirm = true }, 
-                            enabled = !uiState.isRemovingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
-                            modifier = Modifier.testTag("purchase_document_remove")
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.purchase_remove_document))
+                            IconButton(
+                                onClick = { showRemoveConfirm = true }, 
+                                enabled = !uiState.isRemovingDocument && !uiState.isPosting && !uiState.isDeletingDraft,
+                                modifier = Modifier.testTag("purchase_document_remove")
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.purchase_remove_document))
+                            }
                         }
                     }
-                }
-            )
+                )
+
+                OcrStatusCard(
+                    uiState = uiState,
+                    onAnalyze = onAnalyze,
+                    onViewOcr = onViewOcr,
+                    onClearError = onClearOcrError
+                )
+            }
         }
     }
 
@@ -506,6 +531,89 @@ fun PurchaseDocumentSection(
                 showRemoveConfirm = false
             }
         )
+    }
+}
+
+@Composable
+fun OcrStatusCard(
+    uiState: PurchaseDraftUiState,
+    onAnalyze: () -> Unit,
+    onViewOcr: () -> Unit,
+    onClearError: () -> Unit
+) {
+    val ocrState = uiState.ocrState
+    val ocrResult = uiState.ocrResult
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                when (ocrState) {
+                    is OcrAnalysisState.Analyzing -> {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = if (ocrState.total > 0) 
+                                stringResource(R.string.ocr_status_analyzing_progress, ocrState.current, ocrState.total)
+                            else 
+                                stringResource(R.string.ocr_status_analyzing),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    is OcrAnalysisState.Failure -> {
+                        Text(
+                            text = stringResource(R.string.ocr_status_failed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(onClick = onClearError) {
+                            Text(stringResource(android.R.string.ok), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    OcrAnalysisState.Idle -> {
+                        if (ocrResult != null) {
+                            Text(
+                                text = stringResource(R.string.ocr_status_extracted),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.ocr_status_not_analyzed),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (ocrState is OcrAnalysisState.Idle) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (ocrResult != null) {
+                        TextButton(onClick = onViewOcr) {
+                            Text(stringResource(R.string.ocr_action_view_text))
+                        }
+                        TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
+                            Text(stringResource(R.string.ocr_action_reanalyze))
+                        }
+                    } else {
+                        TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
+                            Text(stringResource(R.string.ocr_action_analyze))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -25,8 +25,11 @@ import com.miara.cuentame.core.domain.usecase.PostPurchaseUseCase
 import com.miara.cuentame.core.domain.usecase.UpdatePurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.AttachPurchaseDocumentUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceDocumentUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.Supplier
 import android.net.Uri
@@ -74,6 +77,10 @@ class PurchaseDraftViewModelTest {
         override suspend fun void(id: PurchaseReceiptId) {}
         override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
         override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
+        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = MutableStateFlow(null)
+        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
+        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
+        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
@@ -254,6 +261,8 @@ class PurchaseDraftViewModelTest {
             }),
             AttachPurchaseDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true)),
             RemovePurchaseDocumentUseCase(fakePurchaseRepository),
+            AnalyzePurchaseInvoiceDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), timeProvider),
+            fakePurchaseRepository,
             mockk(relaxed = true),
             fakeRestaurantRepository,
             scanner

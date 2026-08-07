@@ -16,6 +16,7 @@ import com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
 import com.miara.cuentame.core.database.dao.InventoryAreaDao
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
+import com.miara.cuentame.core.database.dao.PurchaseOcrDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
@@ -40,11 +41,17 @@ import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrPageEntity
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrResultEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import java.math.BigDecimal
 import java.math.MathContext
 import java.time.Instant
@@ -69,7 +76,9 @@ class RoomPurchaseRepository @Inject constructor(
     private val activeRestaurantProvider: ActiveRestaurantProvider,
     private val postingCoordinator: PurchasePostingCoordinator,
     private val voidingCoordinator: PurchaseVoidingCoordinator,
-    private val documentStore: PurchaseDocumentStore
+    private val documentStore: PurchaseDocumentStore,
+    private val ocrDao: PurchaseOcrDao,
+    private val json: Json
 ) : PurchaseRepository {
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
@@ -342,6 +351,8 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.PurchaseNotFound
             }
 
+            ocrDao.deleteOcrForReceipt(receiptId.value)
+
             previousPath
         }
 
@@ -379,6 +390,8 @@ class RoomPurchaseRepository @Inject constructor(
                 throw ValidationError.PurchaseNotFound
             }
 
+            ocrDao.deleteOcrForReceipt(receiptId.value)
+
             previousPath
         }
 
@@ -389,5 +402,70 @@ class RoomPurchaseRepository @Inject constructor(
                 // Best-effort cleanup failure must not fail the removal operation
             }
         }
+    }
+
+    override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> {
+        return ocrDao.getOcrResultForReceipt(receiptId.value).map { entity ->
+            entity?.let {
+                PurchaseInvoiceOcrResult(
+                    id = it.id,
+                    purchaseReceiptId = PurchaseReceiptId(it.purchaseReceiptId),
+                    sourceDocumentSha256 = it.sourceDocumentSha256,
+                    sourceMimeType = it.sourceMimeType,
+                    engine = it.engine,
+                    evidenceSchemaVersion = it.evidenceSchemaVersion,
+                    pageCount = it.pageCount,
+                    fullText = it.fullText,
+                    processedAt = Instant.ofEpochMilli(it.processedAt)
+                )
+            }
+        }
+    }
+
+    override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> {
+        return ocrDao.getOcrPagesSync(resultId).map { entity ->
+            PurchaseInvoiceOcrPage(
+                ocrResultId = entity.ocrResultId,
+                pageIndex = entity.pageIndex,
+                widthPx = entity.widthPx,
+                heightPx = entity.heightPx,
+                text = entity.text,
+                evidence = json.decodeFromString(entity.evidenceJson)
+            )
+        }
+    }
+
+    override suspend fun saveOcrResult(
+        result: PurchaseInvoiceOcrResult,
+        pages: List<PurchaseInvoiceOcrPage>
+    ) {
+        ocrDao.replaceOcrResult(
+            receiptId = result.purchaseReceiptId.value,
+            result = PurchaseInvoiceOcrResultEntity(
+                id = result.id,
+                purchaseReceiptId = result.purchaseReceiptId.value,
+                sourceDocumentSha256 = result.sourceDocumentSha256,
+                sourceMimeType = result.sourceMimeType,
+                engine = result.engine,
+                evidenceSchemaVersion = result.evidenceSchemaVersion,
+                pageCount = result.pageCount,
+                fullText = result.fullText,
+                processedAt = result.processedAt.toEpochMilli()
+            ),
+            pages = pages.map { page ->
+                PurchaseInvoiceOcrPageEntity(
+                    ocrResultId = page.ocrResultId,
+                    pageIndex = page.pageIndex,
+                    widthPx = page.widthPx,
+                    heightPx = page.heightPx,
+                    text = page.text,
+                    evidenceJson = json.encodeToString(page.evidence)
+                )
+            }
+        )
+    }
+
+    override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {
+        ocrDao.deleteOcrForReceipt(receiptId.value)
     }
 }

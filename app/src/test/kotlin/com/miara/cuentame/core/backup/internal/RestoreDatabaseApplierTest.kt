@@ -45,6 +45,8 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertInventoryMovements(any()) } just Runs
         coEvery { restoreDao.insertInventoryBalanceProjections(any()) } just Runs
         coEvery { restoreDao.insertIngredientCostProjections(any()) } just Runs
+        coEvery { restoreDao.insertPurchaseInvoiceOcrResults(any()) } just Runs
+        coEvery { restoreDao.insertPurchaseInvoiceOcrPages(any()) } just Runs
 
         val transactionSlot = slot<suspend () -> Any?>()
         coEvery { database.withTransaction(capture(transactionSlot)) } coAnswers {
@@ -88,6 +90,8 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertInventoryMovements(any())
             restoreDao.insertInventoryBalanceProjections(any())
             restoreDao.insertIngredientCostProjections(any())
+            restoreDao.insertPurchaseInvoiceOcrResults(any())
+            restoreDao.insertPurchaseInvoiceOcrPages(any())
         }
     }
 
@@ -122,7 +126,9 @@ class RestoreDatabaseApplierTest {
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
         productionBatches = emptyList(),
-        productionBatchComponents = emptyList()
+        productionBatchComponents = emptyList(),
+        purchaseInvoiceOcrResults = emptyList(),
+        purchaseInvoiceOcrPages = emptyList()
     )
 
     private fun createMinimalSnapshot() = BackupSnapshotDto(
@@ -145,6 +151,8 @@ class RestoreDatabaseApplierTest {
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
         productionBatches = emptyList(),
-        productionBatchComponents = emptyList()
+        productionBatchComponents = emptyList(),
+        purchaseInvoiceOcrResults = emptyList(),
+        purchaseInvoiceOcrPages = emptyList()
     )
 }

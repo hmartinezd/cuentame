@@ -33,7 +33,10 @@ object BackupMapper {
                 preparationRecipes = snapshot.preparationRecipes.map { it.toDto() }.sortedBy { it.id },
                 preparationRecipeComponents = snapshot.preparationRecipeComponents.map { it.toDto() }.sortedBy { it.id },
                 productionBatches = snapshot.productionBatches.map { it.toDto() }.sortedBy { it.id },
-                productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id }
+                productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id },
+                purchaseInvoiceOcrResults = snapshot.purchaseInvoiceOcrResults.map { it.toDto() }.sortedBy { it.id },
+                purchaseInvoiceOcrPages = snapshot.purchaseInvoiceOcrPages.map { it.toDto() }
+                    .sortedWith(compareBy({ it.ocrResultId }, { it.pageIndex }))
             )
         } catch (e: Exception) {
             throw e
@@ -333,6 +336,27 @@ object BackupMapper {
         updatedAt = updatedAt
     )
 
+    internal fun PurchaseInvoiceOcrResultEntity.toDto() = PurchaseInvoiceOcrResultBackupDto(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        sourceDocumentSha256 = sourceDocumentSha256,
+        sourceMimeType = sourceMimeType,
+        engine = engine,
+        evidenceSchemaVersion = evidenceSchemaVersion,
+        pageCount = pageCount,
+        fullText = fullText,
+        processedAt = processedAt
+    )
+
+    internal fun PurchaseInvoiceOcrPageEntity.toDto() = PurchaseInvoiceOcrPageBackupDto(
+        ocrResultId = ocrResultId,
+        pageIndex = pageIndex,
+        widthPx = widthPx,
+        heightPx = heightPx,
+        text = text,
+        evidenceJson = evidenceJson
+    )
+
     private fun java.math.BigDecimal.toNormalizedString(): String {
         return if (this.compareTo(java.math.BigDecimal.ZERO) == 0) "0"
         else this.stripTrailingZeros().toPlainString()
@@ -630,6 +654,27 @@ object BackupMapper {
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt
+    )
+
+    fun PurchaseInvoiceOcrResultBackupDto.toEntity() = PurchaseInvoiceOcrResultEntity(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        sourceDocumentSha256 = sourceDocumentSha256,
+        sourceMimeType = sourceMimeType,
+        engine = engine,
+        evidenceSchemaVersion = evidenceSchemaVersion,
+        pageCount = pageCount,
+        fullText = fullText,
+        processedAt = processedAt
+    )
+
+    fun PurchaseInvoiceOcrPageBackupDto.toEntity() = PurchaseInvoiceOcrPageEntity(
+        ocrResultId = ocrResultId,
+        pageIndex = pageIndex,
+        widthPx = widthPx,
+        heightPx = heightPx,
+        text = text,
+        evidenceJson = evidenceJson
     )
 
 }

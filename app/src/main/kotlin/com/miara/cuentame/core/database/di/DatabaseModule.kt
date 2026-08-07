@@ -14,6 +14,7 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.ProductionBatchDao
+import com.miara.cuentame.core.database.dao.PurchaseOcrDao
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
@@ -48,7 +49,8 @@ object DatabaseModule {
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
             RestaurantInventoryDatabase.MIGRATION_3_4,
-            RestaurantInventoryDatabase.MIGRATION_4_5
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6
         )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -107,6 +109,9 @@ object DatabaseModule {
 
     @Provides
     fun provideProductionBatchDao(db: RestaurantInventoryDatabase): ProductionBatchDao = db.productionBatchDao()
+
+    @Provides
+    fun providePurchaseOcrDao(db: RestaurantInventoryDatabase): PurchaseOcrDao = db.purchaseOcrDao()
 
     @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase): BackupDao = db.backupDao()

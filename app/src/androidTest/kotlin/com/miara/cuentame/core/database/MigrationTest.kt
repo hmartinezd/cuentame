@@ -41,4 +41,28 @@ class MigrationTest {
         assert(cursor.getString(cursor.getColumnIndex("averageUnitCostBase")) == "10.0")
         db.close()
     }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate5To6() {
+        var db = helper.createDatabase(DB_NAME, 5)
+        
+        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('r1', 'Rest', 'USD', 'en', 0, 0)")
+        db.execSQL("INSERT INTO purchase_receipts (id, restaurantId, purchaseDate, status, createdAt, updatedAt) VALUES ('pr1', 'r1', 0, 'DRAFT', 0, 0)")
+        
+        db.close()
+
+        db = helper.runMigrationsAndValidate(DB_NAME, 6, true, RestaurantInventoryDatabase.MIGRATION_5_6)
+        
+        // Verify new tables exist and old data preserved
+        val cursor = db.query("SELECT * FROM purchase_receipts")
+        assert(cursor.moveToFirst())
+        assert(cursor.getString(cursor.getColumnIndex("id")) == "pr1")
+        
+        // Check new tables are empty but exist
+        db.query("SELECT * FROM purchase_invoice_ocr_results").close()
+        db.query("SELECT * FROM purchase_invoice_ocr_pages").close()
+        
+        db.close()
+    }
 }

@@ -25,6 +25,10 @@ import com.miara.cuentame.core.domain.usecase.PostPurchaseUseCase
 import com.miara.cuentame.core.domain.usecase.UpdatePurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.AttachPurchaseDocumentUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceDocumentUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceResult
+import com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrFailure
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.core.model.supplier.Supplier
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,6 +58,8 @@ data class PurchaseDraftUiState(
     val captureState: InvoiceCaptureState = InvoiceCaptureState.Idle,
     val isRemovingDocument: Boolean = false,
     val documentMetadata: StoredPurchaseDocument? = null,
+    val ocrResult: PurchaseInvoiceOcrResult? = null,
+    val ocrState: OcrAnalysisState = OcrAnalysisState.Idle,
     val deletingLineId: PurchaseLineId? = null,
     val currencyCode: String = "",
     val receiptId: PurchaseReceiptId? = null,
@@ -69,6 +75,12 @@ sealed interface InvoiceCaptureState {
     data object ScannerOpen : InvoiceCaptureState
     data object ImportingScan : InvoiceCaptureState
     data object ImportingFile : InvoiceCaptureState
+}
+
+sealed interface OcrAnalysisState {
+    data object Idle : OcrAnalysisState
+    data class Analyzing(val current: Int, val total: Int) : OcrAnalysisState
+    data class Failure(val reason: PurchaseInvoiceOcrFailure) : OcrAnalysisState
 }
 
 sealed interface PurchaseDraftEvent {
@@ -91,6 +103,8 @@ class PurchaseDraftViewModel @Inject constructor(
     private val observeSuppliersUseCase: ObserveSuppliersUseCase,
     private val attachPurchaseDocumentUseCase: AttachPurchaseDocumentUseCase,
     private val removePurchaseDocumentUseCase: RemovePurchaseDocumentUseCase,
+    private val analyzePurchaseInvoiceDocumentUseCase: AnalyzePurchaseInvoiceDocumentUseCase,
+    private val repository: com.miara.cuentame.core.domain.repository.PurchaseRepository,
     private val documentStore: PurchaseDocumentStore,
     private val restaurantRepository: RestaurantRepository,
     private val invoiceScanner: PurchaseInvoiceScanner
@@ -104,6 +118,7 @@ class PurchaseDraftViewModel @Inject constructor(
     private val _isDeletingDraft = MutableStateFlow(false)
     private val _captureState = MutableStateFlow<InvoiceCaptureState>(InvoiceCaptureState.Idle)
     private val _isRemovingDocument = MutableStateFlow(false)
+    private val _ocrState = MutableStateFlow<OcrAnalysisState>(OcrAnalysisState.Idle)
     private val _deletingLineId = MutableStateFlow<PurchaseLineId?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _scannerError = MutableStateFlow<PurchaseInvoiceScannerFailure?>(null)
@@ -118,7 +133,9 @@ class PurchaseDraftViewModel @Inject constructor(
 
     private fun canStartMutation(): Boolean {
         val currentState = _captureState.value
+        val ocrState = _ocrState.value
         return currentState == InvoiceCaptureState.Idle &&
+                ocrState is OcrAnalysisState.Idle || ocrState is OcrAnalysisState.Failure &&
                 savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID) == null &&
                 !_isSaving.value &&
                 !_isPosting.value &&
@@ -161,15 +178,26 @@ class PurchaseDraftViewModel @Inject constructor(
         }
     }
 
+    private val ocrResultFlow = savedStateHandle.getStateFlow<String?>("receiptId", null)
+        .flatMapLatest { idStr ->
+            if (idStr == null) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                repository.observeOcrResult(PurchaseReceiptId(idStr))
+            }
+        }
+
     val uiState: StateFlow<PurchaseDraftUiState> = combine(
         detailsFlow,
         suppliers,
         restaurantFlow,
         documentMetadataFlow,
+        ocrResultFlow,
         _isSaving,
         _isPosting,
         _isDeletingDraft,
         _captureState,
+        _ocrState,
         _isRemovingDocument,
         _deletingLineId,
         _error,
@@ -181,14 +209,16 @@ class PurchaseDraftViewModel @Inject constructor(
         val suppliers = args[1] as List<Supplier>
         val restaurant = args[2] as com.miara.cuentame.core.model.restaurant.Restaurant
         val documentMetadata = args[3] as StoredPurchaseDocument?
-        val saving = args[4] as Boolean
-        val posting = args[5] as Boolean
-        val deletingDraft = args[6] as Boolean
-        val captureState = args[7] as InvoiceCaptureState
-        val removingDocument = args[8] as Boolean
-        val deletingLineId = args[9] as PurchaseLineId?
-        val error = args[10] as Throwable?
-        val scannerError = args[11] as PurchaseInvoiceScannerFailure?
+        val ocrResult = args[4] as PurchaseInvoiceOcrResult?
+        val saving = args[5] as Boolean
+        val posting = args[6] as Boolean
+        val deletingDraft = args[7] as Boolean
+        val captureState = args[8] as InvoiceCaptureState
+        val ocrState = args[9] as OcrAnalysisState
+        val removingDocument = args[10] as Boolean
+        val deletingLineId = args[11] as PurchaseLineId?
+        val error = args[12] as Throwable?
+        val scannerError = args[13] as PurchaseInvoiceScannerFailure?
 
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
@@ -198,6 +228,8 @@ class PurchaseDraftViewModel @Inject constructor(
             captureState = captureState,
             isRemovingDocument = removingDocument,
             documentMetadata = documentMetadata,
+            ocrResult = ocrResult,
+            ocrState = ocrState,
             deletingLineId = deletingLineId,
             currencyCode = restaurant.currencyCode,
             receiptId = receiptId,
@@ -439,6 +471,43 @@ class PurchaseDraftViewModel @Inject constructor(
 
     fun clearScannerError() {
         _scannerError.value = null
+    }
+
+    fun onAnalyzeInvoice() {
+        val currentReceiptId = receiptId ?: return
+        viewModelScope.launch {
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
+                    analyzePurchaseInvoiceDocumentUseCase(currentReceiptId).collect { result ->
+                        when (result) {
+                            is AnalyzePurchaseInvoiceResult.Preparing -> {
+                                _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
+                            }
+                            is AnalyzePurchaseInvoiceResult.ProcessingPage -> {
+                                _ocrState.value = OcrAnalysisState.Analyzing(result.current, result.total)
+                            }
+                            is AnalyzePurchaseInvoiceResult.Saving -> {
+                                _ocrState.value = OcrAnalysisState.Analyzing(100, 100) // "Saving..."
+                            }
+                            AnalyzePurchaseInvoiceResult.Success -> {
+                                _ocrState.value = OcrAnalysisState.Idle
+                            }
+                            is AnalyzePurchaseInvoiceResult.Failure -> {
+                                _ocrState.value = OcrAnalysisState.Failure(result.reason)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.Unknown)
+                }
+            }
+        }
+    }
+
+    fun clearOcrError() {
+        _ocrState.value = OcrAnalysisState.Idle
     }
 
     companion object {
