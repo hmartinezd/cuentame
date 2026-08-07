@@ -82,7 +82,6 @@ fun NavGraphBuilder.preparationsGraph(
                     createDestinationRoute = Destination.PREPARATION_RECIPE_CREATE.route
                 )
             },
-            onSaveSuccess = { navController.popBackStack() },
             onAddComponent = { id -> navController.navigate(AppRoutes.preparationRecipeComponentCreate(id)) },
             onEditComponent = { rId, cId -> navController.navigate(AppRoutes.preparationRecipeComponentEdit(rId, cId)) },
             onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }
@@ -98,7 +97,6 @@ fun NavGraphBuilder.preparationsGraph(
         PreparationRecipeEditorRoute(
             onBack = { navController.popBackStack() },
             onRecipeCreated = { },
-            onSaveSuccess = { navController.popBackStack() },
             onAddComponent = { id -> navController.navigate(AppRoutes.preparationRecipeComponentCreate(id)) },
             onEditComponent = { rId, cId -> navController.navigate(AppRoutes.preparationRecipeComponentEdit(rId, cId)) },
             onNavigateToDetail = { id -> navController.replacePreparationDraftWithDetail(id) }

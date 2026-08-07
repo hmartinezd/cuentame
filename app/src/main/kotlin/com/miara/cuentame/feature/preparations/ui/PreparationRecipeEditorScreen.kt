@@ -32,7 +32,6 @@ import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeEditor
 fun PreparationRecipeEditorRoute(
     onBack: () -> Unit,
     onRecipeCreated: (PreparationRecipeId) -> Unit,
-    onSaveSuccess: () -> Unit,
     onAddComponent: (PreparationRecipeId) -> Unit,
     onEditComponent: (PreparationRecipeId, PreparationRecipeComponentId) -> Unit,
     onNavigateToDetail: (PreparationRecipeId) -> Unit,

@@ -27,7 +27,8 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
     private val stager: BackupArchiveRestoreStager,
     private val attachmentInstaller: RestoreAttachmentInstaller,
     private val backupDocumentStore: BackupDocumentStore,
-    private val codecs: BackupJsonCodecs
+    private val codecs: BackupJsonCodecs,
+    private val failureInjector: RestoreFailureInjector
 ) : BackupRestoreCoordinator {
 
     override val startupState: StateFlow<RestoreStartupState> = operationGate.recoveryState
@@ -129,6 +130,9 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                 previousPreferences = prevPrefs,
                 attachmentInventory = inventory
             )
+            
+            failureInjector.onCheckpoint(RestoreCheckpoint.BEFORE_MUTATION)
+            
             try {
                 journal.write(rollbackCapturedJournal)
                 currentJournal = rollbackCapturedJournal
@@ -165,10 +169,12 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     }
 
                     attachmentInstaller.installStaged(sessionId, stagingDir, archive.manifest)
+                    failureInjector.onCheckpoint(RestoreCheckpoint.AFTER_LIVE_ATTACHMENTS_INSTALLED)
 
                     // 12. Replace Room
                     try {
                         databaseApplier.replaceWithBackup(archive.snapshot, archive.manifest)
+                        failureInjector.onCheckpoint(RestoreCheckpoint.AFTER_DATABASE_APPLIED)
                     } catch (e: Exception) {
                         throw RestoreDatabaseApplicationException(e)
                     }
@@ -181,6 +187,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
                     onProgress(BackupRestoreProgress.RestoringSettings)
                     try {
                         preferencesApplier.apply(archive.preferences)
+                        failureInjector.onCheckpoint(RestoreCheckpoint.AFTER_PREFERENCES_APPLIED)
                     } catch (e: Exception) {
                         throw RestorePreferencesApplicationException(e)
                     }
@@ -196,6 +203,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
 
                     // 15. Finalizing
                     onProgress(BackupRestoreProgress.Finalizing)
+                    failureInjector.onCheckpoint(RestoreCheckpoint.BEFORE_FINAL_VERIFICATION)
                     if (!databaseApplier.verifyMatchesBackup(archive.snapshot, archive.manifest)) {
                         throw RestoreFinalVerificationException()
                     }

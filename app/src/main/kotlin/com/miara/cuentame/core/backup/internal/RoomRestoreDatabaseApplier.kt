@@ -99,14 +99,17 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         val mapping = mutableMapOf<Pair<String, String>, String>()
         for (att in manifest.attachments) {
             // Validate sanitized display name
-            PurchaseAttachmentLocation.validateSegment(att.displayName)
+            PurchaseAttachmentLocation.validateSegment(att.displayName, "displayName")
             
             for (ref in att.referencedBy) {
                 // Validate record ID segment safety
-                PurchaseAttachmentLocation.validateSegment(ref.recordId)
+                PurchaseAttachmentLocation.validateSegment(ref.recordId, "recordId")
                 
                 val livePath = when (ref.recordType) {
-                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
+                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.buildRelativeLocation(
+                        PurchaseReceiptId(ref.recordId), 
+                        att.displayName
+                    )
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
                     else -> throw IllegalArgumentException("Unsupported record type in manifest: ${ref.recordType}")
                 }
@@ -150,7 +153,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                     attachmentDisplayName = rollbackDisplayNames[dto.id]
                 )
             } else {
-                val livePath = dto.attachmentId?.let { attachmentMapping["PURCHASE_RECEIPT" to dto.id] }
+                val livePath = dto.attachmentId?.let { 
+                    attachmentMapping["PURCHASE_RECEIPT" to dto.id] 
+                        ?: throw IllegalStateException("Missing expected attachment mapping for purchase ${dto.id}")
+                }
                 entity.copy(
                     attachmentPath = livePath,
                     attachmentDisplayName = dto.attachmentDisplayName
@@ -172,7 +178,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                     attachmentDisplayName = rollbackWasteDisplayNames[dto.id]
                 )
             } else {
-                val livePath = dto.attachmentId?.let { attachmentMapping["WASTE_EVENT" to dto.id] }
+                val livePath = dto.attachmentId?.let { 
+                    attachmentMapping["WASTE_EVENT" to dto.id]
+                        ?: throw IllegalStateException("Missing expected attachment mapping for waste ${dto.id}")
+                }
                 entity.copy(
                     attachmentPath = livePath,
                     attachmentDisplayName = dto.attachmentDisplayName
@@ -193,7 +202,10 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 val livePath = when (ref.recordType) {
-                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.file(PurchaseReceiptId(ref.recordId), att.displayName)
+                    "PURCHASE_RECEIPT" -> PurchaseAttachmentLocation.buildRelativeLocation(
+                        PurchaseReceiptId(ref.recordId), 
+                        att.displayName
+                    )
                     "WASTE_EVENT" -> "attachments/waste/${ref.recordId}/${att.displayName}"
                     else -> throw IllegalArgumentException("Unsupported record type in manifest: ${ref.recordType}")
                 }

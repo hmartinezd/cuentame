@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup.platform
 
 import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
+import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
@@ -71,14 +72,28 @@ object BackupManifestContractValidator {
         // 5. Attachment cross-validation (Manifest side)
         val seenAttachmentIds = mutableSetOf<String>()
         val seenArchivePaths = mutableSetOf<String>()
+        val seenRecordReferences = mutableSetOf<String>()
 
         for (att in manifest.attachments) {
+            try {
+                PurchaseAttachmentLocation.validateSegment(att.attachmentId, "attachmentId")
+            } catch (e: Exception) {
+                return BackupRestoreFailure.MalformedManifest
+            }
+            
             if (!BackupFormatV1Contract.isValidAttachmentId(att.attachmentId)) {
                 return BackupRestoreFailure.MalformedManifest
             }
             if (!seenAttachmentIds.add(att.attachmentId)) {
                 return BackupRestoreFailure.MalformedManifest
             }
+            
+            try {
+                PurchaseAttachmentLocation.validateSegment(att.displayName, "displayName")
+            } catch (e: Exception) {
+                return BackupRestoreFailure.MalformedManifest
+            }
+
             if (att.archivePath != BackupFormatV1Contract.attachmentArchivePath(att.attachmentId, att.displayName)) {
                 return BackupRestoreFailure.MalformedManifest
             }
@@ -114,15 +129,24 @@ object BackupManifestContractValidator {
             if (att.referencedBy.isEmpty()) {
                 return BackupRestoreFailure.MalformedManifest
             }
-            val refKeys = att.referencedBy.map { "${it.recordType}:${it.recordId}" }
-            if (refKeys.size != refKeys.distinct().size) {
-                return BackupRestoreFailure.MalformedManifest
-            }
-            if (att.referencedBy.any { it.recordId.isBlank() }) {
-                return BackupRestoreFailure.MalformedManifest
-            }
-            if (att.referencedBy.any { it.recordType !in BackupFormatV1Contract.SUPPORTED_ATTACHMENT_RECORD_TYPES }) {
-                return BackupRestoreFailure.MalformedManifest
+            
+            for (ref in att.referencedBy) {
+                if (ref.recordId.isBlank()) return BackupRestoreFailure.MalformedManifest
+                try {
+                    PurchaseAttachmentLocation.validateSegment(ref.recordId, "recordId")
+                } catch (e: Exception) {
+                    return BackupRestoreFailure.MalformedManifest
+                }
+                
+                if (ref.recordType !in BackupFormatV1Contract.SUPPORTED_ATTACHMENT_RECORD_TYPES) {
+                    return BackupRestoreFailure.MalformedManifest
+                }
+                
+                val refKey = "${ref.recordType}:${ref.recordId}"
+                if (!seenRecordReferences.add(refKey)) {
+                    // One record cannot have multiple attachments in this schema
+                    return BackupRestoreFailure.MalformedManifest
+                }
             }
         }
 
@@ -198,11 +222,16 @@ object BackupManifestContractValidator {
 
         // 2. Build and compare bi-directional attachment reference keys
         val snapshotRefs = mutableSetOf<AttachmentReferenceKey>()
+
         for (receipt in snapshot.purchaseReceipts) {
-            receipt.attachmentId?.let { snapshotRefs.add(AttachmentReferenceKey(it, "PURCHASE_RECEIPT", receipt.id)) }
+            receipt.attachmentId?.let { 
+                snapshotRefs.add(AttachmentReferenceKey(it, "PURCHASE_RECEIPT", receipt.id)) 
+            }
         }
         for (waste in snapshot.wasteEvents) {
-            waste.attachmentId?.let { snapshotRefs.add(AttachmentReferenceKey(it, "WASTE_EVENT", waste.id)) }
+            waste.attachmentId?.let { 
+                snapshotRefs.add(AttachmentReferenceKey(it, "WASTE_EVENT", waste.id)) 
+            }
         }
 
         val manifestRefs = mutableSetOf<AttachmentReferenceKey>()

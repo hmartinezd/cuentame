@@ -67,7 +67,8 @@ class RestoreDurablePhaseTest {
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
             journal, storage, recoveryCoordinator, operationGate, 
-            stager, attachmentInstaller, backupDocumentStore, codecs
+            stager, attachmentInstaller, backupDocumentStore, codecs,
+            NoOpRestoreFailureInjector()
         )
         
         // Mock default success for most things

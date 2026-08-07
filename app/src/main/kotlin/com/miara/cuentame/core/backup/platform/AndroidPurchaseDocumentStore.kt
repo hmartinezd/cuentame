@@ -55,8 +55,7 @@ class AndroidPurchaseDocumentStore @Inject constructor(
             throw IllegalArgumentException("File too large: $reportedSize bytes")
         }
 
-        val relativeDir = PurchaseAttachmentLocation.directory(receiptId)
-        val receiptDir = PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, relativeDir)
+        val receiptDir = PurchaseAttachmentLocation.resolvePurchaseDirectory(context.filesDir, receiptId)
         if (!receiptDir.exists() && !receiptDir.mkdirs()) {
             throw IllegalStateException("Could not create attachment directory")
         }
@@ -96,8 +95,10 @@ class AndroidPurchaseDocumentStore @Inject constructor(
                 throw IllegalStateException("Failed to commit imported file")
             }
 
+            val relativePath = PurchaseAttachmentLocation.buildRelativeLocation(receiptId, safeName)
+
             StoredPurchaseDocument(
-                location = targetFile.toRelativePath(context.filesDir),
+                location = relativePath,
                 displayName = originalName ?: safeName,
                 mimeType = mimeType,
                 sizeBytes = targetFile.length()
@@ -110,7 +111,7 @@ class AndroidPurchaseDocumentStore @Inject constructor(
 
     override suspend fun inspect(storedLocation: String): StoredPurchaseDocument? = withContext(Dispatchers.IO) {
         val file = try {
-            PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+            PurchaseAttachmentLocation.resolvePurchaseDocument(context.filesDir, storedLocation)
         } catch (e: Exception) {
             return@withContext null
         }
@@ -128,18 +129,24 @@ class AndroidPurchaseDocumentStore @Inject constructor(
     override suspend fun delete(storedLocation: String) {
         withContext(Dispatchers.IO) {
             val file = try {
-                PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+                PurchaseAttachmentLocation.resolvePurchaseDocument(context.filesDir, storedLocation)
             } catch (e: Exception) {
                 return@withContext
             }
             if (file.exists()) {
-                file.delete()
+                val parent = file.parentFile
+                if (!file.delete()) return@withContext
+                
+                // Safely remove receipt directory if now empty, but no higher
+                if (parent != null && parent.name != "purchases" && parent.listFiles()?.isEmpty() == true) {
+                    parent.delete()
+                }
             }
         }
     }
 
     override suspend fun open(storedLocation: String): InputStream = withContext(Dispatchers.IO) {
-        val file = PurchaseAttachmentLocation.resolveUnderFilesDir(context.filesDir, storedLocation)
+        val file = PurchaseAttachmentLocation.resolvePurchaseDocument(context.filesDir, storedLocation)
         if (!file.exists()) {
             throw java.io.FileNotFoundException("Stored document not found: $storedLocation")
         }
@@ -189,10 +196,6 @@ class AndroidPurchaseDocumentStore @Inject constructor(
         val normalizedActual = actual.replace("image/jpg", "image/jpeg")
         val normalizedReported = reported.replace("image/jpg", "image/jpeg")
         return normalizedActual == normalizedReported
-    }
-
-    private fun File.toRelativePath(filesDir: File): String {
-        return filesDir.toPath().relativize(this.toPath()).toString()
     }
 
     private fun generateSafeFilename(originalName: String?, mimeType: String): String {

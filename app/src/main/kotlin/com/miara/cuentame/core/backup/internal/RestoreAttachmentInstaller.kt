@@ -64,7 +64,7 @@ class RestoreAttachmentInstaller @Inject constructor(
 
                 val relativePath = livePath.relativize(canonicalFile.toPath()).toString()
                 // Validate relative path segments using project standards
-                relativePath.split(File.separator).forEach { PurchaseAttachmentLocation.validateSegment(it) }
+                relativePath.split(File.separator).forEach { PurchaseAttachmentLocation.validateSegment(it, "pathSegment") }
 
                 val rollbackFile = File(target, relativePath)
                 val parent = rollbackFile.parentFile ?: throw IllegalStateException("Invalid rollback path")

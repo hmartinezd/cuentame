@@ -121,7 +121,8 @@ class BackupProductionIntegrationTest {
         coordinator = BackupRestoreCoordinatorImpl(
             restoreRepository, databaseApplier, preferencesApplier,
             journal, storage, recoveryCoordinator, operationGate, 
-            stager, attachmentInstaller, documentStore, codecs
+            stager, attachmentInstaller, documentStore, codecs,
+            com.miara.cuentame.core.backup.internal.NoOpRestoreFailureInjector()
         )
     }
 
