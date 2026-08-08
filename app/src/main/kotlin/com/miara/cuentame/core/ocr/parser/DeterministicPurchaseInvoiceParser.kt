@@ -133,14 +133,31 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun isPageCompatible(rows: List<Row>, layout: PageLayout): Boolean {
         if (rows.isEmpty()) return false
+        
         val numericTokens = rows.flatMap { it.tokens }.filter { isNumeric(it.text) }
         if (numericTokens.isEmpty()) return false
         
         val totalRange = layout.columns[ColumnType.LineTotal] ?: return false
-        val matches = numericTokens.count { totalRange.contains(it.centerX) }
-        val ratio = matches.toFloat() / numericTokens.size
+        val descRange = layout.columns[ColumnType.Description]
         
-        return ratio > 0.3f || rows.any { r -> r.tokens.any { t -> totalRange.contains(t.centerX) && isMoneyLike(t.text) } }
+        val totalMatches = numericTokens.filter { totalRange.contains(it.centerX) }
+        val distinctRowsWithTotal = totalMatches.map { t -> rows.find { it.tokens.contains(t) }?.rowId }.filterNotNull().distinct()
+        
+        val moneyHits = totalMatches.count { isMoneyLike(it.text) }
+        
+        // Strong signal: multiple rows hit the total column with money-like tokens
+        if (moneyHits >= 2 && distinctRowsWithTotal.size >= 2) return true
+        
+        val ratio = totalMatches.size.toFloat() / numericTokens.size
+        
+        // Moderate signal: decent ratio and at least some description overlap
+        if (ratio > 0.4f && distinctRowsWithTotal.size >= 2) {
+            if (descRange == null) return true
+            val descOverlap = rows.count { r -> r.tokens.any { t -> descRange.contains(t.centerX) } }
+            if (descOverlap >= 2) return true
+        }
+
+        return false
     }
 
     private fun inferTableLayoutFromPage(pageRows: List<Row>, pageIndex: Int, allRows: List<Row>): PageLayout? {
@@ -151,9 +168,11 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         
         if (candidateRows.isEmpty()) return null
 
+        val supportThreshold = if (candidateRows.size >= 3) 3 else 2
+
         val numericTokens = candidateRows.flatMap { it.tokens }.filter { isNumeric(it.text) }
         var clusters = RowClusterer.clusterTokensByX(numericTokens, allRows)
-            .filter { it.support >= 2 }
+            .filter { it.support >= supportThreshold }
             .sortedBy { it.avgLeft }
 
         if (clusters.isEmpty()) return null
@@ -166,7 +185,13 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
              clusters = clusters.drop(1)
         }
 
-        val moneyClusters = clusters.filter { c -> c.tokens.any { isMoneyLike(it.text) } }
+        val moneyClusters = clusters.filter { c -> 
+            val moneyRows = c.tokens.filter { isMoneyLike(it.text) }
+                .map { t -> allRows.find { it.tokens.contains(t) }?.rowId }
+                .filterNotNull()
+                .distinct()
+            moneyRows.size >= 2 || (candidateRows.size < 3 && moneyRows.size >= 1)
+        }
         val rightmost = if (moneyClusters.isNotEmpty()) moneyClusters.last() else clusters.last()
         
         cols[ColumnType.LineTotal] = rightmost.toRange()

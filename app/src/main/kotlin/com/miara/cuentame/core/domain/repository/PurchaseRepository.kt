@@ -10,6 +10,7 @@ import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
@@ -177,4 +178,30 @@ interface PurchaseRepository {
         restaurantId: RestaurantId,
         invoiceNumber: String
     ): List<PurchaseReceipt>
+
+    fun observeLineMatches(
+        parseResultId: String
+    ): Flow<List<PurchaseInvoiceLineMatch>>
+
+    fun observeLineMatchesForReceipt(
+        receiptId: PurchaseReceiptId
+    ): Flow<List<PurchaseInvoiceLineMatch>>
+
+    suspend fun saveLineMatches(
+        matches: List<PurchaseInvoiceLineMatch>
+    )
+
+    suspend fun saveLineMatchesForReceipt(
+        receiptId: PurchaseReceiptId,
+        matches: List<PurchaseInvoiceLineMatch>
+    )
+
+    suspend fun saveLineMatch(
+        match: PurchaseInvoiceLineMatch
+    )
+
+    suspend fun saveLineMatchForReceipt(
+        receiptId: PurchaseReceiptId,
+        match: PurchaseInvoiceLineMatch
+    )
 }

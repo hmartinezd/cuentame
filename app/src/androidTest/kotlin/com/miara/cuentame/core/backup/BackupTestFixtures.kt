@@ -35,7 +35,13 @@ object BackupTestFixtures {
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
         productionBatches = emptyList(),
-        productionBatchComponents = emptyList()
+        productionBatchComponents = emptyList(),
+        purchaseInvoiceOcrResults = emptyList(),
+        purchaseInvoiceOcrPages = emptyList(),
+        purchaseInvoiceParseResults = emptyList(),
+        purchaseInvoiceParsedLines = emptyList(),
+        supplierItemMappings = emptyList(),
+        purchaseInvoiceLineMatches = emptyList()
     )
 
     fun addPostedPurchase(
@@ -187,7 +193,9 @@ object BackupTestFixtures {
             ),
             preparationRecipeComponents = listOf(
                 PreparationRecipeComponentBackupDto("rc1", "rec1", "i2", "o2", "5", "5", 0, null, 100, 100)
-            )
+            ),
+            supplierItemMappings = emptyList(),
+            purchaseInvoiceLineMatches = emptyList()
         )
         
         val snapWithPurchase = addPostedPurchase(
@@ -313,7 +321,13 @@ object BackupTestFixtures {
                 "stock_counts" to TableMetadata(0, false),
                 "stock_count_areas" to TableMetadata(0, false),
                 "stock_count_lines" to TableMetadata(0, false),
-                "waste_events" to TableMetadata(0, false)
+                "waste_events" to TableMetadata(0, false),
+                "purchase_invoice_ocr_results" to TableMetadata(0, false),
+                "purchase_invoice_ocr_pages" to TableMetadata(0, false),
+                "purchase_invoice_parse_results" to TableMetadata(0, false),
+                "purchase_invoice_parsed_lines" to TableMetadata(0, false),
+                "supplier_item_mappings" to TableMetadata(0, false),
+                "purchase_invoice_line_matches" to TableMetadata(0, false)
             ).entries.sortedBy { it.key }.associate { it.key to it.value },
             attachments = emptyList(),
             includedSections = listOf("data", "preferences", "attachments")
@@ -422,7 +436,13 @@ object BackupTestFixtures {
                 "stock_counts" to TableMetadata(0, false),
                 "stock_count_areas" to TableMetadata(0, false),
                 "stock_count_lines" to TableMetadata(0, false),
-                "waste_events" to TableMetadata(0, false)
+                "waste_events" to TableMetadata(0, false),
+                "purchase_invoice_ocr_results" to TableMetadata(0, false),
+                "purchase_invoice_ocr_pages" to TableMetadata(0, false),
+                "purchase_invoice_parse_results" to TableMetadata(0, false),
+                "purchase_invoice_parsed_lines" to TableMetadata(0, false),
+                "supplier_item_mappings" to TableMetadata(0, false),
+                "purchase_invoice_line_matches" to TableMetadata(0, false)
             ).entries.sortedBy { it.key }.associate { it.key to it.value },
             attachments = listOf(
                 BackupAttachmentMetadata(

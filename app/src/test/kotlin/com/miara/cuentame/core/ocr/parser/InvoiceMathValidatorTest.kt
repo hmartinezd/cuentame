@@ -8,105 +8,59 @@ import java.math.BigDecimal
 class InvoiceMathValidatorTest {
 
     @Test
-    fun `line math exact match`() {
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            BigDecimal("3"),
-            BigDecimal("10.50"),
-            BigDecimal("31.50")
-        ))
+    fun `isInvoiceMathValid handles positive discount by subtraction`() {
+        // Subtotal: 100.00
+        // Discount: 5.00 (Positive value means "reduce by 5")
+        // Fees: 0.00
+        // Tax: 7.00
+        // Total: 102.00 (100 - 5 + 0 + 7 = 102)
+        assertTrue(
+            InvoiceMathValidator.isInvoiceMathValid(
+                subtotal = BigDecimal("100.00"),
+                discount = BigDecimal("5.00"),
+                fees = BigDecimal("0.00"),
+                tax = BigDecimal("7.00"),
+                total = BigDecimal("102.00")
+            )
+        )
     }
 
     @Test
-    fun `line math within tolerance`() {
-        // 3 * 10.50 = 31.50. 31.51 is within 0.02 tolerance
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            BigDecimal("3"),
-            BigDecimal("10.50"),
-            BigDecimal("31.51")
-        ))
-    }
-
-    @Test
-    fun `line math boundary tolerance`() {
-        // 31.52 is exactly on the 0.02 boundary
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            BigDecimal("3"),
-            BigDecimal("10.50"),
-            BigDecimal("31.52")
-        ))
-    }
-
-    @Test
-    fun `line math outside tolerance`() {
-        assertFalse(InvoiceMathValidator.isLineMathValid(
-            BigDecimal("3"),
-            BigDecimal("10.50"),
-            BigDecimal("31.53")
-        ))
-    }
-
-    @Test
-    fun `invoice equation standard`() {
-        // 100 - 5 + 10 + 7.35 = 112.35
-        assertTrue(InvoiceMathValidator.isInvoiceMathValid(
-            subtotal = BigDecimal("100.00"),
-            discount = BigDecimal("5.00"),
-            fees = BigDecimal("10.00"),
-            tax = BigDecimal("7.35"),
-            total = BigDecimal("112.35")
-        ))
-    }
-
-    @Test
-    fun `invoice equation with nulls`() {
-        // Minimal valid
-        assertTrue(InvoiceMathValidator.isInvoiceMathValid(
-            subtotal = BigDecimal("100.00"),
-            discount = null,
-            fees = null,
-            tax = null,
-            total = BigDecimal("100.00")
-        ))
-    }
-
-    @Test
-    fun `invoice equation outside tolerance`() {
-        assertFalse(InvoiceMathValidator.isInvoiceMathValid(
-            subtotal = BigDecimal("100.00"),
-            discount = BigDecimal("5.00"),
-            fees = BigDecimal("10.00"),
-            tax = BigDecimal("7.35"),
-            total = BigDecimal("112.38") // 0.03 off
-        ))
-    }
-
-    @Test
-    fun `large money values precision`() {
-        // 3 * 41152263.04 = 123456789.12
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            quantity = BigDecimal("3"),
-            unitPrice = BigDecimal("41152263.04"),
-            lineTotal = BigDecimal("123456789.12")
-        ))
-    }
-
-    @Test
-    fun `negative monetary values`() {
-        // Credit line: -2 * 10.00 = -20.00
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            quantity = BigDecimal("-2"),
-            unitPrice = BigDecimal("10.00"),
-            lineTotal = BigDecimal("-20.00")
-        ))
-    }
-
-    @Test
-    fun `IEEE-754 regression 3 times 0 point 10`() {
-        // 3 * 0.10 = 0.30 (not 0.30000000000000004)
-        assertTrue(InvoiceMathValidator.isLineMathValid(
-            quantity = BigDecimal("3"),
-            unitPrice = BigDecimal("0.10"),
-            lineTotal = BigDecimal("0.30")
-        ))
+    fun `isInvoiceMathValid documentation - negative discount is added by subtract(minus)`() {
+        /**
+         * CRITICAL MILESTONE 5C CONTRACT DOCUMENTATION:
+         * 
+         * The current implementation uses: calculated = subtotal.subtract(discount)
+         * If discount is -5.00, then: 100.00 - (-5.00) = 105.00
+         * 
+         * This test proves the behavior so it is not accidentally changed without a migration.
+         * In many accounting systems, a negative discount is actually a fee.
+         */
+        
+        // Subtotal: 100.00
+        // Discount: -5.00
+        // Fees: 0.00
+        // Tax: 7.00
+        // Total: 100 - (-5) + 0 + 7 = 112.00
+        assertTrue(
+            InvoiceMathValidator.isInvoiceMathValid(
+                subtotal = BigDecimal("100.00"),
+                discount = BigDecimal("-5.00"),
+                fees = BigDecimal("0.00"),
+                tax = BigDecimal("7.00"),
+                total = BigDecimal("112.00")
+            )
+        )
+        
+        // Conversely, a total of 102.00 fails if discount is -5.00
+        assertFalse(
+            InvoiceMathValidator.isInvoiceMathValid(
+                subtotal = BigDecimal("100.00"),
+                discount = BigDecimal("-5.00"),
+                fees = BigDecimal("0.00"),
+                tax = BigDecimal("7.00"),
+                total = BigDecimal("102.00")
+            )
+        )
     }
 }

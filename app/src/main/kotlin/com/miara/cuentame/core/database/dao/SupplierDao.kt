@@ -33,4 +33,7 @@ interface SupplierDao {
 
     @Query("UPDATE suppliers SET isActive = 0, deletedAt = :at, updatedAt = :at WHERE id = :id")
     suspend fun softArchive(id: String, at: Long)
+
+    @Query("SELECT * FROM suppliers WHERE restaurantId = :restaurantId AND normalizedName LIKE '%' || :query || '%' AND deletedAt IS NULL LIMIT 10")
+    suspend fun searchSuppliers(restaurantId: String, query: String): List<SupplierEntity>
 }

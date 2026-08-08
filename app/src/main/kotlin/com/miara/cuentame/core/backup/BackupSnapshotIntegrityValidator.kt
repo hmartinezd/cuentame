@@ -57,6 +57,8 @@ object BackupSnapshotIntegrityValidator {
             validateProductionBatches(dto, ctx)?.let { throw it }
             validateOcr(dto, manifest, ctx)?.let { throw it }
             validateParseResult(dto, ctx)?.let { throw it }
+            validateMappings(dto, ctx)?.let { throw it }
+            validateStagedMatches(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: Exception) {
@@ -128,6 +130,7 @@ object BackupSnapshotIntegrityValidator {
         val componentsByBatchId = dto.productionBatchComponents.groupBy { it.productionBatchId }
         val ocrResultById = dto.purchaseInvoiceOcrResults.associateBy { it.id }
         val parseResultById = dto.purchaseInvoiceParseResults.associateBy { it.id }
+        val mappingById = dto.supplierItemMappings.associateBy { it.id }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -174,6 +177,7 @@ object BackupSnapshotIntegrityValidator {
         check(dto.productionBatches, { it.id }, "production_batches")?.let { return it }
         check(dto.productionBatchComponents, { it.id }, "production_batch_components")?.let { return it }
         check(dto.purchaseInvoiceOcrResults, { it.id }, "purchase_invoice_ocr_results")?.let { return it }
+        check(dto.supplierItemMappings, { it.id }, "supplier_item_mappings")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -215,6 +219,7 @@ object BackupSnapshotIntegrityValidator {
         if (dto.ingredientCostProjections.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in ingredient_cost_projection")
         if (dto.preparationRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in preparation_recipes")
         if (dto.productionBatches.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in production_batches")
+        if (dto.supplierItemMappings.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in supplier_item_mappings")
 
         val receiptById = dto.purchaseReceipts.associateBy { it.id }
         if (dto.purchaseInvoiceOcrResults.any { ocr ->
@@ -1754,6 +1759,81 @@ object BackupSnapshotIntegrityValidator {
             return err(DUPLICATE_COMPOSITE_KEY, "Duplicate parsed line index for same result")
         }
 
+        return null
+    }
+
+    private fun validateMappings(
+        dto: BackupSnapshotDto,
+        ctx: ValidationContext
+    ): BackupSnapshotIntegrityException? {
+        for (mapping in dto.supplierItemMappings) {
+            if (!ctx.supplierById.containsKey(mapping.supplierId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to supplier")
+            }
+            if (!ctx.ingById.containsKey(mapping.ingredientId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to ingredient")
+            }
+            if (mapping.unitOptionId != null && !ctx.optionById.containsKey(mapping.unitOptionId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to unit option")
+            }
+            if (mapping.inventoryAreaId != null && !ctx.areaById.containsKey(mapping.inventoryAreaId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to area")
+            }
+            
+            // Uniqueness check for mapping key
+            val key = Triple(mapping.supplierId, mapping.keyType, mapping.normalizedKey)
+            if (dto.supplierItemMappings.count { Triple(it.supplierId, it.keyType, it.normalizedKey) == key } > 1) {
+                return err(DUPLICATE_COMPOSITE_KEY, "Duplicate supplier item mapping key")
+            }
+        }
+        return null
+    }
+
+    private fun validateStagedMatches(
+        dto: BackupSnapshotDto,
+        ctx: ValidationContext
+    ): BackupSnapshotIntegrityException? {
+        for (match in dto.purchaseInvoiceLineMatches) {
+            val parse = ctx.parseResultById[match.parseResultId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to parse result")
+            
+            val receipt = ctx.receiptById[parse.purchaseReceiptId]!!
+            
+            if (match.supplierId != null) {
+                val supplier = ctx.supplierById[match.supplierId]
+                    ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to supplier")
+                if (supplier.restaurantId != receipt.restaurantId) {
+                    return err(RESTAURANT_ISOLATION_FAILURE, "Supplier restaurant mismatch in match")
+                }
+            }
+            
+            if (match.ingredientId != null) {
+                val ing = ctx.ingById[match.ingredientId]
+                    ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to ingredient")
+                if (ing.restaurantId != receipt.restaurantId) {
+                    return err(RESTAURANT_ISOLATION_FAILURE, "Ingredient restaurant mismatch in match")
+                }
+            }
+            
+            if (match.unitOptionId != null) {
+                val opt = ctx.optionById[match.unitOptionId]
+                    ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to unit option")
+                if (opt.ingredientId != match.ingredientId) {
+                    return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in match")
+                }
+            }
+            
+            if (match.mappingId != null && !ctx.mappingById.containsKey(match.mappingId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: match to reusable mapping")
+            }
+        }
+        
+        // Uniqueness check for staged matches
+        val matchKeys = dto.purchaseInvoiceLineMatches.map { it.parseResultId to it.lineIndex }
+        if (matchKeys.distinct().size != matchKeys.size) {
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate staged match index for same result")
+        }
+        
         return null
     }
 

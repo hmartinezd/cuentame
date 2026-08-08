@@ -116,6 +116,10 @@ class RoomSupplierRepository @Inject constructor(
         supplierDao.softArchive(id.value, at.toEpochMilli())
     }
 
+    override suspend fun searchSuppliers(restaurantId: RestaurantId, query: String): List<Supplier> {
+        return supplierDao.searchSuppliers(restaurantId.value, query.lowercase()).map { it.toDomain() }
+    }
+
     private fun validateEmail(email: String?) {
         if (email.isNullOrBlank()) return
         val regex = "^[^@]+@[^@]+\\.[^@]+$".toRegex()

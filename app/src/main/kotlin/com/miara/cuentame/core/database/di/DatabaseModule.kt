@@ -16,6 +16,8 @@ import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.ProductionBatchDao
 import com.miara.cuentame.core.database.dao.PurchaseOcrDao
 import com.miara.cuentame.core.database.dao.PurchaseParseDao
+import com.miara.cuentame.core.database.dao.SupplierItemMappingDao
+import com.miara.cuentame.core.database.dao.PurchaseInvoiceLineMatchDao
 import com.miara.cuentame.core.database.dao.BackupDao
 import com.miara.cuentame.core.database.dao.RestoreDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
@@ -52,7 +54,8 @@ object DatabaseModule {
             RestaurantInventoryDatabase.MIGRATION_3_4,
             RestaurantInventoryDatabase.MIGRATION_4_5,
             RestaurantInventoryDatabase.MIGRATION_5_6,
-            RestaurantInventoryDatabase.MIGRATION_6_7
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8
         )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -117,6 +120,12 @@ object DatabaseModule {
 
     @Provides
     fun providePurchaseParseDao(db: RestaurantInventoryDatabase): PurchaseParseDao = db.purchaseParseDao()
+
+    @Provides
+    fun provideSupplierItemMappingDao(db: RestaurantInventoryDatabase): SupplierItemMappingDao = db.supplierItemMappingDao()
+
+    @Provides
+    fun providePurchaseInvoiceLineMatchDao(db: RestaurantInventoryDatabase): PurchaseInvoiceLineMatchDao = db.purchaseInvoiceLineMatchDao()
 
     @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase): BackupDao = db.backupDao()

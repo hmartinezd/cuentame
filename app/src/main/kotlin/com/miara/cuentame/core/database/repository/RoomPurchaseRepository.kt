@@ -41,11 +41,13 @@ import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import com.miara.cuentame.core.database.dao.PurchaseParseDao
+import com.miara.cuentame.core.database.dao.PurchaseInvoiceLineMatchDao
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrPageEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrResultEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceParseResultEntity
@@ -54,6 +56,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -84,6 +87,7 @@ class RoomPurchaseRepository @Inject constructor(
     private val documentStore: PurchaseDocumentStore,
     private val ocrDao: PurchaseOcrDao,
     private val parseDao: PurchaseParseDao,
+    private val lineMatchDao: PurchaseInvoiceLineMatchDao,
     private val json: Json
 ) : PurchaseRepository {
 
@@ -524,6 +528,7 @@ class RoomPurchaseRepository @Inject constructor(
             expectedOcrResultId = ocrResultId,
             expectedSourceDocumentSha256 = sourceDocumentSha256,
             ocrDao = ocrDao,
+            lineMatchDao = lineMatchDao,
             result = PurchaseInvoiceParseResultEntity(
                 id = parseId,
                 purchaseReceiptId = receiptId.value,
@@ -585,5 +590,39 @@ class RoomPurchaseRepository @Inject constructor(
         invoiceNumber: String
     ): List<PurchaseReceipt> {
         return purchaseDao.findByInvoiceNumber(restaurantId.value, invoiceNumber).map { it.toDomain() }
+    }
+
+    override fun observeLineMatches(parseResultId: String): Flow<List<PurchaseInvoiceLineMatch>> {
+        return lineMatchDao.observeMatchesForParseResult(parseResultId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun observeLineMatchesForReceipt(receiptId: PurchaseReceiptId): Flow<List<PurchaseInvoiceLineMatch>> {
+        return parseDao.observeParseResultForReceipt(receiptId.value).flatMapLatest { parseResult ->
+            if (parseResult != null) {
+                observeLineMatches(parseResult.id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+    }
+
+    override suspend fun saveLineMatches(matches: List<PurchaseInvoiceLineMatch>) {
+        lineMatchDao.insertMatches(matches.map { it.toEntity() })
+    }
+
+    override suspend fun saveLineMatchesForReceipt(receiptId: PurchaseReceiptId, matches: List<PurchaseInvoiceLineMatch>) {
+        val parseResultId = parseDao.getParseResultIdForReceipt(receiptId.value) ?: return
+        saveLineMatches(matches.map { it.copy(parseResultId = parseResultId) })
+    }
+
+    override suspend fun saveLineMatch(match: PurchaseInvoiceLineMatch) {
+        lineMatchDao.insertMatches(listOf(match.toEntity()))
+    }
+
+    override suspend fun saveLineMatchForReceipt(receiptId: PurchaseReceiptId, match: PurchaseInvoiceLineMatch) {
+        val parseResultId = parseDao.getParseResultIdForReceipt(receiptId.value) ?: return
+        saveLineMatch(match.copy(parseResultId = parseResultId))
     }
 }

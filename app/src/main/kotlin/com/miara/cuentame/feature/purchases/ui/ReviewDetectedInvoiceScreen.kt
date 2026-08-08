@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.purchases.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,11 +8,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +28,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.designsystem.util.Formatters
+import com.miara.cuentame.core.model.ingredient.Ingredient
+import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
+import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
+import com.miara.cuentame.core.model.supplier.Supplier
 import com.miara.cuentame.core.ocr.parser.*
 import com.miara.cuentame.feature.purchases.viewmodel.ReviewDetectedInvoiceUiState
 import com.miara.cuentame.feature.purchases.viewmodel.ReviewDetectedInvoiceViewModel
@@ -55,7 +70,11 @@ fun ReviewDetectedInvoiceRoute(
         onResetHeader = viewModel::onResetHeader,
         onResetLine = viewModel::onResetLine,
         onViewDocument = { onViewDocument(receiptId) },
-        onViewRawOcr = { onViewRawOcr(receiptId) }
+        onViewRawOcr = { onViewRawOcr(receiptId) },
+        onSelectSupplier = viewModel::onSelectSupplier,
+        onConfirmMatch = viewModel::onConfirmMatch,
+        onConfirmConflict = viewModel::onConfirmConflict,
+        onSelectIngredientForMatch = viewModel::onSelectIngredientForMatch
     )
 }
 
@@ -70,10 +89,15 @@ fun ReviewDetectedInvoiceScreen(
     onResetHeader: () -> Unit,
     onResetLine: (Int) -> Unit,
     onViewDocument: () -> Unit,
-    onViewRawOcr: () -> Unit
+    onViewRawOcr: () -> Unit,
+    onSelectSupplier: (SupplierId) -> Unit,
+    onConfirmMatch: (Int, IngredientId, IngredientUnitOptionId?, InventoryAreaId?) -> Unit,
+    onConfirmConflict: (Boolean) -> Unit,
+    onSelectIngredientForMatch: (IngredientId) -> Unit
 ) {
     var editingHeaderField by remember { mutableStateOf<HeaderField?>(null) }
     var editingLineIndex by remember { mutableStateOf<Int?>(null) }
+    var matchingLineIndex by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
         topBar = {
@@ -105,9 +129,18 @@ fun ReviewDetectedInvoiceScreen(
             val corrections = result.corrections ?: PurchaseInvoiceCorrections()
             
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SupplierSelectionHeader(
+                        selectedSupplierId = uiState.purchaseDetails?.receipt?.supplierId,
+                        suggestedSuppliers = uiState.suggestedSuppliers,
+                        onSelect = onSelectSupplier
+                    )
+                }
+
                 item {
                     Text(stringResource(R.string.purchases), style = MaterialTheme.typography.titleMedium)
                     ParsedFieldRow(
@@ -152,22 +185,19 @@ fun ReviewDetectedInvoiceScreen(
 
                 item {
                     HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(stringResource(R.string.purchase_lines), style = MaterialTheme.typography.titleMedium)
-                    }
+                    MatchSummaryHeader(matches = uiState.matches, totalLines = result.lines.size)
                 }
 
                 items(result.lines) { line ->
+                    val match = uiState.matches.find { it.lineIndex == line.index }
                     ParsedInvoiceLineItem(
                         line = line,
+                        match = match,
                         currency = result.currency.normalizedValue ?: "USD",
                         onToggleIgnore = { onToggleIgnoreLine(line.index) },
                         onEdit = { editingLineIndex = line.index },
-                        onReset = { onResetLine(line.index) }
+                        onReset = { onResetLine(line.index) },
+                        onMatchProduct = { matchingLineIndex = line.index }
                     )
                 }
 
@@ -180,6 +210,7 @@ fun ReviewDetectedInvoiceScreen(
                     ) {
                         Text(stringResource(R.string.ocr_action_view_text))
                     }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
@@ -211,7 +242,265 @@ fun ReviewDetectedInvoiceScreen(
                 )
             }
         }
+
+        if (matchingLineIndex != null) {
+            val line = uiState.result?.lines?.find { it.index == matchingLineIndex }
+            if (line != null) {
+                MatchProductDialog(
+                    line = line,
+                    currentMatch = uiState.matches.find { it.lineIndex == matchingLineIndex },
+                    ingredients = uiState.allIngredients,
+                    areas = uiState.allAreas,
+                    unitOptions = uiState.ingredientUnitOptions,
+                    onDismiss = { matchingLineIndex = null },
+                    onConfirmMatch = { ingId, optId, areaId ->
+                        onConfirmMatch(line.index, ingId, optId, areaId)
+                        matchingLineIndex = null
+                    },
+                    onSelectIngredient = onSelectIngredientForMatch
+                )
+            }
+        }
+
+        uiState.activeMappingConflict?.let { conflict ->
+            MatchingConflictDialog(
+                conflict = conflict,
+                onConfirm = { replace -> onConfirmConflict(replace) }
+            )
+        }
     }
+}
+
+@Composable
+fun SupplierSelectionHeader(
+    selectedSupplierId: SupplierId?,
+    suggestedSuppliers: List<Supplier>,
+    onSelect: (SupplierId) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.supplier_name), style = MaterialTheme.typography.titleMedium)
+        if (selectedSupplierId == null) {
+            if (suggestedSuppliers.isNotEmpty()) {
+                Text(
+                    text = "Suggested based on invoice:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                suggestedSuppliers.forEach { supplier ->
+                    AssistChip(
+                        onClick = { onSelect(supplier.id) },
+                        label = { Text(supplier.name) },
+                        leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            } else {
+                Text(
+                    text = "No supplier selected. Select one to enable matching.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            Button(
+                onClick = { /* Navigate to supplier selection */ },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text("Select Supplier")
+            }
+        } else {
+            // In a real app, this would show the selected supplier name and a change button
+            Text(
+                text = "Supplier confirmed.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun MatchSummaryHeader(matches: List<PurchaseInvoiceLineMatch>, totalLines: Int) {
+    val confirmedCount = matches.count { it.status == InvoiceLineMatchStatus.CONFIRMED }
+    val reviewCount = matches.count { it.status == InvoiceLineMatchStatus.NEEDS_REVIEW || it.status == InvoiceLineMatchStatus.SUGGESTED }
+    val unmatchedCount = totalLines - matches.size
+    
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text("Matching Status", style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            StatusBadge(count = confirmedCount, label = "Matched", color = Color(0xFF4CAF50))
+            StatusBadge(count = reviewCount, label = "Review", color = Color(0xFFFFA500))
+            if (unmatchedCount > 0) {
+                StatusBadge(count = unmatchedCount, label = "Unmatched", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusBadge(count: Int, label: String, color: Color) {
+    Surface(
+        color = color.copy(alpha = 0.1f),
+        shape = MaterialTheme.shapes.small,
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "$count", fontWeight = FontWeight.Bold, color = color, style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(text = label, color = color, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+fun MatchProductDialog(
+    line: ParsedInvoiceLineCandidate,
+    currentMatch: PurchaseInvoiceLineMatch?,
+    ingredients: List<Ingredient>,
+    areas: List<InventoryArea>,
+    unitOptions: Map<IngredientId, List<IngredientUnitOption>>,
+    onDismiss: () -> Unit,
+    onConfirmMatch: (IngredientId, IngredientUnitOptionId?, InventoryAreaId?) -> Unit,
+    onSelectIngredient: (IngredientId) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedIngredient by remember { mutableStateOf<Ingredient?>(null) }
+    var selectedUnitOptionId by remember { mutableStateOf<IngredientUnitOptionId?>(null) }
+    var selectedAreaId by remember { mutableStateOf<InventoryAreaId?>(null) }
+
+    val filteredIngredients = remember(searchQuery, ingredients) {
+        if (searchQuery.isBlank()) emptyList()
+        else ingredients.filter { it.name.contains(searchQuery, ignoreCase = true) }.take(10)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Match Product") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Invoice: ${line.description.normalizedValue}", style = MaterialTheme.typography.labelSmall)
+                
+                if (currentMatch != null && selectedIngredient == null) {
+                    val ing = ingredients.find { it.id == currentMatch.ingredientId }
+                    if (ing != null) {
+                        Text(text = "Current match: ${ing.name}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
+                if (selectedIngredient == null) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search Ingredient") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                        items(filteredIngredients) { ing ->
+                            ListItem(
+                                headlineContent = { Text(ing.name) },
+                                modifier = Modifier.clickable {
+                                    selectedIngredient = ing
+                                    selectedAreaId = ing.defaultAreaId
+                                    onSelectIngredient(ing.id)
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    ListItem(
+                        headlineContent = { Text(selectedIngredient!!.name) },
+                        trailingContent = { IconButton(onClick = { selectedIngredient = null }) { Icon(Icons.Default.Close, contentDescription = "Deselect") } },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
+                    )
+
+                    val options = unitOptions[selectedIngredient!!.id] ?: emptyList()
+                    if (options.isNotEmpty()) {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text(options.find { it.id == selectedUnitOptionId }?.displayName ?: "Select Unit Option")
+                            }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                options.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text(opt.displayName) },
+                                        onClick = {
+                                            selectedUnitOptionId = opt.id
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    var areaExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { areaExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(areas.find { it.id == selectedAreaId }?.name ?: "Select Area")
+                        }
+                        DropdownMenu(expanded = areaExpanded, onDismissRequest = { areaExpanded = false }) {
+                            areas.forEach { area ->
+                                DropdownMenuItem(
+                                    text = { Text(area.name) },
+                                    onClick = {
+                                        selectedAreaId = area.id
+                                        areaExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (selectedIngredient != null) {
+                        onConfirmMatch(selectedIngredient!!.id, selectedUnitOptionId, selectedAreaId)
+                    }
+                },
+                enabled = selectedIngredient != null
+            ) {
+                Text("Confirm Match")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun MatchingConflictDialog(
+    conflict: com.miara.cuentame.core.domain.repository.MappingConflict,
+    onConfirm: (Boolean) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { onConfirm(false) },
+        title = { Text("Mapping Conflict") },
+        text = {
+            Text("This supplier item is already mapped to an ingredient. Update the saved mapping to use your new selection for future invoices?")
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(true) }) {
+                Text("Update Mapping")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onConfirm(false) }) {
+                Text("Keep Current")
+            }
+        }
+    )
 }
 
 @Composable
@@ -371,10 +660,12 @@ fun <T> ParsedFieldRow(
 @Composable
 fun ParsedInvoiceLineItem(
     line: ParsedInvoiceLineCandidate,
+    match: PurchaseInvoiceLineMatch?,
     currency: String,
     onToggleIgnore: () -> Unit,
     onEdit: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    onMatchProduct: () -> Unit
 ) {
     val isEdited = line.correction != null
     val effectiveDesc = line.description.effectiveValue(line.correction?.description)
@@ -407,9 +698,6 @@ fun ParsedInvoiceLineItem(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-                    if (isEdited) {
-                         Text(text = "Edited", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
                 }
 
                 Text(
@@ -429,6 +717,42 @@ fun ParsedInvoiceLineItem(
                             imageVector = if (line.isIgnored) Icons.Default.Check else Icons.Default.Close,
                             contentDescription = if (line.isIgnored) "Include line" else "Ignore line"
                         )
+                    }
+                }
+            }
+
+            if (!line.isIgnored) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        val statusColor = when (match?.status) {
+                            InvoiceLineMatchStatus.CONFIRMED -> Color(0xFF4CAF50)
+                            InvoiceLineMatchStatus.SUGGESTED -> Color(0xFFFFA500)
+                            else -> MaterialTheme.colorScheme.error
+                        }
+                        Icon(
+                            imageVector = if (match?.status == InvoiceLineMatchStatus.CONFIRMED) Icons.Default.CheckCircle else Icons.Default.Inventory,
+                            contentDescription = null,
+                            tint = statusColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = when (match?.status) {
+                                InvoiceLineMatchStatus.CONFIRMED -> if (match.matchMethod == "KnownSupplierItem") "Known supplier item" else "Matched"
+                                InvoiceLineMatchStatus.SUGGESTED -> "Suggested"
+                                else -> "Needs match"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statusColor
+                        )
+                    }
+                    TextButton(onClick = onMatchProduct) {
+                        Text(if (match?.status == InvoiceLineMatchStatus.CONFIRMED) "Change" else "Match Product")
                     }
                 }
             }

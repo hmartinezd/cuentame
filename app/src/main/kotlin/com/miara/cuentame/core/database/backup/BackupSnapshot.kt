@@ -26,5 +26,7 @@ data class BackupSnapshot(
     val purchaseInvoiceOcrResults: List<PurchaseInvoiceOcrResultEntity> = emptyList(),
     val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageEntity> = emptyList(),
     val purchaseInvoiceParseResults: List<PurchaseInvoiceParseResultEntity> = emptyList(),
-    val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineEntity> = emptyList()
+    val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineEntity> = emptyList(),
+    val supplierItemMappings: List<SupplierItemMappingEntity> = emptyList(),
+    val purchaseInvoiceLineMatches: List<PurchaseInvoiceLineMatchEntity> = emptyList()
 )

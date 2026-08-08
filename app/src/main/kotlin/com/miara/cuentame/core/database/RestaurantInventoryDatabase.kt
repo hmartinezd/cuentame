@@ -34,7 +34,9 @@ import com.miara.cuentame.core.common.database.DatabaseSchema
         PurchaseInvoiceOcrResultEntity::class,
         PurchaseInvoiceOcrPageEntity::class,
         PurchaseInvoiceParseResultEntity::class,
-        PurchaseInvoiceParsedLineEntity::class
+        PurchaseInvoiceParsedLineEntity::class,
+        SupplierItemMappingEntity::class,
+        PurchaseInvoiceLineMatchEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -58,6 +60,8 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun productionBatchDao(): ProductionBatchDao
     abstract fun purchaseOcrDao(): PurchaseOcrDao
     abstract fun purchaseParseDao(): PurchaseParseDao
+    abstract fun supplierItemMappingDao(): SupplierItemMappingDao
+    abstract fun purchaseInvoiceLineMatchDao(): PurchaseInvoiceLineMatchDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -318,6 +322,74 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 """.trimIndent())
 
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parsed_lines_parseResultId` ON `purchase_invoice_parsed_lines` (`parseResultId`)")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create supplier_item_mappings table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `supplier_item_mappings` (
+                        `id` TEXT NOT NULL, 
+                        `restaurantId` TEXT NOT NULL, 
+                        `supplierId` TEXT NOT NULL, 
+                        `keyType` TEXT NOT NULL, 
+                        `normalizedKey` TEXT NOT NULL, 
+                        `sourceVendorCode` TEXT, 
+                        `sourceDescription` TEXT, 
+                        `sourcePackageText` TEXT, 
+                        `ingredientId` TEXT NOT NULL, 
+                        `unitOptionId` TEXT, 
+                        `inventoryAreaId` TEXT, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        `lastConfirmedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`restaurantId`) REFERENCES `restaurants`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`supplierId`) REFERENCES `suppliers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`ingredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL, 
+                        FOREIGN KEY(`inventoryAreaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_restaurantId` ON `supplier_item_mappings` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_supplierId` ON `supplier_item_mappings` (`supplierId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_ingredientId` ON `supplier_item_mappings` (`ingredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_unitOptionId` ON `supplier_item_mappings` (`unitOptionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_inventoryAreaId` ON `supplier_item_mappings` (`inventoryAreaId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_supplier_item_mappings_restaurantId_supplierId_keyType_normalizedKey` ON `supplier_item_mappings` (`restaurantId`, `supplierId`, `keyType`, `normalizedKey`)")
+
+                // Create purchase_invoice_line_matches table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_line_matches` (
+                        `parseResultId` TEXT NOT NULL, 
+                        `lineIndex` INTEGER NOT NULL, 
+                        `status` TEXT NOT NULL, 
+                        `supplierId` TEXT, 
+                        `ingredientId` TEXT, 
+                        `unitOptionId` TEXT, 
+                        `inventoryAreaId` TEXT, 
+                        `mappingId` TEXT, 
+                        `matchMethod` TEXT, 
+                        `matchConfidence` REAL NOT NULL, 
+                        `confirmedAt` INTEGER, 
+                        PRIMARY KEY(`parseResultId`, `lineIndex`), 
+                        FOREIGN KEY(`parseResultId`) REFERENCES `purchase_invoice_parse_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`supplierId`) REFERENCES `suppliers`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL, 
+                        FOREIGN KEY(`ingredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL, 
+                        FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL, 
+                        FOREIGN KEY(`inventoryAreaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL, 
+                        FOREIGN KEY(`mappingId`) REFERENCES `supplier_item_mappings`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_parseResultId` ON `purchase_invoice_line_matches` (`parseResultId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_supplierId` ON `purchase_invoice_line_matches` (`supplierId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_ingredientId` ON `purchase_invoice_line_matches` (`ingredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_unitOptionId` ON `purchase_invoice_line_matches` (`unitOptionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_inventoryAreaId` ON `purchase_invoice_line_matches` (`inventoryAreaId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_mappingId` ON `purchase_invoice_line_matches` (`mappingId`)")
             }
         }
     }

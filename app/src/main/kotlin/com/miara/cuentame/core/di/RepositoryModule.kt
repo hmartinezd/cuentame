@@ -16,8 +16,10 @@ import com.miara.cuentame.core.database.repository.RoomUnitRepository
 import com.miara.cuentame.core.database.repository.RoomWasteRepository
 import com.miara.cuentame.core.database.repository.RoomProductionBatchRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryActivityRepository
+import com.miara.cuentame.core.database.repository.RoomSupplierItemMappingRepository
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
+import com.miara.cuentame.core.domain.repository.SupplierItemMappingRepository
 import com.miara.cuentame.core.domain.repository.WasteRepository
 import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
 import com.miara.cuentame.core.domain.repository.IngredientRepository
@@ -103,4 +105,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindInventoryActivityRepository(repo: RoomInventoryActivityRepository): InventoryActivityRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSupplierItemMappingRepository(repo: RoomSupplierItemMappingRepository): SupplierItemMappingRepository
 }

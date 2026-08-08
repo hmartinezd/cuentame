@@ -27,7 +27,42 @@ data class BackupSnapshotDto(
     val purchaseInvoiceOcrResults: List<PurchaseInvoiceOcrResultBackupDto> = emptyList(),
     val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageBackupDto> = emptyList(),
     val purchaseInvoiceParseResults: List<PurchaseInvoiceParseResultBackupDto> = emptyList(),
-    val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineBackupDto> = emptyList()
+    val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineBackupDto> = emptyList(),
+    val supplierItemMappings: List<SupplierItemMappingBackupDto> = emptyList(),
+    val purchaseInvoiceLineMatches: List<PurchaseInvoiceLineMatchBackupDto> = emptyList()
+)
+
+@Serializable
+data class SupplierItemMappingBackupDto(
+    val id: String,
+    val restaurantId: String,
+    val supplierId: String,
+    val keyType: String,
+    val normalizedKey: String,
+    val sourceVendorCode: String?,
+    val sourceDescription: String?,
+    val sourcePackageText: String?,
+    val ingredientId: String,
+    val unitOptionId: String?,
+    val inventoryAreaId: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val lastConfirmedAt: Long
+)
+
+@Serializable
+data class PurchaseInvoiceLineMatchBackupDto(
+    val parseResultId: String,
+    val lineIndex: Int,
+    val status: String,
+    val supplierId: String?,
+    val ingredientId: String?,
+    val unitOptionId: String?,
+    val inventoryAreaId: String?,
+    val mappingId: String?,
+    val matchMethod: String?,
+    val matchConfidence: Float,
+    val confirmedAt: Long?
 )
 
 @Serializable

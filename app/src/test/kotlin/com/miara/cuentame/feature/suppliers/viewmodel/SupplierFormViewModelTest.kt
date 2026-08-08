@@ -43,6 +43,7 @@ class SupplierFormViewModelTest {
         override suspend fun createSupplier(command: com.miara.cuentame.core.domain.repository.CreateSupplierCommand): SupplierId = SupplierId("new_sid")
         override suspend fun updateSupplier(command: com.miara.cuentame.core.domain.repository.UpdateSupplierCommand) {}
         override suspend fun archiveSupplier(id: SupplierId, at: Instant) {}
+        override suspend fun searchSuppliers(restaurantId: RestaurantId, query: String): List<Supplier> = emptyList()
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {

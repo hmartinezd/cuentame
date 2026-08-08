@@ -48,4 +48,9 @@ interface SupplierRepository {
         id: SupplierId,
         at: Instant
     )
+
+    suspend fun searchSuppliers(
+        restaurantId: RestaurantId,
+        query: String
+    ): List<Supplier>
 }

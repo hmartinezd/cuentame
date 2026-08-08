@@ -14,6 +14,9 @@ interface PurchaseParseDao {
     @Query("SELECT * FROM purchase_invoice_parse_results WHERE purchaseReceiptId = :receiptId")
     suspend fun getParseResultForReceipt(receiptId: String): PurchaseInvoiceParseResultEntity?
 
+    @Query("SELECT id FROM purchase_invoice_parse_results WHERE purchaseReceiptId = :receiptId")
+    suspend fun getParseResultIdForReceipt(receiptId: String): String?
+
     @Query("SELECT * FROM purchase_invoice_parsed_lines WHERE parseResultId = :resultId ORDER BY lineIndex ASC")
     suspend fun getParsedLines(resultId: String): List<PurchaseInvoiceParsedLineEntity>
 
@@ -39,7 +42,8 @@ interface PurchaseParseDao {
         expectedSourceDocumentSha256: String,
         result: PurchaseInvoiceParseResultEntity,
         lines: List<PurchaseInvoiceParsedLineEntity>,
-        ocrDao: PurchaseOcrDao
+        ocrDao: PurchaseOcrDao,
+        lineMatchDao: PurchaseInvoiceLineMatchDao
     ) {
         val currentOcr = ocrDao.getOcrResultForReceiptSync(receiptId)
             ?: throw IllegalStateException("OCR Result missing for receipt $receiptId")
@@ -56,7 +60,12 @@ interface PurchaseParseDao {
             throw IllegalStateException("OCR result ownership mismatch")
         }
 
-        deleteParseResultForReceipt(receiptId)
+        val existingParse = getParseResultForReceipt(receiptId)
+        if (existingParse != null) {
+            lineMatchDao.deleteMatchesForParseResult(existingParse.id)
+            deleteParseResultForReceipt(receiptId)
+        }
+        
         insertParseResult(result)
         insertParsedLines(lines)
     }

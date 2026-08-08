@@ -3,6 +3,8 @@ package com.miara.cuentame.core.backup.platform
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.database.backup.BackupSnapshot
+import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
 
 object BackupMapper {
 
@@ -39,6 +41,9 @@ object BackupMapper {
                     .sortedWith(compareBy({ it.ocrResultId }, { it.pageIndex })),
                 purchaseInvoiceParseResults = snapshot.purchaseInvoiceParseResults.map { it.toDto() }.sortedBy { it.id },
                 purchaseInvoiceParsedLines = snapshot.purchaseInvoiceParsedLines.map { it.toDto() }
+                    .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex })),
+                supplierItemMappings = snapshot.supplierItemMappings.map { it.toDto() }.sortedBy { it.id },
+                purchaseInvoiceLineMatches = snapshot.purchaseInvoiceLineMatches.map { it.toDto() }
                     .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex }))
             )
         } catch (e: Exception) {
@@ -383,6 +388,37 @@ object BackupMapper {
         isIgnored = isIgnored
     )
 
+    internal fun SupplierItemMappingEntity.toDto() = SupplierItemMappingBackupDto(
+        id = id,
+        restaurantId = restaurantId,
+        supplierId = supplierId,
+        keyType = keyType.name,
+        normalizedKey = normalizedKey,
+        sourceVendorCode = sourceVendorCode,
+        sourceDescription = sourceDescription,
+        sourcePackageText = sourcePackageText,
+        ingredientId = ingredientId,
+        unitOptionId = unitOptionId,
+        inventoryAreaId = inventoryAreaId,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lastConfirmedAt = lastConfirmedAt
+    )
+
+    internal fun PurchaseInvoiceLineMatchEntity.toDto() = PurchaseInvoiceLineMatchBackupDto(
+        parseResultId = parseResultId,
+        lineIndex = lineIndex,
+        status = status.name,
+        supplierId = supplierId,
+        ingredientId = ingredientId,
+        unitOptionId = unitOptionId,
+        inventoryAreaId = inventoryAreaId,
+        mappingId = mappingId,
+        matchMethod = matchMethod,
+        matchConfidence = matchConfidence,
+        confirmedAt = confirmedAt
+    )
+
     private fun java.math.BigDecimal.toNormalizedString(): String {
         return if (this.compareTo(java.math.BigDecimal.ZERO) == 0) "0"
         else this.stripTrailingZeros().toPlainString()
@@ -724,6 +760,37 @@ object BackupMapper {
         evidenceJson = evidenceJson,
         correctionJson = correctionJson,
         isIgnored = isIgnored
+    )
+
+    fun SupplierItemMappingBackupDto.toEntity() = SupplierItemMappingEntity(
+        id = id,
+        restaurantId = restaurantId,
+        supplierId = supplierId,
+        keyType = SupplierItemMappingKeyType.valueOf(keyType),
+        normalizedKey = normalizedKey,
+        sourceVendorCode = sourceVendorCode,
+        sourceDescription = sourceDescription,
+        sourcePackageText = sourcePackageText,
+        ingredientId = ingredientId,
+        unitOptionId = unitOptionId,
+        inventoryAreaId = inventoryAreaId,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lastConfirmedAt = lastConfirmedAt
+    )
+
+    fun PurchaseInvoiceLineMatchBackupDto.toEntity() = PurchaseInvoiceLineMatchEntity(
+        parseResultId = parseResultId,
+        lineIndex = lineIndex,
+        status = InvoiceLineMatchStatus.valueOf(status),
+        supplierId = supplierId,
+        ingredientId = ingredientId,
+        unitOptionId = unitOptionId,
+        inventoryAreaId = inventoryAreaId,
+        mappingId = mappingId,
+        matchMethod = matchMethod,
+        matchConfidence = matchConfidence,
+        confirmedAt = confirmedAt
     )
 
 }

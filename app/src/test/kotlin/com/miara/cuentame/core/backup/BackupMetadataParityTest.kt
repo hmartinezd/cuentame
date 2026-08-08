@@ -138,7 +138,9 @@ class BackupMetadataParityTest {
             "purchase_invoice_ocr_results" to dto.purchaseInvoiceOcrResults.size,
             "purchase_invoice_ocr_pages" to dto.purchaseInvoiceOcrPages.size,
             "purchase_invoice_parse_results" to dto.purchaseInvoiceParseResults.size,
-            "purchase_invoice_parsed_lines" to dto.purchaseInvoiceParsedLines.size
+            "purchase_invoice_parsed_lines" to dto.purchaseInvoiceParsedLines.size,
+            "supplier_item_mappings" to dto.supplierItemMappings.size,
+            "purchase_invoice_line_matches" to dto.purchaseInvoiceLineMatches.size
         )
         val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(schemaVersion)
         return expectedTables.associateWith { table ->

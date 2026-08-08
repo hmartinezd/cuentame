@@ -249,6 +249,10 @@ class DefaultBackupArchiveValidator @Inject constructor(
             tables["purchase_invoice_parse_results"] = TableMetadata(dbDto.purchaseInvoiceParseResults.size, false)
             tables["purchase_invoice_parsed_lines"] = TableMetadata(dbDto.purchaseInvoiceParsedLines.size, false)
         }
+        if (schemaVersion >= 8) {
+            tables["supplier_item_mappings"] = TableMetadata(dbDto.supplierItemMappings.size, false)
+            tables["purchase_invoice_line_matches"] = TableMetadata(dbDto.purchaseInvoiceLineMatches.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 
