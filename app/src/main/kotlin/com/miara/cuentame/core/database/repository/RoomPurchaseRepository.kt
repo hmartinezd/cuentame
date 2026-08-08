@@ -43,8 +43,13 @@ import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
+import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
+import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
+import com.miara.cuentame.core.database.dao.PurchaseParseDao
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrPageEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrResultEntity
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceParseResultEntity
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceParsedLineEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -78,8 +83,14 @@ class RoomPurchaseRepository @Inject constructor(
     private val voidingCoordinator: PurchaseVoidingCoordinator,
     private val documentStore: PurchaseDocumentStore,
     private val ocrDao: PurchaseOcrDao,
+    private val parseDao: PurchaseParseDao,
     private val json: Json
 ) : PurchaseRepository {
+
+    private companion object {
+        const val PARSER_ENGINE = "CUENTAME_DETERMINISTIC_V1"
+        const val PARSER_SCHEMA_VERSION = 1
+    }
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
         return activeRestaurantProvider.getActiveRestaurant()
@@ -437,10 +448,15 @@ class RoomPurchaseRepository @Inject constructor(
 
     override suspend fun saveOcrResult(
         result: PurchaseInvoiceOcrResult,
-        pages: List<PurchaseInvoiceOcrPage>
+        pages: List<PurchaseInvoiceOcrPage>,
+        expectedAttachmentPath: String,
+        expectedDocumentSha256: String
     ) {
         ocrDao.replaceOcrResult(
             receiptId = result.purchaseReceiptId.value,
+            expectedAttachmentPath = expectedAttachmentPath,
+            expectedDocumentSha256 = expectedDocumentSha256,
+            purchaseDao = purchaseDao,
             result = PurchaseInvoiceOcrResultEntity(
                 id = result.id,
                 purchaseReceiptId = result.purchaseReceiptId.value,
@@ -467,5 +483,94 @@ class RoomPurchaseRepository @Inject constructor(
 
     override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {
         ocrDao.deleteOcrForReceipt(receiptId.value)
+    }
+
+    override fun observeParseResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceParseResult?> {
+        return parseDao.observeParseResultForReceipt(receiptId.value).map { entity ->
+            entity?.let {
+                val baseResult = json.decodeFromString<PurchaseInvoiceParseResult>(it.totalsEvidenceJson)
+                val corrections = it.correctionsJson?.let { c -> json.decodeFromString<PurchaseInvoiceParseResult>(c) }
+                
+                // Merge or return corrections if present
+                val result = corrections ?: baseResult
+                result.copy(lines = getParsedLines(it.id))
+            }
+        }
+    }
+
+    override suspend fun getParsedLines(parseResultId: String): List<ParsedInvoiceLineCandidate> {
+        return parseDao.getParsedLines(parseResultId).map { entity ->
+            val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(entity.evidenceJson)
+            val correction = entity.correctionJson?.let { json.decodeFromString<ParsedInvoiceLineCandidate>(it) }
+            
+            (correction ?: baseLine).copy(isIgnored = entity.isIgnored)
+        }
+    }
+
+    override suspend fun saveParseResult(
+        receiptId: PurchaseReceiptId,
+        ocrResultId: String,
+        sourceDocumentSha256: String,
+        result: PurchaseInvoiceParseResult
+    ) {
+        val parseId = idGenerator.newId()
+        
+        parseDao.replaceParseResult(
+            receiptId = receiptId.value,
+            ocrResultId = ocrResultId,
+            result = PurchaseInvoiceParseResultEntity(
+                id = parseId,
+                purchaseReceiptId = receiptId.value,
+                ocrResultId = ocrResultId,
+                sourceDocumentSha256 = sourceDocumentSha256,
+                parserEngine = PARSER_ENGINE,
+                parserSchemaVersion = PARSER_SCHEMA_VERSION,
+                headerEvidenceJson = json.encodeToString(result.supplierNameCandidate),
+                totalsEvidenceJson = json.encodeToString(result.copy(lines = emptyList())),
+                correctionsJson = null,
+                warningsJson = json.encodeToString(result.warnings),
+                processedAt = timeProvider.now().toEpochMilli(),
+                reviewedAt = null
+            ),
+            lines = result.lines.map { line ->
+                PurchaseInvoiceParsedLineEntity(
+                    parseResultId = parseId,
+                    lineIndex = line.index,
+                    evidenceJson = json.encodeToString(line),
+                    correctionJson = null,
+                    isIgnored = line.isIgnored
+                )
+            }
+        )
+    }
+
+    override suspend fun deleteParseResult(receiptId: PurchaseReceiptId) {
+        parseDao.deleteParseResultForReceipt(receiptId.value)
+    }
+
+    override suspend fun updateParsedLine(
+        receiptId: PurchaseReceiptId,
+        lineIndex: Int,
+        isIgnored: Boolean,
+        correction: ParsedInvoiceLineCandidate?
+    ) {
+        val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return
+        parseDao.updateParsedLine(
+            parseResultId = parseResult.id,
+            lineIndex = lineIndex,
+            isIgnored = isIgnored,
+            correctionJson = correction?.let { json.encodeToString(it) }
+        )
+    }
+
+    override suspend fun updateParseResult(
+        receiptId: PurchaseReceiptId,
+        corrections: PurchaseInvoiceParseResult
+    ) {
+        parseDao.updateParseResultCorrections(
+            receiptId = receiptId.value,
+            correctionsJson = json.encodeToString(corrections),
+            reviewedAt = timeProvider.now().toEpochMilli()
+        )
     }
 }

@@ -7,7 +7,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.miara.cuentame.core.database.dao.*
 import com.miara.cuentame.core.database.entity.*
-import com.miara.cuentame.core.database.DatabaseSchema
+import com.miara.cuentame.core.common.database.DatabaseSchema
 
 @Database(
     entities = [
@@ -32,7 +32,9 @@ import com.miara.cuentame.core.database.DatabaseSchema
         ProductionBatchEntity::class,
         ProductionBatchComponentEntity::class,
         PurchaseInvoiceOcrResultEntity::class,
-        PurchaseInvoiceOcrPageEntity::class
+        PurchaseInvoiceOcrPageEntity::class,
+        PurchaseInvoiceParseResultEntity::class,
+        PurchaseInvoiceParsedLineEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -55,6 +57,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun preparationRecipeDao(): PreparationRecipeDao
     abstract fun productionBatchDao(): ProductionBatchDao
     abstract fun purchaseOcrDao(): PurchaseOcrDao
+    abstract fun purchaseParseDao(): PurchaseParseDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -272,6 +275,49 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 """.trimIndent())
                 
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_pages_ocrResultId` ON `purchase_invoice_ocr_pages` (`ocrResultId`)")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_parse_results` (
+                        `id` TEXT NOT NULL, 
+                        `purchaseReceiptId` TEXT NOT NULL, 
+                        `ocrResultId` TEXT NOT NULL, 
+                        `sourceDocumentSha256` TEXT NOT NULL, 
+                        `parserEngine` TEXT NOT NULL, 
+                        `parserSchemaVersion` INTEGER NOT NULL, 
+                        `headerEvidenceJson` TEXT NOT NULL, 
+                        `totalsEvidenceJson` TEXT NOT NULL, 
+                        `correctionsJson` TEXT, 
+                        `warningsJson` TEXT NOT NULL, 
+                        `processedAt` INTEGER NOT NULL, 
+                        `reviewedAt` INTEGER, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`purchaseReceiptId`) REFERENCES `purchase_receipts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`ocrResultId`) REFERENCES `purchase_invoice_ocr_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_purchaseReceiptId` ON `purchase_invoice_parse_results` (`purchaseReceiptId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_ocrResultId` ON `purchase_invoice_parse_results` (`ocrResultId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_sourceDocumentSha256` ON `purchase_invoice_parse_results` (`sourceDocumentSha256`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_processedAt` ON `purchase_invoice_parse_results` (`processedAt`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_parsed_lines` (
+                        `parseResultId` TEXT NOT NULL, 
+                        `lineIndex` INTEGER NOT NULL, 
+                        `evidenceJson` TEXT NOT NULL, 
+                        `correctionJson` TEXT, 
+                        `isIgnored` INTEGER NOT NULL, 
+                        PRIMARY KEY(`parseResultId`, `lineIndex`), 
+                        FOREIGN KEY(`parseResultId`) REFERENCES `purchase_invoice_parse_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parsed_lines_parseResultId` ON `purchase_invoice_parsed_lines` (`parseResultId`)")
             }
         }
     }

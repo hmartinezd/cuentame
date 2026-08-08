@@ -17,15 +17,17 @@ import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import java.io.File
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 sealed interface AnalyzePurchaseInvoiceResult {
     data object Preparing : AnalyzePurchaseInvoiceResult
     data class ProcessingPage(val current: Int, val total: Int) : AnalyzePurchaseInvoiceResult
     data object Saving : AnalyzePurchaseInvoiceResult
+    data object Parsing : AnalyzePurchaseInvoiceResult
     data object Success : AnalyzePurchaseInvoiceResult
     data class Failure(val reason: PurchaseInvoiceOcrFailure) : AnalyzePurchaseInvoiceResult
+    data class ParseFailed(val ocrResult: PurchaseInvoiceOcrResult) : AnalyzePurchaseInvoiceResult
 }
 
 class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
@@ -33,6 +35,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
     private val documentStore: PurchaseDocumentStore,
     private val pdfRenderer: PurchasePdfRenderer,
     private val ocrEngine: PurchaseInvoiceOcrEngine,
+    private val parseUseCase: ParsePurchaseInvoiceUseCase,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
 ) {
@@ -44,137 +47,159 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
     }
 
     operator fun invoke(receiptId: PurchaseReceiptId): Flow<AnalyzePurchaseInvoiceResult> = flow {
-        emit(AnalyzePurchaseInvoiceResult.Preparing)
+        try {
+            emit(AnalyzePurchaseInvoiceResult.Preparing)
 
-        val receipt = repository.getReceipt(receiptId)
-        if (receipt == null) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.NoDocument))
-            return@flow
-        }
-
-        val attachmentPath = receipt.attachmentPath
-        if (attachmentPath == null) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.NoDocument))
-            return@flow
-        }
-
-        val storedDoc = documentStore.inspect(attachmentPath)
-        if (storedDoc == null) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.DocumentMissing))
-            return@flow
-        }
-
-        // Calculate SHA-256
-        val sha256 = try {
-            documentStore.open(attachmentPath).use { HashUtils.sha256(it) }
-        } catch (e: Exception) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.Unknown))
-            return@flow
-        }
-
-        val file = File(attachmentPath) // This assumes attachmentPath is a local file path which it should be in Cuentame DocumentStore
-        
-        val pagesEvidence = mutableListOf<OcrPageEvidence>()
-
-        if (storedDoc.mimeType == "application/pdf") {
-            val info = pdfRenderer.inspect(file)
-            if (info.failure != null) {
-                emit(AnalyzePurchaseInvoiceResult.Failure(mapPdfFailure(info.failure)))
-                return@flow
-            }
-            if (info.pageCount > MAX_PAGES) {
-                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.TooManyPages))
+            val receipt = repository.getReceipt(receiptId)
+            if (receipt == null) {
+                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.NoDocument))
                 return@flow
             }
 
-            for (i in 0 until info.pageCount) {
-                emit(AnalyzePurchaseInvoiceResult.ProcessingPage(i + 1, info.pageCount))
-                val renderResult = pdfRenderer.renderPage(file, i, OCR_PDF_RENDER_MAX_WIDTH_PX)
-                when (renderResult) {
-                    is PurchasePdfPageRenderResult.Success -> {
-                        try {
-                            val evidence = ocrEngine.recognize(renderResult.bitmap)
-                            pagesEvidence.add(evidence)
-                        } catch (e: Exception) {
-                            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.RecognitionFailed))
+            val attachmentPath = receipt.attachmentPath
+            if (attachmentPath == null) {
+                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.NoDocument))
+                return@flow
+            }
+
+            val storedDoc = documentStore.inspect(attachmentPath)
+            if (storedDoc == null) {
+                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.DocumentMissing))
+                return@flow
+            }
+
+            // Calculate SHA-256
+            val sha256 = try {
+                documentStore.open(attachmentPath).use { HashUtils.sha256(it) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.Unknown))
+                return@flow
+            }
+
+            val file = documentStore.getFile(attachmentPath)
+            
+            val pagesEvidence = mutableListOf<OcrPageEvidence>()
+
+            if (storedDoc.mimeType == "application/pdf") {
+                val info = pdfRenderer.inspect(file)
+                if (info.failure != null) {
+                    emit(AnalyzePurchaseInvoiceResult.Failure(mapPdfFailure(info.failure)))
+                    return@flow
+                }
+                if (info.pageCount > MAX_PAGES) {
+                    emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.TooManyPages))
+                    return@flow
+                }
+
+                for (i in 0 until info.pageCount) {
+                    emit(AnalyzePurchaseInvoiceResult.ProcessingPage(i + 1, info.pageCount))
+                    val renderResult = pdfRenderer.renderPage(file, i, OCR_PDF_RENDER_MAX_WIDTH_PX)
+                    when (renderResult) {
+                        is PurchasePdfPageRenderResult.Success -> {
+                            try {
+                                val evidence = ocrEngine.recognize(renderResult.bitmap)
+                                pagesEvidence.add(evidence)
+                            } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.RecognitionFailed))
+                                return@flow
+                            } finally {
+                                renderResult.bitmap.recycle()
+                            }
+                        }
+                        is PurchasePdfPageRenderResult.Failure -> {
+                            emit(AnalyzePurchaseInvoiceResult.Failure(mapPdfFailure(renderResult.reason)))
                             return@flow
-                        } finally {
-                            renderResult.bitmap.recycle()
                         }
                     }
-                    is PurchasePdfPageRenderResult.Failure -> {
-                        emit(AnalyzePurchaseInvoiceResult.Failure(mapPdfFailure(renderResult.reason)))
-                        return@flow
-                    }
                 }
-            }
-        } else if (storedDoc.mimeType.startsWith("image/")) {
-            emit(AnalyzePurchaseInvoiceResult.ProcessingPage(1, 1))
-            val bitmap = try {
-                documentStore.open(attachmentPath).use { 
-                    SafeImageDecoder.decode(it, OCR_PDF_RENDER_MAX_WIDTH_PX) 
+            } else if (storedDoc.mimeType.startsWith("image/")) {
+                emit(AnalyzePurchaseInvoiceResult.ProcessingPage(1, 1))
+                val bitmap = try {
+                    SafeImageDecoder.decode(
+                        streamProvider = { documentStore.open(attachmentPath) }, 
+                        maxDimension = OCR_PDF_RENDER_MAX_WIDTH_PX
+                    )
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    null
                 }
-            } catch (e: Exception) {
-                null
+
+                if (bitmap == null) {
+                    emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.ImageDecodeFailed))
+                    return@flow
+                }
+
+                try {
+                    val evidence = ocrEngine.recognize(bitmap)
+                    pagesEvidence.add(evidence)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.RecognitionFailed))
+                    return@flow
+                } finally {
+                    bitmap.recycle()
+                }
+            } else {
+                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.UnsupportedMimeType))
+                return@flow
             }
 
-            if (bitmap == null) {
-                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.ImageDecodeFailed))
-                return@flow
+            emit(AnalyzePurchaseInvoiceResult.Saving)
+
+            val resultId = idGenerator.newId()
+            val ocrResult = PurchaseInvoiceOcrResult(
+                id = resultId,
+                purchaseReceiptId = receiptId,
+                sourceDocumentSha256 = sha256,
+                sourceMimeType = storedDoc.mimeType,
+                engine = ENGINE_ID,
+                evidenceSchemaVersion = EVIDENCE_SCHEMA_VERSION,
+                pageCount = pagesEvidence.size,
+                fullText = pagesEvidence.joinToString("\n\n") { it.text },
+                processedAt = timeProvider.now()
+            )
+
+            val pages = pagesEvidence.mapIndexed { index, evidence ->
+                PurchaseInvoiceOcrPage(
+                    ocrResultId = resultId,
+                    pageIndex = index,
+                    widthPx = evidence.widthPx,
+                    heightPx = evidence.heightPx,
+                    text = evidence.text,
+                    evidence = evidence
+                )
             }
 
             try {
-                val evidence = ocrEngine.recognize(bitmap)
-                pagesEvidence.add(evidence)
+                repository.saveOcrResult(
+                    result = ocrResult,
+                    pages = pages,
+                    expectedAttachmentPath = attachmentPath,
+                    expectedDocumentSha256 = sha256
+                )
+
+                emit(AnalyzePurchaseInvoiceResult.Parsing)
+                
+                val parseResult = parseUseCase.execute(receiptId)
+                if (parseResult.isSuccess) {
+                    emit(AnalyzePurchaseInvoiceResult.Success)
+                } else {
+                    emit(AnalyzePurchaseInvoiceResult.ParseFailed(ocrResult))
+                }
             } catch (e: Exception) {
-                emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.RecognitionFailed))
-                return@flow
-            } finally {
-                bitmap.recycle()
+                if (e is CancellationException) throw e
+                if (e is IllegalStateException && e.message?.contains("Document changed") == true) {
+                    emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.DocumentChanged))
+                } else {
+                    emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.PersistenceFailed))
+                }
             }
-        } else {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.UnsupportedMimeType))
-            return@flow
-        }
-
-        emit(AnalyzePurchaseInvoiceResult.Saving)
-
-        // Race condition check
-        val currentReceipt = repository.getReceipt(receiptId)
-        if (currentReceipt?.attachmentPath != attachmentPath) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.DocumentChanged))
-            return@flow
-        }
-
-        val resultId = idGenerator.newId()
-        val ocrResult = PurchaseInvoiceOcrResult(
-            id = resultId,
-            purchaseReceiptId = receiptId,
-            sourceDocumentSha256 = sha256,
-            sourceMimeType = storedDoc.mimeType,
-            engine = ENGINE_ID,
-            evidenceSchemaVersion = EVIDENCE_SCHEMA_VERSION,
-            pageCount = pagesEvidence.size,
-            fullText = pagesEvidence.joinToString("\n\n") { it.text },
-            processedAt = timeProvider.now()
-        )
-
-        val pages = pagesEvidence.mapIndexed { index, evidence ->
-            PurchaseInvoiceOcrPage(
-                ocrResultId = resultId,
-                pageIndex = index,
-                widthPx = evidence.widthPx,
-                heightPx = evidence.heightPx,
-                text = evidence.text,
-                evidence = evidence
-            )
-        }
-
-        try {
-            repository.saveOcrResult(ocrResult, pages)
-            emit(AnalyzePurchaseInvoiceResult.Success)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.PersistenceFailed))
+            emit(AnalyzePurchaseInvoiceResult.Failure(PurchaseInvoiceOcrFailure.Unknown))
         }
     }
 

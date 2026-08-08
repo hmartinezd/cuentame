@@ -5,20 +5,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
-import com.miara.cuentame.core.domain.repository.PurchaseFilter
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
-import com.miara.cuentame.core.domain.repository.PurchaseSummary
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
-import com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand
-import com.miara.cuentame.core.domain.repository.UpdatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.ObservePurchaseDetailsUseCase
 import com.miara.cuentame.core.domain.usecase.VoidPurchaseUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
-import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
-import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -45,28 +38,7 @@ class PurchaseDetailViewModelTest {
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
     private var voidCount = 0
 
-    private val fakePurchaseRepository = object : PurchaseRepository {
-        override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> = flowOf(emptyList())
-        override fun observePurchase(id: PurchaseReceiptId): Flow<PurchaseDetails?> = detailsFlow
-        override suspend fun getReceipt(id: PurchaseReceiptId): PurchaseReceipt? = detailsFlow.value?.receipt
-        override suspend fun createDraft(command: CreatePurchaseDraftCommand): PurchaseReceiptId = PurchaseReceiptId("")
-        override suspend fun updateDraft(command: UpdatePurchaseDraftCommand) {}
-        override suspend fun saveLine(command: SavePurchaseLineCommand): com.miara.cuentame.core.common.ids.PurchaseLineId = com.miara.cuentame.core.common.ids.PurchaseLineId("")
-        override suspend fun deleteLine(receiptId: PurchaseReceiptId, lineId: com.miara.cuentame.core.common.ids.PurchaseLineId) {}
-        override suspend fun deleteDraft(id: PurchaseReceiptId) {}
-        override suspend fun post(id: PurchaseReceiptId) {}
-        override suspend fun void(id: PurchaseReceiptId) {
-             voidCount++
-             val current = detailsFlow.value ?: return
-             detailsFlow.value = current.copy(receipt = current.receipt.copy(status = DocumentStatus.VOIDED))
-        }
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
-        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
-        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = flowOf(null)
-        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
-        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
-        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
-    }
+    private val fakePurchaseRepository = mockk<PurchaseRepository>(relaxed = true)
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
         override fun observeRestaurant(): Flow<Restaurant?> = restaurantFlow
@@ -82,6 +54,16 @@ class PurchaseDetailViewModelTest {
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", fixedNow, fixedNow)
         voidCount = 0
         detailsFlow.value = null
+
+        io.mockk.every { fakePurchaseRepository.observePurchase(any()) } returns detailsFlow
+        io.mockk.every { fakePurchaseRepository.observeOcrResult(any()) } returns flowOf(null)
+        io.mockk.every { fakePurchaseRepository.observeParseResult(any()) } returns flowOf(null)
+        io.mockk.coEvery { fakePurchaseRepository.getReceipt(any()) } answers { detailsFlow.value?.receipt }
+        io.mockk.coEvery { fakePurchaseRepository.void(any()) } answers {
+            voidCount++
+            val current = detailsFlow.value ?: return@answers
+            detailsFlow.value = current.copy(receipt = current.receipt.copy(status = DocumentStatus.VOIDED))
+        }
     }
 
     @After

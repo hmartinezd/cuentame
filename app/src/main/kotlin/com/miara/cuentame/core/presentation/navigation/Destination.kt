@@ -28,6 +28,7 @@ enum class Destination(val route: String) {
     PURCHASE_DETAIL("purchases/{receiptId}/detail"),
     PURCHASE_DOCUMENT("purchases/{receiptId}/document"),
     PURCHASE_RAW_OCR("purchases/{receiptId}/ocr"),
+    PURCHASE_REVIEW("purchases/{receiptId}/review"),
     
     INGREDIENT_CREATE("inventory/create"),
     INGREDIENT_DETAIL("inventory/{ingredientId}"),

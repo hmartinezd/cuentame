@@ -36,7 +36,10 @@ object BackupMapper {
                 productionBatchComponents = snapshot.productionBatchComponents.map { it.toDto() }.sortedBy { it.id },
                 purchaseInvoiceOcrResults = snapshot.purchaseInvoiceOcrResults.map { it.toDto() }.sortedBy { it.id },
                 purchaseInvoiceOcrPages = snapshot.purchaseInvoiceOcrPages.map { it.toDto() }
-                    .sortedWith(compareBy({ it.ocrResultId }, { it.pageIndex }))
+                    .sortedWith(compareBy({ it.ocrResultId }, { it.pageIndex })),
+                purchaseInvoiceParseResults = snapshot.purchaseInvoiceParseResults.map { it.toDto() }.sortedBy { it.id },
+                purchaseInvoiceParsedLines = snapshot.purchaseInvoiceParsedLines.map { it.toDto() }
+                    .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex }))
             )
         } catch (e: Exception) {
             throw e
@@ -357,6 +360,29 @@ object BackupMapper {
         evidenceJson = evidenceJson
     )
 
+    internal fun PurchaseInvoiceParseResultEntity.toDto() = PurchaseInvoiceParseResultBackupDto(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        ocrResultId = ocrResultId,
+        sourceDocumentSha256 = sourceDocumentSha256,
+        parserEngine = parserEngine,
+        parserSchemaVersion = parserSchemaVersion,
+        headerEvidenceJson = headerEvidenceJson,
+        totalsEvidenceJson = totalsEvidenceJson,
+        correctionsJson = correctionsJson,
+        warningsJson = warningsJson,
+        processedAt = processedAt,
+        reviewedAt = reviewedAt
+    )
+
+    internal fun PurchaseInvoiceParsedLineEntity.toDto() = PurchaseInvoiceParsedLineBackupDto(
+        parseResultId = parseResultId,
+        lineIndex = lineIndex,
+        evidenceJson = evidenceJson,
+        correctionJson = correctionJson,
+        isIgnored = isIgnored
+    )
+
     private fun java.math.BigDecimal.toNormalizedString(): String {
         return if (this.compareTo(java.math.BigDecimal.ZERO) == 0) "0"
         else this.stripTrailingZeros().toPlainString()
@@ -675,6 +701,29 @@ object BackupMapper {
         heightPx = heightPx,
         text = text,
         evidenceJson = evidenceJson
+    )
+
+    fun PurchaseInvoiceParseResultBackupDto.toEntity() = PurchaseInvoiceParseResultEntity(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        ocrResultId = ocrResultId,
+        sourceDocumentSha256 = sourceDocumentSha256,
+        parserEngine = parserEngine,
+        parserSchemaVersion = parserSchemaVersion,
+        headerEvidenceJson = headerEvidenceJson,
+        totalsEvidenceJson = totalsEvidenceJson,
+        correctionsJson = correctionsJson,
+        warningsJson = warningsJson,
+        processedAt = processedAt,
+        reviewedAt = reviewedAt
+    )
+
+    fun PurchaseInvoiceParsedLineBackupDto.toEntity() = PurchaseInvoiceParsedLineEntity(
+        parseResultId = parseResultId,
+        lineIndex = lineIndex,
+        evidenceJson = evidenceJson,
+        correctionJson = correctionJson,
+        isIgnored = isIgnored
     )
 
 }

@@ -29,6 +29,7 @@ import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -62,24 +63,7 @@ class PurchaseLineViewModelTest {
     private val fakeArea = InventoryArea(InventoryAreaId("area_1"), RestaurantId("rest_1"), "Dry", "dry", 0, true, Instant.now(), Instant.now())
     private val fakeOption = IngredientUnitOption(IngredientUnitOptionId("opt_1"), IngredientId("ing_1"), "Pound", "lb", UnitId("mass_lb"), BigDecimal.ONE, true, true, true, true, Instant.now(), Instant.now())
 
-    private val fakePurchaseRepository = object : PurchaseRepository {
-        override fun observePurchases(filter: PurchaseFilter): Flow<List<com.miara.cuentame.core.domain.repository.PurchaseSummary>> = flowOf(emptyList())
-        override fun observePurchase(id: PurchaseReceiptId): Flow<com.miara.cuentame.core.domain.repository.PurchaseDetails?> = flowOf(null)
-        override suspend fun getReceipt(id: PurchaseReceiptId): com.miara.cuentame.core.model.purchase.PurchaseReceipt? = null
-        override suspend fun createDraft(command: com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand): PurchaseReceiptId = PurchaseReceiptId("")
-        override suspend fun updateDraft(command: com.miara.cuentame.core.domain.repository.UpdatePurchaseDraftCommand) {}
-        override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand): PurchaseLineId = PurchaseLineId("")
-        override suspend fun deleteLine(receiptId: PurchaseReceiptId, lineId: PurchaseLineId) {}
-        override suspend fun deleteDraft(id: PurchaseReceiptId) {}
-        override suspend fun post(id: PurchaseReceiptId) {}
-        override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
-        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
-        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = flowOf(null)
-        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
-        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
-        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
-    }
+    private val fakePurchaseRepository = mockk<PurchaseRepository>(relaxed = true)
 
     private val fakeIngredientRepository = object : com.miara.cuentame.core.domain.repository.IngredientRepository {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = flowOf(listOf(fakeIngredient))

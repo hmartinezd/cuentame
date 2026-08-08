@@ -268,7 +268,90 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun createDatabaseDirectlyAtVersion5() = runBlocking {
+    @Throws(IOException::class)
+    fun migrate5To6_createsOcrTables() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        // 1. Create version 5 database
+        var db = helper.createDatabase(TEST_DB, 5)
+        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
+        db.close()
+
+        // 2. Run migration 5 to 6
+        db = helper.runMigrationsAndValidate(TEST_DB, 6, true, RestaurantInventoryDatabase.MIGRATION_5_6)
+        
+        // Verify new tables exist
+        val ocrResultCursor = db.query("SELECT * FROM purchase_invoice_ocr_results")
+        assertThat(ocrResultCursor.count).isEqualTo(0)
+        ocrResultCursor.close()
+        
+        val ocrPageCursor = db.query("SELECT * FROM purchase_invoice_ocr_pages")
+        assertThat(ocrPageCursor.count).isEqualTo(0)
+        ocrPageCursor.close()
+        
+        db.close()
+
+        // 3. Reopen through Room
+        val roomDb = Room.databaseBuilder(
+            context,
+            RestaurantInventoryDatabase::class.java,
+            TEST_DB
+        ).addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6
+        ).build()
+
+        assertThat(roomDb.purchaseOcrDao().getOcrResultForReceiptSync("non-existent")).isNull()
+        roomDb.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate6To7_createsParseTables() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        // 1. Create version 6 database
+        var db = helper.createDatabase(TEST_DB, 6)
+        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
+        db.close()
+
+        // 2. Run migration 6 to 7
+        db = helper.runMigrationsAndValidate(TEST_DB, 7, true, RestaurantInventoryDatabase.MIGRATION_6_7)
+        
+        // Verify new tables exist
+        val parseResultCursor = db.query("SELECT * FROM purchase_invoice_parse_results")
+        assertThat(parseResultCursor.count).isEqualTo(0)
+        parseResultCursor.close()
+        
+        val parsedLineCursor = db.query("SELECT * FROM purchase_invoice_parsed_lines")
+        assertThat(parsedLineCursor.count).isEqualTo(0)
+        parsedLineCursor.close()
+        
+        db.close()
+
+        // 3. Reopen through Room
+        val roomDb = Room.databaseBuilder(
+            context,
+            RestaurantInventoryDatabase::class.java,
+            TEST_DB
+        ).addMigrations(
+            RestaurantInventoryDatabase.MIGRATION_1_2,
+            RestaurantInventoryDatabase.MIGRATION_2_3,
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7
+        ).build()
+
+        assertThat(roomDb.purchaseParseDao().getParseResultForReceipt("non-existent")).isNull()
+        roomDb.close()
+    }
+
+    @Test
+    fun createDatabaseDirectlyAtVersion7() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val roomDb = Room.databaseBuilder(
             context,
@@ -276,7 +359,7 @@ class RoomMigrationTest {
             TEST_DB
         ).build()
 
-        assertThat(roomDb.preparationRecipeDao().getAllRecipesForRestaurant("non-existent")).isEmpty()
+        assertThat(roomDb.purchaseParseDao().getParseResultForReceipt("non-existent")).isNull()
         roomDb.close()
     }
 }

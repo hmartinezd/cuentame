@@ -2,6 +2,7 @@ package com.miara.cuentame.core.backup.api
 
 import android.net.Uri
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import java.io.File
 import java.io.InputStream
 
 data class StoredPurchaseDocument(
@@ -42,6 +43,14 @@ interface PurchaseDocumentStore {
     suspend fun open(
         storedLocation: String
     ): InputStream
+
+    /**
+     * Resolves a stored location to a File.
+     * Use with caution, preferred for APIs requiring File or FileDescriptor (e.g. PdfRenderer).
+     */
+    suspend fun getFile(
+        storedLocation: String
+    ): File
     
     companion object {
         val SUPPORTED_MIME_TYPES = setOf(

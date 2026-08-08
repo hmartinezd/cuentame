@@ -25,7 +25,34 @@ data class BackupSnapshotDto(
     val productionBatches: List<ProductionBatchBackupDto> = emptyList(),
     val productionBatchComponents: List<ProductionBatchComponentBackupDto> = emptyList(),
     val purchaseInvoiceOcrResults: List<PurchaseInvoiceOcrResultBackupDto> = emptyList(),
-    val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageBackupDto> = emptyList()
+    val purchaseInvoiceOcrPages: List<PurchaseInvoiceOcrPageBackupDto> = emptyList(),
+    val purchaseInvoiceParseResults: List<PurchaseInvoiceParseResultBackupDto> = emptyList(),
+    val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineBackupDto> = emptyList()
+)
+
+@Serializable
+data class PurchaseInvoiceParseResultBackupDto(
+    val id: String,
+    val purchaseReceiptId: String,
+    val ocrResultId: String,
+    val sourceDocumentSha256: String,
+    val parserEngine: String,
+    val parserSchemaVersion: Int,
+    val headerEvidenceJson: String,
+    val totalsEvidenceJson: String,
+    val correctionsJson: String?,
+    val warningsJson: String,
+    val processedAt: Long,
+    val reviewedAt: Long?
+)
+
+@Serializable
+data class PurchaseInvoiceParsedLineBackupDto(
+    val parseResultId: String,
+    val lineIndex: Int,
+    val evidenceJson: String,
+    val correctionJson: String?,
+    val isIgnored: Boolean
 )
 
 @Serializable

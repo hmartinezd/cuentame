@@ -200,6 +200,8 @@ class RoomRestoreDatabaseApplier @Inject constructor(
 
         restoreDao.insertPurchaseInvoiceOcrResults(snapshot.purchaseInvoiceOcrResults.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertPurchaseInvoiceOcrPages(snapshot.purchaseInvoiceOcrPages.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertPurchaseInvoiceParseResults(snapshot.purchaseInvoiceParseResults.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertPurchaseInvoiceParsedLines(snapshot.purchaseInvoiceParsedLines.map { BackupMapper.run { it.toEntity() } })
     }
 
     private suspend fun verifySnapshot(expected: BackupSnapshotDto, manifest: BackupManifest): Boolean {

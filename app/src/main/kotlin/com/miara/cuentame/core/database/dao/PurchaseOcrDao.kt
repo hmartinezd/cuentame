@@ -32,9 +32,23 @@ interface PurchaseOcrDao {
     @Transaction
     suspend fun replaceOcrResult(
         receiptId: String,
+        expectedAttachmentPath: String,
+        expectedDocumentSha256: String,
         result: PurchaseInvoiceOcrResultEntity,
-        pages: List<PurchaseInvoiceOcrPageEntity>
+        pages: List<PurchaseInvoiceOcrPageEntity>,
+        purchaseDao: PurchaseDao
     ) {
+        val receipt = purchaseDao.getReceiptById(receiptId)
+        if (receipt?.attachmentPath != expectedAttachmentPath) {
+            throw IllegalStateException("Document changed or removed since OCR started")
+        }
+
+        val existingResult = getOcrResultForReceiptSync(receiptId)
+        if (existingResult != null && existingResult.sourceDocumentSha256 != expectedDocumentSha256) {
+            // Optional: stricter validation if we want to ensure we are only replacing 
+            // the exact document we analyzed if a result already exists.
+        }
+
         deleteOcrForReceipt(receiptId)
         insertOcrResult(result)
         insertOcrPages(pages)

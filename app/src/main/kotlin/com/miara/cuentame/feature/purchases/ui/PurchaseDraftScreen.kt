@@ -88,6 +88,7 @@ fun PurchaseDraftRoute(
     onNavigateToDraft: (PurchaseReceiptId) -> Unit,
     onNavigateToDocument: (PurchaseReceiptId) -> Unit,
     onNavigateToRawOcr: (PurchaseReceiptId) -> Unit,
+    onReviewInvoice: (PurchaseReceiptId) -> Unit,
     onAddLine: (PurchaseReceiptId) -> Unit,
     onEditLine: (PurchaseReceiptId, PurchaseLineId) -> Unit,
     onPostSuccess: (PurchaseReceiptId) -> Unit,
@@ -108,6 +109,7 @@ fun PurchaseDraftRoute(
                 is PurchaseDraftEvent.LineDeleted -> {
                     lastDeletedLineId = event.lineId
                 }
+                is PurchaseDraftEvent.NavigateToReview -> onReviewInvoice(event.receiptId)
             }
         }
     }
@@ -156,6 +158,8 @@ fun PurchaseDraftRoute(
         onRemoveDocument = viewModel::onRemoveDocument,
         onViewDocument = { uiState.receiptId?.let { onNavigateToDocument(it) } },
         onAnalyzeInvoice = viewModel::onAnalyzeInvoice,
+        onParseDetails = viewModel::onParseDetails,
+        onReviewInvoice = viewModel::onReviewInvoice,
         onViewRawOcr = { uiState.receiptId?.let { onNavigateToRawOcr(it) } },
         onClearOcrError = viewModel::clearOcrError,
         onAddLine = { purchaseId?.let { onAddLine(it) } },
@@ -180,6 +184,8 @@ fun PurchaseDraftScreen(
     onRemoveDocument: () -> Unit,
     onViewDocument: () -> Unit,
     onAnalyzeInvoice: () -> Unit,
+    onParseDetails: () -> Unit,
+    onReviewInvoice: () -> Unit,
     onViewRawOcr: () -> Unit,
     onClearOcrError: () -> Unit,
     onAddLine: () -> Unit,
@@ -257,6 +263,8 @@ fun PurchaseDraftScreen(
                         onRemove = onRemoveDocument,
                         onView = onViewDocument,
                         onAnalyze = onAnalyzeInvoice,
+                        onParseDetails = onParseDetails,
+                        onReview = onReviewInvoice,
                         onViewOcr = onViewRawOcr,
                         onClearOcrError = onClearOcrError
                     )
@@ -405,6 +413,8 @@ fun PurchaseDocumentSection(
     onRemove: () -> Unit,
     onView: () -> Unit,
     onAnalyze: () -> Unit,
+    onParseDetails: () -> Unit,
+    onReview: () -> Unit,
     onViewOcr: () -> Unit,
     onClearOcrError: () -> Unit
 ) {
@@ -512,6 +522,8 @@ fun PurchaseDocumentSection(
                 OcrStatusCard(
                     uiState = uiState,
                     onAnalyze = onAnalyze,
+                    onParseDetails = onParseDetails,
+                    onReview = onReview,
                     onViewOcr = onViewOcr,
                     onClearError = onClearOcrError
                 )
@@ -538,11 +550,14 @@ fun PurchaseDocumentSection(
 fun OcrStatusCard(
     uiState: PurchaseDraftUiState,
     onAnalyze: () -> Unit,
+    onParseDetails: () -> Unit,
+    onReview: () -> Unit,
     onViewOcr: () -> Unit,
     onClearError: () -> Unit
 ) {
     val ocrState = uiState.ocrState
     val ocrResult = uiState.ocrResult
+    val parseResult = uiState.parseResult
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -565,6 +580,13 @@ fun OcrStatusCard(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+                    is OcrAnalysisState.Parsing -> {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = stringResource(R.string.ocr_status_parsing),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                     is OcrAnalysisState.Failure -> {
                         Text(
                             text = stringResource(R.string.ocr_status_failed),
@@ -576,10 +598,18 @@ fun OcrStatusCard(
                             Text(stringResource(android.R.string.ok), style = MaterialTheme.typography.labelSmall)
                         }
                     }
+                    OcrAnalysisState.Parsed -> {
+                        Text(
+                            text = stringResource(R.string.ocr_status_parsed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     OcrAnalysisState.Idle -> {
                         if (ocrResult != null) {
                             Text(
-                                text = stringResource(R.string.ocr_status_extracted),
+                                text = if (parseResult != null) stringResource(R.string.ocr_status_parsed) 
+                                       else stringResource(R.string.ocr_status_extracted),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -593,22 +623,38 @@ fun OcrStatusCard(
                 }
             }
 
-            if (ocrState is OcrAnalysisState.Idle) {
+            if (ocrState is OcrAnalysisState.Idle || ocrState is OcrAnalysisState.Parsed || ocrState is OcrAnalysisState.Failure) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (ocrResult != null) {
+                        if (parseResult != null || ocrState is OcrAnalysisState.Parsed) {
+                            TextButton(onClick = onReview) {
+                                Text(stringResource(R.string.ocr_action_review))
+                            }
+                        } else {
+                            TextButton(onClick = onParseDetails) {
+                                Text(stringResource(R.string.ocr_action_parse))
+                            }
+                        }
+                        
                         TextButton(onClick = onViewOcr) {
                             Text(stringResource(R.string.ocr_action_view_text))
                         }
+                        
                         TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
                             Text(stringResource(R.string.ocr_action_reanalyze))
                         }
-                    } else {
+                    } else if (ocrState !is OcrAnalysisState.Failure) {
                         TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
                             Text(stringResource(R.string.ocr_action_analyze))
+                        }
+                    } else {
+                        // In failure state, allow re-analyze
+                        TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
+                            Text(stringResource(R.string.ocr_action_retry))
                         }
                     }
                 }

@@ -12,6 +12,7 @@ import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
 import com.miara.cuentame.core.domain.usecase.locale.LocaleReconciliationResult
 import com.miara.cuentame.core.model.backup.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
+import com.miara.cuentame.core.common.database.DatabaseSchema
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -49,15 +50,15 @@ class BackupMetadataParityTest {
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 5
+        every { appVersionProvider.databaseSchemaVersion } returns DatabaseSchema.VERSION
     }
 
     @Test
-    fun `planner and validator agree on schema 5 metadata`() = runTest {
+    fun `planner and validator agree on current metadata`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
-        val snapshotDto = BackupTestFixtures.createPopulatedSchema4Snapshot()
+        val snapshotDto = BackupTestFixtures.createPopulatedCurrentSnapshot()
         
         // 0. Validate snapshot integrity before planning
         val manifestBefore = BackupManifest(
@@ -66,7 +67,7 @@ class BackupMetadataParityTest {
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",
             appVersionCode = 1,
-            databaseSchemaVersion = 5,
+            databaseSchemaVersion = DatabaseSchema.VERSION,
             restaurantId = "r1",
             restaurantName = "Test Rest",
             localeTag = "en-US",
@@ -87,7 +88,7 @@ class BackupMetadataParityTest {
         
         // 1. Validate Planner's metadata
         val plannerMetadata = plan.manifest.tableMetadata
-        assertThat(plannerMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(5))
+        assertThat(plannerMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(DatabaseSchema.VERSION))
         
         // 2. Build archive from plan
         val archiveBytes = buildArchive(plan)
@@ -112,7 +113,7 @@ class BackupMetadataParityTest {
     private fun BackupManifest.entryCounts() = tableMetadata.mapValues { it.value.entryCount }
 
     private fun createExpectedMetadata(dto: BackupSnapshotDto): Map<String, TableMetadata> {
-        val schemaVersion = 5
+        val schemaVersion = DatabaseSchema.VERSION
         val counts = mapOf(
             "restaurants" to dto.restaurants.size,
             "inventory_areas" to dto.inventoryAreas.size,
@@ -133,7 +134,11 @@ class BackupMetadataParityTest {
             "preparation_recipes" to dto.preparationRecipes.size,
             "preparation_recipe_components" to dto.preparationRecipeComponents.size,
             "production_batches" to dto.productionBatches.size,
-            "production_batch_components" to dto.productionBatchComponents.size
+            "production_batch_components" to dto.productionBatchComponents.size,
+            "purchase_invoice_ocr_results" to dto.purchaseInvoiceOcrResults.size,
+            "purchase_invoice_ocr_pages" to dto.purchaseInvoiceOcrPages.size,
+            "purchase_invoice_parse_results" to dto.purchaseInvoiceParseResults.size,
+            "purchase_invoice_parsed_lines" to dto.purchaseInvoiceParsedLines.size
         )
         val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(schemaVersion)
         return expectedTables.associateWith { table ->

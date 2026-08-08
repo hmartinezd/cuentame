@@ -2,6 +2,8 @@ package com.miara.cuentame.core.ocr.di
 
 import com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrEngine
 import com.miara.cuentame.core.ocr.impl.MlKitPurchaseInvoiceOcrEngine
+import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParser
+import com.miara.cuentame.core.ocr.parser.DeterministicPurchaseInvoiceParser
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -17,4 +19,10 @@ abstract class OcrModule {
     abstract fun bindOcrEngine(
         impl: MlKitPurchaseInvoiceOcrEngine
     ): PurchaseInvoiceOcrEngine
+
+    @Binds
+    @Singleton
+    abstract fun bindPurchaseInvoiceParser(
+        impl: DeterministicPurchaseInvoiceParser
+    ): PurchaseInvoiceParser
 }

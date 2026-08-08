@@ -2,7 +2,7 @@ package com.miara.cuentame.core.common
 
 import android.content.Context
 import com.miara.cuentame.BuildConfig
-import com.miara.cuentame.core.database.DatabaseSchema
+import com.miara.cuentame.core.common.database.DatabaseSchema
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

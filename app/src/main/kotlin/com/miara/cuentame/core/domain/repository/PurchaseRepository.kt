@@ -12,6 +12,8 @@ import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
+import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
+import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
 import java.time.Instant
@@ -131,10 +133,43 @@ interface PurchaseRepository {
 
     suspend fun saveOcrResult(
         result: PurchaseInvoiceOcrResult,
-        pages: List<PurchaseInvoiceOcrPage>
+        pages: List<PurchaseInvoiceOcrPage>,
+        expectedAttachmentPath: String,
+        expectedDocumentSha256: String
     )
 
     suspend fun deleteOcrResult(
         receiptId: PurchaseReceiptId
+    )
+
+    fun observeParseResult(
+        receiptId: PurchaseReceiptId
+    ): Flow<PurchaseInvoiceParseResult?>
+
+    suspend fun getParsedLines(
+        parseResultId: String
+    ): List<ParsedInvoiceLineCandidate>
+
+    suspend fun saveParseResult(
+        receiptId: PurchaseReceiptId,
+        ocrResultId: String,
+        sourceDocumentSha256: String,
+        result: PurchaseInvoiceParseResult
+    )
+
+    suspend fun deleteParseResult(
+        receiptId: PurchaseReceiptId
+    )
+
+    suspend fun updateParsedLine(
+        receiptId: PurchaseReceiptId,
+        lineIndex: Int,
+        isIgnored: Boolean,
+        correction: ParsedInvoiceLineCandidate?
+    )
+
+    suspend fun updateParseResult(
+        receiptId: PurchaseReceiptId,
+        corrections: PurchaseInvoiceParseResult
     )
 }

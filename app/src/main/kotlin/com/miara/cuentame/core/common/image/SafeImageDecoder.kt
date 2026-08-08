@@ -9,17 +9,15 @@ import java.io.InputStream
 object SafeImageDecoder {
 
     /**
-     * Decodes an image from an [InputStream] safely, limiting dimensions to [maxDimension].
+     * Decodes an image safely, limiting dimensions to [maxDimension].
      * Handles EXIF orientation.
      */
-    fun decode(inputStream: InputStream, maxDimension: Int): Bitmap? {
-        val bytes = inputStream.readBytes()
-        
+    suspend fun decode(streamProvider: suspend () -> InputStream, maxDimension: Int): Bitmap? {
         // Check dimensions first
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        streamProvider().use { BitmapFactory.decodeStream(it, null, options) }
 
         var width = options.outWidth
         var height = options.outHeight
@@ -33,13 +31,13 @@ object SafeImageDecoder {
         }
 
         val decodedOptions = BitmapFactory.Options().apply {
-            inSampleSize = inSampleSize
+            this.inSampleSize = inSampleSize
         }
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodedOptions) ?: return null
+        val bitmap = streamProvider().use { BitmapFactory.decodeStream(it, null, decodedOptions) } ?: return null
 
         // Handle Orientation
         val exif = try {
-            ExifInterface(bytes.inputStream())
+            streamProvider().use { ExifInterface(it) }
         } catch (e: Exception) {
             null
         }

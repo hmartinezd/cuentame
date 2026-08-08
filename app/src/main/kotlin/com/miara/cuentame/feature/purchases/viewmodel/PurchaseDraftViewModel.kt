@@ -28,6 +28,7 @@ import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUse
 import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceDocumentUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceResult
 import com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrFailure
+import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.core.model.supplier.Supplier
@@ -59,6 +60,7 @@ data class PurchaseDraftUiState(
     val isRemovingDocument: Boolean = false,
     val documentMetadata: StoredPurchaseDocument? = null,
     val ocrResult: PurchaseInvoiceOcrResult? = null,
+    val parseResult: PurchaseInvoiceParseResult? = null,
     val ocrState: OcrAnalysisState = OcrAnalysisState.Idle,
     val deletingLineId: PurchaseLineId? = null,
     val currencyCode: String = "",
@@ -80,6 +82,8 @@ sealed interface InvoiceCaptureState {
 sealed interface OcrAnalysisState {
     data object Idle : OcrAnalysisState
     data class Analyzing(val current: Int, val total: Int) : OcrAnalysisState
+    data object Parsing : OcrAnalysisState
+    data object Parsed : OcrAnalysisState
     data class Failure(val reason: PurchaseInvoiceOcrFailure) : OcrAnalysisState
 }
 
@@ -88,6 +92,7 @@ sealed interface PurchaseDraftEvent {
     data object Posted : PurchaseDraftEvent
     data object Deleted : PurchaseDraftEvent
     data class LineDeleted(val lineId: PurchaseLineId) : PurchaseDraftEvent
+    data class NavigateToReview(val receiptId: PurchaseReceiptId) : PurchaseDraftEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -104,6 +109,7 @@ class PurchaseDraftViewModel @Inject constructor(
     private val attachPurchaseDocumentUseCase: AttachPurchaseDocumentUseCase,
     private val removePurchaseDocumentUseCase: RemovePurchaseDocumentUseCase,
     private val analyzePurchaseInvoiceDocumentUseCase: AnalyzePurchaseInvoiceDocumentUseCase,
+    private val parseUseCase: com.miara.cuentame.core.domain.usecase.purchase.ParsePurchaseInvoiceUseCase,
     private val repository: com.miara.cuentame.core.domain.repository.PurchaseRepository,
     private val documentStore: PurchaseDocumentStore,
     private val restaurantRepository: RestaurantRepository,
@@ -187,12 +193,22 @@ class PurchaseDraftViewModel @Inject constructor(
             }
         }
 
+    private val parseResultFlow = savedStateHandle.getStateFlow<String?>("receiptId", null)
+        .flatMapLatest { idStr ->
+            if (idStr == null) {
+                kotlinx.coroutines.flow.flowOf(null)
+            } else {
+                repository.observeParseResult(PurchaseReceiptId(idStr))
+            }
+        }
+
     val uiState: StateFlow<PurchaseDraftUiState> = combine(
         detailsFlow,
         suppliers,
         restaurantFlow,
         documentMetadataFlow,
         ocrResultFlow,
+        parseResultFlow,
         _isSaving,
         _isPosting,
         _isDeletingDraft,
@@ -210,15 +226,16 @@ class PurchaseDraftViewModel @Inject constructor(
         val restaurant = args[2] as com.miara.cuentame.core.model.restaurant.Restaurant
         val documentMetadata = args[3] as StoredPurchaseDocument?
         val ocrResult = args[4] as PurchaseInvoiceOcrResult?
-        val saving = args[5] as Boolean
-        val posting = args[6] as Boolean
-        val deletingDraft = args[7] as Boolean
-        val captureState = args[8] as InvoiceCaptureState
-        val ocrState = args[9] as OcrAnalysisState
-        val removingDocument = args[10] as Boolean
-        val deletingLineId = args[11] as PurchaseLineId?
-        val error = args[12] as Throwable?
-        val scannerError = args[13] as PurchaseInvoiceScannerFailure?
+        val parseResult = args[5] as PurchaseInvoiceParseResult?
+        val saving = args[6] as Boolean
+        val posting = args[7] as Boolean
+        val deletingDraft = args[8] as Boolean
+        val captureState = args[9] as InvoiceCaptureState
+        val ocrState = args[10] as OcrAnalysisState
+        val removingDocument = args[11] as Boolean
+        val deletingLineId = args[12] as PurchaseLineId?
+        val error = args[13] as Throwable?
+        val scannerError = args[14] as PurchaseInvoiceScannerFailure?
 
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
@@ -229,6 +246,7 @@ class PurchaseDraftViewModel @Inject constructor(
             isRemovingDocument = removingDocument,
             documentMetadata = documentMetadata,
             ocrResult = ocrResult,
+            parseResult = parseResult,
             ocrState = ocrState,
             deletingLineId = deletingLineId,
             currencyCode = restaurant.currencyCode,
@@ -491,11 +509,17 @@ class PurchaseDraftViewModel @Inject constructor(
                             is AnalyzePurchaseInvoiceResult.Saving -> {
                                 _ocrState.value = OcrAnalysisState.Analyzing(100, 100) // "Saving..."
                             }
+                            AnalyzePurchaseInvoiceResult.Parsing -> {
+                                _ocrState.value = OcrAnalysisState.Parsing
+                            }
                             AnalyzePurchaseInvoiceResult.Success -> {
-                                _ocrState.value = OcrAnalysisState.Idle
+                                _ocrState.value = OcrAnalysisState.Parsed
                             }
                             is AnalyzePurchaseInvoiceResult.Failure -> {
                                 _ocrState.value = OcrAnalysisState.Failure(result.reason)
+                            }
+                            is AnalyzePurchaseInvoiceResult.ParseFailed -> {
+                                _ocrState.value = OcrAnalysisState.Idle // Text extracted, details failed
                             }
                         }
                     }
@@ -503,6 +527,33 @@ class PurchaseDraftViewModel @Inject constructor(
                     _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.Unknown)
                 }
             }
+        }
+    }
+
+    fun onParseDetails() {
+        val currentReceiptId = receiptId ?: return
+        viewModelScope.launch {
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _ocrState.value = OcrAnalysisState.Parsing
+                    val result = parseUseCase.execute(currentReceiptId)
+                    if (result.isSuccess) {
+                        _ocrState.value = OcrAnalysisState.Parsed
+                    } else {
+                        _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)
+                    }
+                } catch (e: Exception) {
+                     _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)
+                }
+            }
+        }
+    }
+
+    fun onReviewInvoice() {
+        val currentReceiptId = receiptId ?: return
+        viewModelScope.launch {
+            _events.send(PurchaseDraftEvent.NavigateToReview(currentReceiptId))
         }
     }
 

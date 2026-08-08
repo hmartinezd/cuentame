@@ -15,6 +15,8 @@ enum class PurchaseInvoiceOcrFailure {
     RecognitionFailed,
     DocumentChanged,
     PersistenceFailed,
+    ParsingFailed,
+    OcrResultMissing,
     OutOfMemory,
     Unknown
 }

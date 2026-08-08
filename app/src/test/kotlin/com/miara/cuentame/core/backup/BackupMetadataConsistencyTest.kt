@@ -14,6 +14,7 @@ import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.model.backup.BackupValidationResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.database.DatabaseSchema
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -45,7 +46,7 @@ class BackupMetadataConsistencyTest {
         every { appVersionProvider.applicationId } returns "com.miara.cuentame"
         every { appVersionProvider.versionName } returns "1.0"
         every { appVersionProvider.versionCode } returns 1L
-        every { appVersionProvider.databaseSchemaVersion } returns 5
+        every { appVersionProvider.databaseSchemaVersion } returns DatabaseSchema.VERSION
 
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         coEvery { preferencesSource.loadPreferences() } returns BackupPreferencesDto("SYSTEM", true, "en-US")
@@ -63,9 +64,9 @@ class BackupMetadataConsistencyTest {
 
     @Test
     fun planner_validator_and_helper_produce_consistent_metadata() = runBlocking<Unit> {
-        // 1. Create a representative schema-5 snapshot
-        val snapshot = createPopulatedSchema5Snapshot()
-        val restaurant = Restaurant(RestaurantId("r1"), "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        // 1. Create a representative current snapshot
+        val snapshot = createPopulatedCurrentSnapshot()
+        val restaurant = Restaurant(RestaurantId("r1"), "Test", "USD", "en-US", Instant.now(), Instant.now())
         
         // 2. Generate plan through Planner
         val snapshotResult = BackupSnapshotResult(snapshot, emptyList())
@@ -78,7 +79,7 @@ class BackupMetadataConsistencyTest {
         // 3. Generate manifest through Test Helper (Local copy for JVM test)
         val helperManifest = createManifestForSnapshot(
             snapshot = snapshot,
-            schemaVersion = 5,
+            schemaVersion = DatabaseSchema.VERSION,
             restaurantName = "Test",
             localeTag = "en-US",
             currencyCode = "USD"
@@ -98,12 +99,12 @@ class BackupMetadataConsistencyTest {
         // 6. Compare Validator-accepted manifest against original
         assertThat(validatedManifest.tableMetadata).isEqualTo(plannerMetadata)
         
-        // 7. Verify literal expected schema-5 keys
-        val expectedKeys = BackupFormatV1Contract.expectedTablesForSchema(5)
+        // 7. Verify literal expected schema keys
+        val expectedKeys = BackupFormatV1Contract.expectedTablesForSchema(DatabaseSchema.VERSION)
         assertThat(plannerMetadata.keys).containsExactlyElementsIn(expectedKeys)
     }
 
-    private fun createPopulatedSchema5Snapshot() = BackupSnapshotDto(
+    private fun createPopulatedCurrentSnapshot() = BackupSnapshotDto(
         restaurants = listOf(com.miara.cuentame.core.backup.model.RestaurantBackupDto("r1", "Test", "USD", "en-US", 100, 100, null)),
         inventoryAreas = emptyList(),
         ingredientCategories = emptyList(),
@@ -123,7 +124,11 @@ class BackupMetadataConsistencyTest {
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
         productionBatches = emptyList(),
-        productionBatchComponents = emptyList()
+        productionBatchComponents = emptyList(),
+        purchaseInvoiceOcrResults = emptyList(),
+        purchaseInvoiceOcrPages = emptyList(),
+        purchaseInvoiceParseResults = emptyList(),
+        purchaseInvoiceParsedLines = emptyList()
     )
 
     private fun createManifestForSnapshot(
@@ -159,7 +164,11 @@ class BackupMetadataConsistencyTest {
             "preparation_recipes" to snapshot.preparationRecipes.size,
             "preparation_recipe_components" to snapshot.preparationRecipeComponents.size,
             "production_batches" to snapshot.productionBatches.size,
-            "production_batch_components" to snapshot.productionBatchComponents.size
+            "production_batch_components" to snapshot.productionBatchComponents.size,
+            "purchase_invoice_ocr_results" to snapshot.purchaseInvoiceOcrResults.size,
+            "purchase_invoice_ocr_pages" to snapshot.purchaseInvoiceOcrPages.size,
+            "purchase_invoice_parse_results" to snapshot.purchaseInvoiceParseResults.size,
+            "purchase_invoice_parsed_lines" to snapshot.purchaseInvoiceParsedLines.size
         )
 
         for (table in expectedTables) {

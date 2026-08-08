@@ -167,6 +167,14 @@ class AndroidPurchaseDocumentStore @Inject constructor(
         file.inputStream()
     }
 
+    override suspend fun getFile(storedLocation: String): File = withContext(Dispatchers.IO) {
+        val file = PurchaseAttachmentLocation.resolvePurchaseDocument(context.filesDir, storedLocation)
+        if (!file.exists()) {
+            throw java.io.FileNotFoundException("Stored document not found: $storedLocation")
+        }
+        file
+    }
+
     private fun validatePdf(file: File) {
         if (file.length() == 0L) throw IllegalArgumentException("Empty PDF file")
         

@@ -316,6 +316,18 @@ class BackupCreationPlanner @Inject constructor(
             tables["production_batch_components"] = TableMetadata(dto.productionBatchComponents.size, false)
         }
 
+        // Add OCR tables for schema 6+
+        if (appVersionProvider.databaseSchemaVersion >= 6) {
+            tables["purchase_invoice_ocr_results"] = TableMetadata(dto.purchaseInvoiceOcrResults.size, false)
+            tables["purchase_invoice_ocr_pages"] = TableMetadata(dto.purchaseInvoiceOcrPages.size, false)
+        }
+
+        // Add Parsing tables for schema 7+
+        if (appVersionProvider.databaseSchemaVersion >= 7) {
+            tables["purchase_invoice_parse_results"] = TableMetadata(dto.purchaseInvoiceParseResults.size, false)
+            tables["purchase_invoice_parsed_lines"] = TableMetadata(dto.purchaseInvoiceParsedLines.size, false)
+        }
+
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 }

@@ -95,7 +95,7 @@ class BackupRoundTripTest {
         assertThat(ready.preview.restaurantName).isEqualTo("Test Rest")
     }
 
-    private fun createPopulatedSnapshot() = BackupTestFixtures.createPopulatedSchema4Snapshot()
+    private fun createPopulatedSnapshot() = BackupTestFixtures.createPopulatedCurrentSnapshot()
 
     @Test
     fun `complete round trip without attachments`() = runTest {

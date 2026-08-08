@@ -13,6 +13,7 @@ import com.miara.cuentame.feature.purchases.ui.PurchaseDocumentViewerRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDraftRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseLineRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseListRoute
+import com.miara.cuentame.feature.purchases.ui.ReviewDetectedInvoiceRoute
 import com.miara.cuentame.feature.purchases.ui.RawOcrViewerScreen
 
 fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
@@ -37,6 +38,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
             },
             onNavigateToDocument = { id -> navController.navigate(AppRoutes.purchaseDocument(id)) },
             onNavigateToRawOcr = { id -> navController.navigate(AppRoutes.purchaseRawOcr(id)) },
+            onReviewInvoice = { id -> navController.navigate(AppRoutes.purchaseReview(id)) },
             onAddLine = {},
             onEditLine = { _, _ -> },
             onPostSuccess = {}
@@ -52,6 +54,7 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 onNavigateToDraft = {},
                 onNavigateToDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) },
                 onNavigateToRawOcr = { rid -> navController.navigate(AppRoutes.purchaseRawOcr(rid)) },
+                onReviewInvoice = { rid -> navController.navigate(AppRoutes.purchaseReview(rid)) },
                 onAddLine = { rid -> navController.navigate(AppRoutes.purchaseLineCreate(rid)) },
                 onEditLine = { rid, lid -> navController.navigate(AppRoutes.purchaseLineEdit(rid, lid)) },
                 onPostSuccess = { rid ->
@@ -66,6 +69,18 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
         RawOcrViewerScreen(
             onBack = { navController.popBackStack() }
         )
+    }
+    composable(route = Destination.PURCHASE_REVIEW.route) { backStackEntry ->
+        val idStr = backStackEntry.arguments?.getString("receiptId")
+        if (idStr != null) {
+            val purchaseId = PurchaseReceiptId(idStr)
+            ReviewDetectedInvoiceRoute(
+                receiptId = purchaseId,
+                onBack = { navController.popBackStack() },
+                onViewDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) },
+                onViewRawOcr = { rid -> navController.navigate(AppRoutes.purchaseRawOcr(rid)) }
+            )
+        }
     }
     composable(route = Destination.PURCHASE_LINE_CREATE.route) {
         PurchaseLineRoute(

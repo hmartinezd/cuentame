@@ -33,7 +33,9 @@ interface BackupDao {
             productionBatches = getProductionBatches(restaurantId),
             productionBatchComponents = getProductionBatchComponents(restaurantId),
             purchaseInvoiceOcrResults = getPurchaseInvoiceOcrResults(restaurantId),
-            purchaseInvoiceOcrPages = getPurchaseInvoiceOcrPages(restaurantId)
+            purchaseInvoiceOcrPages = getPurchaseInvoiceOcrPages(restaurantId),
+            purchaseInvoiceParseResults = getPurchaseInvoiceParseResults(restaurantId),
+            purchaseInvoiceParsedLines = getPurchaseInvoiceParsedLines(restaurantId)
         )
     }
 
@@ -145,6 +147,23 @@ interface BackupDao {
     """)
     suspend fun getPurchaseInvoiceOcrPages(restaurantId: String): List<PurchaseInvoiceOcrPageEntity>
 
+    @Query("""
+        SELECT parse.* FROM purchase_invoice_parse_results parse
+        JOIN purchase_receipts pr ON parse.purchaseReceiptId = pr.id
+        WHERE pr.restaurantId = :restaurantId
+        ORDER BY parse.id ASC
+    """)
+    suspend fun getPurchaseInvoiceParseResults(restaurantId: String): List<PurchaseInvoiceParseResultEntity>
+
+    @Query("""
+        SELECT line.* FROM purchase_invoice_parsed_lines line
+        JOIN purchase_invoice_parse_results parse ON line.parseResultId = parse.id
+        JOIN purchase_receipts pr ON parse.purchaseReceiptId = pr.id
+        WHERE pr.restaurantId = :restaurantId
+        ORDER BY parse.id ASC, line.lineIndex ASC
+    """)
+    suspend fun getPurchaseInvoiceParsedLines(restaurantId: String): List<PurchaseInvoiceParsedLineEntity>
+
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
         return BackupSnapshot(
@@ -169,7 +188,9 @@ interface BackupDao {
             productionBatches = getAllProductionBatches(),
             productionBatchComponents = getAllProductionBatchComponents(),
             purchaseInvoiceOcrResults = getAllPurchaseInvoiceOcrResults(),
-            purchaseInvoiceOcrPages = getAllPurchaseInvoiceOcrPages()
+            purchaseInvoiceOcrPages = getAllPurchaseInvoiceOcrPages(),
+            purchaseInvoiceParseResults = getAllPurchaseInvoiceParseResults(),
+            purchaseInvoiceParsedLines = getAllPurchaseInvoiceParsedLines()
         )
     }
 
@@ -235,4 +256,10 @@ interface BackupDao {
 
     @Query("SELECT * FROM purchase_invoice_ocr_pages")
     suspend fun getAllPurchaseInvoiceOcrPages(): List<PurchaseInvoiceOcrPageEntity>
+
+    @Query("SELECT * FROM purchase_invoice_parse_results")
+    suspend fun getAllPurchaseInvoiceParseResults(): List<PurchaseInvoiceParseResultEntity>
+
+    @Query("SELECT * FROM purchase_invoice_parsed_lines")
+    suspend fun getAllPurchaseInvoiceParsedLines(): List<PurchaseInvoiceParsedLineEntity>
 }

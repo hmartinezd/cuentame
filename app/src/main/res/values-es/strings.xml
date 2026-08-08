@@ -799,10 +799,15 @@
     <string name="ocr_status_not_analyzed">No analizado</string>
     <string name="ocr_status_analyzing">Analizando…</string>
     <string name="ocr_status_analyzing_progress">Analizando página %1$d de %2$d…</string>
+    <string name="ocr_status_parsing">Extrayendo detalles…</string>
     <string name="ocr_status_extracted">Texto extraído</string>
+    <string name="ocr_status_parsed">Detalles extraídos</string>
     <string name="ocr_status_failed">Error de análisis</string>
     <string name="ocr_action_analyze">Analizar factura</string>
     <string name="ocr_action_reanalyze">Re-analizar</string>
     <string name="ocr_action_view_text">Ver texto detectado</string>
+    <string name="ocr_action_review">Revisar detalles</string>
+    <string name="ocr_action_parse">Extraer detalles</string>
+    <string name="ocr_action_retry">Reintentar análisis</string>
     <string name="ocr_error_document_changed">El documento fue reemplazado durante el análisis.</string>
 </resources>

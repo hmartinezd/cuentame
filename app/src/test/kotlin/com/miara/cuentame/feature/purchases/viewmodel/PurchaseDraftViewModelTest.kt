@@ -36,7 +36,9 @@ import android.net.Uri
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerException
+import com.miara.cuentame.core.backup.api.StoredPurchaseDocument
 import com.miara.cuentame.core.backup.fakes.FakePurchaseInvoiceScanner
+import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.presentation.ui.findActivity
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -64,24 +66,7 @@ class PurchaseDraftViewModelTest {
     private val detailsFlow = MutableStateFlow<PurchaseDetails?>(null)
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
 
-    private val fakePurchaseRepository = object : PurchaseRepository {
-        override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> = MutableStateFlow(emptyList())
-        override fun observePurchase(id: PurchaseReceiptId): Flow<PurchaseDetails?> = detailsFlow
-        override suspend fun getReceipt(id: PurchaseReceiptId): PurchaseReceipt? = detailsFlow.value?.receipt
-        override suspend fun createDraft(command: CreatePurchaseDraftCommand): PurchaseReceiptId = PurchaseReceiptId("new_rid")
-        override suspend fun updateDraft(command: UpdatePurchaseDraftCommand) {}
-        override suspend fun saveLine(command: SavePurchaseLineCommand): PurchaseLineId = PurchaseLineId("new_lid")
-        override suspend fun deleteLine(receiptId: PurchaseReceiptId, lineId: PurchaseLineId) {}
-        override suspend fun deleteDraft(id: PurchaseReceiptId) {}
-        override suspend fun post(id: PurchaseReceiptId) {}
-        override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
-        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
-        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = MutableStateFlow(null)
-        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
-        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
-        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
-    }
+    private val fakePurchaseRepository = mockk<PurchaseRepository>(relaxed = true)
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
         override fun observeRestaurant(): Flow<Restaurant?> = restaurantFlow
@@ -100,6 +85,10 @@ class PurchaseDraftViewModelTest {
         io.mockk.every { Uri.parse(any()) } returns mockk(relaxed = true)
         mockkStatic("com.miara.cuentame.core.presentation.ui.ContextUtilsKt")
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
+        
+        io.mockk.every { fakePurchaseRepository.observePurchase(any()) } returns detailsFlow
+        io.mockk.every { fakePurchaseRepository.observeOcrResult(any()) } returns MutableStateFlow(null)
+        io.mockk.every { fakePurchaseRepository.observeParseResult(any()) } returns MutableStateFlow(null)
     }
 
     @After
@@ -243,6 +232,10 @@ class PurchaseDraftViewModelTest {
     }
 
     private fun createViewModel(receiptId: String?, scanner: com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner = mockk(relaxed = true)): PurchaseDraftViewModel {
+        val ocrEngine = mockk<com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrEngine>(relaxed = true)
+        val parseUseCase = mockk<com.miara.cuentame.core.domain.usecase.purchase.ParsePurchaseInvoiceUseCase>(relaxed = true)
+        val idGenerator = mockk<IdGenerator>(relaxed = true)
+        
         return PurchaseDraftViewModel(
             SavedStateHandle(if (receiptId != null) mapOf("receiptId" to receiptId) else emptyMap()),
             CreatePurchaseDraftUseCase(fakePurchaseRepository),
@@ -261,7 +254,8 @@ class PurchaseDraftViewModelTest {
             }),
             AttachPurchaseDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true)),
             RemovePurchaseDocumentUseCase(fakePurchaseRepository),
-            AnalyzePurchaseInvoiceDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), timeProvider),
+            AnalyzePurchaseInvoiceDocumentUseCase(fakePurchaseRepository, mockk(relaxed = true), mockk(relaxed = true), ocrEngine, parseUseCase, idGenerator, timeProvider),
+            parseUseCase,
             fakePurchaseRepository,
             mockk(relaxed = true),
             fakeRestaurantRepository,

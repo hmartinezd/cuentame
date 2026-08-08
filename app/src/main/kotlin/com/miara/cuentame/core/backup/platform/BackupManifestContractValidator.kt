@@ -200,22 +200,38 @@ object BackupManifestContractValidator {
             "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
         )
 
-        if (manifest.databaseSchemaVersion >= 4) {
+        if (manifest.databaseSchemaVersion >= 3) {
             actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
             actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+        } else {
+            if (snapshot.preparationRecipes.isNotEmpty() || snapshot.preparationRecipeComponents.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
+        if (manifest.databaseSchemaVersion >= 4) {
             actualCounts["production_batches"] = snapshot.productionBatches.size
             actualCounts["production_batch_components"] = snapshot.productionBatchComponents.size
-        } else if (manifest.databaseSchemaVersion == 3) {
-            actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size
-            actualCounts["preparation_recipe_components"] = snapshot.preparationRecipeComponents.size
+        } else {
             if (snapshot.productionBatches.isNotEmpty() || snapshot.productionBatchComponents.isNotEmpty()) {
                 return BackupRestoreFailure.ManifestMismatch
             }
-        } else if (manifest.databaseSchemaVersion == 2) {
-            if (snapshot.preparationRecipes.isNotEmpty() || 
-                snapshot.preparationRecipeComponents.isNotEmpty() ||
-                snapshot.productionBatches.isNotEmpty() ||
-                snapshot.productionBatchComponents.isNotEmpty()) {
+        }
+        
+        if (manifest.databaseSchemaVersion >= 6) {
+            actualCounts["purchase_invoice_ocr_results"] = snapshot.purchaseInvoiceOcrResults.size
+            actualCounts["purchase_invoice_ocr_pages"] = snapshot.purchaseInvoiceOcrPages.size
+        } else {
+            if (snapshot.purchaseInvoiceOcrResults.isNotEmpty() || snapshot.purchaseInvoiceOcrPages.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
+        if (manifest.databaseSchemaVersion >= 7) {
+            actualCounts["purchase_invoice_parse_results"] = snapshot.purchaseInvoiceParseResults.size
+            actualCounts["purchase_invoice_parsed_lines"] = snapshot.purchaseInvoiceParsedLines.size
+        } else {
+            if (snapshot.purchaseInvoiceParseResults.isNotEmpty() || snapshot.purchaseInvoiceParsedLines.isNotEmpty()) {
                 return BackupRestoreFailure.ManifestMismatch
             }
         }

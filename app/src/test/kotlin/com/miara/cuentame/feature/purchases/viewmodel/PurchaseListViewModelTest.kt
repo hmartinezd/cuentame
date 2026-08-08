@@ -17,6 +17,8 @@ import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.Supplier
+import io.mockk.mockk
+import io.mockk.every
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -41,24 +43,7 @@ class PurchaseListViewModelTest {
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
     private val purchasesFlow = MutableStateFlow<List<PurchaseSummary>>(emptyList())
 
-    private val fakePurchaseRepository = object : PurchaseRepository {
-        override fun observePurchases(filter: PurchaseFilter): Flow<List<PurchaseSummary>> = purchasesFlow
-        override fun observePurchase(id: PurchaseReceiptId): Flow<com.miara.cuentame.core.domain.repository.PurchaseDetails?> = flowOf(null)
-        override suspend fun getReceipt(id: PurchaseReceiptId): PurchaseReceipt? = null
-        override suspend fun createDraft(command: com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand): PurchaseReceiptId = PurchaseReceiptId("")
-        override suspend fun updateDraft(command: com.miara.cuentame.core.domain.repository.UpdatePurchaseDraftCommand) {}
-        override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SavePurchaseLineCommand): com.miara.cuentame.core.common.ids.PurchaseLineId = com.miara.cuentame.core.common.ids.PurchaseLineId("")
-        override suspend fun deleteLine(receiptId: PurchaseReceiptId, lineId: com.miara.cuentame.core.common.ids.PurchaseLineId) {}
-        override suspend fun deleteDraft(id: PurchaseReceiptId) {}
-        override suspend fun post(id: PurchaseReceiptId) {}
-        override suspend fun void(id: PurchaseReceiptId) {}
-        override suspend fun attachDocument(receiptId: PurchaseReceiptId, storedLocation: String, displayName: String) {}
-        override suspend fun removeDocument(receiptId: PurchaseReceiptId) {}
-        override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> = flowOf(null)
-        override suspend fun getOcrPages(resultId: String): List<PurchaseInvoiceOcrPage> = emptyList()
-        override suspend fun saveOcrResult(result: PurchaseInvoiceOcrResult, pages: List<PurchaseInvoiceOcrPage>) {}
-        override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {}
-    }
+    private val fakePurchaseRepository = mockk<PurchaseRepository>(relaxed = true)
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
         override fun observeRestaurant(): Flow<Restaurant?> = restaurantFlow
@@ -79,6 +64,10 @@ class PurchaseListViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
+
+        every { fakePurchaseRepository.observePurchases(any()) } returns purchasesFlow
+        every { fakePurchaseRepository.observeOcrResult(any()) } returns flowOf(null)
+        every { fakePurchaseRepository.observeParseResult(any()) } returns flowOf(null)
     }
 
     @After

@@ -23,10 +23,10 @@ data class OcrBlockEvidence(
 data class OcrLineEvidence(
     val text: String,
     val boundingBox: OcrRect?,
-    val cornerPoints: List<OcrPoint>,
-    val confidence: Float?,
-    val angleDegrees: Float?,
-    val recognizedLanguages: List<String>,
+    val cornerPoints: List<OcrPoint> = emptyList(),
+    val confidence: Float? = null,
+    val angleDegrees: Float? = null,
+    val recognizedLanguages: List<String> = emptyList(),
     val elements: List<OcrElementEvidence>
 )
 
@@ -34,10 +34,10 @@ data class OcrLineEvidence(
 data class OcrElementEvidence(
     val text: String,
     val boundingBox: OcrRect?,
-    val cornerPoints: List<OcrPoint>,
-    val confidence: Float?,
-    val angleDegrees: Float?,
-    val recognizedLanguages: List<String>
+    val cornerPoints: List<OcrPoint> = emptyList(),
+    val confidence: Float? = null,
+    val angleDegrees: Float? = null,
+    val recognizedLanguages: List<String> = emptyList()
 )
 
 @Serializable

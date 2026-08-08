@@ -245,6 +245,10 @@ class DefaultBackupArchiveValidator @Inject constructor(
             tables["purchase_invoice_ocr_results"] = TableMetadata(dbDto.purchaseInvoiceOcrResults.size, false)
             tables["purchase_invoice_ocr_pages"] = TableMetadata(dbDto.purchaseInvoiceOcrPages.size, false)
         }
+        if (schemaVersion >= 7) {
+            tables["purchase_invoice_parse_results"] = TableMetadata(dbDto.purchaseInvoiceParseResults.size, false)
+            tables["purchase_invoice_parsed_lines"] = TableMetadata(dbDto.purchaseInvoiceParsedLines.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 

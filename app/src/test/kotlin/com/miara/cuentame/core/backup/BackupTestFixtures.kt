@@ -35,8 +35,21 @@ object BackupTestFixtures {
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
         productionBatches = emptyList(),
-        productionBatchComponents = emptyList()
+        productionBatchComponents = emptyList(),
+        purchaseInvoiceOcrResults = emptyList(),
+        purchaseInvoiceOcrPages = emptyList(),
+        purchaseInvoiceParseResults = emptyList(),
+        purchaseInvoiceParsedLines = emptyList()
     )
+
+    fun createPopulatedCurrentSnapshot(): BackupSnapshotDto {
+        return createPopulatedSchema4Snapshot().copy(
+            purchaseInvoiceOcrResults = emptyList(),
+            purchaseInvoiceOcrPages = emptyList(),
+            purchaseInvoiceParseResults = emptyList(),
+            purchaseInvoiceParsedLines = emptyList()
+        )
+    }
 
     fun addPostedPurchase(
         snapshot: BackupSnapshotDto,

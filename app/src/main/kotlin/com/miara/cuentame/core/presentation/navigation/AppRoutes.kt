@@ -44,6 +44,9 @@ object AppRoutes {
     fun purchaseRawOcr(id: PurchaseReceiptId): String =
         "purchases/${encoder.encode(id.value)}/ocr"
 
+    fun purchaseReview(id: PurchaseReceiptId): String =
+        "purchases/${encoder.encode(id.value)}/review"
+
     fun purchaseLineCreate(receiptId: PurchaseReceiptId): String =
         "purchases/${encoder.encode(receiptId.value)}/line"
 
