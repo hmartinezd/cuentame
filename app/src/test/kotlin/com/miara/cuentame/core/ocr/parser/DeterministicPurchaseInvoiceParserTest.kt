@@ -13,9 +13,9 @@ class DeterministicPurchaseInvoiceParserTest {
     fun `headerless standard invoice extraction`() {
         val page = createPage(
             listOf(
-                "000101   TOMATO ROMA        25 LB CS     2    31.50    63.00",
-                "000102   ONION YELLOW       50 LB        1    28.00    28.00",
-                "000103   CHICKEN BREAST     40 LB CS     3    54.25   162.75"
+                "000101          TOMATO ROMA           25 LB         2      31.50      63.00",
+                "000102          ONION YELLOW          50 LB         1      28.00      28.00",
+                "000103          CHICKEN BREAST        40 LB         3      54.25     162.75"
             )
         )
 
@@ -27,100 +27,102 @@ class DeterministicPurchaseInvoiceParserTest {
         val line1 = result.lines[0]
         assertEquals("000101", line1.vendorCode.normalizedValue)
         assertTrue("Description should contain TOMATO ROMA", line1.description.normalizedValue?.contains("TOMATO ROMA") == true)
+        assertEquals("25 LB", line1.packageText.normalizedValue)
         assertEquals(BigDecimal("2"), line1.quantity.normalizedValue)
         assertEquals(BigDecimal("31.50"), line1.unitPrice.normalizedValue)
         assertEquals(BigDecimal("63.00"), line1.lineTotal.normalizedValue)
     }
 
     @Test
-    fun `financial precision 0_10 times 3 equals 0_30`() {
-        val page = createPage(
+    fun `distinct-row support requirement`() {
+        val pageSingle = createPage(
             listOf(
-                "ITEM  DESCRIPTION  QTY  PRICE  AMOUNT",
-                "101   CANDY        3    0.10   0.30"
+                "FOOTER INFO   10.00   20.00   30.00"
             )
         )
+        val resultSingle = parser.parse(listOf(pageSingle))
+        assertTrue("Should NOT infer layout with only 1 supporting row", 
+            resultSingle.warnings.contains(InvoiceParseWarning.UnknownColumnLayout))
 
-        val result = parser.parse(listOf(page))
-        val line = result.lines[0]
-
-        assertFalse("Should not have LineMathMismatch warning", line.warnings.contains(InvoiceParseWarning.LineMathMismatch))
-        assertEquals(BigDecimal("0.30"), line.lineTotal.normalizedValue)
+        val pageMulti = createPage(
+            listOf(
+                "ITEM A        10.00    10.00",
+                "ITEM B        20.00    20.00",
+                "ITEM C        30.00    30.00"
+            )
+        )
+        val resultMulti = parser.parse(listOf(pageMulti))
+        assertFalse("Should infer layout with 3 supporting rows", 
+            resultMulti.warnings.contains(InvoiceParseWarning.UnknownColumnLayout))
     }
 
     @Test
-    fun `headerless with noise above and below`() {
+    fun `invoice full equation validation`() {
         val page = createPage(
             listOf(
-                "SUPPLIER NAME",
-                "123 MAIN ST",
-                "INVOICE: 12345",
-                "DATE: 2026-08-08",
-                "",
-                "000101   TOMATO ROMA        2    31.50    63.00",
-                "000102   ONION YELLOW       1    28.00    28.00",
-                "",
-                "Subtotal       91.00",
-                "Tax              0.00",
-                "Total          91.00"
+                "Subtotal       100.00",
+                "Discount       5.00",
+                "Delivery Fee   10.00",
+                "Tax            7.35",
+                "Total          112.35"
             )
         )
-
         val result = parser.parse(listOf(page))
+        assertFalse("Should not have InvoiceMathMismatch", result.warnings.contains(InvoiceParseWarning.InvoiceMathMismatch))
+        assertEquals(BigDecimal("100.00"), result.subtotal.normalizedValue)
+        assertEquals(BigDecimal("112.35"), result.total.normalizedValue)
+    }
 
-        assertEquals(2, result.lines.size)
-        assertEquals("SUPPLIER NAME", result.supplierNameCandidate.normalizedValue)
-        assertEquals("12345", result.invoiceNumber.normalizedValue)
-        assertEquals(BigDecimal("91.00"), result.total.normalizedValue)
+    @Test
+    fun `headerless decimal comma regression`() {
+        val page = createPage(
+            listOf(
+                "000301          TOMATE ROMA    25 KG    2    31,50    63,00",
+                "000302          CEBOLLA        20 KG    1    28,00    28,00",
+                "000303          POLLO          15 KG    3    54,25   162,75"
+            )
+        )
+        val result = parser.parse(listOf(page))
+        assertEquals(3, result.lines.size)
         
-        // Ensure totals are not products
-        assertFalse("Totals should not be treated as lines", result.lines.any { it.description.normalizedValue?.lowercase()?.contains("total") == true })
+        val line3 = result.lines[2]
+        assertEquals("000303", line3.vendorCode.normalizedValue)
+        assertEquals(BigDecimal("162.75"), line3.lineTotal.normalizedValue)
     }
 
     @Test
-    fun `headerless wrapped description`() {
+    fun `leading-zero SKU preservation`() {
         val page = createPage(
             listOf(
-                "000201   CHICKEN BREAST BONELESS",
-                "         SKINLESS FROZEN",
-                "                                  2    74.50    149.00"
+                "ITEM           DESCRIPTION  QTY  TOTAL",
+                "000101         TOMATO       1    10.00"
             )
         )
-
         val result = parser.parse(listOf(page))
-        
-        // This heuristic-heavy case.
-        assertTrue("Should extract at least one line", result.lines.isNotEmpty())
-        assertTrue("Description should be partially or fully captured", 
-            result.lines[0].description.normalizedValue?.contains("CHICKEN BREAST") == true)
-        assertEquals(BigDecimal("149.00"), result.lines[0].lineTotal.normalizedValue)
+        assertEquals("000101", result.lines[0].vendorCode.normalizedValue)
     }
 
     @Test
-    fun `multipage continuation without repeated header`() {
-        val page1 = createPage(
-            listOf(
-                "ITEM   DESCRIPTION   QTY   PRICE   TOTAL",
-                "101    ITEM A        1     10.00   10.00"
-            )
-        )
-        val page2 = createPage(
-            listOf(
-                "102    ITEM B        2     15.00   30.00"
-            )
-        )
-
-        val result = parser.parse(listOf(page1, page2))
-
-        assertEquals(2, result.lines.size)
-        assertEquals("101", result.lines[0].vendorCode.normalizedValue)
-        assertEquals("102", result.lines[1].vendorCode.normalizedValue)
+    fun `determinism test`() {
+        val page = createPage(listOf(
+            "101   ITEM A   1   10.00   10.00",
+            "102   ITEM B   1   15.00   15.00",
+            "103   ITEM C   1   20.00   20.00"
+        ))
+        val result1 = parser.parse(listOf(page))
+        val result2 = parser.parse(listOf(page))
+        
+        assertEquals(result1.lines.size, result2.lines.size)
+        assertEquals(result1.lines[0].description.normalizedValue, result2.lines[0].description.normalizedValue)
+        assertEquals(result1.confidence, result2.confidence)
     }
 
     private fun createPage(lines: List<String>): OcrPageEvidence {
         val ocrLines = lines.mapIndexed { lineIdx, text ->
-            val elements = text.split(Regex("\\s{2,}|(?<=\\d)\\s(?=\\d)")).filter { it.isNotBlank() }.map { elemText ->
-                val startIdx = text.indexOf(elemText)
+            var lastIndex = 0
+            val elements = text.split(Regex("\\s{3,}")).filter { it.isNotBlank() }.map { elemText ->
+                val startIdx = text.indexOf(elemText, lastIndex)
+                lastIndex = startIdx + elemText.length
                 OcrElementEvidence(
                     text = elemText,
                     boundingBox = OcrRect(

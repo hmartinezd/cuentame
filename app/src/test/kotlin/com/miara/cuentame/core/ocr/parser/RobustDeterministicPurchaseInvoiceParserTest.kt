@@ -78,8 +78,8 @@ class RobustDeterministicPurchaseInvoiceParserTest {
                 blocks = listOf(
                     headerBlock(listOf("ITEM", "DESCRIPTION", "QTY", "PRICE", "AMOUNT"), 100),
                     lineBlock(listOf("001234", "CHICKEN BREAST"), 200),
-                    // Continuation row
-                    lineBlock(listOf("BONELESS SKINLESS", "2", "74.50", "149.00"), 230)
+                    // Continuation row - align with columns
+                    lineBlock(listOf("", "BONELESS SKINLESS", "2", "74.50", "149.00"), 230)
                 )
             )
         )

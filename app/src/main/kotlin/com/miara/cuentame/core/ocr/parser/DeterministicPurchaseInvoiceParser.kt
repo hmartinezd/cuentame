@@ -1,14 +1,11 @@
 package com.miara.cuentame.core.ocr.parser
 
-import com.miara.cuentame.core.common.decimal.MoneyComparison
-import com.miara.cuentame.core.ocr.api.OcrElementEvidence
 import com.miara.cuentame.core.ocr.api.OcrPageEvidence
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.abs
 
 class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoiceParser {
 
@@ -37,60 +34,49 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             return PurchaseInvoiceParseResult.empty()
         }
 
-        val rows = clusterIntoRows(tokens)
+        val rows = RowClusterer.clusterIntoRows(tokens)
         val numericContext = inferNumericContext(tokens)
         
-        // 1. Header identification
         val supplier = detectSupplier(tokens)
         val invoiceNumber = detectInvoiceNumber(tokens)
         val date = detectDate(tokens, numericContext)
 
-        // 2. Table identification
-        val tableLayout = detectTableLayout(rows)
-        
-        // 3. Line extraction
-        val lineCandidates = extractLines(rows, tableLayout, numericContext)
-
-        // 4. Totals identification
+        val pageLayouts = detectTableLayouts(rows)
+        val lineCandidates = extractLines(rows, pageLayouts, numericContext)
         val totals = detectTotals(tokens, numericContext)
 
         val warnings = mutableListOf<InvoiceParseWarning>()
-        if (tableLayout == null) {
+        if (pageLayouts.values.all { it.source == LayoutSource.Unknown }) {
             warnings.add(InvoiceParseWarning.UnknownColumnLayout)
-        } else if (tableLayout.isInferred) {
+        } else if (pageLayouts.values.any { it.source == LayoutSource.GeometricInference }) {
             warnings.add(InvoiceParseWarning.InferredColumnLayout)
         }
         
         if (numericContext.isAmbiguous) warnings.add(InvoiceParseWarning.AmbiguousNumberFormat)
 
-        // Line math validation
         val validatedLines = lineCandidates.map { line ->
             if (line.isIgnored) return@map line
             val qty = line.quantity.normalizedValue
             val price = line.unitPrice.normalizedValue
             val total = line.lineTotal.normalizedValue
             
-            if (qty != null && price != null && total != null) {
-                val expected = qty.multiply(price).setScale(2, RoundingMode.HALF_UP)
-                if (!MoneyComparison.moneyApproximatelyEquals(expected, total)) {
-                    return@map line.copy(
-                        warnings = line.warnings + InvoiceParseWarning.LineMathMismatch,
-                        confidence = (line.confidence ?: 0.5f) * 0.8f
-                    )
-                }
+            if (!InvoiceMathValidator.isLineMathValid(qty, price, total)) {
+                return@map line.copy(
+                    warnings = line.warnings + InvoiceParseWarning.LineMathMismatch,
+                    confidence = (line.confidence ?: 0.5f) * 0.8f
+                )
             }
             line
         }
 
-        // Invoice math validation
-        val subtotal = totals.subtotal.normalizedValue
-        val tax = totals.tax.normalizedValue
-        val totalAmount = totals.total.normalizedValue
-        if (subtotal != null && totalAmount != null) {
-             val expected = subtotal.add(tax ?: BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
-             if (!MoneyComparison.moneyApproximatelyEquals(expected, totalAmount)) {
-                 warnings.add(InvoiceParseWarning.InvoiceMathMismatch)
-             }
+        if (!InvoiceMathValidator.isInvoiceMathValid(
+                totals.subtotal.normalizedValue,
+                totals.discount.normalizedValue,
+                totals.fees.normalizedValue,
+                totals.tax.normalizedValue,
+                totals.total.normalizedValue
+        )) {
+            warnings.add(InvoiceParseWarning.InvoiceMathMismatch)
         }
 
         return PurchaseInvoiceParseResult(
@@ -104,58 +90,209 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             total = totals.total,
             currency = totals.currency,
             lines = validatedLines,
-            confidence = calculateOverallConfidence(validatedLines, totals, tableLayout != null),
+            confidence = calculateOverallConfidence(validatedLines, totals, pageLayouts),
             warnings = warnings
         )
     }
 
-    private fun clusterIntoRows(tokens: List<LayoutToken>): List<Row> {
-        val rows = mutableListOf<Row>()
-        tokens.groupBy { it.pageIndex }.forEach { (_, pageTokens) ->
-            val sorted = pageTokens.sortedBy { it.top }
-            var currentRowTokens = mutableListOf<LayoutToken>()
+    private fun detectTableLayouts(rows: List<Row>): Map<Int, PageLayout> {
+        val result = mutableMapOf<Int, PageLayout>()
+        val rowsByPage = rows.groupBy { it.pageIndex }
+        
+        var lastValidLayout: PageLayout? = null
+        
+        val maxPage = rows.maxOfOrNull { it.pageIndex } ?: 0
+        for (pageIdx in 0..maxPage) {
+            val pageRows = rowsByPage[pageIdx] ?: emptyList()
             
-            for (token in sorted) {
-                if (currentRowTokens.isEmpty()) {
-                    currentRowTokens.add(token)
-                } else {
-                    val rowTop = currentRowTokens.minOf { it.top }
-                    val rowBottom = currentRowTokens.maxOf { it.bottom }
-                    val rowHeight = rowBottom - rowTop
-                    
-                    val verticalOverlap = Math.min(token.bottom, rowBottom) - Math.max(token.top, rowTop)
-                    val overlapRatio = if (rowHeight > 0) verticalOverlap / rowHeight else 0f
-                    
-                    // Same row if substantial vertical overlap or centers are very close
-                    val sameRow = overlapRatio > 0.5f || Math.abs((token.top + token.bottom)/2 - (rowTop + rowBottom)/2) < 0.005f
-                    
-                    if (sameRow) {
-                        currentRowTokens.add(token)
-                    } else {
-                        rows.add(Row(currentRowTokens.sortedBy { it.left }))
-                        currentRowTokens = mutableListOf(token)
-                    }
-                }
+            val headerRow = pageRows.find { isHeaderRow(it) }
+            if (headerRow != null) {
+                val layout = PageLayout.fromHeaderRow(headerRow, pageIdx)
+                result[pageIdx] = layout
+                lastValidLayout = layout
+                continue
             }
-            if (currentRowTokens.isNotEmpty()) {
-                rows.add(Row(currentRowTokens.sortedBy { it.left }))
+            
+            if (lastValidLayout != null && isPageCompatible(pageRows, lastValidLayout)) {
+                val layout = lastValidLayout.copy(pageIndex = pageIdx, source = LayoutSource.CompatibleContinuation)
+                result[pageIdx] = layout
+                continue
+            }
+            
+            val inferred = inferTableLayoutFromPage(pageRows, pageIdx, rows)
+            if (inferred != null) {
+                result[pageIdx] = inferred
+                lastValidLayout = inferred
+            } else {
+                result[pageIdx] = PageLayout(pageIdx, emptyMap(), LayoutSource.Unknown)
             }
         }
-        return rows.sortedWith(compareBy({ it.pageIndex }, { it.top }))
+        
+        return result
     }
 
-    private fun detectTableLayout(rows: List<Row>): TableLayout? {
-        // 1. Look for semantic headers across all pages
-        val headerCandidates = rows.filter { isHeaderRow(it) }
-            .sortedByDescending { scoreHeaderRow(it) }
+    private fun isPageCompatible(rows: List<Row>, layout: PageLayout): Boolean {
+        if (rows.isEmpty()) return false
+        val numericTokens = rows.flatMap { it.tokens }.filter { isNumeric(it.text) }
+        if (numericTokens.isEmpty()) return false
         
-        val bestHeader = headerCandidates.firstOrNull()
-        if (bestHeader != null) {
-            return TableLayout.fromHeaderRow(bestHeader)
+        val totalRange = layout.columns[ColumnType.LineTotal] ?: return false
+        val matches = numericTokens.count { totalRange.contains(it.centerX) }
+        val ratio = matches.toFloat() / numericTokens.size
+        
+        return ratio > 0.3f || rows.any { r -> r.tokens.any { t -> totalRange.contains(t.centerX) && isMoneyLike(t.text) } }
+    }
+
+    private fun inferTableLayoutFromPage(pageRows: List<Row>, pageIndex: Int, allRows: List<Row>): PageLayout? {
+        val candidateRows = pageRows.filter { row ->
+            val numericCount = row.tokens.count { isNumeric(it.text) }
+            numericCount >= 2 && row.text.length > 5 && !isHeaderRow(row)
+        }
+        
+        if (candidateRows.isEmpty()) return null
+
+        val numericTokens = candidateRows.flatMap { it.tokens }.filter { isNumeric(it.text) }
+        var clusters = RowClusterer.clusterTokensByX(numericTokens, allRows)
+            .filter { it.support >= 2 }
+            .sortedBy { it.avgLeft }
+
+        if (clusters.isEmpty()) return null
+        
+        val cols = mutableMapOf<ColumnType, FloatRange>()
+        
+        if (clusters.first().avgLeft < 0.2f && clusters.size >= 4) {
+             val leftmost = clusters.first()
+             cols[ColumnType.SKU] = leftmost.toRange(0.03f)
+             clusters = clusters.drop(1)
         }
 
-        // 2. Geometric fallback across all pages
-        return inferTableLayoutFromData(rows)
+        val moneyClusters = clusters.filter { c -> c.tokens.any { isMoneyLike(it.text) } }
+        val rightmost = if (moneyClusters.isNotEmpty()) moneyClusters.last() else clusters.last()
+        
+        cols[ColumnType.LineTotal] = rightmost.toRange()
+
+        if (clusters.size >= 2) {
+            val remaining = clusters.filter { it != rightmost }
+            if (remaining.size >= 2) {
+                cols[ColumnType.UnitPrice] = remaining.last().toRange()
+                cols[ColumnType.Quantity] = remaining[remaining.size - 2].toRange()
+            } else {
+                val second = remaining.last()
+                if (isMoneyLike(second.tokens.firstOrNull()?.text ?: "")) {
+                     cols[ColumnType.UnitPrice] = second.toRange()
+                } else if (second.avgRight < rightmost.avgLeft - 0.1f) {
+                     cols[ColumnType.Quantity] = second.toRange()
+                }
+            }
+        }
+
+        val firstNumericLeft = clusters.minOf { it.avgLeft }
+        
+        if (!cols.containsKey(ColumnType.SKU)) {
+            val skuCandidateTokens = candidateRows.flatMap { it.tokens }
+                .filter { it.right < firstNumericLeft && it.text.length >= 3 }
+            
+            val skuClusters = RowClusterer.clusterTokensByX(skuCandidateTokens, allRows)
+                .filter { it.support >= 2 && it.avgLeft < 0.25f }
+            
+            if (skuClusters.isNotEmpty()) {
+                val leftmost = skuClusters.minByOrNull { it.avgLeft }!!
+                cols[ColumnType.SKU] = leftmost.toRange(0.03f)
+                cols[ColumnType.Description] = FloatRange(leftmost.avgRight + 0.01f, firstNumericLeft - 0.01f)
+            } else {
+                cols[ColumnType.Description] = FloatRange(0.05f, firstNumericLeft - 0.01f)
+            }
+        } else {
+            val skuRange = cols[ColumnType.SKU]!!
+            cols[ColumnType.Description] = FloatRange(skuRange.end + 0.01f, firstNumericLeft - 0.01f)
+        }
+        
+        return PageLayout(pageIndex, cols, LayoutSource.GeometricInference)
+    }
+
+    private fun extractLines(
+        rows: List<Row>,
+        pageLayouts: Map<Int, PageLayout>,
+        context: NumericContext
+    ): List<ParsedInvoiceLineCandidate> {
+        val candidates = mutableListOf<ParsedInvoiceLineCandidate>()
+        var lineIndex = 0
+
+        for (i in rows.indices) {
+            val row = rows[i]
+            val layout = pageLayouts[row.pageIndex] ?: continue
+            if (isHeaderRow(row)) continue
+            
+            val isPotentialLine = if (layout.source != LayoutSource.Unknown) {
+                row.tokens.any { t -> 
+                    val type = layout.getColumnType(t.centerX)
+                    (type == ColumnType.Quantity || type == ColumnType.UnitPrice || type == ColumnType.LineTotal) && isNumeric(t.text)
+                }
+            } else {
+                row.tokens.count { isNumeric(it.text) } >= 2 && row.tokens.any { it.text.length > 2 && !isNumeric(it.text) }
+            }
+
+            if (isPotentialLine) {
+                val candidate = if (layout.source != LayoutSource.Unknown) {
+                    extractLineWithLayout(row, layout, context, lineIndex++)
+                } else {
+                    extractLineFallback(row, context, lineIndex++)
+                }
+                
+                val prevRow = rows.getOrNull(i - 1)
+                if (prevRow != null && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) && 
+                    ((candidate.description.detectedText?.length ?: 0) < 20)) {
+                    
+                     val isPrevRowPart = prevRow.tokens.none { t -> 
+                         val type = layout.getColumnType(t.centerX)
+                         type == ColumnType.Quantity || type == ColumnType.UnitPrice || type == ColumnType.LineTotal
+                     }
+                     
+                     if (isPrevRowPart) {
+                         val combinedDesc = prevRow.text + " " + (candidate.description.detectedText ?: "")
+                         var updatedCandidate = candidate.copy(
+                             description = candidate.description.copy(
+                                 detectedText = combinedDesc,
+                                 normalizedValue = combinedDesc,
+                                 evidenceRefs = prevRow.tokens.map { it.evidenceRef } + candidate.description.evidenceRefs
+                             )
+                         )
+                         if (updatedCandidate.vendorCode.normalizedValue == null) {
+                             val prevRowFields = mutableMapOf<ColumnType, MutableList<LayoutToken>>()
+                             prevRow.tokens.forEach { t ->
+                                 val type = layout.getColumnType(t.centerX)
+                                 if (type != null) prevRowFields.getOrPut(type) { mutableListOf() }.add(t)
+                             }
+                             updatedCandidate = updatedCandidate.copy(vendorCode = extractField(prevRowFields[ColumnType.SKU]))
+                         }
+                         candidates.add(updatedCandidate)
+                     } else {
+                         candidates.add(candidate)
+                     }
+                } else {
+                     candidates.add(candidate)
+                }
+            } else if (candidates.isNotEmpty() && isDescriptionContinuation(row, layout)) {
+                 val last = candidates.last()
+                 val rowText = row.text.trim()
+                 if (rowText.isNotEmpty()) {
+                     val newDesc = last.description.detectedText + " " + rowText
+                     candidates[candidates.size - 1] = last.copy(
+                         description = last.description.copy(
+                             detectedText = newDesc,
+                             normalizedValue = newDesc,
+                             evidenceRefs = last.description.evidenceRefs + row.tokens.map { it.evidenceRef }
+                         )
+                     )
+                 }
+            }
+        }
+        return candidates
+    }
+
+    private fun isHeaderRow(row: Row): Boolean {
+        if (row.tokens.count { isNumeric(it.text) } >= 3) return false
+        return scoreHeaderRow(row) > 1.5
     }
 
     private fun scoreHeaderRow(row: Row): Double {
@@ -168,180 +305,64 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return score
     }
 
-    private fun inferTableLayoutFromData(rows: List<Row>): TableLayout? {
-        // Filter rows that look like product lines (have multiple numeric tokens and some text)
-        val candidateRows = rows.filter { row ->
-            val numericCount = row.tokens.count { isNumeric(it.text) }
-            numericCount >= 2 && row.text.length > 10 && !isHeaderRow(row)
-        }
-        
-        if (candidateRows.size < 2) return null // Need at least 2 rows for recurring geometry
-
-        // Identify recurring X clusters for numeric tokens
-        val numericTokens = candidateRows.flatMap { it.tokens }.filter { isNumeric(it.text) }
-        val clusters = clusterTokensByX(numericTokens)
-            .filter { it.support >= 2 }
-            .sortedBy { it.avgLeft }
-
-        if (clusters.isEmpty()) return null
-
-        val cols = mutableMapOf<ColumnType, FloatRange>()
-        
-        // Heuristic: Rightmost is Line Total
-        val rightmost = clusters.last()
-        cols[ColumnType.LineTotal] = rightmost.toRange()
-
-        // If we have more clusters, try to assign UnitPrice and Quantity
-        if (clusters.size >= 2) {
-            val secondRightmost = clusters[clusters.size - 2]
-            if (clusters.size >= 3) {
-                cols[ColumnType.UnitPrice] = secondRightmost.toRange()
-                cols[ColumnType.Quantity] = clusters[clusters.size - 3].toRange()
-            } else {
-                // With only two numeric columns, it's ambiguous. 
-                // Often Qty and Total, or Price and Total.
-                // We'll map to UnitPrice for now if it's close to total, otherwise Qty.
-                if (rightmost.avgLeft - secondRightmost.avgRight < 0.15f) {
-                    cols[ColumnType.UnitPrice] = secondRightmost.toRange()
-                } else {
-                    cols[ColumnType.Quantity] = secondRightmost.toRange()
-                }
-            }
-        }
-
-        // Description is usually to the left of the numeric columns
-        val firstNumericLeft = clusters.minOf { it.avgLeft }
-        cols[ColumnType.Description] = FloatRange(0.1f, firstNumericLeft - 0.01f)
-        
-        // SKU might be leftmost
-        val skuCandidateTokens = candidateRows.flatMap { it.tokens }
-            .filter { it.right < firstNumericLeft && it.text.length >= 3 }
-        
-        val skuClusters = clusterTokensByX(skuCandidateTokens)
-            .filter { it.support >= 2 && it.avgLeft < 0.2f }
-        
-        if (skuClusters.isNotEmpty()) {
-            val leftmost = skuClusters.minByOrNull { it.avgLeft }!!
-            cols[ColumnType.SKU] = leftmost.toRange()
-            // Adjust description to start after SKU
-            cols[ColumnType.Description] = FloatRange(leftmost.avgRight + 0.01f, firstNumericLeft - 0.01f)
-        }
-
-        return TableLayout(cols, isInferred = true)
-    }
-
-    private data class TokenCluster(
-        val tokens: List<LayoutToken>,
-        val avgLeft: Float,
-        val avgRight: Float,
-        val support: Int
-    ) {
-        fun toRange() = FloatRange(avgLeft - 0.02f, avgRight + 0.02f)
-    }
-
-    private fun clusterTokensByX(tokens: List<LayoutToken>): List<TokenCluster> {
-        if (tokens.isEmpty()) return emptyList()
-        val sorted = tokens.sortedBy { it.left }
-        val clusters = mutableListOf<MutableList<LayoutToken>>()
-        
-        for (token in sorted) {
-            val matchedCluster = clusters.find { cluster ->
-                val avgLeft = cluster.map { it.left }.average().toFloat()
-                Math.abs(token.left - avgLeft) < 0.03f
-            }
-            if (matchedCluster != null) {
-                matchedCluster.add(token)
-            } else {
-                clusters.add(mutableListOf(token))
-            }
-        }
-        
-        return clusters.map { c ->
-            TokenCluster(
-                tokens = c,
-                avgLeft = c.map { it.left }.average().toFloat(),
-                avgRight = c.map { it.right }.average().toFloat(),
-                support = c.size
-            )
-        }
-    }
-
-    private fun extractLines(
-        rows: List<Row>,
-        layout: TableLayout?,
-        context: NumericContext
-    ): List<ParsedInvoiceLineCandidate> {
-        val candidates = mutableListOf<ParsedInvoiceLineCandidate>()
-        var lineIndex = 0
-
-        for (i in rows.indices) {
-            val row = rows[i]
-            if (isHeaderRow(row)) continue
-            
-            val isPotentialLine = if (layout != null) {
-                row.tokens.any { t -> 
-                    val type = layout.getColumnType(t.left + (t.right - t.left)/2)
-                    (type == ColumnType.Quantity || type == ColumnType.UnitPrice || type == ColumnType.LineTotal) && isNumeric(t.text)
-                }
-            } else {
-                row.tokens.count { isNumeric(it.text) } >= 2 && row.tokens.any { it.text.length > 2 && !isNumeric(it.text) }
-            }
-
-            if (isPotentialLine) {
-                val candidate = if (layout != null) {
-                    extractLineWithLayout(row, layout, context, lineIndex++)
-                } else {
-                    extractLineFallback(row, context, lineIndex++)
-                }
-                candidates.add(candidate)
-            } else if (candidates.isNotEmpty() && isDescriptionContinuation(row, layout)) {
-                 val last = candidates.last()
-                 val newDesc = last.description.detectedText + " " + row.text
-                 candidates[candidates.size - 1] = last.copy(
-                     description = last.description.copy(
-                         detectedText = newDesc,
-                         normalizedValue = newDesc,
-                         evidenceRefs = last.description.evidenceRefs + row.tokens.map { it.evidenceRef }
-                     )
-                 )
-            }
-        }
-        return candidates
-    }
-
-    private fun isHeaderRow(row: Row): Boolean {
-        if (row.tokens.count { isNumeric(it.text) } >= 3) return false // Too many numbers for a header
-        return scoreHeaderRow(row) > 1.5
-    }
-
-    private fun isDescriptionContinuation(row: Row, layout: TableLayout?): Boolean {
+    private fun isDescriptionContinuation(row: Row, layout: PageLayout): Boolean {
         if (row.tokens.any { isNumeric(it.text) }) return false
-        if (layout == null) return row.text.length > 5 && row.tokens.all { it.left > 0.1f }
+        
+        val text = row.text.lowercase()
+        if (text.contains(Regex("thank you|gracias|payment|remit|due date|balance|total|subtotal|tax"))) return false
+
+        if (layout.source == LayoutSource.Unknown) return row.text.length > 5 && row.tokens.all { it.left > 0.1f }
         
         val descRange = layout.columns[ColumnType.Description] ?: return false
-        // Continuation should mostly align with the description column
-        val overlap = row.tokens.count { t -> descRange.contains(t.left + (t.right - t.left) / 2) }
-        return overlap.toFloat() / row.tokens.size > 0.7f
+        val overlap = row.tokens.count { t -> descRange.contains(t.centerX) }
+        return overlap.toFloat() / row.tokens.size > 0.6f
     }
 
-    private fun extractLineWithLayout(row: Row, layout: TableLayout, context: NumericContext, index: Int): ParsedInvoiceLineCandidate {
+    private fun extractLineWithLayout(row: Row, layout: PageLayout, context: NumericContext, index: Int): ParsedInvoiceLineCandidate {
         val fields = mutableMapOf<ColumnType, MutableList<LayoutToken>>()
         row.tokens.forEach { t ->
-            val type = layout.getColumnType(t.left + (t.right - t.left)/2)
+            val type = layout.getColumnType(t.centerX)
             if (type != null) {
                 fields.getOrPut(type) { mutableListOf() }.add(t)
             }
         }
 
+        val descTokens = fields[ColumnType.Description] ?: emptyList()
+        val rawDescription = extractField(descTokens)
+        
+        // Try individual tokens first
+        val packageFromDesc = PackageTextDetector.findPackageToken(row.tokens.map { it.text })
+            ?: PackageTextDetector.detectPackageText(rawDescription.detectedText ?: "")
+        
+        val packageField: ParsedField<String?> = if (packageFromDesc != null) {
+            ParsedField(packageFromDesc, packageFromDesc, 0.8f, row.tokens.filter { it.text.contains(packageFromDesc) }.map { it.evidenceRef }.ifEmpty { rawDescription.evidenceRefs })
+        } else {
+            extractField(fields[ColumnType.Package])
+        }
+        
+        val finalDescription = if (packageFromDesc != null) {
+            val cleaned = rawDescription.detectedText?.replace(packageFromDesc, "")?.trim()
+            rawDescription.copy(detectedText = cleaned, normalizedValue = cleaned)
+        } else {
+            rawDescription
+        }
+
+        val confidence = when(layout.source) {
+            LayoutSource.SemanticHeader -> 0.9f
+            LayoutSource.CompatibleContinuation -> 0.85f
+            LayoutSource.GeometricInference -> 0.7f
+            else -> 0.5f
+        }
+
         return ParsedInvoiceLineCandidate(
             index = index,
             vendorCode = extractField(fields[ColumnType.SKU]),
-            description = extractField(fields[ColumnType.Description]),
+            description = finalDescription,
             quantity = extractNumericField(fields[ColumnType.Quantity], context),
-            packageText = extractField(fields[ColumnType.Package]),
+            packageText = packageField,
             unitPrice = extractNumericField(fields[ColumnType.UnitPrice], context),
             lineTotal = extractNumericField(fields[ColumnType.LineTotal], context),
-            confidence = 0.8f,
+            confidence = confidence,
             evidenceRefs = row.tokens.map { it.evidenceRef }
         )
     }
@@ -350,10 +371,13 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val numericTokens = row.tokens.filter { isNumeric(it.text) }
         val textTokens = row.tokens.filter { !isNumeric(it.text) }
         
+        val skuCandidate = row.tokens.firstOrNull { it.text.length >= 3 && it.left < 0.2f }
+        
         return ParsedInvoiceLineCandidate(
             index = index,
-            vendorCode = ParsedField(null, null, 0f),
-            description = extractField(textTokens),
+            vendorCode = if (skuCandidate != null && (skuCandidate in numericTokens || skuCandidate.text.any { it.isDigit() })) 
+                extractField(listOf(skuCandidate)) else ParsedField(null, null, 0f),
+            description = extractField(textTokens.filter { it != skuCandidate }),
             quantity = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[0]), context) else ParsedField(null, null, 0f),
             packageText = ParsedField(null, null, 0f),
             unitPrice = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[1]), context) else ParsedField(null, null, 0f),
@@ -379,8 +403,14 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     private fun isNumeric(text: String): Boolean {
         val sanitized = text.replace(Regex("[^0-9]"), "")
         if (sanitized.isEmpty()) return false
-        val totalMeaningful = text.replace(Regex("[^0-9,.()\\- ]"), "").length
-        return totalMeaningful >= text.length / 2
+        val letters = text.count { it.isLetter() }
+        if (letters > text.length / 2 && text.length > 3) return false
+        val totalMeaningful = text.replace(Regex("[^0-9,.()\\- $]"), "").length
+        return totalMeaningful >= 1
+    }
+    
+    private fun isMoneyLike(text: String): Boolean {
+        return text.contains(Regex("[.,][0-9]{2}")) || text.contains("$")
     }
 
     private fun detectSupplier(tokens: List<LayoutToken>): ParsedField<String?> {
@@ -395,7 +425,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             !lowText.contains(Regex("invoice|factura|date|fecha|page|página|phone|tel|email|web"))
         } ?: candidates.first()
 
-        val rowTokens = firstPage.filter { Math.abs(it.top - best.top) < 0.005f }.sortedBy { it.left }
+        val rowTokens = firstPage.filter { abs(it.top - best.top) < 0.005f }.sortedBy { it.left }
         val name = rowTokens.joinToString(" ") { it.text }
 
         return ParsedField(name, name, 0.7f, rowTokens.map { it.evidenceRef })
@@ -407,7 +437,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             if (labels.any { token.text.lowercase().contains(it) }) {
                 val nearby = tokens.filter {
                     it.pageIndex == token.pageIndex &&
-                            Math.abs(it.top - token.top) < 0.015f &&
+                            abs(it.top - token.top) < 0.015f &&
                             it.left > token.left && it.left < token.left + 0.4f
                 }.sortedBy { it.left }
 
@@ -473,7 +503,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     }
 
     private fun detectTotals(tokens: List<LayoutToken>, context: NumericContext): TotalsResult {
-        val totalLabels = listOf("total", "importe total", "grand total")
+        val totalLabels = listOf("\\btotal\\b", "importe total", "grand total")
         val taxLabels = listOf("tax", "iva", "itbis", "impuesto")
         val subtotalLabels = listOf("subtotal", "sub-total", "sub total")
         val discountLabels = listOf("discount", "descuento")
@@ -484,17 +514,34 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             discount = findAmountNearLabel(tokens, discountLabels, context),
             fees = findAmountNearLabel(tokens, feesLabels, context),
             tax = findAmountNearLabel(tokens, taxLabels, context),
-            total = findAmountNearLabel(tokens, totalLabels, context),
+            total = findAmountNearLabel(tokens, totalLabels, context, isRegex = true),
             currency = ParsedField(null, null, 0f)
         )
     }
 
-    private fun findAmountNearLabel(tokens: List<LayoutToken>, labels: List<String>, context: NumericContext): ParsedField<BigDecimal?> {
+    private fun findAmountNearLabel(
+        tokens: List<LayoutToken>, 
+        labels: List<String>, 
+        context: NumericContext,
+        isRegex: Boolean = false
+    ): ParsedField<BigDecimal?> {
         for (token in tokens) {
-            if (labels.any { token.text.lowercase().contains(it) }) {
+            val lowText = token.text.lowercase()
+            val matched = if (isRegex) {
+                labels.any { Regex(it).containsMatchIn(lowText) }
+            } else {
+                labels.any { lowText.contains(it) }
+            }
+            
+            if (matched) {
+                val selfValue = parseBigDecimal(token.text, context)
+                if (selfValue != null && isMoneyLike(token.text)) {
+                    return ParsedField(token.text, selfValue, 0.8f, listOf(token.evidenceRef))
+                }
+
                 val nearby = tokens.filter {
                     it.pageIndex == token.pageIndex &&
-                            Math.abs(it.top - token.top) < 0.015f &&
+                            abs(it.top - token.top) < 0.015f &&
                             it.left > token.left
                 }.sortedBy { it.left }
 
@@ -533,8 +580,13 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun parseBigDecimal(text: String?, context: NumericContext): BigDecimal? {
         if (text == null) return null
-        val sanitized = text.replace(Regex("[^0-9,.-]"), "")
-        if (sanitized.isBlank()) return null
+        
+        val moneyRegex = Regex("-?[0-9]{1,3}([,.][0-9]{3})*[,.][0-9]{2}")
+        val matches = moneyRegex.findAll(text).toList()
+        val matchCandidate = matches.lastOrNull()?.value
+        
+        val sanitized = matchCandidate ?: text.replace(Regex("[^0-9,.-]"), "")
+        if (sanitized.isBlank() || sanitized == "." || sanitized == "-") return null
         
         return try {
             val normalized = if (context.decimalSeparator == ',') {
@@ -542,7 +594,6 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             } else {
                 sanitized.replace(",", "")
             }
-            // Handle (12.34) as -12.34
             val final = if (text.contains("(") && text.contains(")")) "-$normalized" else normalized
             BigDecimal(final)
         } catch (_: Exception) {
@@ -550,44 +601,46 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         }
     }
 
-    private fun calculateOverallConfidence(lines: List<ParsedInvoiceLineCandidate>, totals: TotalsResult, hasLayout: Boolean): Float {
+    private fun calculateOverallConfidence(
+        lines: List<ParsedInvoiceLineCandidate>, 
+        totals: TotalsResult, 
+        layouts: Map<Int, PageLayout>
+    ): Float {
         var score = 0.0f
-        if (hasLayout) score += 0.3f
+        val layoutQual = layouts.values.map { 
+            when(it.source) {
+                LayoutSource.SemanticHeader -> 1.0f
+                LayoutSource.CompatibleContinuation -> 0.8f
+                LayoutSource.GeometricInference -> 0.5f
+                else -> 0.0f
+            }
+        }.let { if (it.isEmpty()) 0f else it.average().toFloat() }
+        
+        score += layoutQual * 0.4f
         if (totals.total.normalizedValue != null) score += 0.2f
         if (lines.isNotEmpty()) {
             val avgLineConf = lines.map { it.confidence ?: 0f }.sum() / lines.size
-            score += avgLineConf * 0.5f
+            score += avgLineConf * 0.4f
         }
-        return Math.min(score, 1.0f)
+        return score.coerceIn(0f, 1f)
     }
 
-    private data class LayoutToken(
-        val text: String,
+    private data class PageLayout(
         val pageIndex: Int,
-        val left: Float,
-        val top: Float,
-        val right: Float,
-        val bottom: Float,
-        val evidenceRef: OcrEvidenceRef
-    )
-
-    private data class Row(val tokens: List<LayoutToken>) {
-        val pageIndex = tokens.first().pageIndex
-        val top = tokens.minOf { it.top }
-        val bottom = tokens.maxOf { it.bottom }
-        val text = tokens.joinToString(" ") { it.text }
-    }
-
-    private data class TableLayout(
         val columns: Map<ColumnType, FloatRange>,
-        val isInferred: Boolean = false
+        val source: LayoutSource
     ) {
         fun getColumnType(x: Float): ColumnType? {
-            return columns.entries.find { it.value.contains(x) }?.key
+            return columns[ColumnType.LineTotal]?.let { if (it.contains(x)) ColumnType.LineTotal else null }
+                ?: columns[ColumnType.UnitPrice]?.let { if (it.contains(x)) ColumnType.UnitPrice else null }
+                ?: columns[ColumnType.Quantity]?.let { if (it.contains(x)) ColumnType.Quantity else null }
+                ?: columns[ColumnType.Package]?.let { if (it.contains(x)) ColumnType.Package else null }
+                ?: columns[ColumnType.SKU]?.let { if (it.contains(x)) ColumnType.SKU else null }
+                ?: columns[ColumnType.Description]?.let { if (it.contains(x)) ColumnType.Description else null }
         }
 
         companion object {
-            fun fromHeaderRow(row: Row): TableLayout {
+            fun fromHeaderRow(row: Row, pageIndex: Int): PageLayout {
                 val cols = mutableMapOf<ColumnType, FloatRange>()
                 val sortedTokens = row.tokens.sortedBy { it.left }
                 
@@ -612,23 +665,17 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                         cols[type] = FloatRange(start, end)
                     }
                 }
-                
-                // If we found some columns but not Description, and there's a large gap, infer it
-                if (!cols.containsKey(ColumnType.Description)) {
-                    // Heuristic: largest gap between columns or leftmost large area
-                }
-                
-                return TableLayout(cols)
+                return PageLayout(pageIndex, cols, LayoutSource.SemanticHeader)
             }
         }
     }
 
-    private enum class ColumnType {
-        SKU, Description, Quantity, Package, UnitPrice, LineTotal
+    private enum class LayoutSource {
+        SemanticHeader, CompatibleContinuation, GeometricInference, Unknown
     }
 
-    private data class FloatRange(val start: Float, val end: Float) {
-        fun contains(v: Float) = v in start..end
+    private enum class ColumnType {
+        SKU, Description, Quantity, Package, UnitPrice, LineTotal
     }
 
     private data class NumericContext(
