@@ -165,11 +165,16 @@ interface PurchaseRepository {
         receiptId: PurchaseReceiptId,
         lineIndex: Int,
         isIgnored: Boolean,
-        correction: ParsedInvoiceLineCandidate?
+        correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
     )
 
     suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
-        corrections: PurchaseInvoiceParseResult
+        corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
     )
+
+    suspend fun findReceiptsByInvoiceNumber(
+        restaurantId: RestaurantId,
+        invoiceNumber: String
+    ): List<PurchaseReceipt>
 }

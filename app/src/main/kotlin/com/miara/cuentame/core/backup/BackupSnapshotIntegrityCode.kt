@@ -51,4 +51,7 @@ enum class BackupSnapshotIntegrityCode {
     // Production
     INVALID_PRODUCTION_COST_HISTORY,
     DUPLICATE_PRODUCTION_COMPONENT,
+
+    // Versioning
+    UNSUPPORTED_VERSION,
 }

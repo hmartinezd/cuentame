@@ -137,17 +137,25 @@ class PurchaseDraftViewModel @Inject constructor(
         }
     }
 
-    private fun canStartMutation(): Boolean {
-        val currentState = _captureState.value
-        val ocrState = _ocrState.value
-        return currentState == InvoiceCaptureState.Idle &&
-                ocrState is OcrAnalysisState.Idle || ocrState is OcrAnalysisState.Failure &&
-                savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID) == null &&
-                !_isSaving.value &&
-                !_isPosting.value &&
-                !_isDeletingDraft.value &&
-                !_isRemovingDocument.value &&
-                _deletingLineId.value == null
+    @androidx.annotation.VisibleForTesting
+    internal fun canStartMutation(): Boolean {
+        val captureBusy = _captureState.value != InvoiceCaptureState.Idle
+
+        val analysisBusy = when (_ocrState.value) {
+            is OcrAnalysisState.Analyzing,
+            OcrAnalysisState.Parsing -> true
+            else -> false
+        }
+
+        val scannerPending = savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID) != null
+
+        val localMutationBusy = _isSaving.value ||
+                _isPosting.value ||
+                _isDeletingDraft.value ||
+                _isRemovingDocument.value ||
+                _deletingLineId.value != null
+
+        return !captureBusy && !analysisBusy && !scannerPending && !localMutationBusy
     }
 
     private val _events = Channel<PurchaseDraftEvent>(Channel.BUFFERED)
@@ -538,7 +546,7 @@ class PurchaseDraftViewModel @Inject constructor(
                 try {
                     _ocrState.value = OcrAnalysisState.Parsing
                     val result = parseUseCase.execute(currentReceiptId)
-                    if (result.isSuccess) {
+                    if (result is com.miara.cuentame.core.domain.usecase.purchase.ParsePurchaseInvoiceResult.Success) {
                         _ocrState.value = OcrAnalysisState.Parsed
                     } else {
                         _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)

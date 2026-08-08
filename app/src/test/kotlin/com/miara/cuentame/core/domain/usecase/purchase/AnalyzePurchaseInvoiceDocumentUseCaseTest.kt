@@ -69,7 +69,7 @@ class AnalyzePurchaseInvoiceDocumentUseCaseTest {
         every { bitmap.width } returns 100
         every { bitmap.height } returns 200
         coEvery { pdfRenderer.renderPage(any(), 0, any()) } returns PurchasePdfPageRenderResult.Success(bitmap)
-        coEvery { parseUseCase.execute(receiptId) } returns Result.success(mockk(relaxed = true))
+        coEvery { parseUseCase.execute(receiptId) } returns ParsePurchaseInvoiceResult.Success(mockk(relaxed = true))
 
         val results = useCase(receiptId).toList()
 

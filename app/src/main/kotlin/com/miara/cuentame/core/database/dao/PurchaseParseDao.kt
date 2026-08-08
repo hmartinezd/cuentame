@@ -35,13 +35,25 @@ interface PurchaseParseDao {
     @Transaction
     suspend fun replaceParseResult(
         receiptId: String,
-        ocrResultId: String,
+        expectedOcrResultId: String,
+        expectedSourceDocumentSha256: String,
         result: PurchaseInvoiceParseResultEntity,
-        lines: List<PurchaseInvoiceParsedLineEntity>
+        lines: List<PurchaseInvoiceParsedLineEntity>,
+        ocrDao: PurchaseOcrDao
     ) {
-        // Verify OCR result still exists and matches
-        if (result.ocrResultId != ocrResultId) {
-             throw IllegalArgumentException("OCR Result ID mismatch")
+        val currentOcr = ocrDao.getOcrResultForReceiptSync(receiptId)
+            ?: throw IllegalStateException("OCR Result missing for receipt $receiptId")
+
+        if (currentOcr.id != expectedOcrResultId) {
+            throw IllegalStateException("OCR Result ID changed: expected $expectedOcrResultId, found ${currentOcr.id}")
+        }
+
+        if (currentOcr.sourceDocumentSha256 != expectedSourceDocumentSha256) {
+            throw IllegalStateException("OCR Source Document SHA-256 changed")
+        }
+
+        if (currentOcr.purchaseReceiptId != receiptId) {
+            throw IllegalStateException("OCR result ownership mismatch")
         }
 
         deleteParseResultForReceipt(receiptId)

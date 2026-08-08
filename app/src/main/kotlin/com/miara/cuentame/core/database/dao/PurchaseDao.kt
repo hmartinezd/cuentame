@@ -106,6 +106,9 @@ interface PurchaseDao {
     @Query("SELECT * FROM purchase_receipts WHERE id = :id")
     fun observeReceiptById(id: String): Flow<PurchaseReceiptEntity?>
 
+    @Query("SELECT * FROM purchase_receipts WHERE restaurantId = :restaurantId AND invoiceNumber = :invoiceNumber")
+    suspend fun findByInvoiceNumber(restaurantId: String, invoiceNumber: String): List<PurchaseReceiptEntity>
+
     @Query("SELECT * FROM purchase_lines WHERE purchaseReceiptId = :receiptId ORDER BY createdAt ASC")
     suspend fun getLinesForReceipt(receiptId: String): List<PurchaseLineEntity>
 

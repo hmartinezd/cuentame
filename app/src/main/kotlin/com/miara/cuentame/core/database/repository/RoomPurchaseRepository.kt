@@ -88,8 +88,8 @@ class RoomPurchaseRepository @Inject constructor(
 ) : PurchaseRepository {
 
     private companion object {
-        const val PARSER_ENGINE = "CUENTAME_DETERMINISTIC_V1"
-        const val PARSER_SCHEMA_VERSION = 1
+        const val PARSER_ENGINE = "CUENTAME_DETERMINISTIC_V2"
+        const val PARSER_SCHEMA_VERSION = 2
     }
 
     private suspend fun requireActiveRestaurant(): RestaurantEntity {
@@ -489,11 +489,12 @@ class RoomPurchaseRepository @Inject constructor(
         return parseDao.observeParseResultForReceipt(receiptId.value).map { entity ->
             entity?.let {
                 val baseResult = json.decodeFromString<PurchaseInvoiceParseResult>(it.totalsEvidenceJson)
-                val corrections = it.correctionsJson?.let { c -> json.decodeFromString<PurchaseInvoiceParseResult>(c) }
+                val corrections = it.correctionsJson?.let { c -> json.decodeFromString<com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections>(c) }
                 
-                // Merge or return corrections if present
-                val result = corrections ?: baseResult
-                result.copy(lines = getParsedLines(it.id))
+                baseResult.copy(
+                    corrections = corrections,
+                    lines = getParsedLines(it.id)
+                )
             }
         }
     }
@@ -501,9 +502,12 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun getParsedLines(parseResultId: String): List<ParsedInvoiceLineCandidate> {
         return parseDao.getParsedLines(parseResultId).map { entity ->
             val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(entity.evidenceJson)
-            val correction = entity.correctionJson?.let { json.decodeFromString<ParsedInvoiceLineCandidate>(it) }
+            val correction = entity.correctionJson?.let { json.decodeFromString<com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection>(it) }
             
-            (correction ?: baseLine).copy(isIgnored = entity.isIgnored)
+            baseLine.copy(
+                isIgnored = entity.isIgnored,
+                correction = correction
+            )
         }
     }
 
@@ -517,7 +521,9 @@ class RoomPurchaseRepository @Inject constructor(
         
         parseDao.replaceParseResult(
             receiptId = receiptId.value,
-            ocrResultId = ocrResultId,
+            expectedOcrResultId = ocrResultId,
+            expectedSourceDocumentSha256 = sourceDocumentSha256,
+            ocrDao = ocrDao,
             result = PurchaseInvoiceParseResultEntity(
                 id = parseId,
                 purchaseReceiptId = receiptId.value,
@@ -526,8 +532,8 @@ class RoomPurchaseRepository @Inject constructor(
                 parserEngine = PARSER_ENGINE,
                 parserSchemaVersion = PARSER_SCHEMA_VERSION,
                 headerEvidenceJson = json.encodeToString(result.supplierNameCandidate),
-                totalsEvidenceJson = json.encodeToString(result.copy(lines = emptyList())),
-                correctionsJson = null,
+                totalsEvidenceJson = json.encodeToString(result.copy(lines = emptyList(), corrections = null)),
+                correctionsJson = json.encodeToString(result.corrections),
                 warningsJson = json.encodeToString(result.warnings),
                 processedAt = timeProvider.now().toEpochMilli(),
                 reviewedAt = null
@@ -536,8 +542,8 @@ class RoomPurchaseRepository @Inject constructor(
                 PurchaseInvoiceParsedLineEntity(
                     parseResultId = parseId,
                     lineIndex = line.index,
-                    evidenceJson = json.encodeToString(line),
-                    correctionJson = null,
+                    evidenceJson = json.encodeToString(line.copy(correction = null)),
+                    correctionJson = json.encodeToString(line.correction),
                     isIgnored = line.isIgnored
                 )
             }
@@ -552,7 +558,7 @@ class RoomPurchaseRepository @Inject constructor(
         receiptId: PurchaseReceiptId,
         lineIndex: Int,
         isIgnored: Boolean,
-        correction: ParsedInvoiceLineCandidate?
+        correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
     ) {
         val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return
         parseDao.updateParsedLine(
@@ -565,12 +571,19 @@ class RoomPurchaseRepository @Inject constructor(
 
     override suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
-        corrections: PurchaseInvoiceParseResult
+        corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
     ) {
         parseDao.updateParseResultCorrections(
             receiptId = receiptId.value,
             correctionsJson = json.encodeToString(corrections),
             reviewedAt = timeProvider.now().toEpochMilli()
         )
+    }
+
+    override suspend fun findReceiptsByInvoiceNumber(
+        restaurantId: RestaurantId,
+        invoiceNumber: String
+    ): List<PurchaseReceipt> {
+        return purchaseDao.findByInvoiceNumber(restaurantId.value, invoiceNumber).map { it.toDomain() }
     }
 }

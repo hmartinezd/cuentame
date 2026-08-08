@@ -809,5 +809,10 @@
     <string name="ocr_action_review">Revisar detalles</string>
     <string name="ocr_action_parse">Extraer detalles</string>
     <string name="ocr_action_retry">Reintentar análisis</string>
+    <string name="ocr_action_edit_line">Editar línea</string>
     <string name="ocr_error_document_changed">El documento fue reemplazado durante el análisis.</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="product_description">Descripción</string>
+    <string name="product_quantity">Cantidad</string>
+    <string name="product_price">Precio</string>
 </resources>

@@ -183,7 +183,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
                 emit(AnalyzePurchaseInvoiceResult.Parsing)
                 
                 val parseResult = parseUseCase.execute(receiptId)
-                if (parseResult.isSuccess) {
+                if (parseResult is ParsePurchaseInvoiceResult.Success) {
                     emit(AnalyzePurchaseInvoiceResult.Success)
                 } else {
                     emit(AnalyzePurchaseInvoiceResult.ParseFailed(ocrResult))

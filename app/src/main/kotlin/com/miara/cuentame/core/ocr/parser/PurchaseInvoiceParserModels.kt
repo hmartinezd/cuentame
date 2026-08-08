@@ -65,7 +65,8 @@ data class ParsedInvoiceLineCandidate(
     val confidence: Float?,
     val evidenceRefs: List<OcrEvidenceRef> = emptyList(),
     val warnings: List<InvoiceParseWarning> = emptyList(),
-    val isIgnored: Boolean = false
+    val isIgnored: Boolean = false,
+    val correction: ParsedInvoiceLineCorrection? = null
 )
 
 @Serializable
@@ -81,5 +82,41 @@ data class PurchaseInvoiceParseResult(
     val currency: ParsedField<String?>,
     val lines: List<ParsedInvoiceLineCandidate>,
     val confidence: Float?,
-    val warnings: List<InvoiceParseWarning> = emptyList()
+    val warnings: List<InvoiceParseWarning> = emptyList(),
+    val corrections: PurchaseInvoiceCorrections? = null
 )
+
+@Serializable
+data class Correction<T>(
+    val value: T?,
+    val isExplicitlyCleared: Boolean = false
+)
+
+@Serializable
+data class PurchaseInvoiceCorrections(
+    val supplierName: Correction<String?>? = null,
+    val invoiceNumber: Correction<String?>? = null,
+    val invoiceDate: Correction<@Serializable(with = LocalDateSerializer::class) LocalDate?>? = null,
+    val subtotal: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val discount: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val fees: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val tax: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val total: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null
+)
+
+@Serializable
+data class ParsedInvoiceLineCorrection(
+    val vendorCode: Correction<String?>? = null,
+    val description: Correction<String?>? = null,
+    val quantity: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val packageText: Correction<String?>? = null,
+    val unitPrice: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null,
+    val lineTotal: Correction<@Serializable(with = BigDecimalSerializer::class) BigDecimal?>? = null
+)
+
+fun <T> ParsedField<T>.effectiveValue(correction: Correction<T>?): T? {
+    if (correction == null) return normalizedValue
+    return if (correction.isExplicitlyCleared) null else correction.value
+}
+
+fun <T> ParsedField<T>.isEdited(correction: Correction<T>?): Boolean = correction != null

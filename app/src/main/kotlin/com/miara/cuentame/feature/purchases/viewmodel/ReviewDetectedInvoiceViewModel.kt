@@ -44,13 +44,13 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             initialValue = ReviewDetectedInvoiceUiState()
         )
 
-    fun onUpdateHeader(updatedResult: PurchaseInvoiceParseResult) {
+    fun onUpdateHeaderCorrections(corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections) {
         viewModelScope.launch {
-            repository.updateParseResult(receiptId, updatedResult)
+            repository.updateParseResult(receiptId, corrections)
         }
     }
 
-    fun onUpdateLine(lineIndex: Int, isIgnored: Boolean, correction: ParsedInvoiceLineCandidate?) {
+    fun onUpdateLineCorrection(lineIndex: Int, isIgnored: Boolean, correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?) {
         viewModelScope.launch {
             repository.updateParsedLine(receiptId, lineIndex, isIgnored, correction)
         }
@@ -59,7 +59,20 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     fun onToggleIgnoreLine(lineIndex: Int) {
         viewModelScope.launch {
             val line = uiState.value.result?.lines?.find { it.index == lineIndex } ?: return@launch
-            repository.updateParsedLine(receiptId, lineIndex, !line.isIgnored, null)
+            repository.updateParsedLine(receiptId, lineIndex, !line.isIgnored, line.correction)
+        }
+    }
+    
+    fun onResetHeader() {
+        viewModelScope.launch {
+            repository.updateParseResult(receiptId, com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections())
+        }
+    }
+    
+    fun onResetLine(lineIndex: Int) {
+        viewModelScope.launch {
+            val line = uiState.value.result?.lines?.find { it.index == lineIndex } ?: return@launch
+            repository.updateParsedLine(receiptId, lineIndex, line.isIgnored, null)
         }
     }
 }

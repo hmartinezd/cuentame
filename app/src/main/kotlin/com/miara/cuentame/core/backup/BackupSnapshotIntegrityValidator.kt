@@ -56,6 +56,7 @@ object BackupSnapshotIntegrityValidator {
             validateRecipes(dto, ctx)?.let { throw it }
             validateProductionBatches(dto, ctx)?.let { throw it }
             validateOcr(dto, manifest, ctx)?.let { throw it }
+            validateParseResult(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: Exception) {
@@ -126,6 +127,7 @@ object BackupSnapshotIntegrityValidator {
         val batchComponentById = dto.productionBatchComponents.associateBy { it.id }
         val componentsByBatchId = dto.productionBatchComponents.groupBy { it.productionBatchId }
         val ocrResultById = dto.purchaseInvoiceOcrResults.associateBy { it.id }
+        val parseResultById = dto.purchaseInvoiceParseResults.associateBy { it.id }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -1706,6 +1708,50 @@ object BackupSnapshotIntegrityValidator {
             if (!ctx.ocrResultById.containsKey(page.ocrResultId)) {
                 return err(BROKEN_FOREIGN_KEY, "Broken FK: OCR page to result")
             }
+        }
+
+        return null
+    }
+
+    private fun validateParseResult(
+        dto: BackupSnapshotDto,
+        ctx: ValidationContext
+    ): BackupSnapshotIntegrityException? {
+        for (parse in dto.purchaseInvoiceParseResults) {
+            if (!ctx.receiptById.containsKey(parse.purchaseReceiptId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: Parse result to purchase receipt")
+            }
+
+            val ocr = ctx.ocrResultById[parse.ocrResultId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: Parse result to OCR result")
+
+            if (ocr.purchaseReceiptId != parse.purchaseReceiptId) {
+                return err(RELATIONSHIP_MISMATCH, "Parse result and OCR result belong to different receipts")
+            }
+
+            if (ocr.sourceDocumentSha256 != parse.sourceDocumentSha256) {
+                return err(RELATIONSHIP_MISMATCH, "Parse result and OCR result have different source document SHA-256")
+            }
+
+            // Version support
+            if (ocr.evidenceSchemaVersion != 1) {
+                return err(UNSUPPORTED_VERSION, "Unsupported OCR evidence schema version")
+            }
+            if (parse.parserSchemaVersion !in listOf(1, 2)) {
+                return err(UNSUPPORTED_VERSION, "Unsupported parser schema version")
+            }
+        }
+
+        for (line in dto.purchaseInvoiceParsedLines) {
+            if (!ctx.parseResultById.containsKey(line.parseResultId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: Parsed line to parse result")
+            }
+        }
+
+        // Uniqueness check for parsed lines
+        val lineKeys = dto.purchaseInvoiceParsedLines.map { it.parseResultId to it.lineIndex }
+        if (lineKeys.distinct().size != lineKeys.size) {
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate parsed line index for same result")
         }
 
         return null
