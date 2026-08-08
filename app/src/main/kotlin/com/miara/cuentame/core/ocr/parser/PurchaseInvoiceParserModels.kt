@@ -25,6 +25,7 @@ enum class InvoiceParseWarning {
     LineMathMismatch,
     InvoiceMathMismatch,
     UnknownColumnLayout,
+    InferredColumnLayout,
     WrappedRowUncertain,
     PossibleFooterNoise,
     PossibleDuplicate,
