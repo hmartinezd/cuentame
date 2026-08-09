@@ -25,10 +25,26 @@ object InventoryNormalization {
     }
 
     /**
-     * Normalizes package text (e.g. "25 LB CS").
+     * Normalizes package text (e.g. "25 LB CS") for better matching.
+     * Uses a conservative set of aliases to bridge common OCR/Vendor variations.
      */
     fun normalizePackageText(packageText: String?): String {
         if (packageText == null) return ""
-        return packageText.normalizeName()
+        val normalized = packageText.normalizeName()
+        
+        // Conservative aliases for matching
+        return normalized.split(" ").joinToString(" ") { token ->
+            when (token) {
+                "CS" -> "CASE"
+                "EA" -> "EACH"
+                "BX" -> "BOX"
+                "PK", "PKG" -> "PACK"
+                "LB", "LBS" -> "LB"
+                "OZ" -> "OZ"
+                "GAL", "GALLON" -> "GAL"
+                "CT", "COUNT" -> "COUNT"
+                else -> token
+            }
+        }
     }
 }

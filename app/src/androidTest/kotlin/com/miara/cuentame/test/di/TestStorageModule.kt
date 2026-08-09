@@ -86,6 +86,12 @@ object TestStorageModule {
     @Provides
     fun providePurchaseOcrDao(db: RestaurantInventoryDatabase) = db.purchaseOcrDao()
     @Provides
+    fun providePurchaseParseDao(db: RestaurantInventoryDatabase) = db.purchaseParseDao()
+    @Provides
+    fun provideSupplierItemMappingDao(db: RestaurantInventoryDatabase) = db.supplierItemMappingDao()
+    @Provides
+    fun providePurchaseInvoiceLineMatchDao(db: RestaurantInventoryDatabase) = db.purchaseInvoiceLineMatchDao()
+    @Provides
     fun provideBackupDao(db: RestaurantInventoryDatabase) = db.backupDao()
     @Provides
     fun provideRestoreDao(db: RestaurantInventoryDatabase) = db.restoreDao()

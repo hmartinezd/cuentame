@@ -36,11 +36,19 @@ data class ReviewDetectedInvoiceUiState(
     val result: PurchaseInvoiceParseResult? = null,
     val matches: List<PurchaseInvoiceLineMatch> = emptyList(),
     val suggestedSuppliers: List<Supplier> = emptyList(),
+    val allSuppliers: List<Supplier> = emptyList(),
     val isSaving: Boolean = false,
     val activeMappingConflict: MappingConflict? = null,
     val allIngredients: List<Ingredient> = emptyList(),
     val allAreas: List<InventoryArea> = emptyList(),
-    val ingredientUnitOptions: Map<IngredientId, List<IngredientUnitOption>> = emptyMap()
+    val ingredientUnitOptions: Map<IngredientId, List<IngredientUnitOption>> = emptyMap(),
+    val matchSummary: MatchSummary = MatchSummary(0, 0, 0)
+)
+
+data class MatchSummary(
+    val matched: Int,
+    val review: Int,
+    val unmatched: Int
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,7 +60,8 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     private val mappingRepository: SupplierItemMappingRepository,
     private val ingredientRepository: IngredientRepository,
     private val areaRepository: InventoryAreaRepository,
-    private val activeRestaurantProvider: ActiveRestaurantProvider
+    private val activeRestaurantProvider: ActiveRestaurantProvider,
+    private val idGenerator: com.miara.cuentame.core.common.ids.IdGenerator
 ) : ViewModel() {
 
     private val receiptId: PurchaseReceiptId = PurchaseReceiptId(
@@ -61,6 +70,8 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ReviewDetectedInvoiceUiState())
     val uiState: StateFlow<ReviewDetectedInvoiceUiState> = _uiState.asStateFlow()
+
+    private var lastAutoMatchedKey: String? = null
 
     init {
         observeData()
@@ -89,6 +100,10 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                 activeRestaurantProvider.observeActiveRestaurant().flatMapLatest { rest ->
                     if (rest != null) areaRepository.observeActiveAreas()
                     else flowOf(emptyList())
+                },
+                activeRestaurantProvider.observeActiveRestaurant().flatMapLatest { rest ->
+                    if (rest != null) supplierRepository.observeSuppliers(RestaurantId(rest.id), false)
+                    else flowOf(emptyList())
                 }
             ) { array ->
                 val details = array[0] as PurchaseDetails?
@@ -97,10 +112,25 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                 val activeRestaurant = array[3] as com.miara.cuentame.core.database.entity.RestaurantEntity?
                 val ingredients = array[4] as List<Ingredient>
                 val areas = array[5] as List<InventoryArea>
+                val suppliers = array[6] as List<Supplier>
 
                 val suggestedSuppliers = if (details?.receipt?.supplierId == null && result?.supplierNameCandidate?.normalizedValue != null && activeRestaurant != null) {
                     supplierRepository.searchSuppliers(RestaurantId(activeRestaurant.id), result.supplierNameCandidate.normalizedValue!!)
                 } else emptyList()
+
+                val currentAutoMatchKey = "${receiptId.value}_${details?.receipt?.supplierId?.value}"
+                if (details?.receipt?.supplierId != null && result != null && matches.isEmpty() && lastAutoMatchedKey != currentAutoMatchKey) {
+                    lastAutoMatchedKey = currentAutoMatchKey
+                    triggerAutoMatching(details.receipt.supplierId)
+                }
+
+                val activeLines = result?.lines?.filter { !it.isIgnored } ?: emptyList()
+                val activeIndices = activeLines.map { it.index }.toSet()
+                val activeMatches = matches.filter { it.lineIndex in activeIndices }
+                
+                val matched = activeMatches.count { it.status == InvoiceLineMatchStatus.CONFIRMED }
+                val review = activeMatches.count { it.status == InvoiceLineMatchStatus.SUGGESTED || it.status == InvoiceLineMatchStatus.NEEDS_REVIEW }
+                val unmatched = activeLines.size - matched - review
 
                 _uiState.update {
                     it.copy(
@@ -109,8 +139,10 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                         result = result,
                         matches = matches,
                         suggestedSuppliers = suggestedSuppliers,
+                        allSuppliers = suppliers,
                         allIngredients = ingredients,
-                        allAreas = areas
+                        allAreas = areas,
+                        matchSummary = MatchSummary(matched, review, unmatched)
                     )
                 }
             }.collect()
@@ -136,6 +168,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     private suspend fun triggerAutoMatching(supplierId: SupplierId?) {
         val result = uiState.value.result ?: return
         val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)
+        val existingMatches = uiState.value.matches
 
         val ingredients = ingredientRepository.getIngredients(restId, false)
         val mappings = if (supplierId != null) {
@@ -170,6 +203,11 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         val newMatches = result.lines.map { line ->
             if (line.isIgnored) return@map null
             
+            val existing = existingMatches.find { it.lineIndex == line.index }
+            if (existing?.status == InvoiceLineMatchStatus.CONFIRMED) {
+                return@map existing.copy(supplierId = supplierId)
+            }
+
             val match = PurchaseInvoiceInventoryMatcher.match(
                 line = line.toEffective(),
                 supplierId = supplierId?.value,
@@ -179,13 +217,9 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             val best = match.knownMapping ?: match.candidates.firstOrNull()
             
             PurchaseInvoiceLineMatch(
-                parseResultId = "", // Repository handles this
+                parseResultId = "", 
                 lineIndex = line.index,
-                status = when {
-                    match.knownMapping != null -> InvoiceLineMatchStatus.CONFIRMED
-                    match.candidates.isNotEmpty() -> InvoiceLineMatchStatus.SUGGESTED
-                    else -> InvoiceLineMatchStatus.UNMATCHED
-                },
+                status = if (best != null) InvoiceLineMatchStatus.SUGGESTED else InvoiceLineMatchStatus.UNMATCHED,
                 supplierId = supplierId,
                 ingredientId = best?.ingredientId?.let { IngredientId(it) },
                 unitOptionId = best?.unitOptionId?.let { IngredientUnitOptionId(it) },
@@ -193,7 +227,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                 mappingId = best?.mappingId,
                 matchMethod = best?.reason?.name,
                 matchConfidence = best?.confidence ?: 0f,
-                confirmedAt = if (match.knownMapping != null) Instant.now() else null
+                confirmedAt = null
             )
         }.filterNotNull()
 
@@ -209,7 +243,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         viewModelScope.launch {
             val result = uiState.value.result ?: return@launch
             val line = result.lines.find { it.index == lineIndex } ?: return@launch
-            val supplierId = uiState.value.purchaseDetails?.receipt?.supplierId ?: return@launch
+            val supplierId = uiState.value.purchaseDetails?.receipt?.supplierId
             val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)
 
             val match = PurchaseInvoiceLineMatch(
@@ -227,35 +261,37 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             )
             repository.saveLineMatchForReceipt(receiptId, match)
 
-            val effectiveLine = line.toEffective()
-            val normalizedCode = InventoryNormalization.normalizeVendorCode(effectiveLine.vendorCode)
-            
-            val mappingParams = if (normalizedCode.isNotEmpty()) {
-                SupplierItemMappingKeyType.VENDOR_CODE to normalizedCode
-            } else {
-                val d = InventoryNormalization.normalizeDescription(effectiveLine.description)
-                val p = InventoryNormalization.normalizePackageText(effectiveLine.packageText)
-                SupplierItemMappingKeyType.DESCRIPTION_PACKAGE to "$d|$p"
-            }
-            val keyType = mappingParams.first
-            val key = mappingParams.second
+            if (supplierId != null) {
+                val effectiveLine = line.toEffective()
+                val normalizedCode = InventoryNormalization.normalizeVendorCode(effectiveLine.vendorCode)
+                
+                val mappingParams = if (normalizedCode.isNotEmpty()) {
+                    SupplierItemMappingKeyType.VENDOR_CODE to normalizedCode
+                } else {
+                    val d = InventoryNormalization.normalizeDescription(effectiveLine.description)
+                    val p = InventoryNormalization.normalizePackageText(effectiveLine.packageText)
+                    SupplierItemMappingKeyType.DESCRIPTION_PACKAGE to "$d|$p"
+                }
+                val keyType = mappingParams.first
+                val key = mappingParams.second
 
-            val learnResult = mappingRepository.learnMapping(
-                restaurantId = restId,
-                supplierId = supplierId,
-                keyType = keyType,
-                normalizedKey = key,
-                sourceVendorCode = effectiveLine.vendorCode,
-                sourceDescription = effectiveLine.description,
-                sourcePackageText = effectiveLine.packageText,
-                ingredientId = ingredientId,
-                unitOptionId = unitOptionId,
-                inventoryAreaId = inventoryAreaId,
-                force = false
-            )
+                val learnResult = mappingRepository.learnMapping(
+                    restaurantId = restId,
+                    supplierId = supplierId,
+                    keyType = keyType,
+                    normalizedKey = key,
+                    sourceVendorCode = effectiveLine.vendorCode,
+                    sourceDescription = effectiveLine.description,
+                    sourcePackageText = effectiveLine.packageText,
+                    ingredientId = ingredientId,
+                    unitOptionId = unitOptionId,
+                    inventoryAreaId = inventoryAreaId,
+                    force = false
+                )
 
-            if (learnResult is LearnMappingResult.Conflict) {
-                _uiState.update { it.copy(activeMappingConflict = learnResult.conflict) }
+                if (learnResult is LearnMappingResult.Conflict) {
+                    _uiState.update { it.copy(activeMappingConflict = learnResult.conflict) }
+                }
             }
         }
     }
@@ -313,14 +349,115 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     fun onUpdateLineCorrection(lineIndex: Int, isIgnored: Boolean, correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?) {
         viewModelScope.launch {
+            val result = uiState.value.result ?: return@launch
+            val oldLine = result.lines.find { it.index == lineIndex } ?: return@launch
+            
+            val identityChanged = identityFieldsChanged(oldLine, correction)
+            
             repository.updateParsedLine(receiptId, lineIndex, isIgnored, correction)
+            
+            if (isIgnored || identityChanged) {
+                repository.saveLineMatchForReceipt(receiptId, unmatchedMatch(lineIndex))
+            }
+            
+            if (!isIgnored && identityChanged) {
+                triggerAutoMatchingForLine(lineIndex, correction)
+            }
         }
+    }
+
+    private fun identityFieldsChanged(oldLine: ParsedInvoiceLineCandidate, newCorrection: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?): Boolean {
+        val oldEffective = oldLine.toEffective()
+        val newEffective = oldLine.copy(correction = newCorrection).toEffective()
+        return oldEffective.vendorCode != newEffective.vendorCode ||
+               oldEffective.description != newEffective.description ||
+               oldEffective.packageText != newEffective.packageText
+    }
+
+    private fun unmatchedMatch(lineIndex: Int) = PurchaseInvoiceLineMatch(
+        parseResultId = "",
+        lineIndex = lineIndex,
+        status = InvoiceLineMatchStatus.UNMATCHED,
+        supplierId = uiState.value.purchaseDetails?.receipt?.supplierId,
+        ingredientId = null,
+        unitOptionId = null,
+        inventoryAreaId = null,
+        mappingId = null,
+        matchMethod = null,
+        matchConfidence = 0f,
+        confirmedAt = null
+    )
+
+    private suspend fun triggerAutoMatchingForLine(lineIndex: Int, correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?) {
+        val result = uiState.value.result ?: return
+        val line = result.lines.find { it.index == lineIndex } ?: return
+        val supplierId = uiState.value.purchaseDetails?.receipt?.supplierId
+        val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)
+
+        val ingredients = ingredientRepository.getIngredients(restId, false)
+        val mappings = if (supplierId != null) {
+            mappingRepository.getMappingsForSupplier(restId, supplierId)
+        } else emptyList()
+
+        val catalog = InventoryCatalog(
+            ingredients = ingredients.map { ing ->
+                IngredientMatchModel(
+                    id = ing.id.value,
+                    name = ing.name,
+                    normalizedName = ing.normalizedName,
+                    defaultAreaId = ing.defaultAreaId?.value,
+                    unitOptions = ingredientRepository.getUnitOptions(ing.id).map { opt ->
+                        UnitOptionMatchModel(opt.id.value, opt.displayName, opt.displayName.normalizeName())
+                    }
+                )
+            },
+            supplierMappings = mappings.map { m ->
+                SupplierItemMappingMatchModel(
+                    id = m.id,
+                    supplierId = m.supplierId.value,
+                    keyType = m.keyType.name,
+                    normalizedKey = m.normalizedKey,
+                    ingredientId = m.ingredientId.value,
+                    unitOptionId = m.unitOptionId?.value,
+                    inventoryAreaId = m.inventoryAreaId?.value
+                )
+            }
+        )
+
+        val match = PurchaseInvoiceInventoryMatcher.match(
+            line = line.copy(correction = correction).toEffective(),
+            supplierId = supplierId?.value,
+            catalog = catalog
+        )
+        
+        val best = match.knownMapping ?: match.candidates.firstOrNull()
+        
+        val newMatch = PurchaseInvoiceLineMatch(
+            parseResultId = "",
+            lineIndex = lineIndex,
+            status = if (best != null) InvoiceLineMatchStatus.SUGGESTED else InvoiceLineMatchStatus.UNMATCHED,
+            supplierId = supplierId,
+            ingredientId = best?.ingredientId?.let { IngredientId(it) },
+            unitOptionId = best?.unitOptionId?.let { IngredientUnitOptionId(it) },
+            inventoryAreaId = best?.inventoryAreaId?.let { InventoryAreaId(it) },
+            mappingId = best?.mappingId,
+            matchMethod = best?.reason?.name,
+            matchConfidence = best?.confidence ?: 0f,
+            confirmedAt = null
+        )
+        repository.saveLineMatchForReceipt(receiptId, newMatch)
     }
 
     fun onToggleIgnoreLine(lineIndex: Int) {
         viewModelScope.launch {
             val line = uiState.value.result?.lines?.find { it.index == lineIndex } ?: return@launch
-            repository.updateParsedLine(receiptId, lineIndex, !line.isIgnored, line.correction)
+            val isIgnored = !line.isIgnored
+            repository.updateParsedLine(receiptId, lineIndex, isIgnored, line.correction)
+            if (isIgnored) {
+                repository.saveLineMatchForReceipt(receiptId, unmatchedMatch(lineIndex))
+            } else {
+                triggerAutoMatchingForLine(lineIndex, line.correction)
+            }
         }
     }
     
@@ -334,6 +471,50 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         viewModelScope.launch {
             val line = uiState.value.result?.lines?.find { it.index == lineIndex } ?: return@launch
             repository.updateParsedLine(receiptId, lineIndex, line.isIgnored, null)
+        }
+    }
+
+    fun onCreateQuickIngredient(name: String, onCreated: (IngredientId) -> Unit) {
+        viewModelScope.launch {
+            val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)
+            val ingredientId = IngredientId(idGenerator.newId())
+            val baseUnitId = com.miara.cuentame.core.common.ids.UnitId("count_each")
+            val now = Instant.now()
+            
+            val ingredient = Ingredient(
+                id = ingredientId,
+                restaurantId = restId,
+                name = name,
+                normalizedName = name.normalizeName(),
+                categoryId = null,
+                baseUnitId = baseUnitId,
+                defaultAreaId = null,
+                isActive = true,
+                createdAt = now,
+                updatedAt = now
+            )
+            
+            val baseOption = IngredientUnitOption(
+                id = IngredientUnitOptionId(idGenerator.newId()),
+                ingredientId = ingredientId,
+                displayName = "ea",
+                shortLabel = "ea",
+                standardUnitId = baseUnitId,
+                factorToBase = java.math.BigDecimal.ONE,
+                isBase = true,
+                isDefaultCount = true,
+                isDefaultPurchase = true,
+                isActive = true,
+                createdAt = now,
+                updatedAt = now
+            )
+            
+            ingredientRepository.createIngredientWithBaseOption(ingredient, baseOption)
+            
+            // Pre-load options for the new ingredient
+            onSelectIngredientForMatch(ingredientId)
+            
+            onCreated(ingredientId)
         }
     }
 }

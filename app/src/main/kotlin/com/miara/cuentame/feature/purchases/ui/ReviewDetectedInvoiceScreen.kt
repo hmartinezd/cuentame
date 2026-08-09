@@ -74,7 +74,8 @@ fun ReviewDetectedInvoiceRoute(
         onSelectSupplier = viewModel::onSelectSupplier,
         onConfirmMatch = viewModel::onConfirmMatch,
         onConfirmConflict = viewModel::onConfirmConflict,
-        onSelectIngredientForMatch = viewModel::onSelectIngredientForMatch
+        onSelectIngredientForMatch = viewModel::onSelectIngredientForMatch,
+        onCreateQuickIngredient = viewModel::onCreateQuickIngredient
     )
 }
 
@@ -93,11 +94,13 @@ fun ReviewDetectedInvoiceScreen(
     onSelectSupplier: (SupplierId) -> Unit,
     onConfirmMatch: (Int, IngredientId, IngredientUnitOptionId?, InventoryAreaId?) -> Unit,
     onConfirmConflict: (Boolean) -> Unit,
-    onSelectIngredientForMatch: (IngredientId) -> Unit
+    onSelectIngredientForMatch: (IngredientId) -> Unit,
+    onCreateQuickIngredient: (String, (IngredientId) -> Unit) -> Unit
 ) {
     var editingHeaderField by remember { mutableStateOf<HeaderField?>(null) }
     var editingLineIndex by remember { mutableStateOf<Int?>(null) }
     var matchingLineIndex by remember { mutableStateOf<Int?>(null) }
+    var showingSupplierSelection by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -137,7 +140,8 @@ fun ReviewDetectedInvoiceScreen(
                     SupplierSelectionHeader(
                         selectedSupplierId = uiState.purchaseDetails?.receipt?.supplierId,
                         suggestedSuppliers = uiState.suggestedSuppliers,
-                        onSelect = onSelectSupplier
+                        onSelect = onSelectSupplier,
+                        onChangeSupplier = { showingSupplierSelection = true }
                     )
                 }
 
@@ -185,7 +189,7 @@ fun ReviewDetectedInvoiceScreen(
 
                 item {
                     HorizontalDivider()
-                    MatchSummaryHeader(matches = uiState.matches, totalLines = result.lines.size)
+                    MatchSummaryHeader(summary = uiState.matchSummary)
                 }
 
                 items(result.lines) { line ->
@@ -257,9 +261,24 @@ fun ReviewDetectedInvoiceScreen(
                         onConfirmMatch(line.index, ingId, optId, areaId)
                         matchingLineIndex = null
                     },
-                    onSelectIngredient = onSelectIngredientForMatch
+                    onSelectIngredient = onSelectIngredientForMatch,
+                    onCreateNewIngredient = { name, onCreated ->
+                        onCreateQuickIngredient(name, onCreated)
+                    }
                 )
             }
+        }
+
+        if (showingSupplierSelection) {
+            SupplierSelectionDialog(
+                currentSupplierId = uiState.purchaseDetails?.receipt?.supplierId,
+                suppliers = uiState.allSuppliers,
+                onDismiss = { showingSupplierSelection = false },
+                onSelect = {
+                    onSelectSupplier(it)
+                    showingSupplierSelection = false
+                }
+            )
         }
 
         uiState.activeMappingConflict?.let { conflict ->
@@ -275,7 +294,8 @@ fun ReviewDetectedInvoiceScreen(
 fun SupplierSelectionHeader(
     selectedSupplierId: SupplierId?,
     suggestedSuppliers: List<Supplier>,
-    onSelect: (SupplierId) -> Unit
+    onSelect: (SupplierId) -> Unit,
+    onChangeSupplier: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.supplier_name), style = MaterialTheme.typography.titleMedium)
@@ -304,38 +324,42 @@ fun SupplierSelectionHeader(
                 )
             }
             Button(
-                onClick = { /* Navigate to supplier selection */ },
+                onClick = onChangeSupplier,
                 modifier = Modifier.padding(top = 8.dp)
             ) {
                 Text("Select Supplier")
             }
         } else {
-            // In a real app, this would show the selected supplier name and a change button
-            Text(
-                text = "Supplier confirmed.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Supplier confirmed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                TextButton(onClick = onChangeSupplier) {
+                    Text("Change")
+                }
+            }
         }
     }
 }
 
 @Composable
-fun MatchSummaryHeader(matches: List<PurchaseInvoiceLineMatch>, totalLines: Int) {
-    val confirmedCount = matches.count { it.status == InvoiceLineMatchStatus.CONFIRMED }
-    val reviewCount = matches.count { it.status == InvoiceLineMatchStatus.NEEDS_REVIEW || it.status == InvoiceLineMatchStatus.SUGGESTED }
-    val unmatchedCount = totalLines - matches.size
-    
+fun MatchSummaryHeader(summary: com.miara.cuentame.feature.purchases.viewmodel.MatchSummary) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
         Text("Matching Status", style = MaterialTheme.typography.titleMedium)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatusBadge(count = confirmedCount, label = "Matched", color = Color(0xFF4CAF50))
-            StatusBadge(count = reviewCount, label = "Review", color = Color(0xFFFFA500))
-            if (unmatchedCount > 0) {
-                StatusBadge(count = unmatchedCount, label = "Unmatched", color = MaterialTheme.colorScheme.error)
+            StatusBadge(count = summary.matched, label = "Matched", color = Color(0xFF4CAF50))
+            StatusBadge(count = summary.review, label = "Review", color = Color(0xFFFFA500))
+            if (summary.unmatched > 0) {
+                StatusBadge(count = summary.unmatched, label = "Unmatched", color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -365,7 +389,8 @@ fun MatchProductDialog(
     unitOptions: Map<IngredientId, List<IngredientUnitOption>>,
     onDismiss: () -> Unit,
     onConfirmMatch: (IngredientId, IngredientUnitOptionId?, InventoryAreaId?) -> Unit,
-    onSelectIngredient: (IngredientId) -> Unit
+    onSelectIngredient: (IngredientId) -> Unit,
+    onCreateNewIngredient: (String, (IngredientId) -> Unit) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedIngredient by remember { mutableStateOf<Ingredient?>(null) }
@@ -382,7 +407,7 @@ fun MatchProductDialog(
         title = { Text("Match Product") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Invoice: ${line.description.normalizedValue}", style = MaterialTheme.typography.labelSmall)
+                Text(text = "Invoice: ${line.description.effectiveValue(line.correction?.description)}", style = MaterialTheme.typography.labelSmall)
                 
                 if (currentMatch != null && selectedIngredient == null) {
                     val ing = ingredients.find { it.id == currentMatch.ingredientId }
@@ -399,6 +424,22 @@ fun MatchProductDialog(
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    
+                    if (filteredIngredients.isEmpty() && searchQuery.isNotBlank()) {
+                        TextButton(
+                            onClick = { 
+                                onCreateNewIngredient(searchQuery) { newId ->
+                                    onConfirmMatch(newId, null, null)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Inventory, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Create new ingredient '$searchQuery'")
+                        }
+                    }
+
                     LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                         items(filteredIngredients) { ing ->
                             ListItem(
@@ -474,6 +515,57 @@ fun MatchProductDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun SupplierSelectionDialog(
+    currentSupplierId: SupplierId?,
+    suppliers: List<Supplier>,
+    onDismiss: () -> Unit,
+    onSelect: (SupplierId) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredSuppliers = remember(searchQuery, suppliers) {
+        if (searchQuery.isBlank()) suppliers
+        else suppliers.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Supplier") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search Suppliers") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(filteredSuppliers) { supplier ->
+                        val isSelected = supplier.id == currentSupplierId
+                        ListItem(
+                            headlineContent = { Text(supplier.name) },
+                            trailingContent = {
+                                if (isSelected) {
+                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            },
+                            modifier = Modifier.clickable { onSelect(supplier.id) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
             }
         }
     )
@@ -729,22 +821,29 @@ fun ParsedInvoiceLineItem(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        val statusColor = when (match?.status) {
-                            InvoiceLineMatchStatus.CONFIRMED -> Color(0xFF4CAF50)
-                            InvoiceLineMatchStatus.SUGGESTED -> Color(0xFFFFA500)
+                        val isKnownMapping = match?.matchMethod == "KnownSupplierItem"
+                        val statusColor = when {
+                            match?.status == InvoiceLineMatchStatus.CONFIRMED -> Color(0xFF4CAF50)
+                            match?.status == InvoiceLineMatchStatus.SUGGESTED && isKnownMapping -> MaterialTheme.colorScheme.primary
+                            match?.status == InvoiceLineMatchStatus.SUGGESTED -> Color(0xFFFFA500)
                             else -> MaterialTheme.colorScheme.error
                         }
                         Icon(
-                            imageVector = if (match?.status == InvoiceLineMatchStatus.CONFIRMED) Icons.Default.CheckCircle else Icons.Default.Inventory,
+                            imageVector = when {
+                                match?.status == InvoiceLineMatchStatus.CONFIRMED -> Icons.Default.CheckCircle
+                                isKnownMapping -> Icons.Default.CheckCircle
+                                else -> Icons.Default.Inventory
+                            },
                             contentDescription = null,
                             tint = statusColor,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = when (match?.status) {
-                                InvoiceLineMatchStatus.CONFIRMED -> if (match.matchMethod == "KnownSupplierItem") "Known supplier item" else "Matched"
-                                InvoiceLineMatchStatus.SUGGESTED -> "Suggested"
+                            text = when {
+                                match?.status == InvoiceLineMatchStatus.CONFIRMED -> "Matched"
+                                match?.status == InvoiceLineMatchStatus.SUGGESTED && isKnownMapping -> "Known supplier item"
+                                match?.status == InvoiceLineMatchStatus.SUGGESTED -> "Suggested"
                                 else -> "Needs match"
                             },
                             style = MaterialTheme.typography.labelSmall,

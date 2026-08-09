@@ -609,6 +609,8 @@ class RoomPurchaseRepository @Inject constructor(
     }
 
     override suspend fun saveLineMatches(matches: List<PurchaseInvoiceLineMatch>) {
+        val activeRestaurant = requireActiveRestaurant()
+        matches.forEach { validateMatchIntegrity(activeRestaurant.id, it) }
         lineMatchDao.insertMatches(matches.map { it.toEntity() })
     }
 
@@ -618,11 +620,44 @@ class RoomPurchaseRepository @Inject constructor(
     }
 
     override suspend fun saveLineMatch(match: PurchaseInvoiceLineMatch) {
+        val activeRestaurant = requireActiveRestaurant()
+        validateMatchIntegrity(activeRestaurant.id, match)
         lineMatchDao.insertMatches(listOf(match.toEntity()))
     }
 
     override suspend fun saveLineMatchForReceipt(receiptId: PurchaseReceiptId, match: PurchaseInvoiceLineMatch) {
         val parseResultId = parseDao.getParseResultIdForReceipt(receiptId.value) ?: return
         saveLineMatch(match.copy(parseResultId = parseResultId))
+    }
+
+    private suspend fun validateMatchIntegrity(
+        restaurantId: String,
+        match: PurchaseInvoiceLineMatch
+    ) {
+        if (match.supplierId != null) {
+            val supplier = supplierDao.getById(match.supplierId.value)
+                ?: throw ValidationError.SupplierNotFound
+            if (supplier.restaurantId != restaurantId) throw ValidationError.SupplierOwnershipMismatch
+        }
+
+        if (match.ingredientId != null) {
+            val ingredient = ingredientDao.getById(match.ingredientId.value)
+                ?: throw ValidationError.IngredientNotFound
+            if (ingredient.restaurantId != restaurantId) throw ValidationError.IngredientOwnershipMismatch
+
+            if (match.unitOptionId != null) {
+                val option = unitOptionDao.getById(match.unitOptionId.value)
+                    ?: throw ValidationError.UnitOptionNotFound
+                if (option.ingredientId != match.ingredientId.value) throw ValidationError.InvalidPurchaseUnitOption
+            }
+        } else if (match.unitOptionId != null) {
+            throw ValidationError.InvalidPurchaseUnitOption
+        }
+
+        if (match.inventoryAreaId != null) {
+            val area = areaDao.getById(match.inventoryAreaId.value)
+                ?: throw ValidationError.RecordNotFound
+            if (area.restaurantId != restaurantId) throw ValidationError.InvalidPurchaseArea
+        }
     }
 }
