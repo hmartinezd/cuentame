@@ -710,11 +710,6 @@ class RoomPurchaseRepository @Inject constructor(
         forceLearnMapping: Boolean
     ): LearnMappingResult = database.withTransaction {
         if (isSourceLocked(receiptId)) {
-            // We use LearnMappingResult.NoChanges as a base, but we need to signal SourceLocked.
-            // However, the domain API for confirmInvoiceLineMatch returns LearnMappingResult.
-            // The requirements say: "add the smallest explicit SourceLocked representation 
-            // consistent with that result type or fail through an existing typed domain validation mechanism."
-            // Let's check LearnMappingResult definition.
             throw ValidationError.InvoiceSourceLocked
         }
         
@@ -950,6 +945,16 @@ class RoomPurchaseRepository @Inject constructor(
             val currentParse = observeParseResult(receiptId).first()
             if (currentParse == null || (currentParse.id != proposal.parseResultId)) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ParseChanged)
+            }
+
+            // Header Validation (Goal 4)
+            val corrections = currentParse.corrections
+            val effectiveInvoiceNumber = currentParse.invoiceNumber.effectiveValue(corrections?.invoiceNumber)
+            val effectiveInvoiceDate = currentParse.invoiceDate.effectiveValue(corrections?.invoiceDate)
+
+            if (proposal.invoiceNumber != effectiveInvoiceNumber ||
+                proposal.invoiceDate != effectiveInvoiceDate) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
             }
 
             val activeSourceIndices = currentParse.lines.filter { !it.isIgnored }.map { it.index }.toSet()

@@ -146,17 +146,66 @@ class RoomPurchaseInvoiceCorrectnessTest {
         val resultAttach = repository.attachDocument(receiptId, "new-loc", "new-name")
         assertThat(resultAttach).isEqualTo(SourceMutationResult.SourceLocked)
 
-        // 2. Attempt to delete OCR -> SourceLocked
+        // 2. Attempt to remove document -> SourceLocked
+        val resultRemove = repository.removeDocument(receiptId)
+        assertThat(resultRemove).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 3. Attempt to save OCR -> SourceLocked
+        val resultSaveOcr = repository.saveOcrResult(
+            result = PurchaseInvoiceOcrResult("ocr-2", receiptId, "sha2", "pdf", "e", 1, 1, "", Instant.now()),
+            pages = emptyList(),
+            expectedAttachmentPath = "loc",
+            expectedDocumentSha256 = "sha"
+        )
+        assertThat(resultSaveOcr).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 4. Attempt to delete OCR -> SourceLocked
         val resultDeleteOcr = repository.deleteOcrResult(receiptId)
         assertThat(resultDeleteOcr).isEqualTo(SourceMutationResult.SourceLocked)
 
-        // 3. Attempt to delete Parse -> SourceLocked
+        // 5. Attempt to save parse result -> SourceLocked
+        val resultSaveParse = repository.saveParseResult(
+            receiptId = receiptId,
+            ocrResultId = "ocr-1",
+            sourceDocumentSha256 = "sha",
+            result = PurchaseInvoiceParseResult(
+                id = "p-2",
+                supplierNameCandidate = ParsedField(null, null, null),
+                invoiceNumber = ParsedField(null, null, null),
+                invoiceDate = ParsedField(null, null, null),
+                currency = ParsedField(null, null, null),
+                subtotal = ParsedField(null, null, null),
+                discount = ParsedField(null, null, null),
+                fees = ParsedField(null, null, null),
+                tax = ParsedField(null, null, null),
+                total = ParsedField(null, null, null),
+                lines = emptyList(),
+                confidence = 1f
+            )
+        )
+        assertThat(resultSaveParse).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 6. Attempt to delete Parse -> SourceLocked
         val resultDeleteParse = repository.deleteParseResult(receiptId)
         assertThat(resultDeleteParse).isEqualTo(SourceMutationResult.SourceLocked)
 
-        // 4. Attempt to update line -> SourceLocked
+        // 7. Attempt to update parsed line -> SourceLocked
         val resultUpdateLine = repository.updateParsedLine(receiptId, 0, true, null)
         assertThat(resultUpdateLine).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 8. Attempt to update parse result corrections -> SourceLocked
+        val resultUpdateParse = repository.updateParseResult(receiptId, com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections())
+        assertThat(resultUpdateParse).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 9. Attempt to save line matches -> SourceLocked
+        val resultSaveMatches = repository.saveLineMatchesForReceipt(receiptId, proposal.parseResultId, emptyList())
+        assertThat(resultSaveMatches).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 10. Attempt to save single match -> SourceLocked
+        val resultSaveMatch = repository.saveLineMatchForReceipt(receiptId, proposal.parseResultId, 
+            PurchaseInvoiceLineMatch(proposal.parseResultId, 0, InvoiceLineMatchStatus.SUGGESTED, null, null, null, null, null, "", 0f, null)
+        )
+        assertThat(resultSaveMatch).isEqualTo(SourceMutationResult.SourceLocked)
     }
 
     @Test
@@ -181,24 +230,39 @@ class RoomPurchaseInvoiceCorrectnessTest {
         val receiptId = seedPurchaseWithParseResult(lineCount = 1)
         val baseProposal = generateProposalUseCase.execute(receiptId)!!
 
-        val malformedProposals = listOf(
+        val malformedProposals = mutableListOf(
             // 1. Missing line
             baseProposal.copy(lines = emptyList()),
             // 2. Duplicate line index
             baseProposal.copy(lines = listOf(baseProposal.lines[0], baseProposal.lines[0])),
             // 3. Null ID on ready line
             baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(ingredientId = null))),
-            // 4. Mismatched supplier
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(unitOptionId = null))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(areaId = null))),
+            // 4. Null numeric fields
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(quantityEntered = null))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(quantityBase = null))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(factorToBase = null))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(lineTotal = null))),
+            // 5. Mismatched supplier
             baseProposal.copy(supplierProposal = baseProposal.supplierProposal!!.copy(id = SupplierId("other-s"))),
-            // 5. Tampered quantity
-            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(quantityEntered = BigDecimal("999"))))
+            // 6. Tampered numeric values vs source
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(quantityEntered = BigDecimal("999")))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(lineTotal = BigDecimal("999")))),
+            // 7. Mismatched relational data vs confirmed match
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(ingredientId = IngredientId("other-i")))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(unitOptionId = IngredientUnitOptionId("other-o")))),
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(areaId = InventoryAreaId("other-a")))),
+            // 8. Tampered headers
+            baseProposal.copy(invoiceNumber = "TAMPERED"),
+            baseProposal.copy(invoiceDate = LocalDate.now().plusDays(10))
         )
 
         for (proposal in malformedProposals) {
             val result = repository.applyInvoiceToDraft(proposal)
             assertThat(result).isInstanceOf(PurchaseInvoiceMaterializationResult.Failure::class.java)
             
-            // Verify ZERO mutation
+            // Verify ZERO mutation (assuming parse/receipt were not deleted by some bug)
             assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).isEmpty()
             assertThat(database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)).isNull()
         }

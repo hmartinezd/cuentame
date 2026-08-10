@@ -134,7 +134,7 @@ class RoomPurchaseRepositoryMaterializationTest {
                 parseResultId = "parse1",
                 lineIndex = 0,
                 status = InvoiceLineMatchStatus.CONFIRMED,
-                supplierId = null,
+                supplierId = supplierId,
                 ingredientId = IngredientId(TestSeeder.ING_ID),
                 unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
                 inventoryAreaId = InventoryAreaId(TestSeeder.AREA_ID),

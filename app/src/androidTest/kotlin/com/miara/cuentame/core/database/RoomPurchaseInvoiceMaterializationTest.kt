@@ -23,6 +23,7 @@ import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -145,10 +146,10 @@ class RoomPurchaseInvoiceMaterializationTest {
     }
 
     @Test
-    fun reconciliation_deletesRemovedLines() = runBlocking {
+    fun sourceLocking_preventsMutationAfterMaterialization() = runBlocking {
         val receiptId = seedPurchaseWithParseResult(lineCount = 2)
         
-        // 1. Apply both lines
+        // 1. Materialize
         val proposalFull = generateProposalUseCase.execute(receiptId)!!
         applyInvoiceUseCase.execute(proposalFull)
         
@@ -156,18 +157,16 @@ class RoomPurchaseInvoiceMaterializationTest {
         val appId = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)!!.id
         assertThat(database.purchaseInvoiceMaterializationDao().getLineOrigins(appId)).hasSize(2)
 
-        // 2. Mock parse result to ignore one line
-        repository.updateParsedLine(receiptId, 1, isIgnored = true, correction = null)
+        // 2. Attempt updateParsedLine / ignore source line -> SourceLocked
+        val result = repository.updateParsedLine(receiptId, 1, isIgnored = true, correction = null)
+        assertThat(result).isEqualTo(com.miara.cuentame.core.model.purchase.SourceMutationResult.SourceLocked)
         
-        // 3. Apply again
-        val proposalReduced = generateProposalUseCase.execute(receiptId)!!
-        assertThat(proposalReduced.lines).hasSize(1)
+        // 3. Verify state remains unchanged
+        val parseResult = repository.observeParseResult(receiptId).first()!!
+        assertThat(parseResult.lines.find { it.index == 1 }?.isIgnored).isFalse()
         
-        applyInvoiceUseCase.execute(proposalReduced)
-        
-        // 4. Verify reconciliation
-        assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).hasSize(1)
-        assertThat(database.purchaseInvoiceMaterializationDao().getLineOrigins(appId)).hasSize(1)
+        assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).hasSize(2)
+        assertThat(database.purchaseInvoiceMaterializationDao().getLineOrigins(appId)).hasSize(2)
     }
 
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {
@@ -230,7 +229,7 @@ class RoomPurchaseInvoiceMaterializationTest {
                 parseResultId = parseResult.id,
                 lineIndex = i,
                 status = InvoiceLineMatchStatus.CONFIRMED,
-                supplierId = null,
+                supplierId = supplierId,
                 ingredientId = IngredientId(TestSeeder.ING_ID),
                 unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
                 inventoryAreaId = InventoryAreaId(TestSeeder.AREA_ID),
