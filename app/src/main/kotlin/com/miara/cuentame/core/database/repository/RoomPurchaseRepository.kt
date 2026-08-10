@@ -67,6 +67,8 @@ import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
 import com.miara.cuentame.core.model.supplier.SupplierItemMapping
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
+import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection
+import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
 import com.miara.cuentame.core.ocr.parser.effectiveValue
 import com.miara.cuentame.core.ocr.parser.isEdited
 import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
@@ -534,7 +536,9 @@ class RoomPurchaseRepository @Inject constructor(
         return parseDao.observeParseResultForReceipt(receiptId.value).map { entity ->
             entity?.let {
                 val baseResult = json.decodeFromString<PurchaseInvoiceParseResult>(it.totalsEvidenceJson)
-                val corrections = it.correctionsJson?.let { c -> json.decodeFromString<com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections>(c) }
+                val corrections = it.correctionsJson?.takeIf { c -> c != "null" }?.let { c -> 
+                    json.decodeFromString<PurchaseInvoiceCorrections>(c)
+                }
                 
                 baseResult.copy(
                     id = it.id,
@@ -548,7 +552,9 @@ class RoomPurchaseRepository @Inject constructor(
     override suspend fun getParsedLines(parseResultId: String): List<ParsedInvoiceLineCandidate> {
         return parseDao.getParsedLines(parseResultId).map { entity ->
             val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(entity.evidenceJson)
-            val correction = entity.correctionJson?.let { json.decodeFromString<com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection>(it) }
+            val correction = entity.correctionJson?.takeIf { it != "null" }?.let { 
+                json.decodeFromString<ParsedInvoiceLineCorrection>(it)
+            }
             
             baseLine.copy(
                 isIgnored = entity.isIgnored,
@@ -583,7 +589,7 @@ class RoomPurchaseRepository @Inject constructor(
                 parserSchemaVersion = PARSER_SCHEMA_VERSION,
                 headerEvidenceJson = json.encodeToString(result.supplierNameCandidate),
                 totalsEvidenceJson = json.encodeToString(result.copy(lines = emptyList(), corrections = null)),
-                correctionsJson = json.encodeToString(result.corrections),
+                correctionsJson = result.corrections?.let { json.encodeToString(it) },
                 warningsJson = json.encodeToString(result.warnings),
                 processedAt = timeProvider.now().toEpochMilli(),
                 reviewedAt = null
@@ -593,7 +599,7 @@ class RoomPurchaseRepository @Inject constructor(
                     parseResultId = parseId,
                     lineIndex = line.index,
                     evidenceJson = json.encodeToString(line.copy(correction = null)),
-                    correctionJson = json.encodeToString(line.correction),
+                    correctionJson = line.correction?.let { json.encodeToString(it) },
                     isIgnored = line.isIgnored
                 )
             }
@@ -633,7 +639,7 @@ class RoomPurchaseRepository @Inject constructor(
         
         parseDao.updateParseResultCorrections(
             receiptId = receiptId.value,
-            correctionsJson = json.encodeToString(corrections),
+            correctionsJson = corrections.let { json.encodeToString(it) },
             reviewedAt = timeProvider.now().toEpochMilli()
         )
         SourceMutationResult.Success
@@ -736,7 +742,9 @@ class RoomPurchaseRepository @Inject constructor(
         if (lineEntity.isIgnored) throw ValidationError.InvalidMatchStatus
         
         val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(lineEntity.evidenceJson)
-        val correction = lineEntity.correctionJson?.let { json.decodeFromString<com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection>(it) }
+        val correction = lineEntity.correctionJson?.takeIf { it != "null" }?.let { 
+            json.decodeFromString<com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection>(it) 
+        }
         
         // 3. Validate Target Invariants for CONFIRMED
         if (unitOptionId == null || inventoryAreaId == null) {
