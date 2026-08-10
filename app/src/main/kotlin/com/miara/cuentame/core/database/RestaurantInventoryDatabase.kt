@@ -36,7 +36,9 @@ import com.miara.cuentame.core.common.database.DatabaseSchema
         PurchaseInvoiceParseResultEntity::class,
         PurchaseInvoiceParsedLineEntity::class,
         SupplierItemMappingEntity::class,
-        PurchaseInvoiceLineMatchEntity::class
+        PurchaseInvoiceLineMatchEntity::class,
+        PurchaseInvoiceDraftApplicationEntity::class,
+        PurchaseInvoiceLineOriginEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -62,6 +64,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun purchaseParseDao(): PurchaseParseDao
     abstract fun supplierItemMappingDao(): SupplierItemMappingDao
     abstract fun purchaseInvoiceLineMatchDao(): PurchaseInvoiceLineMatchDao
+    abstract fun purchaseInvoiceMaterializationDao(): PurchaseInvoiceMaterializationDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
 
@@ -390,6 +393,43 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_unitOptionId` ON `purchase_invoice_line_matches` (`unitOptionId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_inventoryAreaId` ON `purchase_invoice_line_matches` (`inventoryAreaId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_mappingId` ON `purchase_invoice_line_matches` (`mappingId`)")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_draft_applications` (
+                        `id` TEXT NOT NULL, 
+                        `purchaseReceiptId` TEXT NOT NULL, 
+                        `parseResultId` TEXT NOT NULL, 
+                        `sourceDocumentSha256` TEXT NOT NULL, 
+                        `sourceStateFingerprint` TEXT NOT NULL, 
+                        `appliedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`purchaseReceiptId`) REFERENCES `purchase_receipts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`parseResultId`) REFERENCES `purchase_invoice_parse_results`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_draft_applications_purchaseReceiptId` ON `purchase_invoice_draft_applications` (`purchaseReceiptId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_draft_applications_parseResultId` ON `purchase_invoice_draft_applications` (`parseResultId`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `purchase_invoice_line_origins` (
+                        `purchaseLineId` TEXT NOT NULL, 
+                        `applicationId` TEXT NOT NULL, 
+                        `sourceLineIndex` INTEGER NOT NULL, 
+                        `sourceStateFingerprint` TEXT NOT NULL, 
+                        `lastMaterializedSnapshotJson` TEXT NOT NULL, 
+                        PRIMARY KEY(`purchaseLineId`), 
+                        FOREIGN KEY(`purchaseLineId`) REFERENCES `purchase_lines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`applicationId`) REFERENCES `purchase_invoice_draft_applications`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_purchaseLineId` ON `purchase_invoice_line_origins` (`purchaseLineId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_applicationId` ON `purchase_invoice_line_origins` (`applicationId`)")
             }
         }
     }

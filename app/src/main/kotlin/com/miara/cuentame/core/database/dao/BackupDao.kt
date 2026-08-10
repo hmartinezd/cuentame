@@ -206,7 +206,9 @@ interface BackupDao {
             purchaseInvoiceParseResults = getAllPurchaseInvoiceParseResults(),
             purchaseInvoiceParsedLines = getAllPurchaseInvoiceParsedLines(),
             supplierItemMappings = getAllSupplierItemMappings(),
-            purchaseInvoiceLineMatches = getAllPurchaseInvoiceLineMatches()
+            purchaseInvoiceLineMatches = getAllPurchaseInvoiceLineMatches(),
+            purchaseInvoiceDraftApplications = getAllPurchaseInvoiceDraftApplications(),
+            purchaseInvoiceLineOrigins = getAllPurchaseInvoiceLineOrigins()
         )
     }
 
@@ -284,4 +286,10 @@ interface BackupDao {
 
     @Query("SELECT * FROM purchase_invoice_line_matches")
     suspend fun getAllPurchaseInvoiceLineMatches(): List<PurchaseInvoiceLineMatchEntity>
+
+    @Query("SELECT * FROM purchase_invoice_draft_applications")
+    suspend fun getAllPurchaseInvoiceDraftApplications(): List<PurchaseInvoiceDraftApplicationEntity>
+
+    @Query("SELECT * FROM purchase_invoice_line_origins")
+    suspend fun getAllPurchaseInvoiceLineOrigins(): List<PurchaseInvoiceLineOriginEntity>
 }

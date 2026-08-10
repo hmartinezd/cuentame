@@ -72,6 +72,10 @@ class RoomIngredientRepository @Inject constructor(
         return ingredientDao.getById(id.value)?.toDomain()
     }
 
+    override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? {
+        return unitOptionDao.getById(id.value)?.toDomain()
+    }
+
     override suspend fun updateIngredient(command: UpdateIngredientCommand) {
         database.withTransaction {
             val existing = ingredientDao.getById(command.ingredientId.value)?.toDomain()

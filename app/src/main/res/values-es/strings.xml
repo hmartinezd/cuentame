@@ -849,4 +849,9 @@
     <string name="ocr_matching_edited">Editado</string>
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deshacer selección</string>
+    <string name="ocr_materialization_apply_to_draft">Aplicar a Borrador de Compra</string>
+    <string name="ocr_materialization_unresolved_lines_warning">Algunas líneas no coinciden. Estas no se añadirán al borrador.</string>
+    <string name="ocr_materialization_success">Factura aplicada al borrador con éxito.</string>
+    <string name="ocr_materialization_error_already_posted">Esta compra ya ha sido publicada y no se puede modificar.</string>
+    <string name="ocr_materialization_error_conflict">Una línea fue editada manualmente en el borrador. La aplicación no sobrescribirá sus cambios.</string>
 </resources>

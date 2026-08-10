@@ -40,6 +40,12 @@ interface RestoreDao {
     @Query("DELETE FROM purchase_invoice_line_matches")
     suspend fun deleteAllPurchaseInvoiceLineMatches()
 
+    @Query("DELETE FROM purchase_invoice_line_origins")
+    suspend fun deleteAllPurchaseInvoiceLineOrigins()
+
+    @Query("DELETE FROM purchase_invoice_draft_applications")
+    suspend fun deleteAllPurchaseInvoiceDraftApplications()
+
     @Query("DELETE FROM purchase_invoice_parse_results")
     suspend fun deleteAllPurchaseInvoiceParseResults()
 
@@ -166,6 +172,12 @@ interface RestoreDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSupplierItemMappings(entities: List<SupplierItemMappingEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertPurchaseInvoiceDraftApplications(entities: List<PurchaseInvoiceDraftApplicationEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertPurchaseInvoiceLineOrigins(entities: List<PurchaseInvoiceLineOriginEntity>)
+
     @Transaction
     suspend fun clearAllInOrder() {
         deleteAllIngredientCostProjections()
@@ -178,6 +190,9 @@ interface RestoreDao {
         deleteAllPurchaseInvoiceOcrPages()
         deleteAllPurchaseInvoiceLineMatches()
         deleteAllPurchaseInvoiceParsedLines()
+        deleteAllPurchaseInvoiceLineMatches()
+        deleteAllPurchaseInvoiceLineOrigins()
+        deleteAllPurchaseInvoiceDraftApplications()
         deleteAllPurchaseInvoiceParseResults()
         deleteAllPurchaseInvoiceOcrResults()
         deleteAllPurchaseReceipts()

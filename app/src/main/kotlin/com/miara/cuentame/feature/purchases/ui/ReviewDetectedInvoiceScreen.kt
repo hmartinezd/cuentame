@@ -40,6 +40,9 @@ import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.supplier.Supplier
+import com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue
+import com.miara.cuentame.core.model.purchase.materialization.PurchaseInvoiceDraftProposal
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationFailure
 import com.miara.cuentame.core.ocr.parser.*
 import com.miara.cuentame.feature.purchases.viewmodel.ReviewDetectedInvoiceUiState
 import com.miara.cuentame.feature.purchases.viewmodel.ReviewDetectedInvoiceViewModel
@@ -80,7 +83,9 @@ fun ReviewDetectedInvoiceRoute(
             viewModel.onStartCreateIngredient(lineIndex)
             onAddIngredient(name) 
         },
-        onStartMatch = viewModel::onStartMatch
+        onStartMatch = { viewModel.onStartMatch(it) },
+        onApplyToDraft = viewModel::onApplyToDraft,
+        onClearMaterializationFailure = viewModel::clearMaterializationFailure
     )
 }
 
@@ -101,7 +106,9 @@ fun ReviewDetectedInvoiceScreen(
     onConfirmConflict: (Boolean) -> Unit,
     onSelectIngredientForMatch: (IngredientId) -> Unit,
     onStartCreateIngredient: (Int, String) -> Unit,
-    onStartMatch: (Int?) -> Unit
+    onStartMatch: (Int?) -> Unit,
+    onApplyToDraft: () -> Unit,
+    onClearMaterializationFailure: () -> Unit
 ) {
     var editingHeaderField by remember { mutableStateOf<HeaderField?>(null) }
     var editingLineIndex by remember { mutableStateOf<Int?>(null) }
@@ -199,6 +206,16 @@ fun ReviewDetectedInvoiceScreen(
                     MatchSummaryHeader(summary = uiState.matchSummary)
                 }
 
+                uiState.proposal?.let { proposal ->
+                    item {
+                        MaterializationImpactCard(
+                            proposal = proposal,
+                            isMaterializing = uiState.isMaterializing,
+                            onApply = onApplyToDraft
+                        )
+                    }
+                }
+
                 items(result.lines) { line ->
                     val match = uiState.matches.find { it.lineIndex == line.index }
                     ParsedInvoiceLineItem(
@@ -294,6 +311,19 @@ fun ReviewDetectedInvoiceScreen(
                 conflict = conflict,
                 onConfirm = { replace -> onConfirmConflict(replace) }
             )
+        }
+
+        uiState.materializationFailure?.let { failure ->
+            MaterializationFailureDialog(
+                failure = failure,
+                onDismiss = onClearMaterializationFailure
+            )
+        }
+
+        if (uiState.isMaterialized) {
+            LaunchedEffect(Unit) {
+                onBack()
+            }
         }
     }
 }
@@ -729,6 +759,91 @@ fun EditLineDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun MaterializationImpactCard(
+    proposal: PurchaseInvoiceDraftProposal,
+    isMaterializing: Boolean,
+    onApply: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.status_draft),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            val readyCount = proposal.lines.size
+            
+            Text(
+                text = "$readyCount lines ready to apply",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            if (proposal.blockingIssues.isNotEmpty()) {
+                proposal.blockingIssues.forEach { issue ->
+                    Text(
+                        text = when(issue) {
+                            MaterializationBlockingIssue.UnresolvedLines -> stringResource(R.string.ocr_materialization_unresolved_lines_warning)
+                            MaterializationBlockingIssue.MissingSupplier -> stringResource(R.string.ocr_matching_no_supplier_selected)
+                            MaterializationBlockingIssue.PurchaseAlreadyPosted -> stringResource(R.string.ocr_materialization_error_already_posted)
+                            MaterializationBlockingIssue.DocumentChanged -> stringResource(R.string.ocr_error_document_changed)
+                            MaterializationBlockingIssue.ParseChanged -> "Invoice analysis changed. Please refresh."
+                        },
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Button(
+                onClick = onApply,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isMaterializing && proposal.blockingIssues.isEmpty()
+            ) {
+                if (isMaterializing) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text(stringResource(R.string.ocr_materialization_apply_to_draft))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MaterializationFailureDialog(
+    failure: PurchaseInvoiceMaterializationFailure,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.state_error_desc)) },
+        text = {
+            Text(
+                text = when (failure) {
+                    PurchaseInvoiceMaterializationFailure.PurchaseAlreadyPosted -> stringResource(R.string.ocr_materialization_error_already_posted)
+                    PurchaseInvoiceMaterializationFailure.ManualEditConflict -> stringResource(R.string.ocr_materialization_error_conflict)
+                    else -> stringResource(R.string.error_generic)
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_dismiss))
             }
         }
     )

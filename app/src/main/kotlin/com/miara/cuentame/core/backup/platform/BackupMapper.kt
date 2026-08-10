@@ -44,12 +44,33 @@ object BackupMapper {
                     .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex })),
                 supplierItemMappings = snapshot.supplierItemMappings.map { it.toDto() }.sortedBy { it.id },
                 purchaseInvoiceLineMatches = snapshot.purchaseInvoiceLineMatches.map { it.toDto() }
-                    .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex }))
+                    .sortedWith(compareBy({ it.parseResultId }, { it.lineIndex })),
+                purchaseInvoiceDraftApplications = snapshot.purchaseInvoiceDraftApplications.map { it.toDto() }.sortedBy { it.id },
+                purchaseInvoiceLineOrigins = snapshot.purchaseInvoiceLineOrigins.map { it.toDto() }.sortedBy { it.purchaseLineId }
             )
         } catch (e: Exception) {
             throw e
         }
     }
+
+    private fun PurchaseInvoiceDraftApplicationEntity.toDto(): PurchaseInvoiceDraftApplicationBackupDto = 
+        PurchaseInvoiceDraftApplicationBackupDto(
+            id = id,
+            purchaseReceiptId = purchaseReceiptId,
+            parseResultId = parseResultId,
+            sourceDocumentSha256 = sourceDocumentSha256,
+            sourceStateFingerprint = sourceStateFingerprint,
+            appliedAt = appliedAt
+        )
+
+    private fun PurchaseInvoiceLineOriginEntity.toDto(): PurchaseInvoiceLineOriginBackupDto = 
+        PurchaseInvoiceLineOriginBackupDto(
+            purchaseLineId = purchaseLineId,
+            applicationId = applicationId,
+            sourceLineIndex = sourceLineIndex,
+            sourceStateFingerprint = sourceStateFingerprint,
+            lastMaterializedSnapshotJson = lastMaterializedSnapshotJson
+        )
 
     internal fun RestaurantEntity.toDto() = RestaurantBackupDto(
         id = id,
@@ -791,6 +812,23 @@ object BackupMapper {
         matchMethod = matchMethod,
         matchConfidence = matchConfidence,
         confirmedAt = confirmedAt
+    )
+
+    fun PurchaseInvoiceDraftApplicationBackupDto.toEntity() = PurchaseInvoiceDraftApplicationEntity(
+        id = id,
+        purchaseReceiptId = purchaseReceiptId,
+        parseResultId = parseResultId,
+        sourceDocumentSha256 = sourceDocumentSha256,
+        sourceStateFingerprint = sourceStateFingerprint,
+        appliedAt = appliedAt
+    )
+
+    fun PurchaseInvoiceLineOriginBackupDto.toEntity() = PurchaseInvoiceLineOriginEntity(
+        purchaseLineId = purchaseLineId,
+        applicationId = applicationId,
+        sourceLineIndex = sourceLineIndex,
+        sourceStateFingerprint = sourceStateFingerprint,
+        lastMaterializedSnapshotJson = lastMaterializedSnapshotJson
     )
 
 }

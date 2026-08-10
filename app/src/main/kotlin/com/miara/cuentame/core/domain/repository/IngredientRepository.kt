@@ -43,6 +43,7 @@ interface IngredientRepository {
     suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient>
     fun observeIngredient(id: IngredientId): Flow<Ingredient?>
     suspend fun getById(id: IngredientId): Ingredient?
+    suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption?
     suspend fun updateIngredient(command: UpdateIngredientCommand)
     suspend fun archive(id: IngredientId, at: Instant)
 

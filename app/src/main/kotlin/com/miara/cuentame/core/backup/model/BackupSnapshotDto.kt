@@ -29,7 +29,28 @@ data class BackupSnapshotDto(
     val purchaseInvoiceParseResults: List<PurchaseInvoiceParseResultBackupDto> = emptyList(),
     val purchaseInvoiceParsedLines: List<PurchaseInvoiceParsedLineBackupDto> = emptyList(),
     val supplierItemMappings: List<SupplierItemMappingBackupDto> = emptyList(),
-    val purchaseInvoiceLineMatches: List<PurchaseInvoiceLineMatchBackupDto> = emptyList()
+    val purchaseInvoiceLineMatches: List<PurchaseInvoiceLineMatchBackupDto> = emptyList(),
+    val purchaseInvoiceDraftApplications: List<PurchaseInvoiceDraftApplicationBackupDto> = emptyList(),
+    val purchaseInvoiceLineOrigins: List<PurchaseInvoiceLineOriginBackupDto> = emptyList()
+)
+
+@Serializable
+data class PurchaseInvoiceDraftApplicationBackupDto(
+    val id: String,
+    val purchaseReceiptId: String,
+    val parseResultId: String,
+    val sourceDocumentSha256: String,
+    val sourceStateFingerprint: String,
+    val appliedAt: Long
+)
+
+@Serializable
+data class PurchaseInvoiceLineOriginBackupDto(
+    val purchaseLineId: String,
+    val applicationId: String,
+    val sourceLineIndex: Int,
+    val sourceStateFingerprint: String,
+    val lastMaterializedSnapshotJson: String
 )
 
 @Serializable

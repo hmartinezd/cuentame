@@ -849,4 +849,9 @@
     <string name="ocr_matching_edited">Edited</string>
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deselect</string>
+    <string name="ocr_materialization_apply_to_draft">Apply to Purchase Draft</string>
+    <string name="ocr_materialization_unresolved_lines_warning">Some lines are not matched. These will not be added to the draft.</string>
+    <string name="ocr_materialization_success">Invoice applied to draft successfully.</string>
+    <string name="ocr_materialization_error_already_posted">This purchase is already posted and cannot be modified.</string>
+    <string name="ocr_materialization_error_conflict">A line was manually edited in the draft. Applying will not overwrite your changes.</string>
 </resources>

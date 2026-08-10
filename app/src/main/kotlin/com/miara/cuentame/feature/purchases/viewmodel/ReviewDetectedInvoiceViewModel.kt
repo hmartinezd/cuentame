@@ -22,7 +22,12 @@ import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import com.miara.cuentame.core.ocr.parser.effectiveValue
+import com.miara.cuentame.core.ocr.parser.isEdited
 import com.miara.cuentame.core.ocr.parser.matching.*
+import com.miara.cuentame.core.model.purchase.materialization.PurchaseInvoiceDraftProposal
+import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -46,7 +51,11 @@ data class ReviewDetectedInvoiceUiState(
     val ingredientUnitOptions: Map<IngredientId, List<IngredientUnitOption>> = emptyMap(),
     val matchSummary: MatchSummary = MatchSummary(0, 0, 0),
     val matchingLineIndex: Int? = null,
-    val preselectedIngredientId: IngredientId? = null
+    val preselectedIngredientId: IngredientId? = null,
+    val proposal: PurchaseInvoiceDraftProposal? = null,
+    val materializationFailure: PurchaseInvoiceMaterializationFailure? = null,
+    val isMaterializing: Boolean = false,
+    val isMaterialized: Boolean = false
 )
 
 data class MatchSummary(
@@ -65,7 +74,9 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     private val ingredientRepository: IngredientRepository,
     private val areaRepository: InventoryAreaRepository,
     private val activeRestaurantProvider: ActiveRestaurantProvider,
-    private val idGenerator: com.miara.cuentame.core.common.ids.IdGenerator
+    private val idGenerator: com.miara.cuentame.core.common.ids.IdGenerator,
+    private val generateProposalUseCase: GenerateInvoiceProposalUseCase,
+    private val applyInvoiceUseCase: ApplyInvoiceToPurchaseDraftUseCase
 ) : ViewModel() {
 
     private val receiptId: PurchaseReceiptId = PurchaseReceiptId(
@@ -177,6 +188,13 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                 val matched = activeMatches.count { it.status == InvoiceLineMatchStatus.CONFIRMED }
                 val review = activeMatches.count { it.status == InvoiceLineMatchStatus.SUGGESTED || it.status == InvoiceLineMatchStatus.NEEDS_REVIEW }
                 val unmatched = activeLines.size - matched - review
+
+                if (matched + review + unmatched > 0) {
+                    viewModelScope.launch {
+                        val proposal = generateProposalUseCase.execute(receiptId)
+                        _uiState.update { it.copy(proposal = proposal) }
+                    }
+                }
 
                 _uiState.update {
                     it.copy(
@@ -521,5 +539,32 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     fun onCreateQuickIngredient(name: String, onCreated: (IngredientId) -> Unit) {
         // Redirection handled via UI callback to NavController
+    }
+
+    fun onApplyToDraft() {
+        val proposal = uiState.value.proposal ?: return
+        if (proposal.blockingIssues.isNotEmpty()) return
+        
+        viewModelScope.launch {
+            _uiState.update { it.copy(isMaterializing = true, materializationFailure = null) }
+            val result = applyInvoiceUseCase.execute(proposal)
+            result.onSuccess {
+                _uiState.update { it.copy(isMaterializing = false, isMaterialized = true) }
+            }.onFailure { e ->
+                val failure = try {
+                    // This is a bit fragile if toString is not perfect, but serves for this task
+                    // Ideally we'd have a typed result instead of throwing in UseCase
+                    PurchaseInvoiceMaterializationFailure::class.sealedSubclasses
+                        .find { it.simpleName == e.message }?.objectInstance
+                } catch (ex: Exception) {
+                    PurchaseInvoiceMaterializationFailure.PersistenceFailed
+                }
+                _uiState.update { it.copy(isMaterializing = false, materializationFailure = failure as? PurchaseInvoiceMaterializationFailure ?: PurchaseInvoiceMaterializationFailure.PersistenceFailed) }
+            }
+        }
+    }
+
+    fun clearMaterializationFailure() {
+        _uiState.update { it.copy(materializationFailure = null) }
     }
 }
