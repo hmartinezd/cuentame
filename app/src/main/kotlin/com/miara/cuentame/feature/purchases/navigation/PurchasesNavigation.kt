@@ -78,7 +78,8 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
                 receiptId = purchaseId,
                 onBack = { navController.popBackStack() },
                 onViewDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) },
-                onViewRawOcr = { rid -> navController.navigate(AppRoutes.purchaseRawOcr(rid)) }
+                onViewRawOcr = { rid -> navController.navigate(AppRoutes.purchaseRawOcr(rid)) },
+                onAddIngredient = { name -> navController.navigate(AppRoutes.ingredientCreate(name)) }
             )
         }
     }

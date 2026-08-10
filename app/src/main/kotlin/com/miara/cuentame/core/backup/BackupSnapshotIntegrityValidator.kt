@@ -1767,17 +1767,21 @@ object BackupSnapshotIntegrityValidator {
         ctx: ValidationContext
     ): BackupSnapshotIntegrityException? {
         for (mapping in dto.supplierItemMappings) {
-            if (!ctx.supplierById.containsKey(mapping.supplierId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to supplier")
+            val supplier = ctx.supplierById[mapping.supplierId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to supplier")
+            val ingredient = ctx.ingById[mapping.ingredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to ingredient")
+            
+            if (supplier.restaurantId != mapping.restaurantId || ingredient.restaurantId != mapping.restaurantId) {
+                return err(RESTAURANT_ISOLATION_FAILURE, "Restaurant mismatch in mapping")
             }
-            if (!ctx.ingById.containsKey(mapping.ingredientId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to ingredient")
+
+            if (mapping.unitOptionId != null) {
+                val opt = ctx.optionById[mapping.unitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to unit option")
+                if (opt.ingredientId != mapping.ingredientId) return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in mapping")
             }
-            if (mapping.unitOptionId != null && !ctx.optionById.containsKey(mapping.unitOptionId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to unit option")
-            }
-            if (mapping.inventoryAreaId != null && !ctx.areaById.containsKey(mapping.inventoryAreaId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to area")
+
+            if (mapping.inventoryAreaId != null) {
+                val area = ctx.areaById[mapping.inventoryAreaId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: mapping to area")
+                if (area.restaurantId != mapping.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Area restaurant mismatch in mapping")
             }
             
             // Uniqueness check for mapping key
@@ -1793,7 +1797,13 @@ object BackupSnapshotIntegrityValidator {
         dto: BackupSnapshotDto,
         ctx: ValidationContext
     ): BackupSnapshotIntegrityException? {
+        val parsedLineKeys = dto.purchaseInvoiceParsedLines.map { it.parseResultId to it.lineIndex }.toSet()
+
         for (match in dto.purchaseInvoiceLineMatches) {
+            if (match.parseResultId to match.lineIndex !in parsedLineKeys) {
+                return err(RELATIONSHIP_MISMATCH, "Staged match references non-existent parsed line")
+            }
+
             val parse = ctx.parseResultById[match.parseResultId]
                 ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to parse result")
             
@@ -1813,18 +1823,57 @@ object BackupSnapshotIntegrityValidator {
                 if (ing.restaurantId != receipt.restaurantId) {
                     return err(RESTAURANT_ISOLATION_FAILURE, "Ingredient restaurant mismatch in match")
                 }
+
+                if (match.unitOptionId != null) {
+                    val opt = ctx.optionById[match.unitOptionId]
+                        ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to unit option")
+                    if (opt.ingredientId != match.ingredientId) {
+                        return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in match")
+                    }
+                }
+            } else {
+                if (match.unitOptionId != null) return err(RELATIONSHIP_MISMATCH, "Unit option without ingredient in match")
             }
-            
-            if (match.unitOptionId != null) {
-                val opt = ctx.optionById[match.unitOptionId]
-                    ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to unit option")
-                if (opt.ingredientId != match.ingredientId) {
-                    return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in match")
+
+            if (match.inventoryAreaId != null) {
+                val area = ctx.areaById[match.inventoryAreaId]
+                    ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to area")
+                if (area.restaurantId != receipt.restaurantId) {
+                    return err(RESTAURANT_ISOLATION_FAILURE, "Area restaurant mismatch in match")
                 }
             }
             
-            if (match.mappingId != null && !ctx.mappingById.containsKey(match.mappingId)) {
-                return err(BROKEN_FOREIGN_KEY, "Broken FK: match to reusable mapping")
+            if (match.mappingId != null) {
+                val mapping = ctx.mappingById[match.mappingId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to reusable mapping")
+                if (mapping.supplierId != match.supplierId || mapping.ingredientId != match.ingredientId) {
+                    return err(RELATIONSHIP_MISMATCH, "Incompatible mapping provenance in match")
+                }
+            }
+
+            // Status invariants
+            val status = try {
+                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.valueOf(match.status)
+            } catch (_: Exception) {
+                return err(INVALID_ENUM, "Invalid match status")
+            }
+
+            when (status) {
+                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.CONFIRMED -> {
+                    if (match.ingredientId == null || match.confirmedAt == null) {
+                        return err(INVALID_MATCH_STATUS, "CONFIRMED match requires ingredient and confirmedAt")
+                    }
+                }
+                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.SUGGESTED,
+                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.NEEDS_REVIEW -> {
+                    if (match.confirmedAt != null) {
+                        return err(INVALID_MATCH_STATUS, "Non-CONFIRMED match must not have confirmedAt")
+                    }
+                }
+                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.UNMATCHED -> {
+                    if (match.confirmedAt != null || match.mappingId != null) {
+                        return err(INVALID_MATCH_STATUS, "UNMATCHED match must not have confirmedAt or mappingId")
+                    }
+                }
             }
         }
         

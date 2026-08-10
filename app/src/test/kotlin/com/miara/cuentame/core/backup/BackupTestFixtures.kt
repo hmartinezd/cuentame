@@ -284,7 +284,7 @@ object BackupTestFixtures {
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",
             appVersionCode = 1,
-            databaseSchemaVersion = 4,
+            databaseSchemaVersion = 8,
             restaurantId = "r1",
             restaurantName = "Test Rest",
             localeTag = "en-US",

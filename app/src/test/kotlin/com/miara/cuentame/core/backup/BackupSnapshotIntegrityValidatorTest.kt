@@ -399,14 +399,89 @@ class BackupSnapshotIntegrityValidatorTest {
         assertThat(result.isSuccess).isTrue()
     }
 
+    @Test
+    fun `validate rejects staged match pointing to non-existent parsed line`() {
+        val dto = createEmptyDto().copy(
+            purchaseReceipts = listOf(mockkReceipt("p1", "DRAFT")),
+            purchaseInvoiceOcrResults = listOf(mockkOcr("o1", "p1")),
+            purchaseInvoiceParseResults = listOf(mockkParse("pr1", "p1", "o1")),
+            purchaseInvoiceLineMatches = listOf(
+                PurchaseInvoiceLineMatchBackupDto("pr1", 0, "UNMATCHED", null, null, null, null, null, null, 0f, null)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 8))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH)
+    }
+
+    @Test
+    fun `validate rejects confirmed match without ingredient`() {
+        val dto = createEmptyDto().copy(
+            purchaseReceipts = listOf(mockkReceipt("p1", "DRAFT")),
+            purchaseInvoiceOcrResults = listOf(mockkOcr("o1", "p1")),
+            purchaseInvoiceParseResults = listOf(mockkParse("pr1", "p1", "o1")),
+            purchaseInvoiceParsedLines = listOf(mockkParsedLine("pr1", 0)),
+            purchaseInvoiceLineMatches = listOf(
+                PurchaseInvoiceLineMatchBackupDto("pr1", 0, "CONFIRMED", null, null, null, null, null, null, 1f, 1000L)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 8))
+        assertThat(result.isFailure).isTrue()
+        // Current validator logic might catch earlier relational issues
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isAnyOf(
+            BackupSnapshotIntegrityCode.INVALID_MATCH_STATUS,
+            BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH
+        )
+    }
+
+    @Test
+    fun `validate rejects suggested match with confirmedAt`() {
+        val dto = createEmptyDto().copy(
+            ingredients = listOf(mockkIngredient("ing1")),
+            units = listOf(mockkUnit("u1")),
+            purchaseReceipts = listOf(mockkReceipt("p1", "DRAFT")),
+            purchaseInvoiceOcrResults = listOf(mockkOcr("o1", "p1")),
+            purchaseInvoiceParseResults = listOf(mockkParse("pr1", "p1", "o1")),
+            purchaseInvoiceParsedLines = listOf(mockkParsedLine("pr1", 0)),
+            purchaseInvoiceLineMatches = listOf(
+                PurchaseInvoiceLineMatchBackupDto("pr1", 0, "SUGGESTED", null, "ing1", null, null, null, null, 0.9f, 1000L)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 8))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isAnyOf(
+            BackupSnapshotIntegrityCode.INVALID_MATCH_STATUS,
+            BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH
+        )
+    }
+
+    @Test
+    fun `validate rejects mapping from different restaurant`() {
+        val dto = createEmptyDto().copy(
+            suppliers = listOf(mockkSupplier("s1", "other-rest")),
+            ingredients = listOf(mockkIngredient("ing1")),
+            units = listOf(mockkUnit("u1")),
+            supplierItemMappings = listOf(
+                SupplierItemMappingBackupDto("m1", restId, "s1", "VENDOR_CODE", "K1", null, null, null, "ing1", null, null, 0L, 0L, 0L)
+            )
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 8))
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RESTAURANT_ISOLATION_FAILURE)
+    }
+
     // Helpers
     private fun mockkIngredient(id: String) = IngredientBackupDto(id, restId, "Name", "name", null, "u1", null, null, null, null, true, 0, 0, null)
     private fun mockkUnit(id: String) = UnitBackupDto(id, "Unit", "u", "MASS", "1.0", true, 0)
     private fun mockkOption(id: String, ingId: String) = IngredientUnitOptionBackupDto(id, ingId, "Opt", "o", null, "1.0", true, true, true, true, 0, 0, null)
     private fun mockkArea(id: String) = InventoryAreaBackupDto(id, restId, "Area", "area", 0, true, 0, 0, null)
+    private fun mockkSupplier(id: String, rId: String = restId) = SupplierBackupDto(id, rId, "Sup", "sup", null, null, null, true, 0, 0, null)
     private fun mockkReceipt(id: String, status: String) = PurchaseReceiptBackupDto(id, restId, null, null, 0L, status, null, null, null, 0L, 0L, if (status == "POSTED") 0L else null, null)
     private fun mockkPurchaseLine(id: String, rId: String, ingId: String, aId: String, oId: String, qty: String) = 
         PurchaseLineBackupDto(id, rId, ingId, aId, oId, qty, qty, "1.0", "1.0", null, 0L, 0L)
     private fun mockkMovement(id: String, type: String, qty: String, docType: String, docId: String, lineId: String?) =
         InventoryMovementBackupDto(id, restId, "ing-1", "area-1", type, qty, "1.0", "1.0", 0L, docType, docId, "op1", lineId, null, 0L)
+    private fun mockkOcr(id: String, receiptId: String) = PurchaseInvoiceOcrResultBackupDto(id, receiptId, "sha256", "application/pdf", "MLKIT", 1, 0, "", 0L)
+    private fun mockkParse(id: String, receiptId: String, ocrId: String) = PurchaseInvoiceParseResultBackupDto(id, receiptId, ocrId, "sha256", "ENGINE", 2, "{}", "{}", null, "[]", 0L, null)
+    private fun mockkParsedLine(parseId: String, index: Int) = PurchaseInvoiceParsedLineBackupDto(parseId, index, "{}", null, false)
 }

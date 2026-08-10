@@ -70,9 +70,11 @@ class IngredientFormViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val ingredientId: String? = savedStateHandle["ingredientId"]
+    private val prefillName: String? = savedStateHandle["prefillName"]
     
     private val _uiState = MutableStateFlow(IngredientFormUiState(
-        ingredientId = ingredientId?.let { IngredientId(it) }
+        ingredientId = ingredientId?.let { IngredientId(it) },
+        name = prefillName ?: ""
     ))
     val uiState = _uiState.asStateFlow()
 

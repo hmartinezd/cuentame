@@ -328,6 +328,12 @@ class BackupCreationPlanner @Inject constructor(
             tables["purchase_invoice_parsed_lines"] = TableMetadata(dto.purchaseInvoiceParsedLines.size, false)
         }
 
+        // Add Matching tables for schema 8+
+        if (appVersionProvider.databaseSchemaVersion >= 8) {
+            tables["supplier_item_mappings"] = TableMetadata(dto.supplierItemMappings.size, false)
+            tables["purchase_invoice_line_matches"] = TableMetadata(dto.purchaseInvoiceLineMatches.size, false)
+        }
+
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 }

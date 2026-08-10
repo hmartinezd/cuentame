@@ -72,6 +72,7 @@ data class ParsedInvoiceLineCandidate(
 
 @Serializable
 data class PurchaseInvoiceParseResult(
+    val id: String = "",
     val supplierNameCandidate: ParsedField<String?>,
     val invoiceNumber: ParsedField<String?>,
     val invoiceDate: ParsedField<@Serializable(with = LocalDateSerializer::class) LocalDate?>,

@@ -193,6 +193,7 @@ interface PurchaseRepository {
 
     suspend fun saveLineMatchesForReceipt(
         receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
         matches: List<PurchaseInvoiceLineMatch>
     )
 
@@ -202,6 +203,7 @@ interface PurchaseRepository {
 
     suspend fun saveLineMatchForReceipt(
         receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
         match: PurchaseInvoiceLineMatch
     )
 }

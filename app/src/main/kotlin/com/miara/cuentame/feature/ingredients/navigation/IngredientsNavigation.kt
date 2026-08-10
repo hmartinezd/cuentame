@@ -19,14 +19,23 @@ fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
             onManagePreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) }
         )
     }
-    composable(route = Destination.INGREDIENT_CREATE.route) {
+    composable(
+        route = Destination.INGREDIENT_CREATE.route,
+        arguments = listOf(
+            androidx.navigation.navArgument("prefillName") { 
+                nullable = true
+                defaultValue = null
+            }
+        )
+    ) {
         IngredientFormRoute(
             ingredientId = null,
             onBack = { navController.popBackStack() },
             onSaveSuccess = { id ->
-                navController.navigate(AppRoutes.ingredientDetail(id)) {
-                    popUpTo(Destination.INGREDIENT_CREATE.route) { inclusive = true }
-                }
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set("createdIngredientId", id.value)
+                navController.popBackStack()
             }
         )
     }

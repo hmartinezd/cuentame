@@ -141,5 +141,9 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object IngredientUsedByProductionDraft : ValidationError("Ingredient is used by a draft production batch")
     data object UnitOptionUsedByProductionDraft : ValidationError("Unit option is used by a draft production batch")
     data object AreaUsedByProductionDraft : ValidationError("Area is used by a draft production batch")
+    // Invoices and OCR
+    data object ParseResultChanged : ValidationError("Invoice parsing has changed. Please review the new results.")
+    data object InvalidLineIndex : ValidationError("Invalid line index for current parse result.")
+    data object InvalidMatchStatus : ValidationError("Line match status is invalid for the provided data.")
 }
 

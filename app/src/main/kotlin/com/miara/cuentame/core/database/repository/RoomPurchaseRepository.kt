@@ -496,6 +496,7 @@ class RoomPurchaseRepository @Inject constructor(
                 val corrections = it.correctionsJson?.let { c -> json.decodeFromString<com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections>(c) }
                 
                 baseResult.copy(
+                    id = it.id,
                     corrections = corrections,
                     lines = getParsedLines(it.id)
                 )
@@ -614,20 +615,68 @@ class RoomPurchaseRepository @Inject constructor(
         lineMatchDao.insertMatches(matches.map { it.toEntity() })
     }
 
-    override suspend fun saveLineMatchesForReceipt(receiptId: PurchaseReceiptId, matches: List<PurchaseInvoiceLineMatch>) {
-        val parseResultId = parseDao.getParseResultIdForReceipt(receiptId.value) ?: return
-        saveLineMatches(matches.map { it.copy(parseResultId = parseResultId) })
+    override suspend fun saveLineMatchesForReceipt(
+        receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
+        matches: List<PurchaseInvoiceLineMatch>
+    ) {
+        database.withTransaction {
+            val currentParseResultId = parseDao.getParseResultIdForReceipt(receiptId.value)
+            if (currentParseResultId != expectedParseResultId) {
+                throw ValidationError.ParseResultChanged
+            }
+
+            val activeRestaurant = requireActiveRestaurant()
+            val parsedLines = parseDao.getParsedLines(currentParseResultId)
+            val validIndices = parsedLines.map { it.lineIndex }.toSet()
+
+            val entities = matches.map { match ->
+                if (match.lineIndex !in validIndices) {
+                    throw ValidationError.InvalidLineIndex
+                }
+                validateMatchInvariants(match)
+                validateMatchIntegrity(activeRestaurant.id, match)
+                match.copy(parseResultId = currentParseResultId).toEntity()
+            }
+            
+            lineMatchDao.insertMatches(entities)
+        }
     }
 
     override suspend fun saveLineMatch(match: PurchaseInvoiceLineMatch) {
         val activeRestaurant = requireActiveRestaurant()
+        validateMatchInvariants(match)
         validateMatchIntegrity(activeRestaurant.id, match)
         lineMatchDao.insertMatches(listOf(match.toEntity()))
     }
 
-    override suspend fun saveLineMatchForReceipt(receiptId: PurchaseReceiptId, match: PurchaseInvoiceLineMatch) {
-        val parseResultId = parseDao.getParseResultIdForReceipt(receiptId.value) ?: return
-        saveLineMatch(match.copy(parseResultId = parseResultId))
+    override suspend fun saveLineMatchForReceipt(
+        receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
+        match: PurchaseInvoiceLineMatch
+    ) {
+        saveLineMatchesForReceipt(receiptId, expectedParseResultId, listOf(match))
+    }
+
+    private fun validateMatchInvariants(match: PurchaseInvoiceLineMatch) {
+        when (match.status) {
+            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.CONFIRMED -> {
+                if (match.ingredientId == null || match.confirmedAt == null) {
+                    throw ValidationError.InvalidMatchStatus
+                }
+            }
+            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.SUGGESTED,
+            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.NEEDS_REVIEW -> {
+                if (match.confirmedAt != null) {
+                    throw ValidationError.InvalidMatchStatus
+                }
+            }
+            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.UNMATCHED -> {
+                if (match.confirmedAt != null || match.mappingId != null) {
+                    throw ValidationError.InvalidMatchStatus
+                }
+            }
+        }
     }
 
     private suspend fun validateMatchIntegrity(

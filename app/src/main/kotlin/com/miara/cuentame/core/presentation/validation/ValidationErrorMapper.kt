@@ -143,4 +143,9 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.IngredientUsedByProductionDraft -> R.string.error_generic
     ValidationError.UnitOptionUsedByProductionDraft -> R.string.error_generic
     ValidationError.AreaUsedByProductionDraft -> R.string.error_generic
+
+    // Invoices and OCR
+    ValidationError.ParseResultChanged -> R.string.error_generic
+    ValidationError.InvalidLineIndex -> R.string.error_generic
+    ValidationError.InvalidMatchStatus -> R.string.error_generic
 }

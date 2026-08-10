@@ -815,4 +815,33 @@
     <string name="product_description">Description</string>
     <string name="product_quantity">Quantity</string>
     <string name="product_price">Price</string>
+
+    <!-- Invoice Review & Matching -->
+    <string name="ocr_matching_suggested_supplier">Suggested based on invoice:</string>
+    <string name="ocr_matching_no_supplier_selected">No supplier selected. Select one to enable matching.</string>
+    <string name="ocr_matching_status">Matching Status</string>
+    <string name="ocr_matching_matched">Matched</string>
+    <string name="ocr_matching_review">Review</string>
+    <string name="ocr_matching_unmatched">Unmatched</string>
+    <string name="ocr_matching_known_supplier_item">Known supplier item</string>
+    <string name="ocr_matching_suggested">Suggested</string>
+    <string name="ocr_matching_needs_match">Needs match</string>
+    <string name="ocr_matching_create_new_ingredient">Create new ingredient \'%1$s\'</string>
+    <string name="ocr_matching_not_detected">Not detected</string>
+    <string name="ocr_matching_search_ingredient">Search Ingredient</string>
+    <string name="ocr_matching_match_product">Match Product</string>
+    <string name="ocr_matching_current_match">Current match: %1$s</string>
+    <string name="ocr_matching_select_unit_option">Select Unit Option</string>
+    <string name="ocr_matching_select_area">Select Area</string>
+    <string name="ocr_matching_confirm_match">Confirm Match</string>
+    <string name="ocr_matching_select_supplier">Select Supplier</string>
+    <string name="ocr_matching_search_suppliers">Search Suppliers</string>
+    <string name="ocr_matching_mapping_conflict">Mapping Conflict</string>
+    <string name="ocr_matching_update_mapping">Update Mapping</string>
+    <string name="ocr_matching_keep_current">Keep Current</string>
+    <string name="ocr_matching_reset_correction">Reset correction</string>
+    <string name="ocr_matching_include_line">Include line</string>
+    <string name="ocr_matching_ignore_line">Ignore line</string>
+    <string name="ocr_matching_change">Change</string>
+    <string name="ocr_matching_not_detected_symbol">—</string>
 </resources>

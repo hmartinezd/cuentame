@@ -11,9 +11,9 @@ class PurchaseInvoiceInventoryMatcherTest {
 
     private val catalog = InventoryCatalog(
         ingredients = listOf(
-            IngredientMatchModel("ing-1", "Roma Tomatoes", "roma tomatoes", "area-1", 
+            IngredientMatchModel("ing-1", "Roma Tomato", "roma tomato", "area-1", 
                 listOf(UnitOptionMatchModel("opt-1", "25 lb Case", "25 lb case"))),
-            IngredientMatchModel("ing-2", "Cherry Tomatoes", "cherry tomatoes", "area-1", emptyList()),
+            IngredientMatchModel("ing-2", "Cherry Tomato", "cherry tomato", "area-1", emptyList()),
             IngredientMatchModel("ing-3", "Chicken Breast", "chicken breast", "area-2", emptyList())
         ),
         supplierMappings = listOf(
@@ -33,7 +33,7 @@ class PurchaseInvoiceInventoryMatcherTest {
 
     @Test
     fun `vendor code mapping is supplier-specific`() {
-        val line = EffectiveParsedInvoiceLine("000123", "ROMA TOMATOES", null, null, null, null)
+        val line = EffectiveParsedInvoiceLine("000123", "ROMA TOMATO", null, null, null, null)
         val result = PurchaseInvoiceInventoryMatcher.match(line, "sup-B", catalog)
         
         assertNull(result.knownMapping)
@@ -44,7 +44,7 @@ class PurchaseInvoiceInventoryMatcherTest {
 
     @Test
     fun `exact ingredient name match works without mapping`() {
-        val line = EffectiveParsedInvoiceLine(null, "Roma Tomatoes", null, null, null, null)
+        val line = EffectiveParsedInvoiceLine(null, "Roma Tomato", null, null, null, null)
         val result = PurchaseInvoiceInventoryMatcher.match(line, "sup-A", catalog)
         
         assertNull(result.knownMapping)
@@ -64,7 +64,7 @@ class PurchaseInvoiceInventoryMatcherTest {
 
     @Test
     fun `package compatibility increases confidence`() {
-        val line = EffectiveParsedInvoiceLine(null, "ROMA TOMATO", "25 LB CASE", null, null, null)
+        val line = EffectiveParsedInvoiceLine(null, "ROMA", "25 LB CASE", null, null, null)
         val result = PurchaseInvoiceInventoryMatcher.match(line, "sup-A", catalog)
         
         val best = result.candidates.first()

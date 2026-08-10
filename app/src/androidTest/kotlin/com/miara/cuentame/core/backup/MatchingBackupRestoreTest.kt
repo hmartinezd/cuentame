@@ -110,6 +110,10 @@ class MatchingBackupRestoreTest {
         val parse1 = "parse-1"
         database.purchaseParseDao().insertParseResult(PurchaseInvoiceParseResultEntity(parse1, pr1, ocr1, "sha256", "ENGINE", 2, "{}", "{}", null, "[]", 1000L, null))
         
+        database.purchaseParseDao().insertParsedLines(listOf(
+            PurchaseInvoiceParsedLineEntity(parse1, 0, "{}", null, false)
+        ))
+
         val map1 = "map-1"
         database.supplierItemMappingDao().insertMapping(SupplierItemMappingEntity(map1, restId.value, sup1, SupplierItemMappingKeyType.VENDOR_CODE, "001234", "001234", "Desc", "Pkg", ing1, opt1, area1, 100L, 100L, 100L))
         

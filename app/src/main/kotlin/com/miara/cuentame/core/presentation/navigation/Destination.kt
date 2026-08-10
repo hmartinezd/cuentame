@@ -30,7 +30,7 @@ enum class Destination(val route: String) {
     PURCHASE_RAW_OCR("purchases/{receiptId}/ocr"),
     PURCHASE_REVIEW("purchases/{receiptId}/review"),
     
-    INGREDIENT_CREATE("inventory/create"),
+    INGREDIENT_CREATE("inventory/create?prefillName={prefillName}"),
     INGREDIENT_DETAIL("inventory/{ingredientId}"),
     INGREDIENT_EDIT("inventory/{ingredientId}/edit"),
     

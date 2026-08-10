@@ -54,4 +54,7 @@ enum class BackupSnapshotIntegrityCode {
 
     // Versioning
     UNSUPPORTED_VERSION,
+
+    // Matching and mappings
+    INVALID_MATCH_STATUS,
 }

@@ -815,4 +815,33 @@
     <string name="product_description">Descripción</string>
     <string name="product_quantity">Cantidad</string>
     <string name="product_price">Precio</string>
+
+    <!-- Invoice Review & Matching -->
+    <string name="ocr_matching_suggested_supplier">Sugerido según factura:</string>
+    <string name="ocr_matching_no_supplier_selected">Proveedor no seleccionado. Seleccione uno para habilitar la coincidencia.</string>
+    <string name="ocr_matching_status">Estado de coincidencia</string>
+    <string name="ocr_matching_matched">Coincide</string>
+    <string name="ocr_matching_review">Revisar</string>
+    <string name="ocr_matching_unmatched">Sin coincidencia</string>
+    <string name="ocr_matching_known_supplier_item">Artículo de proveedor conocido</string>
+    <string name="ocr_matching_suggested">Sugerido</string>
+    <string name="ocr_matching_needs_match">Necesita coincidencia</string>
+    <string name="ocr_matching_create_new_ingredient">Crear nuevo ingrediente \'%1$s\'</string>
+    <string name="ocr_matching_not_detected">No detectado</string>
+    <string name="ocr_matching_search_ingredient">Buscar Ingrediente</string>
+    <string name="ocr_matching_match_product">Hacer coincidir producto</string>
+    <string name="ocr_matching_current_match">Coincidencia actual: %1$s</string>
+    <string name="ocr_matching_select_unit_option">Seleccionar opción de unidad</string>
+    <string name="ocr_matching_select_area">Seleccionar área</string>
+    <string name="ocr_matching_confirm_match">Confirmar coincidencia</string>
+    <string name="ocr_matching_select_supplier">Seleccionar proveedor</string>
+    <string name="ocr_matching_search_suppliers">Buscar proveedores</string>
+    <string name="ocr_matching_mapping_conflict">Conflicto de mapeo</string>
+    <string name="ocr_matching_update_mapping">Actualizar mapeo</string>
+    <string name="ocr_matching_keep_current">Mantener actual</string>
+    <string name="ocr_matching_reset_correction">Restablecer corrección</string>
+    <string name="ocr_matching_include_line">Incluir línea</string>
+    <string name="ocr_matching_ignore_line">Ignorar línea</string>
+    <string name="ocr_matching_change">Cambiar</string>
+    <string name="ocr_matching_not_detected_symbol">—</string>
 </resources>
