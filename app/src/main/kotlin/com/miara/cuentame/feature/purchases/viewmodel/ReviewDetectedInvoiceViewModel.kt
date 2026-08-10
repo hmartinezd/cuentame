@@ -100,6 +100,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     private var lastAutoMatchedKey: String? = null
     private val autoMatchMutex = Mutex()
+    private val confirmMatchMutex = Mutex()
 
     private val _proposal = MutableStateFlow<PurchaseInvoiceDraftProposal?>(null)
     val proposal: StateFlow<PurchaseInvoiceDraftProposal?> = _proposal.asStateFlow()
@@ -153,13 +154,22 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     }
 
     fun onStartMatch(lineIndex: Int?) {
-        _uiState.update { it.copy(
-            matchingLineIndex = lineIndex, 
-            preselectedIngredientId = null,
-            confirmMatchError = null,
-            isConfirmingMatch = false
-        ) }
-        savedStateHandle["matchingLineIndex"] = lineIndex
+        if (lineIndex == null) {
+            clearMatchingContext()
+        } else {
+            _uiState.update { it.copy(
+                matchingLineIndex = lineIndex, 
+                preselectedIngredientId = null,
+                confirmMatchError = null,
+                isConfirmingMatch = false
+            ) }
+            savedStateHandle["matchingLineIndex"] = lineIndex
+        }
+    }
+
+    private fun clearMatchingContext() {
+        _uiState.update { it.copy(matchingLineIndex = null, preselectedIngredientId = null) }
+        savedStateHandle["matchingLineIndex"] = null
     }
 
     fun onStartCreateIngredient(lineIndex: Int) {
@@ -350,13 +360,13 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         unitOptionId: IngredientUnitOptionId?,
         inventoryAreaId: InventoryAreaId?
     ) {
-        if (uiState.value.isConfirmingMatch) return
+        if (!confirmMatchMutex.tryLock()) return
 
         viewModelScope.launch {
-            val result = uiState.value.result ?: return@launch
-            _uiState.update { it.copy(isConfirmingMatch = true, confirmMatchError = null) }
-            
             try {
+                val result = uiState.value.result ?: return@launch
+                _uiState.update { it.copy(isConfirmingMatch = true, confirmMatchError = null) }
+
                 val learnResult = repository.confirmInvoiceLineMatch(
                     receiptId = receiptId,
                     expectedParseResultId = result.id,
@@ -368,13 +378,14 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                     forceLearnMapping = false
                 )
 
-                _uiState.update { it.copy(isConfirmingMatch = false) }
-                
                 if (learnResult is LearnMappingResult.Conflict) {
-                    _uiState.update { it.copy(activeMappingConflict = learnResult.conflict, matchingLineIndex = null) }
+                    _uiState.update { it.copy(activeMappingConflict = learnResult.conflict) }
+                    clearMatchingContext()
                 } else {
-                    _uiState.update { it.copy(matchingLineIndex = null) }
+                    clearMatchingContext()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val error = when (e) {
                     is com.miara.cuentame.core.domain.validation.ValidationError -> when (e) {
@@ -387,7 +398,10 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                     }
                     else -> MatchConfirmationError.Generic
                 }
-                _uiState.update { it.copy(isConfirmingMatch = false, confirmMatchError = error) }
+                _uiState.update { it.copy(confirmMatchError = error) }
+            } finally {
+                _uiState.update { it.copy(isConfirmingMatch = false) }
+                confirmMatchMutex.unlock()
             }
         }
     }
@@ -632,5 +646,19 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     fun clearMaterializationFailure() {
         _uiState.update { it.copy(materializationFailure = null) }
+    }
+
+    companion object {
+        fun isMatchSelectionValid(
+            ingredientId: IngredientId?,
+            unitOptionId: IngredientUnitOptionId?,
+            areaId: InventoryAreaId?,
+            ingredientUnitOptions: List<IngredientUnitOption>?
+        ): Boolean {
+            return ingredientId != null &&
+                    unitOptionId != null &&
+                    areaId != null &&
+                    ingredientUnitOptions?.any { it.id == unitOptionId } == true
+        }
     }
 }

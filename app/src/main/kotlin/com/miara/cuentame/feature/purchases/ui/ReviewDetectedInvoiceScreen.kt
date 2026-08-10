@@ -581,11 +581,14 @@ fun MatchProductDialog(
             }
         },
         confirmButton = {
-            val isUnitOptionValid = remember(selectedIngredientId, selectedUnitOptionId, ingredientUnitOptions) {
-                selectedIngredientId != null && selectedUnitOptionId != null && 
-                ingredientUnitOptions[selectedIngredientId]?.any { it.id == selectedUnitOptionId } == true
+            val canConfirm = remember(selectedIngredientId, selectedUnitOptionId, selectedAreaId, ingredientUnitOptions) {
+                ReviewDetectedInvoiceViewModel.isMatchSelectionValid(
+                    selectedIngredientId,
+                    selectedUnitOptionId,
+                    selectedAreaId,
+                    ingredientUnitOptions[selectedIngredientId]
+                )
             }
-            val canConfirm = selectedIngredientId != null && isUnitOptionValid && selectedAreaId != null
 
             Button(
                 onClick = { 

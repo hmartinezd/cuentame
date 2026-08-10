@@ -16,6 +16,7 @@ import com.miara.cuentame.core.ocr.parser.*
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
@@ -64,9 +65,9 @@ class ReviewDetectedInvoiceViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): ReviewDetectedInvoiceViewModel {
+    private fun createViewModel(initialState: Map<String, Any?> = mapOf("receiptId" to receiptId.value)): ReviewDetectedInvoiceViewModel {
         return ReviewDetectedInvoiceViewModel(
-            SavedStateHandle(mapOf("receiptId" to receiptId.value)),
+            SavedStateHandle(initialState),
             repository,
             supplierRepository,
             mappingRepository,
@@ -107,48 +108,68 @@ class ReviewDetectedInvoiceViewModelTest {
 
     @Test
     fun `confirm match success clears loading and dialog`() = runTest {
-        val viewModel = createViewModel()
         val parseResult = createEmptyParseResult("p1")
         every { repository.observeParseResult(receiptId) } returns flowOf(parseResult)
         
-        coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } returns LearnMappingResult.Learned
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
+            delay(50)
+            LearnMappingResult.Learned
+        }
         
         viewModel.onStartMatch(0)
-        runCurrent()
-        
-        viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
+        advanceUntilIdle()
         
         viewModel.uiState.test {
-            // Confirm started
-            assertThat(awaitItem().isConfirmingMatch).isTrue()
+            assertThat(expectMostRecentItem().matchingLineIndex).isEqualTo(0)
             
-            // Success state
-            val successState = awaitItem()
-            assertThat(successState.isConfirmingMatch).isFalse()
-            assertThat(successState.matchingLineIndex).isNull()
-            assertThat(successState.confirmMatchError).isNull()
+            viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
+            
+            // Advance to the point where isConfirmingMatch is set
+            runCurrent()
+            assertThat(expectMostRecentItem().isConfirmingMatch).isTrue()
+            
+            // Advance to completion
+            advanceTimeBy(100)
+            runCurrent()
+            val finalState = expectMostRecentItem()
+            assertThat(finalState.isConfirmingMatch).isFalse()
+            assertThat(finalState.matchingLineIndex).isNull()
+            assertThat(finalState.confirmMatchError).isNull()
         }
     }
 
     @Test
     fun `confirm match failure surfaces error and keeps dialog open`() = runTest {
-        val viewModel = createViewModel()
         val parseResult = createEmptyParseResult("p1")
         every { repository.observeParseResult(receiptId) } returns flowOf(parseResult)
         
-        coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } throws com.miara.cuentame.core.domain.validation.ValidationError.ParseResultChanged
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
+            delay(50)
+            throw com.miara.cuentame.core.domain.validation.ValidationError.ParseResultChanged
+        }
         
         viewModel.onStartMatch(0)
-        runCurrent()
-        
-        viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
+        advanceUntilIdle()
         
         viewModel.uiState.test {
+            assertThat(expectMostRecentItem().matchingLineIndex).isEqualTo(0)
+            
+            viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
+            
             // Confirm started
-            assertThat(awaitItem().isConfirmingMatch).isTrue()
+            runCurrent()
+            assertThat(expectMostRecentItem().isConfirmingMatch).isTrue()
             
             // Error surfaced
-            val errorState = awaitItem()
+            advanceTimeBy(100)
+            runCurrent()
+            val errorState = expectMostRecentItem()
             assertThat(errorState.isConfirmingMatch).isFalse()
             assertThat(errorState.matchingLineIndex).isEqualTo(0)
             assertThat(errorState.confirmMatchError).isEqualTo(MatchConfirmationError.SourceChanged)
@@ -156,24 +177,118 @@ class ReviewDetectedInvoiceViewModelTest {
     }
 
     @Test
-    fun `confirm match double tap prevented`() = runTest {
-        val viewModel = createViewModel()
+    fun `confirm match double call prevents multiple repository calls`() = runTest {
         val parseResult = createEmptyParseResult("p1")
         every { repository.observeParseResult(receiptId) } returns flowOf(parseResult)
         
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        
         coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
-            kotlinx.coroutines.delay(100)
+            delay(100)
             LearnMappingResult.Learned
         }
         
+        // Trigger both calls immediately
         viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
         viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
         
-        advanceTimeBy(150)
+        advanceTimeBy(200)
         runCurrent()
         
         coVerify(exactly = 1) { 
             repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) 
+        }
+    }
+
+    @Test
+    fun `match selection validation logic`() {
+        val ingredientId = IngredientId("i1")
+        val unitOptionId = IngredientUnitOptionId("u1")
+        val areaId = InventoryAreaId("a1")
+        val unitOptions = listOf(
+            IngredientUnitOption(
+                id = unitOptionId,
+                ingredientId = ingredientId,
+                displayName = "Unit 1",
+                shortLabel = "U1",
+                standardUnitId = null,
+                factorToBase = BigDecimal.ONE,
+                isBase = true,
+                isDefaultCount = true,
+                isDefaultPurchase = true,
+                isActive = true,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now()
+            )
+        )
+        
+        // Valid
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, unitOptionId, areaId, unitOptions)).isTrue()
+        
+        // Missing ingredient
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(null, unitOptionId, areaId, unitOptions)).isFalse()
+        
+        // Missing unit option
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, null, areaId, unitOptions)).isFalse()
+        
+        // Missing area
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, unitOptionId, null, unitOptions)).isFalse()
+        
+        // Stale unit option (not in list)
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, IngredientUnitOptionId("u2"), areaId, unitOptions)).isFalse()
+        
+        // Empty options list
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, unitOptionId, areaId, emptyList())).isFalse()
+        
+        // Null options list
+        assertThat(ReviewDetectedInvoiceViewModel.isMatchSelectionValid(ingredientId, unitOptionId, areaId, null)).isFalse()
+    }
+
+    @Test
+    fun `confirm match mapping conflict transitions to conflict ui and clears matching context`() = runTest {
+        val savedStateHandle = SavedStateHandle(mapOf("receiptId" to receiptId.value))
+        val parseResult = createEmptyParseResult("p1")
+        every { repository.observeParseResult(receiptId) } returns flowOf(parseResult)
+        
+        val viewModel = ReviewDetectedInvoiceViewModel(
+            savedStateHandle,
+            repository,
+            supplierRepository,
+            mappingRepository,
+            ingredientRepository,
+            areaRepository,
+            activeRestaurantProvider,
+            idGenerator,
+            generateProposalUseCase,
+            applyInvoiceUseCase
+        )
+        advanceUntilIdle()
+        
+        val conflict = mockk<MappingConflict>()
+        coEvery { repository.confirmInvoiceLineMatch(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
+            delay(50)
+            LearnMappingResult.Conflict(conflict)
+        }
+        
+        viewModel.onStartMatch(0)
+        advanceUntilIdle()
+        
+        viewModel.uiState.test {
+            assertThat(expectMostRecentItem().matchingLineIndex).isEqualTo(0)
+            
+            viewModel.onConfirmMatch(0, IngredientId("i1"), IngredientUnitOptionId("u1"), InventoryAreaId("a1"))
+            
+            runCurrent()
+            assertThat(expectMostRecentItem().isConfirmingMatch).isTrue()
+            
+            advanceTimeBy(100)
+            runCurrent()
+            val conflictState = expectMostRecentItem()
+            assertThat(conflictState.isConfirmingMatch).isFalse()
+            assertThat(conflictState.activeMappingConflict).isEqualTo(conflict)
+            assertThat(conflictState.matchingLineIndex).isNull()
+            assertThat(savedStateHandle.get<Int>("matchingLineIndex")).isNull()
         }
     }
 }
