@@ -7,9 +7,11 @@ import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.SourceMutationResult
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationFailure
 import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
@@ -53,6 +55,13 @@ class RoomPurchaseInvoiceCorrectnessTest {
 
     @Inject
     lateinit var testStateManager: TestStateManager
+
+    @Inject
+    lateinit var documentStore: PurchaseDocumentStore
+
+    @Inject
+    @dagger.hilt.android.qualifiers.ApplicationContext
+    lateinit var context: android.content.Context
 
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
@@ -167,11 +176,67 @@ class RoomPurchaseInvoiceCorrectnessTest {
         assertThat(result).isEqualTo(PurchaseInvoiceMaterializationResult.Success)
     }
 
+    @Test
+    fun materialization_rejectsMalformedProposals_noMutation() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult(lineCount = 1)
+        val baseProposal = generateProposalUseCase.execute(receiptId)!!
+
+        val malformedProposals = listOf(
+            // 1. Missing line
+            baseProposal.copy(lines = emptyList()),
+            // 2. Duplicate line index
+            baseProposal.copy(lines = listOf(baseProposal.lines[0], baseProposal.lines[0])),
+            // 3. Null ID on ready line
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(ingredientId = null))),
+            // 4. Mismatched supplier
+            baseProposal.copy(supplierProposal = baseProposal.supplierProposal!!.copy(id = SupplierId("other-s"))),
+            // 5. Tampered quantity
+            baseProposal.copy(lines = listOf(baseProposal.lines[0].copy(quantityEntered = BigDecimal("999"))))
+        )
+
+        for (proposal in malformedProposals) {
+            val result = repository.applyInvoiceToDraft(proposal)
+            assertThat(result).isInstanceOf(PurchaseInvoiceMaterializationResult.Failure::class.java)
+            
+            // Verify ZERO mutation
+            assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).isEmpty()
+            assertThat(database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)).isNull()
+        }
+    }
+
+    @Test
+    fun confirmMatch_respectsSourceLocking() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult()
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        applyInvoiceUseCase.execute(proposal)
+
+        // Attempt to confirm match after materialization
+        try {
+            repository.confirmInvoiceLineMatch(
+                receiptId = receiptId,
+                expectedParseResultId = proposal.parseResultId,
+                expectedSupplierId = proposal.supplierProposal?.id,
+                lineIndex = 0,
+                ingredientId = IngredientId(TestSeeder.ING_ID),
+                unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
+                inventoryAreaId = InventoryAreaId(TestSeeder.AREA_ID),
+                forceLearnMapping = false
+            )
+            assertThat(false).isTrue() // Should not reach here
+        } catch (e: ValidationError.InvoiceSourceLocked) {
+            // Expected
+        }
+    }
+
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {
         val supplierId = SupplierId(TestSeeder.SUPPLIER_ID)
         val receiptId = repository.createDraft(CreatePurchaseDraftCommand(restId, supplierId, "INV-1", Instant.now(), null))
-        val sha = "sha256-" + receiptId.value
         
+        val storedDoc = com.miara.cuentame.test.TestDocumentFixture.storeTestDocument(context, documentStore, receiptId)
+        val sha = com.miara.cuentame.test.TestDocumentFixture.calculateSha256(documentStore.getFile(storedDoc.location))
+        
+        repository.attachDocument(receiptId, storedDoc.location, storedDoc.displayName)
+
         repository.saveOcrResult(
             result = PurchaseInvoiceOcrResult(
                 id = "ocr-" + receiptId.value,
@@ -185,7 +250,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
                 processedAt = Instant.now()
             ),
             pages = emptyList(),
-            expectedAttachmentPath = "",
+            expectedAttachmentPath = storedDoc.location,
             expectedDocumentSha256 = sha
         )
 

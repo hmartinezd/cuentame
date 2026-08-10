@@ -140,10 +140,10 @@ fun ReviewDetectedInvoiceScreen(
                 },
                 actions = {
                     IconButton(onClick = onViewDocument) {
-                        Icon(Icons.Default.Visibility, contentDescription = "View Document")
+                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.purchase_view_document))
                     }
                     IconButton(onClick = onViewRawOcr) {
-                        Icon(Icons.Default.Info, contentDescription = "View Raw OCR")
+                        Icon(Icons.Default.Info, contentDescription = stringResource(R.string.ocr_action_view_text))
                     }
                 }
             )
@@ -460,12 +460,12 @@ fun MatchProductDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Text(
-                    text = line.description.effectiveValue(line.correction?.description) ?: "Unknown Product",
+                    text = line.description.effectiveValue(line.correction?.description) ?: stringResource(R.string.ocr_matching_unknown_product),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Invoice Package: ${line.packageText.effectiveValue(line.correction?.packageText) ?: "N/A"}",
+                    text = stringResource(R.string.ocr_matching_invoice_package, line.packageText.effectiveValue(line.correction?.packageText) ?: stringResource(R.string.not_applicable)),
                     style = MaterialTheme.typography.bodySmall
                 )
                 
@@ -855,7 +855,7 @@ fun MaterializationFailureDialog(
                     PurchaseInvoiceMaterializationFailure.InvoiceStateChanged -> stringResource(R.string.ocr_materialization_parse_changed)
                     PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked -> stringResource(R.string.ocr_materialization_error_source_locked)
                     PurchaseInvoiceMaterializationFailure.UnresolvedLines -> stringResource(R.string.ocr_materialization_error_blocked_line)
-                    else -> "An error occurred while applying the invoice: ${failure::class.simpleName}"
+                    else -> stringResource(R.string.ocr_materialization_error_generic, failure::class.simpleName ?: "")
                 }
             )
         }
@@ -925,14 +925,14 @@ fun ParsedInvoiceLineItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = line.description.effectiveValue(line.correction?.description) ?: "Unknown",
+                        text = line.description.effectiveValue(line.correction?.description) ?: stringResource(R.string.ocr_matching_not_detected),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Vendor Code: ${line.vendorCode.effectiveValue(line.correction?.vendorCode) ?: "N/A"}",
+                        text = stringResource(R.string.ocr_matching_vendor_code_label, line.vendorCode.effectiveValue(line.correction?.vendorCode) ?: stringResource(R.string.not_applicable)),
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -1021,9 +1021,9 @@ fun ParsedInvoiceLineItem(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = when (match?.status) {
-                                InvoiceLineMatchStatus.CONFIRMED -> "Matched"
-                                InvoiceLineMatchStatus.SUGGESTED -> "Review Suggestion"
-                                else -> "Not Matched"
+                                InvoiceLineMatchStatus.CONFIRMED -> stringResource(R.string.ocr_matching_status_matched)
+                                InvoiceLineMatchStatus.SUGGESTED -> stringResource(R.string.ocr_matching_status_review_suggestion)
+                                else -> stringResource(R.string.ocr_matching_status_not_matched)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = when (match?.status) {
@@ -1036,16 +1036,16 @@ fun ParsedInvoiceLineItem(
                 }
                 
                 Row {
-                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit), modifier = Modifier.size(20.dp)) }
                     IconButton(onClick = onToggleIgnore) { 
                         Icon(
                             if (isIgnored) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (isIgnored) "Unignore" else "Ignore",
+                            contentDescription = if (isIgnored) stringResource(R.string.ocr_matching_include_line) else stringResource(R.string.ocr_matching_ignore_line),
                             modifier = Modifier.size(20.dp)
                         ) 
                     }
                     if (line.correction != null) {
-                        IconButton(onClick = onReset) { Icon(Icons.Default.Refresh, contentDescription = "Reset", modifier = Modifier.size(20.dp)) }
+                        IconButton(onClick = onReset) { Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.ocr_matching_reset_correction), modifier = Modifier.size(20.dp)) }
                     }
                 }
             }

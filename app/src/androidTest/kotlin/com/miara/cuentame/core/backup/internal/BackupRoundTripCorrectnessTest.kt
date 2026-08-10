@@ -9,6 +9,8 @@ import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.backup.BackupSnapshotIntegrityValidator
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
@@ -58,6 +60,13 @@ class BackupRoundTripCorrectnessTest {
 
     @Inject
     lateinit var testStateManager: TestStateManager
+
+    @Inject
+    lateinit var documentStore: PurchaseDocumentStore
+
+    @Inject
+    @dagger.hilt.android.qualifiers.ApplicationContext
+    lateinit var context: android.content.Context
 
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
@@ -115,6 +124,10 @@ class BackupRoundTripCorrectnessTest {
         
         applier.replaceWithBackup(snapshot, manifest)
 
+        // Run integrity validator against restored data
+        val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        BackupSnapshotIntegrityValidator.validate(restoredSnapshot, manifest).getOrThrow() // Should not throw
+
         // 4. Verify Survivors
         val restoredApp = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)
         assertThat(restoredApp).isNotNull()
@@ -128,8 +141,12 @@ class BackupRoundTripCorrectnessTest {
     private suspend fun seedPurchaseWithParseResult(): PurchaseReceiptId {
         val supplierId = SupplierId(TestSeeder.SUPPLIER_ID)
         val receiptId = repository.createDraft(CreatePurchaseDraftCommand(restId, supplierId, "INV-1", Instant.now(), null))
-        val sha = "sha256-" + receiptId.value
         
+        val storedDoc = com.miara.cuentame.test.TestDocumentFixture.storeTestDocument(context, documentStore, receiptId)
+        val sha = com.miara.cuentame.test.TestDocumentFixture.calculateSha256(documentStore.getFile(storedDoc.location))
+        
+        repository.attachDocument(receiptId, storedDoc.location, storedDoc.displayName)
+
         repository.saveOcrResult(
             result = PurchaseInvoiceOcrResult(
                 id = "ocr-" + receiptId.value,
@@ -143,7 +160,7 @@ class BackupRoundTripCorrectnessTest {
                 processedAt = Instant.now()
             ),
             pages = emptyList(),
-            expectedAttachmentPath = "",
+            expectedAttachmentPath = storedDoc.location,
             expectedDocumentSha256 = sha
         )
 

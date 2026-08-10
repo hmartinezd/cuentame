@@ -145,5 +145,6 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object ParseResultChanged : ValidationError("Invoice parsing has changed. Please review the new results.")
     data object InvalidLineIndex : ValidationError("Invalid line index for current parse result.")
     data object InvalidMatchStatus : ValidationError("Line match status is invalid for the provided data.")
+    data object InvoiceSourceLocked : ValidationError("Invoice source is locked because it has already been materialized to a draft.")
 }
 

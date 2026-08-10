@@ -7,6 +7,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
@@ -50,6 +51,13 @@ class RoomPurchaseRepositoryMaterializationTest {
     @Inject
     lateinit var testStateManager: TestStateManager
 
+    @Inject
+    lateinit var documentStore: PurchaseDocumentStore
+
+    @Inject
+    @dagger.hilt.android.qualifiers.ApplicationContext
+    lateinit var context: android.content.Context
+
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
     @Before
@@ -71,8 +79,12 @@ class RoomPurchaseRepositoryMaterializationTest {
         // 1. Arrange: Create Purchase with Document and Parse Result
         val supplierId = SupplierId(TestSeeder.SUPPLIER_ID)
         val receiptId = repository.createDraft(CreatePurchaseDraftCommand(restId, supplierId, "INV-1", Instant.now(), null))
-        val sha = "abc123sha"
         
+        val storedDoc = com.miara.cuentame.test.TestDocumentFixture.storeTestDocument(context, documentStore, receiptId)
+        val sha = com.miara.cuentame.test.TestDocumentFixture.calculateSha256(documentStore.getFile(storedDoc.location))
+        
+        repository.attachDocument(receiptId, storedDoc.location, storedDoc.displayName)
+
         repository.saveOcrResult(
             result = PurchaseInvoiceOcrResult(
                 id = "ocr1",
@@ -86,7 +98,7 @@ class RoomPurchaseRepositoryMaterializationTest {
                 processedAt = Instant.now()
             ),
             pages = emptyList(),
-            expectedAttachmentPath = "", // Placeholder
+            expectedAttachmentPath = storedDoc.location,
             expectedDocumentSha256 = sha
         )
 

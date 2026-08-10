@@ -880,4 +880,11 @@
     <string name="ocr_materialization_failure_title">Materialization Failed</string>
     <string name="ocr_header_correction_dialog_title">Correct Header Field</string>
     <string name="ocr_line_correction_dialog_title">Correct Invoice Line</string>
+    <string name="ocr_matching_unknown_product">Unknown Product</string>
+    <string name="ocr_matching_invoice_package">Invoice Package: %1$s</string>
+    <string name="ocr_matching_vendor_code_label">Vendor Code: %1$s</string>
+    <string name="ocr_matching_status_matched">Matched</string>
+    <string name="ocr_matching_status_review_suggestion">Review Suggestion</string>
+    <string name="ocr_matching_status_not_matched">Not Matched</string>
+    <string name="ocr_materialization_error_generic">An error occurred while applying the invoice: %1$s</string>
 </resources>

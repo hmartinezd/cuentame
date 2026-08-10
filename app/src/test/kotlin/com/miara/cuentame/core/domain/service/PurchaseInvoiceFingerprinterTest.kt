@@ -100,6 +100,19 @@ class PurchaseInvoiceFingerprinterTest {
     }
 
     @Test
+    fun `fingerprint changes when match supplier changes`() {
+        val parseResult = createParseResult()
+        
+        val match1 = createMatch(0, supplierId = "s1")
+        val match2 = createMatch(0, supplierId = "s2")
+
+        val f1 = fingerprinter.fingerprint(receiptId, supplierId, sourceDocumentSha256, parseResult, listOf(match1))
+        val f2 = fingerprinter.fingerprint(receiptId, supplierId, sourceDocumentSha256, parseResult, listOf(match2))
+
+        assertNotEquals(f1, f2)
+    }
+
+    @Test
     fun `fingerprint is invariant to match order`() {
         val parseResult = createParseResult(lines = listOf(createParsedLine(0), createParsedLine(1)))
         
@@ -142,11 +155,11 @@ class PurchaseInvoiceFingerprinterTest {
         confidence = 0.9f
     )
 
-    private fun createMatch(lineIndex: Int, ingredientId: String = "i1") = PurchaseInvoiceLineMatch(
+    private fun createMatch(lineIndex: Int, ingredientId: String = "i1", supplierId: String = "s1") = PurchaseInvoiceLineMatch(
         parseResultId = "p1",
         lineIndex = lineIndex,
         status = InvoiceLineMatchStatus.CONFIRMED,
-        supplierId = SupplierId("s1"),
+        supplierId = SupplierId(supplierId),
         ingredientId = IngredientId(ingredientId),
         unitOptionId = IngredientUnitOptionId("u1"),
         inventoryAreaId = InventoryAreaId("a1"),

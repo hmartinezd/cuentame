@@ -12,6 +12,7 @@ import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
@@ -61,6 +62,13 @@ class RoomPurchaseInvoiceMaterializationTest {
 
     @Inject
     lateinit var testStateManager: TestStateManager
+
+    @Inject
+    lateinit var documentStore: PurchaseDocumentStore
+
+    @Inject
+    @dagger.hilt.android.qualifiers.ApplicationContext
+    lateinit var context: android.content.Context
 
     private val restId = RestaurantId(TestSeeder.RESTAURANT_ID)
 
@@ -165,8 +173,12 @@ class RoomPurchaseInvoiceMaterializationTest {
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {
         val supplierId = SupplierId(TestSeeder.SUPPLIER_ID)
         val receiptId = repository.createDraft(CreatePurchaseDraftCommand(restId, supplierId, "INV-1", Instant.now(), null))
-        val sha = "sha256-" + receiptId.value
         
+        val storedDoc = com.miara.cuentame.test.TestDocumentFixture.storeTestDocument(context, documentStore, receiptId)
+        val sha = com.miara.cuentame.test.TestDocumentFixture.calculateSha256(documentStore.getFile(storedDoc.location))
+        
+        repository.attachDocument(receiptId, storedDoc.location, storedDoc.displayName)
+
         repository.saveOcrResult(
             result = PurchaseInvoiceOcrResult(
                 id = "ocr-" + receiptId.value,
@@ -180,7 +192,7 @@ class RoomPurchaseInvoiceMaterializationTest {
                 processedAt = Instant.now()
             ),
             pages = emptyList(),
-            expectedAttachmentPath = "",
+            expectedAttachmentPath = storedDoc.location,
             expectedDocumentSha256 = sha
         )
 

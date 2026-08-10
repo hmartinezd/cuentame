@@ -367,10 +367,11 @@ class RoomPurchaseRepository @Inject constructor(
         storedLocation: String,
         displayName: String
     ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
-        
-        val oldLocation = try {
+        var oldLocation: String? = null
+        val result = try {
             database.withTransaction {
+                if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
+
                 val activeRestaurant = requireActiveRestaurant()
                 val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
@@ -378,7 +379,7 @@ class RoomPurchaseRepository @Inject constructor(
                     throw ValidationError.PurchaseNotDraft
                 }
 
-                val previousPath = existing.attachmentPath
+                oldLocation = existing.attachmentPath
 
                 val updated = existing.copy(
                     attachmentPath = storedLocation,
@@ -392,31 +393,31 @@ class RoomPurchaseRepository @Inject constructor(
                 }
 
                 ocrDao.deleteOcrForReceipt(receiptId.value)
-
-                previousPath
+                SourceMutationResult.Success
             }
         } catch (e: Exception) {
             return SourceMutationResult.NotFound
         }
 
         // Clean up old file if it existed, after successful commit
-        if (oldLocation != null && oldLocation != storedLocation) {
+        if (result == SourceMutationResult.Success && oldLocation != null && oldLocation != storedLocation) {
             try {
-                documentStore.delete(oldLocation)
+                documentStore.delete(oldLocation!!)
             } catch (e: Exception) {
                 // Best-effort cleanup failure must not fail the attachment operation
             }
         }
-        return SourceMutationResult.Success
+        return result
     }
 
     override suspend fun removeDocument(
         receiptId: PurchaseReceiptId
     ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
-        
-        val oldLocation = try {
+        var oldLocation: String? = null
+        val result = try {
             database.withTransaction {
+                if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
+                
                 val activeRestaurant = requireActiveRestaurant()
                 val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
@@ -424,7 +425,7 @@ class RoomPurchaseRepository @Inject constructor(
                     throw ValidationError.PurchaseNotDraft
                 }
 
-                val previousPath = existing.attachmentPath
+                oldLocation = existing.attachmentPath
 
                 val updated = existing.copy(
                     attachmentPath = null,
@@ -438,21 +439,20 @@ class RoomPurchaseRepository @Inject constructor(
                 }
 
                 ocrDao.deleteOcrForReceipt(receiptId.value)
-
-                previousPath
+                SourceMutationResult.Success
             }
         } catch (e: Exception) {
             return SourceMutationResult.NotFound
         }
 
-        if (oldLocation != null) {
+        if (result == SourceMutationResult.Success && oldLocation != null) {
             try {
-                documentStore.delete(oldLocation)
+                documentStore.delete(oldLocation!!)
             } catch (e: Exception) {
                 // Best-effort cleanup failure must not fail the removal operation
             }
         }
-        return SourceMutationResult.Success
+        return result
     }
 
     override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> {
@@ -491,8 +491,8 @@ class RoomPurchaseRepository @Inject constructor(
         pages: List<PurchaseInvoiceOcrPage>,
         expectedAttachmentPath: String,
         expectedDocumentSha256: String
-    ): SourceMutationResult {
-        if (isSourceLocked(result.purchaseReceiptId)) return SourceMutationResult.SourceLocked
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(result.purchaseReceiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
         ocrDao.replaceOcrResult(
             receiptId = result.purchaseReceiptId.value,
@@ -521,13 +521,13 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
         )
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
-    override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         ocrDao.deleteOcrForReceipt(receiptId.value)
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
     override fun observeParseResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceParseResult?> {
@@ -562,8 +562,8 @@ class RoomPurchaseRepository @Inject constructor(
         ocrResultId: String,
         sourceDocumentSha256: String,
         result: PurchaseInvoiceParseResult
-    ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
         val parseId = idGenerator.newId()
         
@@ -598,13 +598,13 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
         )
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
-    override suspend fun deleteParseResult(receiptId: PurchaseReceiptId): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    override suspend fun deleteParseResult(receiptId: PurchaseReceiptId): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         parseDao.deleteParseResultForReceipt(receiptId.value)
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
     override suspend fun updateParsedLine(
@@ -612,31 +612,31 @@ class RoomPurchaseRepository @Inject constructor(
         lineIndex: Int,
         isIgnored: Boolean,
         correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
-    ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
-        val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return SourceMutationResult.NotFound
+        val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return@withTransaction SourceMutationResult.NotFound
         parseDao.updateParsedLine(
             parseResultId = parseResult.id,
             lineIndex = lineIndex,
             isIgnored = isIgnored,
             correctionJson = correction?.let { json.encodeToString(it) }
         )
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
     override suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
         corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
-    ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
         parseDao.updateParseResultCorrections(
             receiptId = receiptId.value,
             correctionsJson = json.encodeToString(corrections),
             reviewedAt = timeProvider.now().toEpochMilli()
         )
-        return SourceMutationResult.Success
+        SourceMutationResult.Success
     }
 
     override suspend fun findReceiptsByInvoiceNumber(
@@ -666,31 +666,29 @@ class RoomPurchaseRepository @Inject constructor(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         matches: List<PurchaseInvoiceLineMatch>
-    ): SourceMutationResult {
-        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
-        database.withTransaction {
-            val currentParseResultId = parseDao.getParseResultIdForReceipt(receiptId.value)
-            if (currentParseResultId != expectedParseResultId) {
-                throw ValidationError.ParseResultChanged
-            }
-
-            val activeRestaurant = requireActiveRestaurant()
-            val parsedLines = parseDao.getParsedLines(currentParseResultId)
-            val validIndices = parsedLines.map { it.lineIndex }.toSet()
-
-            val entities = matches.map { match ->
-                if (match.lineIndex !in validIndices) {
-                    throw ValidationError.InvalidLineIndex
-                }
-                validateMatchInvariants(match)
-                validateMatchIntegrity(activeRestaurant.id, match)
-                match.copy(parseResultId = currentParseResultId).toEntity()
-            }
-            
-            lineMatchDao.insertMatches(entities)
+        val currentParseResultId = parseDao.getParseResultIdForReceipt(receiptId.value)
+        if (currentParseResultId != expectedParseResultId) {
+            throw ValidationError.ParseResultChanged
         }
-        return SourceMutationResult.Success
+
+        val activeRestaurant = requireActiveRestaurant()
+        val parsedLines = parseDao.getParsedLines(currentParseResultId)
+        val validIndices = parsedLines.map { it.lineIndex }.toSet()
+
+        val entities = matches.map { match ->
+            if (match.lineIndex !in validIndices) {
+                throw ValidationError.InvalidLineIndex
+            }
+            validateMatchInvariants(match)
+            validateMatchIntegrity(activeRestaurant.id, match)
+            match.copy(parseResultId = currentParseResultId).toEntity()
+        }
+        
+        lineMatchDao.insertMatches(entities)
+        SourceMutationResult.Success
     }
 
     override suspend fun saveLineMatchForReceipt(
@@ -711,6 +709,15 @@ class RoomPurchaseRepository @Inject constructor(
         inventoryAreaId: InventoryAreaId?,
         forceLearnMapping: Boolean
     ): LearnMappingResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) {
+            // We use LearnMappingResult.NoChanges as a base, but we need to signal SourceLocked.
+            // However, the domain API for confirmInvoiceLineMatch returns LearnMappingResult.
+            // The requirements say: "add the smallest explicit SourceLocked representation 
+            // consistent with that result type or fail through an existing typed domain validation mechanism."
+            // Let's check LearnMappingResult definition.
+            throw ValidationError.InvoiceSourceLocked
+        }
+        
         val activeRestaurant = requireActiveRestaurant()
         
         // 1. Load Purchase and Parse
@@ -906,6 +913,7 @@ class RoomPurchaseRepository @Inject constructor(
 
     override suspend fun applyInvoiceToDraft(proposal: PurchaseInvoiceDraftProposal): PurchaseInvoiceMaterializationResult = try {
         database.withTransaction {
+            val activeRestaurant = requireActiveRestaurant()
             val receiptId = proposal.purchaseReceiptId
             val receipt = getReceipt(receiptId)
                 ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PurchaseNotFound)
@@ -916,18 +924,23 @@ class RoomPurchaseRepository @Inject constructor(
 
             // --- PHASE A: PREFLIGHT / VALIDATION ---
 
-            // 1. Proposal Readiness
+            // 1. Proposal Structural Integrity (Goal 1 A-E)
             if (proposal.blockingIssues.isNotEmpty()) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
+            }
+            if (proposal.lines.isEmpty()) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
             }
             if (proposal.lines.any { it.blockingReason != null }) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
             }
-            if (proposal.supplierProposal == null) {
-                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.SupplierChanged)
+            
+            val proposalIndices = proposal.lines.map { it.lineIndex }
+            if (proposalIndices.size != proposalIndices.toSet().size) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DraftChanged)
             }
 
-            // 2. Source Integrity
+            // 2. Source Integrity (Goal 1 E, Goal 4)
             val currentOcr = observeOcrResult(receiptId).first()
                 ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentMissing)
             if (currentOcr.sourceDocumentSha256 != proposal.sourceDocumentSha256) {
@@ -938,7 +951,12 @@ class RoomPurchaseRepository @Inject constructor(
             if (currentParse == null || (currentParse.id != proposal.parseResultId)) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ParseChanged)
             }
-            
+
+            val activeSourceIndices = currentParse.lines.filter { !it.isIgnored }.map { it.index }.toSet()
+            if (proposalIndices.toSet() != activeSourceIndices) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
+            }
+
             val currentMatches = observeLineMatchesForReceipt(receiptId).first()
             val currentFingerprint = fingerprinter.fingerprint(
                 receiptId = receiptId,
@@ -952,13 +970,98 @@ class RoomPurchaseRepository @Inject constructor(
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
             }
 
-            // 3. Manual Edit Conflict Detection
+            // Supplier Consistency (Goal 4)
+            if (receipt.supplierId == null || proposal.supplierProposal == null || receipt.supplierId.value != proposal.supplierProposal.id.value) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.SupplierChanged)
+            }
+
+            // 3. Line Content Validation & Source Verification (Goal 1 F-I, Goal 3)
+            val validatedLines = mutableListOf<ValidatedMaterializationLine>()
+            
+            for (lineProposal in proposal.lines) {
+                // F. Null checks
+                val ingId = lineProposal.ingredientId ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
+                val areaId = lineProposal.areaId ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingRequiredArea)
+                val unitOptId = lineProposal.unitOptionId ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingRequiredUnitOption)
+                val qtyEntered = lineProposal.quantityEntered ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingQuantity)
+                val qtyBase = lineProposal.quantityBase ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingQuantity)
+                val factorToBase = lineProposal.factorToBase ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingQuantity)
+                val lineTotal = lineProposal.lineTotal ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.MissingQuantity)
+
+                // G. Numeric Invariants
+                if (qtyEntered <= BigDecimal.ZERO || qtyBase <= BigDecimal.ZERO || factorToBase <= BigDecimal.ZERO || lineTotal < BigDecimal.ZERO) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                }
+
+                // H. Current match consistency
+                val match = currentMatches.find { it.lineIndex == lineProposal.lineIndex }
+                    ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                
+                if (match.status != InvoiceLineMatchStatus.CONFIRMED ||
+                    match.ingredientId != ingId ||
+                    match.unitOptionId != unitOptId ||
+                    match.inventoryAreaId != areaId ||
+                    match.supplierId?.value != receipt.supplierId.value) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                }
+
+                // I. Relational Integrity
+                val ingredient = ingredientDao.getById(ingId.value) ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                if (ingredient.restaurantId != activeRestaurant.id) return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PersistenceFailed)
+                
+                val unitOption = unitOptionDao.getById(unitOptId.value) ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                if (unitOption.ingredientId != ingId.value) return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                
+                val area = areaDao.getById(areaId.value) ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                if (area.restaurantId != activeRestaurant.id) return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PersistenceFailed)
+
+                // Goal 3: Verify against source state
+                val sourceLine = currentParse.lines.find { it.index == lineProposal.lineIndex }
+                    ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
+                
+                val sourceQty = sourceLine.quantity.effectiveValue(sourceLine.correction?.quantity)
+                val sourceTotal = sourceLine.lineTotal.effectiveValue(sourceLine.correction?.lineTotal)
+                
+                if (sourceQty == null || sourceQty.compareTo(qtyEntered) != 0 ||
+                    sourceTotal == null || sourceTotal.compareTo(lineTotal) != 0) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
+                }
+
+                if (unitOption.factorToBase.compareTo(factorToBase) != 0) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                }
+
+                val calculation = try {
+                    lineCalculator.calculate(qtyEntered, lineTotal, factorToBase)
+                } catch (e: Exception) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                }
+                
+                if (calculation.quantityBase.compareTo(qtyBase) != 0) {
+                    return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvalidConfirmedMatch)
+                }
+
+                validatedLines.add(
+                    ValidatedMaterializationLine(
+                        lineIndex = lineProposal.lineIndex,
+                        ingredientId = ingId,
+                        areaId = areaId,
+                        unitOptionId = unitOptId,
+                        quantityEntered = qtyEntered,
+                        quantityBase = qtyBase,
+                        factorToBase = factorToBase,
+                        lineTotal = lineTotal,
+                        unitCostBase = calculation.unitCostBase
+                    )
+                )
+            }
+
+            // 4. Manual Edit Conflict Detection (Goal 6)
             val currentLines = purchaseDao.getLinesForReceipt(receiptId.value)
             val existingApp = materializationDao.getApplicationForReceipt(receiptId.value)
             val applicationId = existingApp?.id ?: idGenerator.newId()
             val existingOrigins = materializationDao.getLineOrigins(applicationId)
 
-            // Check proposed lines for conflicts
             proposal.lines.forEach { lineProposal ->
                 val existingOrigin = existingOrigins.find { it.sourceLineIndex == lineProposal.lineIndex }
                 val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
@@ -971,7 +1074,6 @@ class RoomPurchaseRepository @Inject constructor(
                 }
             }
 
-            // Check reconciliation (deletions) for conflicts
             val removedOrigins = existingOrigins.filter { origin ->
                 proposal.lines.none { it.lineIndex == origin.sourceLineIndex }
             }
@@ -986,7 +1088,7 @@ class RoomPurchaseRepository @Inject constructor(
                 }
             }
 
-            // --- PHASE B: MUTATION ---
+            // --- PHASE B: MUTATION (Goal 2) ---
 
             // 1. Update Receipt Header
             updateDraft(
@@ -1014,30 +1116,22 @@ class RoomPurchaseRepository @Inject constructor(
             val newOrigins = mutableListOf<PurchaseInvoiceLineOriginEntity>()
 
             // 3. Line Mutation
-            proposal.lines.forEach { lineProposal ->
-                val existingOrigin = existingOrigins.find { it.sourceLineIndex == lineProposal.lineIndex }
+            validatedLines.forEach { vLine ->
+                val existingOrigin = existingOrigins.find { it.sourceLineIndex == vLine.lineIndex }
                 val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
                 
                 val purchaseLineId = existingLine?.id ?: idGenerator.newId()
 
-                val qtyBase = lineProposal.quantityBase ?: BigDecimal.ZERO
-                val lineTotal = lineProposal.lineTotal ?: BigDecimal.ZERO
-                val unitCostBase = if (qtyBase > BigDecimal.ZERO) {
-                    lineTotal.divide(qtyBase, MathContext.DECIMAL128)
-                } else {
-                    BigDecimal.ZERO
-                }
-
                 val lineEntity = PurchaseLineEntity(
                     id = purchaseLineId,
                     purchaseReceiptId = receiptId.value,
-                    ingredientId = lineProposal.ingredientId?.value ?: "",
-                    areaId = lineProposal.areaId?.value ?: "",
-                    ingredientUnitOptionId = lineProposal.unitOptionId?.value ?: "",
-                    quantityEntered = lineProposal.quantityEntered?.toPlainString() ?: "0",
-                    quantityBase = qtyBase.toPlainString(),
-                    lineTotal = lineTotal.toPlainString(),
-                    unitCostBase = unitCostBase.toPlainString(),
+                    ingredientId = vLine.ingredientId.value,
+                    areaId = vLine.areaId.value,
+                    ingredientUnitOptionId = vLine.unitOptionId.value,
+                    quantityEntered = vLine.quantityEntered.toPlainString(),
+                    quantityBase = vLine.quantityBase.toPlainString(),
+                    lineTotal = vLine.lineTotal.toPlainString(),
+                    unitCostBase = vLine.unitCostBase.toPlainString(),
                     notes = existingLine?.notes,
                     createdAt = existingLine?.createdAt ?: now,
                     updatedAt = now
@@ -1050,19 +1144,20 @@ class RoomPurchaseRepository @Inject constructor(
                 }
 
                 val newSnapshot = PurchaseLineSnapshot(
-                    ingredientId = lineProposal.ingredientId?.value ?: "",
-                    areaId = lineProposal.areaId?.value ?: "",
-                    unitOptionId = lineProposal.unitOptionId?.value ?: "",
-                    quantityEntered = lineProposal.quantityEntered?.stripTrailingZeros()?.toPlainString() ?: "0",
-                    lineTotal = lineTotal.stripTrailingZeros().toPlainString(),
-                    unitCostBase = unitCostBase.stripTrailingZeros().toPlainString()
+                    ingredientId = vLine.ingredientId.value,
+                    areaId = vLine.areaId.value,
+                    unitOptionId = vLine.unitOptionId.value,
+                    quantityEntered = vLine.quantityEntered.stripTrailingZeros().toPlainString(),
+                    quantityBase = vLine.quantityBase.stripTrailingZeros().toPlainString(),
+                    lineTotal = vLine.lineTotal.stripTrailingZeros().toPlainString(),
+                    unitCostBase = vLine.unitCostBase.stripTrailingZeros().toPlainString()
                 )
 
                 newOrigins.add(
                     PurchaseInvoiceLineOriginEntity(
                         purchaseLineId = purchaseLineId,
                         applicationId = applicationId,
-                        sourceLineIndex = lineProposal.lineIndex,
+                        sourceLineIndex = vLine.lineIndex,
                         sourceStateFingerprint = currentFingerprint,
                         lastMaterializedSnapshotJson = json.encodeToString(newSnapshot)
                     )
@@ -1089,8 +1184,21 @@ class RoomPurchaseRepository @Inject constructor(
         val areaId: String,
         val unitOptionId: String,
         val quantityEntered: String,
+        val quantityBase: String,
         val lineTotal: String,
         val unitCostBase: String
+    )
+
+    private data class ValidatedMaterializationLine(
+        val lineIndex: Int,
+        val ingredientId: IngredientId,
+        val areaId: InventoryAreaId,
+        val unitOptionId: IngredientUnitOptionId,
+        val quantityEntered: BigDecimal,
+        val quantityBase: BigDecimal,
+        val factorToBase: BigDecimal,
+        val lineTotal: BigDecimal,
+        val unitCostBase: BigDecimal
     )
 
     private fun PurchaseLineEntity.isManuallyEdited(snapshot: PurchaseLineSnapshot): Boolean {
@@ -1098,6 +1206,7 @@ class RoomPurchaseRepository @Inject constructor(
                 areaId != snapshot.areaId ||
                 ingredientUnitOptionId != snapshot.unitOptionId ||
                 !BigDecimal(quantityEntered).compareCanonical(snapshot.quantityEntered) ||
+                !BigDecimal(quantityBase).compareCanonical(snapshot.quantityBase) ||
                 !BigDecimal(lineTotal).compareCanonical(snapshot.lineTotal) ||
                 !BigDecimal(unitCostBase).compareCanonical(snapshot.unitCostBase)
     }

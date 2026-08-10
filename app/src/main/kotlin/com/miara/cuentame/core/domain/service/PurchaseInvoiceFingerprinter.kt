@@ -75,6 +75,7 @@ class PurchaseInvoiceFingerprinter @Inject constructor() {
             
             // Resolution
             update("matchStatus", match?.status?.name)
+            update("matchSupplier", match?.supplierId?.value)
             update("matchIngredient", match?.ingredientId?.value)
             update("matchUnit", match?.unitOptionId?.value)
             update("matchArea", match?.inventoryAreaId?.value)

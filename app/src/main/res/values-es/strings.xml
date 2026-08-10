@@ -880,4 +880,11 @@
     <string name="ocr_materialization_failure_title">Error de Materialización</string>
     <string name="ocr_header_correction_dialog_title">Corregir Campo de Encabezado</string>
     <string name="ocr_line_correction_dialog_title">Corregir Línea de Factura</string>
+    <string name="ocr_matching_unknown_product">Producto desconocido</string>
+    <string name="ocr_matching_invoice_package">Empaque de factura: %1$s</string>
+    <string name="ocr_matching_vendor_code_label">Código de proveedor: %1$s</string>
+    <string name="ocr_matching_status_matched">Coincide</string>
+    <string name="ocr_matching_status_review_suggestion">Revisar sugerencia</string>
+    <string name="ocr_matching_status_not_matched">Sin coincidencia</string>
+    <string name="ocr_materialization_error_generic">Ocurrió un error al aplicar la factura: %1$s</string>
 </resources>

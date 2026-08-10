@@ -148,4 +148,5 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.ParseResultChanged -> R.string.error_generic
     ValidationError.InvalidLineIndex -> R.string.error_generic
     ValidationError.InvalidMatchStatus -> R.string.error_generic
+    ValidationError.InvoiceSourceLocked -> R.string.ocr_materialization_error_source_locked
 }
