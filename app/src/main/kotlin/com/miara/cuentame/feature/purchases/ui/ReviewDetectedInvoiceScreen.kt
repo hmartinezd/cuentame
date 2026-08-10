@@ -266,10 +266,11 @@ fun ReviewDetectedInvoiceScreen(
                 allIngredients = uiState.allIngredients,
                 allAreas = uiState.allAreas,
                 ingredientUnitOptions = uiState.ingredientUnitOptions,
+                isConfirming = uiState.isConfirmingMatch,
+                error = uiState.confirmMatchError,
                 onDismiss = { onStartMatch(null) },
                 onConfirmMatch = { ingredientId, unitOptionId, areaId ->
                     onConfirmMatch(line.index, ingredientId, unitOptionId, areaId)
-                    onStartMatch(null)
                 },
                 onSelectIngredient = onSelectIngredientForMatch,
                 onAddIngredient = { name -> onStartCreateIngredient(line.index, name) }
@@ -435,15 +436,30 @@ fun MatchProductDialog(
     allIngredients: List<Ingredient>,
     allAreas: List<InventoryArea>,
     ingredientUnitOptions: Map<IngredientId, List<IngredientUnitOption>>,
+    isConfirming: Boolean,
+    error: com.miara.cuentame.feature.purchases.viewmodel.MatchConfirmationError?,
     onDismiss: () -> Unit,
     onConfirmMatch: (IngredientId, IngredientUnitOptionId?, InventoryAreaId?) -> Unit,
     onSelectIngredient: (IngredientId) -> Unit,
     onAddIngredient: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedIngredientId by remember { mutableStateOf<IngredientId?>(preselectedIngredientId ?: currentMatch?.ingredientId) }
-    var selectedUnitOptionId by remember { mutableStateOf<IngredientUnitOptionId?>(currentMatch?.unitOptionId) }
-    var selectedAreaId by remember { mutableStateOf<InventoryAreaId?>(currentMatch?.inventoryAreaId) }
+    val initialIngredientId = preselectedIngredientId ?: currentMatch?.ingredientId
+    var selectedIngredientId by remember { mutableStateOf<IngredientId?>(initialIngredientId) }
+    var selectedUnitOptionId by remember { 
+        mutableStateOf<IngredientUnitOptionId?>(
+            if (selectedIngredientId != null && selectedIngredientId == currentMatch?.ingredientId) currentMatch?.unitOptionId else null
+        ) 
+    }
+    var selectedAreaId by remember { 
+        mutableStateOf<InventoryAreaId?>(
+            if (selectedIngredientId != null && selectedIngredientId == currentMatch?.ingredientId) {
+                currentMatch?.inventoryAreaId
+            } else {
+                allIngredients.find { it.id == selectedIngredientId }?.defaultAreaId
+            }
+        ) 
+    }
 
     val filteredIngredients = remember(searchQuery, allIngredients) {
         if (searchQuery.isBlank()) allIngredients.take(10)
@@ -455,7 +471,7 @@ fun MatchProductDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = if (isConfirming) ({}) else onDismiss,
         title = { Text(stringResource(R.string.ocr_matching_match_product)) },
         text = {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -476,7 +492,8 @@ fun MatchProductDialog(
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.ocr_matching_search_ingredient)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    enabled = !isConfirming
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -485,8 +502,9 @@ fun MatchProductDialog(
                     filteredIngredients.forEach { ing ->
                         ListItem(
                             headlineContent = { Text(ing.name) },
-                            modifier = Modifier.clickable { 
+                            modifier = Modifier.clickable(enabled = !isConfirming) { 
                                 selectedIngredientId = ing.id
+                                selectedUnitOptionId = null
                                 selectedAreaId = ing.defaultAreaId
                             }
                         )
@@ -495,7 +513,8 @@ fun MatchProductDialog(
                     if (searchQuery.isNotBlank() && filteredIngredients.none { it.name.equals(searchQuery, true) }) {
                         TextButton(
                             onClick = { onAddIngredient(searchQuery) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isConfirming
                         ) {
                             Icon(Icons.Default.Inventory, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -507,7 +526,11 @@ fun MatchProductDialog(
                     ListItem(
                         headlineContent = { Text(selectedIng?.name ?: "") },
                         trailingContent = {
-                            IconButton(onClick = { selectedIngredientId = null }) {
+                            IconButton(onClick = { 
+                                selectedIngredientId = null 
+                                selectedUnitOptionId = null
+                                selectedAreaId = null
+                            }, enabled = !isConfirming) {
                                 Icon(Icons.Default.Close, contentDescription = null)
                             }
                         },
@@ -521,9 +544,9 @@ fun MatchProductDialog(
                     options.forEach { opt ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { selectedUnitOptionId = opt.id }
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = !isConfirming) { selectedUnitOptionId = opt.id }
                         ) {
-                            RadioButton(selected = selectedUnitOptionId == opt.id, onClick = { selectedUnitOptionId = opt.id })
+                            RadioButton(selected = selectedUnitOptionId == opt.id, onClick = { selectedUnitOptionId = opt.id }, enabled = !isConfirming)
                             Text(opt.displayName)
                         }
                     }
@@ -534,29 +557,53 @@ fun MatchProductDialog(
                     allAreas.forEach { area ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { selectedAreaId = area.id }
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = !isConfirming) { selectedAreaId = area.id }
                         ) {
-                            RadioButton(selected = selectedAreaId == area.id, onClick = { selectedAreaId = area.id })
+                            RadioButton(selected = selectedAreaId == area.id, onClick = { selectedAreaId = area.id }, enabled = !isConfirming)
                             Text(area.name)
                         }
                     }
                 }
+
+                error?.let { e ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = when (e) {
+                            com.miara.cuentame.feature.purchases.viewmodel.MatchConfirmationError.SourceChanged -> stringResource(R.string.ocr_materialization_parse_changed)
+                            com.miara.cuentame.feature.purchases.viewmodel.MatchConfirmationError.SourceLocked -> stringResource(R.string.ocr_materialization_error_source_locked)
+                            com.miara.cuentame.feature.purchases.viewmodel.MatchConfirmationError.InvalidSelection -> stringResource(R.string.ocr_materialization_invalid_confirmed_match)
+                            com.miara.cuentame.feature.purchases.viewmodel.MatchConfirmationError.Generic -> stringResource(R.string.error_generic)
+                        },
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         },
         confirmButton = {
+            val isUnitOptionValid = remember(selectedIngredientId, selectedUnitOptionId, ingredientUnitOptions) {
+                selectedIngredientId != null && selectedUnitOptionId != null && 
+                ingredientUnitOptions[selectedIngredientId]?.any { it.id == selectedUnitOptionId } == true
+            }
+            val canConfirm = selectedIngredientId != null && isUnitOptionValid && selectedAreaId != null
+
             Button(
                 onClick = { 
-                    if (selectedIngredientId != null && selectedUnitOptionId != null && selectedAreaId != null) {
+                    if (canConfirm) {
                         onConfirmMatch(selectedIngredientId!!, selectedUnitOptionId, selectedAreaId) 
                     }
                 },
-                enabled = selectedIngredientId != null && selectedUnitOptionId != null && selectedAreaId != null
+                enabled = canConfirm && !isConfirming
             ) {
-                Text(stringResource(R.string.action_confirm))
+                if (isConfirming) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text(stringResource(R.string.action_confirm))
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !isConfirming) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }
@@ -649,7 +696,17 @@ fun EditHeaderDialog(
                 value = value,
                 onValueChange = { value = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(field.name) }
+                label = { 
+                    Text(
+                        when(field) {
+                            HeaderField.Supplier -> stringResource(R.string.ocr_supplier_section_title)
+                            HeaderField.InvoiceNumber -> stringResource(R.string.ocr_invoice_number_label)
+                            HeaderField.Date -> stringResource(R.string.ocr_date_label)
+                            HeaderField.Total -> stringResource(R.string.ocr_total_label)
+                            HeaderField.Tax -> stringResource(R.string.ocr_tax_label)
+                        }
+                    )
+                }
             )
         },
         confirmButton = {
@@ -855,7 +912,7 @@ fun MaterializationFailureDialog(
                     PurchaseInvoiceMaterializationFailure.InvoiceStateChanged -> stringResource(R.string.ocr_materialization_parse_changed)
                     PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked -> stringResource(R.string.ocr_materialization_error_source_locked)
                     PurchaseInvoiceMaterializationFailure.UnresolvedLines -> stringResource(R.string.ocr_materialization_error_blocked_line)
-                    else -> stringResource(R.string.ocr_materialization_error_generic, failure::class.simpleName ?: "")
+                    else -> stringResource(R.string.error_generic)
                 }
             )
         }
@@ -975,7 +1032,9 @@ fun ParsedInvoiceLineItem(
                                 com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingLineTotal -> stringResource(R.string.ocr_materialization_missing_line_total)
                                 com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidLineTotal -> stringResource(R.string.ocr_materialization_invalid_line_total)
                                 com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidConversion -> stringResource(R.string.ocr_materialization_invalid_conversion)
-                                else -> blockingReason.name
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.ParseChanged -> stringResource(R.string.ocr_materialization_parse_changed)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.DocumentChanged -> stringResource(R.string.ocr_error_document_changed)
+                                else -> stringResource(R.string.error_generic)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error

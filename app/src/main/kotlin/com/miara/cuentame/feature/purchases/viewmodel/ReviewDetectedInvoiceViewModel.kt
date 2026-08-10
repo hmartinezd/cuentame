@@ -58,8 +58,17 @@ data class ReviewDetectedInvoiceUiState(
     val materializationFailure: PurchaseInvoiceMaterializationFailure? = null,
     val isMaterializing: Boolean = false,
     val isMaterialized: Boolean = false,
+    val isConfirmingMatch: Boolean = false,
+    val confirmMatchError: MatchConfirmationError? = null,
     val currencyCode: String = "USD"
 )
+
+enum class MatchConfirmationError {
+    SourceChanged,
+    SourceLocked,
+    InvalidSelection,
+    Generic
+}
 
 data class MatchSummary(
     val matched: Int,
@@ -144,7 +153,12 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     }
 
     fun onStartMatch(lineIndex: Int?) {
-        _uiState.update { it.copy(matchingLineIndex = lineIndex, preselectedIngredientId = null) }
+        _uiState.update { it.copy(
+            matchingLineIndex = lineIndex, 
+            preselectedIngredientId = null,
+            confirmMatchError = null,
+            isConfirmingMatch = false
+        ) }
         savedStateHandle["matchingLineIndex"] = lineIndex
     }
 
@@ -336,8 +350,11 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         unitOptionId: IngredientUnitOptionId?,
         inventoryAreaId: InventoryAreaId?
     ) {
+        if (uiState.value.isConfirmingMatch) return
+
         viewModelScope.launch {
             val result = uiState.value.result ?: return@launch
+            _uiState.update { it.copy(isConfirmingMatch = true, confirmMatchError = null) }
             
             try {
                 val learnResult = repository.confirmInvoiceLineMatch(
@@ -351,11 +368,26 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                     forceLearnMapping = false
                 )
 
+                _uiState.update { it.copy(isConfirmingMatch = false) }
+                
                 if (learnResult is LearnMappingResult.Conflict) {
-                    _uiState.update { it.copy(activeMappingConflict = learnResult.conflict) }
+                    _uiState.update { it.copy(activeMappingConflict = learnResult.conflict, matchingLineIndex = null) }
+                } else {
+                    _uiState.update { it.copy(matchingLineIndex = null) }
                 }
             } catch (e: Exception) {
-                // UI should probably show an error if parse changed
+                val error = when (e) {
+                    is com.miara.cuentame.core.domain.validation.ValidationError -> when (e) {
+                        com.miara.cuentame.core.domain.validation.ValidationError.ParseResultChanged -> MatchConfirmationError.SourceChanged
+                        com.miara.cuentame.core.domain.validation.ValidationError.InvoiceSourceLocked -> MatchConfirmationError.SourceLocked
+                        com.miara.cuentame.core.domain.validation.ValidationError.InvalidMatchStatus,
+                        com.miara.cuentame.core.domain.validation.ValidationError.InvalidPurchaseUnitOption,
+                        com.miara.cuentame.core.domain.validation.ValidationError.InvalidPurchaseArea -> MatchConfirmationError.InvalidSelection
+                        else -> MatchConfirmationError.Generic
+                    }
+                    else -> MatchConfirmationError.Generic
+                }
+                _uiState.update { it.copy(isConfirmingMatch = false, confirmMatchError = error) }
             }
         }
     }
