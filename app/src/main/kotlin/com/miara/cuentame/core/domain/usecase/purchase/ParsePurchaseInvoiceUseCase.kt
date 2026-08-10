@@ -2,6 +2,7 @@ package com.miara.cuentame.core.domain.usecase.purchase
 
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParser
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,7 @@ enum class PurchaseInvoiceParseFailure {
     ParserFailed,
     OcrChanged,
     PersistenceFailed,
+    SourceLocked,
     Unknown
 }
 
@@ -57,12 +59,16 @@ class ParsePurchaseInvoiceUseCase @Inject constructor(
                 parseResult
             }
 
-            repository.saveParseResult(
+            val saveStatus = repository.saveParseResult(
                 receiptId = receiptId,
                 ocrResultId = ocrResult.id,
                 sourceDocumentSha256 = ocrResult.sourceDocumentSha256,
                 result = finalResult
             )
+
+            if (saveStatus == SourceMutationResult.SourceLocked) {
+                return ParsePurchaseInvoiceResult.Failure(PurchaseInvoiceParseFailure.SourceLocked)
+            }
             
             ParsePurchaseInvoiceResult.Success(finalResult)
         } catch (e: kotlinx.coroutines.CancellationException) {

@@ -51,6 +51,7 @@ class IngredientFormViewModelTest {
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = emptyList()
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(null)
         override suspend fun getById(id: IngredientId): Ingredient? = null
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = null
         override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
@@ -175,6 +176,7 @@ class IngredientFormViewModelTest {
             override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = emptyList()
             override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(ingredient)
             override suspend fun getById(id: IngredientId): Ingredient? = ingredient
+            override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = null
             override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
             override suspend fun archive(id: IngredientId, at: Instant) {}
             override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())

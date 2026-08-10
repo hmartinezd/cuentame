@@ -13,6 +13,13 @@ class PurchaseInvoiceFingerprinter @Inject constructor() {
     /**
      * Generates a deterministic fingerprint of the business-relevant staging state
      * that produces a materialization proposal.
+     *
+     * Includes:
+     * - Receipt & Document Identity
+     * - Effective Header Values
+     * - All Line Definitions (Vendor Code, Description, Package, Quantities, Prices)
+     * - Current Match Resolutions (Ingredient, Unit, Area)
+     * - Line Status (Active/Ignored)
      */
     fun fingerprint(
         receiptId: PurchaseReceiptId,
@@ -23,36 +30,55 @@ class PurchaseInvoiceFingerprinter @Inject constructor() {
     ): String {
         val digest = MessageDigest.getInstance("SHA-256")
         
-        // Context
-        digest.update("receipt:${receiptId.value}".toByteArray())
-        digest.update("supplier:${supplierId ?: "null"}".toByteArray())
-        digest.update("doc:${sourceDocumentSha256}".toByteArray())
-        digest.update("parse:${parseResult.id}".toByteArray())
+        fun update(key: String, value: Any?) {
+            digest.update("$key:${value?.toString() ?: "null"}|".toByteArray(Charsets.UTF_8))
+        }
+
+        // 1. Identity & Context
+        update("receiptId", receiptId.value)
+        update("supplierId", supplierId)
+        update("docSha256", sourceDocumentSha256)
+        update("parseResultId", parseResult.id)
 
         val headerCorrections = parseResult.corrections
         
-        // Header Values
-        digest.update("invoiceNumber:${parseResult.invoiceNumber.effectiveValue(headerCorrections?.invoiceNumber) ?: "null"}".toByteArray())
-        digest.update("invoiceDate:${parseResult.invoiceDate.effectiveValue(headerCorrections?.invoiceDate) ?: "null"}".toByteArray())
-        digest.update("total:${parseResult.total.effectiveValue(headerCorrections?.total)?.toCanonicalString() ?: "null"}".toByteArray())
+        // 2. Header Values
+        update("invoiceNumber", parseResult.invoiceNumber.effectiveValue(headerCorrections?.invoiceNumber))
+        update("invoiceDate", parseResult.invoiceDate.effectiveValue(headerCorrections?.invoiceDate))
+        update("subtotal", parseResult.subtotal.effectiveValue(headerCorrections?.subtotal)?.toCanonicalString())
+        update("discount", parseResult.discount.effectiveValue(headerCorrections?.discount)?.toCanonicalString())
+        update("fees", parseResult.fees.effectiveValue(headerCorrections?.fees)?.toCanonicalString())
+        update("tax", parseResult.tax.effectiveValue(headerCorrections?.tax)?.toCanonicalString())
+        update("total", parseResult.total.effectiveValue(headerCorrections?.total)?.toCanonicalString())
 
-        // Active Lines and Matches
-        // Sort matches by lineIndex to ensure determinism
-        val activeLines = parseResult.lines.filter { !it.isIgnored }.sortedBy { it.index }
+        // 3. Line Data & Matches
+        // We iterate over ALL lines to ensure that changing a line from active to ignored (or vice versa)
+        // changes the fingerprint. We sort by index for determinism.
+        val allLines = parseResult.lines.sortedBy { it.index }
 
-        activeLines.forEach { line ->
+        allLines.forEach { line ->
             val match = matches.find { it.lineIndex == line.index }
-            digest.update("line:${line.index}".toByteArray())
-            digest.update("status:${match?.status?.name ?: "null"}".toByteArray())
-            digest.update("ingredient:${match?.ingredientId?.value ?: "null"}".toByteArray())
-            digest.update("unitOption:${match?.unitOptionId?.value ?: "null"}".toByteArray())
-            digest.update("area:${match?.inventoryAreaId?.value ?: "null"}".toByteArray())
+            val correction = line.correction
             
-            // Correction values
-            val lineCorrection = line.correction
-            digest.update("qty:${line.quantity.effectiveValue(lineCorrection?.quantity)?.toCanonicalString() ?: "null"}".toByteArray())
-            digest.update("price:${line.unitPrice.effectiveValue(lineCorrection?.unitPrice)?.toCanonicalString() ?: "null"}".toByteArray())
-            digest.update("lineTotal:${line.lineTotal.effectiveValue(lineCorrection?.lineTotal)?.toCanonicalString() ?: "null"}".toByteArray())
+            update("lineIdx", line.index)
+            update("lineIgnored", line.isIgnored)
+            
+            // Raw/Corrected Identity
+            update("vendorCode", line.vendorCode.effectiveValue(correction?.vendorCode))
+            update("description", line.description.effectiveValue(correction?.description))
+            update("packageText", line.packageText.effectiveValue(correction?.packageText))
+            
+            // Financials/Quantities
+            update("qty", line.quantity.effectiveValue(correction?.quantity)?.toCanonicalString())
+            update("price", line.unitPrice.effectiveValue(correction?.unitPrice)?.toCanonicalString())
+            update("lineTotal", line.lineTotal.effectiveValue(correction?.lineTotal)?.toCanonicalString())
+            
+            // Resolution
+            update("matchStatus", match?.status?.name)
+            update("matchIngredient", match?.ingredientId?.value)
+            update("matchUnit", match?.unitOptionId?.value)
+            update("matchArea", match?.inventoryAreaId?.value)
+            update("matchMapping", match?.mappingId)
         }
 
         return digest.digest().joinToString("") { "%02x".format(it) }

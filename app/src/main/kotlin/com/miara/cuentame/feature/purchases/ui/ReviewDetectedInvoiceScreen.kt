@@ -222,9 +222,11 @@ fun ReviewDetectedInvoiceScreen(
 
                 items(result.lines) { line ->
                     val match = uiState.matches.find { it.lineIndex == line.index }
+                    val lineProposal = uiState.proposal?.lines?.find { it.lineIndex == line.index }
                     ParsedInvoiceLineItem(
                         line = line,
                         match = match,
+                        blockingReason = lineProposal?.blockingReason,
                         currencyCode = uiState.currencyCode,
                         onEdit = { editingLineIndex = line.index },
                         onMatch = { onStartMatch(line.index) },
@@ -543,8 +545,12 @@ fun MatchProductDialog(
         },
         confirmButton = {
             Button(
-                onClick = { selectedIngredientId?.let { onConfirmMatch(it, selectedUnitOptionId, selectedAreaId) } },
-                enabled = selectedIngredientId != null
+                onClick = { 
+                    if (selectedIngredientId != null && selectedUnitOptionId != null && selectedAreaId != null) {
+                        onConfirmMatch(selectedIngredientId!!, selectedUnitOptionId, selectedAreaId) 
+                    }
+                },
+                enabled = selectedIngredientId != null && selectedUnitOptionId != null && selectedAreaId != null
             ) {
                 Text(stringResource(R.string.action_confirm))
             }
@@ -637,7 +643,7 @@ fun EditHeaderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Correct Header Field") },
+        title = { Text(stringResource(R.string.ocr_header_correction_dialog_title)) },
         text = {
             OutlinedTextField(
                 value = value,
@@ -687,12 +693,12 @@ fun EditLineDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Correct Invoice Line") },
+        title = { Text(stringResource(R.string.ocr_line_correction_dialog_title)) },
         text = {
             Column {
-                OutlinedTextField(value = quantity, onValueChange = { quantity = it }, label = { Text("Quantity") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = unitPrice, onValueChange = { unitPrice = it }, label = { Text("Unit Price") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = total, onValueChange = { total = it }, label = { Text("Line Total") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = quantity, onValueChange = { quantity = it }, label = { Text(stringResource(R.string.product_quantity)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = unitPrice, onValueChange = { unitPrice = it }, label = { Text(stringResource(R.string.product_price)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = total, onValueChange = { total = it }, label = { Text(stringResource(R.string.ocr_total_label)) }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -749,6 +755,17 @@ fun MaterializationImpactCard(
                             MaterializationBlockingIssue.PurchaseAlreadyPosted -> stringResource(R.string.ocr_materialization_error_already_posted)
                             MaterializationBlockingIssue.DocumentChanged -> stringResource(R.string.ocr_error_document_changed)
                             MaterializationBlockingIssue.ParseChanged -> stringResource(R.string.ocr_materialization_parse_changed)
+                            MaterializationBlockingIssue.UnresolvedMatch -> stringResource(R.string.ocr_materialization_unresolved_match)
+                            MaterializationBlockingIssue.InvalidConfirmedMatch -> stringResource(R.string.ocr_materialization_invalid_confirmed_match)
+                            MaterializationBlockingIssue.MissingIngredient -> stringResource(R.string.ocr_materialization_missing_ingredient)
+                            MaterializationBlockingIssue.MissingUnitOption -> stringResource(R.string.ocr_materialization_missing_unit_option)
+                            MaterializationBlockingIssue.InvalidUnitOption -> stringResource(R.string.ocr_materialization_invalid_unit_option)
+                            MaterializationBlockingIssue.MissingArea -> stringResource(R.string.ocr_materialization_missing_area)
+                            MaterializationBlockingIssue.MissingQuantity -> stringResource(R.string.ocr_materialization_missing_quantity)
+                            MaterializationBlockingIssue.InvalidQuantity -> stringResource(R.string.ocr_materialization_invalid_quantity)
+                            MaterializationBlockingIssue.MissingLineTotal -> stringResource(R.string.ocr_materialization_missing_line_total)
+                            MaterializationBlockingIssue.InvalidLineTotal -> stringResource(R.string.ocr_materialization_invalid_line_total)
+                            MaterializationBlockingIssue.InvalidConversion -> stringResource(R.string.ocr_materialization_invalid_conversion)
                         },
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.labelSmall,
@@ -800,18 +817,18 @@ private fun LineConversionRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = line.ingredientName,
+                text = line.ingredientName ?: "",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "${Formatters.formatQuantity(line.quantityEntered)} ${line.unitOptionName} × ${Formatters.formatQuantity(line.factorToBase)} = ${Formatters.formatQuantity(line.quantityBase)} ${line.baseUnitSymbol}",
+                text = "${Formatters.formatQuantity(line.quantityEntered ?: BigDecimal.ZERO)} ${line.unitOptionName ?: ""} × ${Formatters.formatQuantity(line.factorToBase ?: BigDecimal.ONE)} = ${Formatters.formatQuantity(line.quantityBase ?: BigDecimal.ZERO)} ${line.baseUnitSymbol ?: ""}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Text(
-            text = Formatters.formatCurrency(line.lineTotal, currencyCode),
+            text = Formatters.formatCurrency(line.lineTotal ?: BigDecimal.ZERO, currencyCode),
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(start = 8.dp)
         )
@@ -828,7 +845,7 @@ fun MaterializationFailureDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) }
         },
-        title = { Text("Materialization Failed") },
+        title = { Text(stringResource(R.string.ocr_materialization_failure_title)) },
         text = {
             Text(
                 text = when (failure) {
@@ -836,6 +853,8 @@ fun MaterializationFailureDialog(
                     PurchaseInvoiceMaterializationFailure.ManualEditConflict -> stringResource(R.string.ocr_materialization_error_conflict)
                     PurchaseInvoiceMaterializationFailure.DocumentChanged -> stringResource(R.string.ocr_error_document_changed)
                     PurchaseInvoiceMaterializationFailure.InvoiceStateChanged -> stringResource(R.string.ocr_materialization_parse_changed)
+                    PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked -> stringResource(R.string.ocr_materialization_error_source_locked)
+                    PurchaseInvoiceMaterializationFailure.UnresolvedLines -> stringResource(R.string.ocr_materialization_error_blocked_line)
                     else -> "An error occurred while applying the invoice: ${failure::class.simpleName}"
                 }
             )
@@ -880,6 +899,7 @@ fun <T> ParsedFieldRow(
 fun ParsedInvoiceLineItem(
     line: ParsedInvoiceLineCandidate,
     match: PurchaseInvoiceLineMatch?,
+    blockingReason: com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue?,
     currencyCode: String,
     onEdit: () -> Unit,
     onMatch: () -> Unit,
@@ -930,6 +950,40 @@ fun ParsedInvoiceLineItem(
                 }
             }
             
+            if (blockingReason != null && !isIgnored) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    shape = MaterialTheme.shapes.extraSmall
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = when(blockingReason) {
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.UnresolvedMatch -> stringResource(R.string.ocr_materialization_unresolved_match)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidConfirmedMatch -> stringResource(R.string.ocr_materialization_invalid_confirmed_match)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingIngredient -> stringResource(R.string.ocr_materialization_missing_ingredient)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingUnitOption -> stringResource(R.string.ocr_materialization_missing_unit_option)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidUnitOption -> stringResource(R.string.ocr_materialization_invalid_unit_option)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingArea -> stringResource(R.string.ocr_materialization_missing_area)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingQuantity -> stringResource(R.string.ocr_materialization_missing_quantity)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidQuantity -> stringResource(R.string.ocr_materialization_invalid_quantity)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.MissingLineTotal -> stringResource(R.string.ocr_materialization_missing_line_total)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidLineTotal -> stringResource(R.string.ocr_materialization_invalid_line_total)
+                                com.miara.cuentame.core.model.purchase.materialization.MaterializationBlockingIssue.InvalidConversion -> stringResource(R.string.ocr_materialization_invalid_conversion)
+                                else -> blockingReason.name
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             
             Row(

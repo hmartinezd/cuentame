@@ -70,6 +70,8 @@ class PurchaseLineViewModelTest {
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = listOf(fakeIngredient)
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = flowOf(fakeIngredient)
         override suspend fun getById(id: IngredientId): Ingredient? = fakeIngredient
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = 
+            if (id == fakeOption.id) fakeOption else null
         override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = flowOf(listOf(fakeOption))

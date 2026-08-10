@@ -864,4 +864,20 @@
     <string name="ocr_materialization_error_conflict">A line was manually edited in the draft. Applying will not overwrite your changes.</string>
     <string name="ocr_materialization_parse_changed">Invoice analysis changed. Please refresh.</string>
     <string name="ocr_materialization_conversion_preview">Conversion Preview</string>
+    <string name="ocr_materialization_error_source_locked">Invoice source is locked because it has already been materialized to a draft.</string>
+    <string name="ocr_materialization_error_blocked_line">At least one active line is blocked by missing or invalid data. Materialization must be all-or-nothing.</string>
+    <string name="ocr_materialization_unresolved_match">Unresolved match</string>
+    <string name="ocr_materialization_invalid_confirmed_match">Invalid confirmed match</string>
+    <string name="ocr_materialization_missing_ingredient">Missing ingredient</string>
+    <string name="ocr_materialization_missing_unit_option">Missing unit option</string>
+    <string name="ocr_materialization_invalid_unit_option">Invalid unit option</string>
+    <string name="ocr_materialization_missing_area">Missing area</string>
+    <string name="ocr_materialization_missing_quantity">Missing quantity</string>
+    <string name="ocr_materialization_invalid_quantity">Invalid quantity</string>
+    <string name="ocr_materialization_missing_line_total">Missing line total</string>
+    <string name="ocr_materialization_invalid_line_total">Invalid line total</string>
+    <string name="ocr_materialization_invalid_conversion">Invalid conversion</string>
+    <string name="ocr_materialization_failure_title">Materialization Failed</string>
+    <string name="ocr_header_correction_dialog_title">Correct Header Field</string>
+    <string name="ocr_line_correction_dialog_title">Correct Invoice Line</string>
 </resources>

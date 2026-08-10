@@ -73,6 +73,19 @@ class GenerateInvoiceProposalUseCase @Inject constructor(
         val lineProposals = activeLines.map { lineCandidate ->
             val match = matches.find { it.lineIndex == lineCandidate.index }
             
+            val lineCorrection = lineCandidate.correction
+            val quantity = lineCandidate.quantity.effectiveValue(lineCorrection?.quantity)
+            val lineTotal = lineCandidate.lineTotal.effectiveValue(lineCorrection?.lineTotal)
+            val unitPrice = lineCandidate.unitPrice.effectiveValue(lineCorrection?.unitPrice)
+
+            var blockingReason: MaterializationBlockingIssue? = null
+
+            // 1. Check Match Status FIRST
+            if (match == null || match.status != InvoiceLineMatchStatus.CONFIRMED) {
+                blockingReason = MaterializationBlockingIssue.UnresolvedMatch
+            }
+
+            // 2. Resolve Relational Data
             val ingredientId = match?.ingredientId
             val unitOptionId = match?.unitOptionId
             val areaId = match?.inventoryAreaId
@@ -81,15 +94,35 @@ class GenerateInvoiceProposalUseCase @Inject constructor(
             val unitOption = unitOptionId?.let { ingredientRepository.getUnitOption(it) }
             val area = areaId?.let { areaRepository.getById(it) }
             val baseUnit = ingredient?.let { unitRepository.getById(it.baseUnitId) }
-            
-            val lineCorrection = lineCandidate.correction
-            val quantity = lineCandidate.quantity.effectiveValue(lineCorrection?.quantity)
-            val lineTotal = lineCandidate.lineTotal.effectiveValue(lineCorrection?.lineTotal)
-            val unitPrice = lineCandidate.unitPrice.effectiveValue(lineCorrection?.unitPrice)
 
-            var blockingReason: MaterializationBlockingIssue? = null
+            // 3. Validate Relational Data if match was supposedly confirmed
+            if (blockingReason == null) {
+                if (ingredient == null) {
+                    blockingReason = MaterializationBlockingIssue.MissingIngredient
+                } else if (unitOption == null) {
+                    blockingReason = MaterializationBlockingIssue.MissingUnitOption
+                } else if (unitOption.ingredientId != ingredient.id) {
+                    blockingReason = MaterializationBlockingIssue.InvalidUnitOption
+                } else if (area == null) {
+                    blockingReason = MaterializationBlockingIssue.MissingArea
+                }
+            }
+
+            // 4. Validate Source Data
+            if (blockingReason == null) {
+                if (quantity == null) {
+                    blockingReason = MaterializationBlockingIssue.MissingQuantity
+                } else if (quantity <= BigDecimal.ZERO) {
+                    blockingReason = MaterializationBlockingIssue.InvalidQuantity
+                } else if (lineTotal == null) {
+                    blockingReason = MaterializationBlockingIssue.MissingLineTotal
+                } else if (lineTotal < BigDecimal.ZERO) {
+                    blockingReason = MaterializationBlockingIssue.InvalidLineTotal
+                }
+            }
             
-            val calculation = if (ingredient != null && unitOption != null && area != null && quantity != null && lineTotal != null) {
+            // 5. Calculate
+            val calculation = if (blockingReason == null && ingredient != null && unitOption != null && quantity != null && lineTotal != null) {
                 try {
                     lineCalculator.calculate(
                         quantityEntered = quantity,
@@ -97,36 +130,35 @@ class GenerateInvoiceProposalUseCase @Inject constructor(
                         optionFactorToBase = unitOption.factorToBase
                     )
                 } catch (e: ValidationError.InvalidPurchaseQuantity) {
-                    blockingReason = MaterializationBlockingIssue.UnresolvedLines // Reuse or add specific
+                    blockingReason = MaterializationBlockingIssue.InvalidQuantity
                     null
                 } catch (e: Exception) {
+                    blockingReason = MaterializationBlockingIssue.InvalidConversion
                     null
                 }
             } else {
-                if (match == null || match.status != InvoiceLineMatchStatus.CONFIRMED) {
-                    blockingReason = MaterializationBlockingIssue.UnresolvedLines
-                } else if (ingredient == null || unitOption == null || area == null) {
-                    blockingReason = MaterializationBlockingIssue.ParseChanged // Or broken data
-                } else if (quantity == null) {
-                    // Specific missing data
-                }
                 null
+            }
+
+            // Final sanity check for calculation
+            if (blockingReason == null && calculation == null) {
+                blockingReason = MaterializationBlockingIssue.InvalidConversion
             }
 
             PurchaseInvoiceLineProposal(
                 lineIndex = lineCandidate.index,
-                ingredientId = ingredientId ?: IngredientId(""),
-                ingredientName = ingredient?.name ?: "",
-                unitOptionId = unitOptionId ?: IngredientUnitOptionId(""),
-                unitOptionName = unitOption?.displayName ?: "",
-                areaId = areaId ?: InventoryAreaId(""),
-                areaName = area?.name ?: "",
-                quantityEntered = quantity ?: BigDecimal.ZERO,
-                quantityBase = calculation?.quantityBase ?: BigDecimal.ZERO,
-                factorToBase = unitOption?.factorToBase ?: BigDecimal.ONE,
-                baseUnitSymbol = baseUnit?.symbol ?: "",
+                ingredientId = ingredientId,
+                ingredientName = ingredient?.name,
+                unitOptionId = unitOptionId,
+                unitOptionName = unitOption?.displayName,
+                areaId = areaId,
+                areaName = area?.name,
+                quantityEntered = quantity,
+                quantityBase = calculation?.quantityBase,
+                factorToBase = unitOption?.factorToBase,
+                baseUnitSymbol = baseUnit?.symbol,
                 unitPrice = unitPrice,
-                lineTotal = lineTotal ?: BigDecimal.ZERO,
+                lineTotal = lineTotal,
                 warnings = lineCandidate.warnings,
                 blockingReason = blockingReason
             )

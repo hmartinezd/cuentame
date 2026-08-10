@@ -15,6 +15,7 @@ import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.supplier.Supplier
@@ -410,7 +411,10 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
     fun onUpdateHeaderCorrections(corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections) {
         viewModelScope.launch {
-            repository.updateParseResult(receiptId, corrections)
+            val result = repository.updateParseResult(receiptId, corrections)
+            if (result == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+            }
         }
     }
 
@@ -421,7 +425,11 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             
             val identityChanged = identityFieldsChanged(oldLine, correction)
             
-            repository.updateParsedLine(receiptId, lineIndex, isIgnored, correction)
+            val status = repository.updateParsedLine(receiptId, lineIndex, isIgnored, correction)
+            if (status == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+                return@launch
+            }
             
             if (isIgnored || identityChanged) {
                 repository.saveLineMatchForReceipt(receiptId, result.id, unmatchedMatch(result.id, lineIndex))
@@ -527,7 +535,11 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             val result = uiState.value.result ?: return@launch
             val line = result.lines.find { it.index == lineIndex } ?: return@launch
             val isIgnored = !line.isIgnored
-            repository.updateParsedLine(receiptId, lineIndex, isIgnored, line.correction)
+            val status = repository.updateParsedLine(receiptId, lineIndex, isIgnored, line.correction)
+            if (status == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+                return@launch
+            }
             if (isIgnored) {
                 repository.saveLineMatchForReceipt(receiptId, result.id, unmatchedMatch(result.id, lineIndex))
             } else {
@@ -538,7 +550,10 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     
     fun onResetHeader() {
         viewModelScope.launch {
-            repository.updateParseResult(receiptId, com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections())
+            val result = repository.updateParseResult(receiptId, com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections())
+            if (result == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+            }
         }
     }
     
@@ -549,7 +564,11 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             
             val identityChanged = identityFieldsChanged(line, null)
             
-            repository.updateParsedLine(receiptId, lineIndex, line.isIgnored, null)
+            val status = repository.updateParsedLine(receiptId, lineIndex, line.isIgnored, null)
+            if (status == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+                return@launch
+            }
             
             if (identityChanged) {
                 repository.saveLineMatchForReceipt(receiptId, result.id, unmatchedMatch(result.id, lineIndex))

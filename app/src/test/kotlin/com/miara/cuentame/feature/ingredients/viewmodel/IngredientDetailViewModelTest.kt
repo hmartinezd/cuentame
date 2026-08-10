@@ -55,6 +55,8 @@ class IngredientDetailViewModelTest {
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = emptyList()
         override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = ingredientFlow
         override suspend fun getById(id: IngredientId): Ingredient? = ingredientFlow.value
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = 
+            optionsFlow.value.find { it.id == id }
         override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = optionsFlow

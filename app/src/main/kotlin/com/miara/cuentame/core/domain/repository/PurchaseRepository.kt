@@ -8,6 +8,7 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
@@ -120,11 +121,11 @@ interface PurchaseRepository {
         receiptId: PurchaseReceiptId,
         storedLocation: String,
         displayName: String
-    )
+    ): SourceMutationResult
 
     suspend fun removeDocument(
         receiptId: PurchaseReceiptId
-    )
+    ): SourceMutationResult
 
     fun observeOcrResult(
         receiptId: PurchaseReceiptId
@@ -139,11 +140,11 @@ interface PurchaseRepository {
         pages: List<PurchaseInvoiceOcrPage>,
         expectedAttachmentPath: String,
         expectedDocumentSha256: String
-    )
+    ): SourceMutationResult
 
     suspend fun deleteOcrResult(
         receiptId: PurchaseReceiptId
-    )
+    ): SourceMutationResult
 
     fun observeParseResult(
         receiptId: PurchaseReceiptId
@@ -158,23 +159,23 @@ interface PurchaseRepository {
         ocrResultId: String,
         sourceDocumentSha256: String,
         result: PurchaseInvoiceParseResult
-    )
+    ): SourceMutationResult
 
     suspend fun deleteParseResult(
         receiptId: PurchaseReceiptId
-    )
+    ): SourceMutationResult
 
     suspend fun updateParsedLine(
         receiptId: PurchaseReceiptId,
         lineIndex: Int,
         isIgnored: Boolean,
         correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
-    )
+    ): SourceMutationResult
 
     suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
         corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
-    )
+    ): SourceMutationResult
 
     suspend fun findReceiptsByInvoiceNumber(
         restaurantId: RestaurantId,
@@ -193,13 +194,13 @@ interface PurchaseRepository {
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         matches: List<PurchaseInvoiceLineMatch>
-    )
+    ): SourceMutationResult
 
     suspend fun saveLineMatchForReceipt(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         match: PurchaseInvoiceLineMatch
-    )
+    ): SourceMutationResult
 
     suspend fun confirmInvoiceLineMatch(
         receiptId: PurchaseReceiptId,

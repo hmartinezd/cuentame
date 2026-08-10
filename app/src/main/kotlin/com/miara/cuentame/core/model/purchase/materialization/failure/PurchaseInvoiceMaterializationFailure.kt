@@ -20,5 +20,6 @@ sealed interface PurchaseInvoiceMaterializationFailure {
     data object MissingRequiredArea : PurchaseInvoiceMaterializationFailure
     data object DraftChanged : PurchaseInvoiceMaterializationFailure
     data object ManualEditConflict : PurchaseInvoiceMaterializationFailure
+    data object InvoiceSourceLocked : PurchaseInvoiceMaterializationFailure
     data object PersistenceFailed : PurchaseInvoiceMaterializationFailure
 }

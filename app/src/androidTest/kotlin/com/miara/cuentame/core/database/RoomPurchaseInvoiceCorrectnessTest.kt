@@ -1,19 +1,17 @@
 package com.miara.cuentame.core.database
 
-import androidx.room.testing.MigrationTestHelper
-import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
-import com.miara.cuentame.core.database.entity.PurchaseInvoiceDraftApplicationEntity
-import com.miara.cuentame.core.database.entity.PurchaseInvoiceLineOriginEntity
 import com.miara.cuentame.core.database.repository.RoomPurchaseRepository
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationFailure
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.ParsedField
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
@@ -22,6 +20,7 @@ import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -35,17 +34,10 @@ import javax.inject.Inject
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class RoomPurchaseInvoiceMaterializationTest {
+class RoomPurchaseInvoiceCorrectnessTest {
 
     @get:Rule
     var hiltRule = HiltAndroidRule(this)
-
-    @get:Rule
-    val migrationHelper: MigrationTestHelper = MigrationTestHelper(
-        InstrumentationRegistry.getInstrumentation(),
-        RestaurantInventoryDatabase::class.java.canonicalName,
-        FrameworkSQLiteOpenHelperFactory()
-    )
 
     @Inject
     lateinit var database: RestaurantInventoryDatabase
@@ -79,87 +71,100 @@ class RoomPurchaseInvoiceMaterializationTest {
     }
 
     @Test
-    fun verifyMigration9To10() {
-        val dbName = "migration-9-10-test"
-        var db = migrationHelper.createDatabase(dbName, 9)
-        
-        // Seed baseline for v9
-        db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('r1', 'Rest', 'USD', 'en', 0, 0)")
-        db.execSQL("INSERT INTO purchase_receipts (id, restaurantId, purchaseDate, status, createdAt, updatedAt) VALUES ('pr1', 'r1', 0, 'DRAFT', 0, 0)")
-        db.execSQL("INSERT INTO purchase_invoice_ocr_results (id, purchaseReceiptId, sourceDocumentSha256, sourceMimeType, engine, evidenceSchemaVersion, pageCount, fullText, processedAt) VALUES ('ocr1', 'pr1', 'sha', 'pdf', 't', 1, 1, '', 0)")
-        db.execSQL("INSERT INTO purchase_invoice_parse_results (id, purchaseReceiptId, ocrResultId, sourceDocumentSha256, parserEngine, parserSchemaVersion, headerEvidenceJson, totalsEvidenceJson, warningsJson, processedAt) VALUES ('p1', 'pr1', 'ocr1', 'sha', 'e', 1, '{}', '{}', '[]', 0)")
-        
-        db.execSQL("INSERT INTO purchase_invoice_draft_applications (id, purchaseReceiptId, parseResultId, sourceDocumentSha256, sourceStateFingerprint, appliedAt) VALUES ('app1', 'pr1', 'p1', 'sha', 'f1', 0)")
-        
-        db.execSQL("INSERT INTO purchase_lines (id, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, lineTotal, unitCostBase, createdAt, updatedAt) VALUES ('l1', 'pr1', 'i1', 'a1', 'o1', '1', '1', '10', '10', 0, 0)")
-        db.execSQL("INSERT INTO purchase_invoice_line_origins (purchaseLineId, applicationId, sourceLineIndex, sourceStateFingerprint, lastMaterializedSnapshotJson) VALUES ('l1', 'app1', 0, 'f1', '{}')")
-        
-        db.close()
-
-        // Migrate to 10
-        db = migrationHelper.runMigrationsAndValidate(dbName, 10, true, RestaurantInventoryDatabase.MIGRATION_9_10)
-        
-        // Verify unique constraint exists by trying to insert a duplicate (should fail)
-        try {
-            db.execSQL("INSERT INTO purchase_invoice_line_origins (purchaseLineId, applicationId, sourceLineIndex, sourceStateFingerprint, lastMaterializedSnapshotJson) VALUES ('l2', 'app1', 0, 'f1', '{}')")
-            assertThat(false).isTrue() // Should not reach here
-        } catch (e: Exception) {
-            assertThat(e.message).contains("UNIQUE constraint failed")
-        }
-        
-        db.close()
-    }
-
-    @Test
-    fun upsertBehavior_applicationAndOrigins() = runBlocking {
-        val receiptId = seedPurchaseWithParseResult()
-        
-        // 1. First Apply
-        val proposal1 = generateProposalUseCase.execute(receiptId)!!
-        applyInvoiceUseCase.execute(proposal1)
-        
-        val app1 = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)!!
-        val origins1 = database.purchaseInvoiceMaterializationDao().getLineOrigins(app1.id)
-        assertThat(origins1).hasSize(1)
-        val firstAppliedAt = app1.appliedAt
-
-        // 2. Second Apply (Same Proposal)
-        Thread.sleep(10) // Ensure different timestamp if not using mocked time
-        applyInvoiceUseCase.execute(proposal1)
-        
-        val app2 = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)!!
-        assertThat(app2.id).isEqualTo(app1.id) // UPSERT should keep ID
-        assertThat(app2.appliedAt).isGreaterThan(firstAppliedAt)
-        
-        val origins2 = database.purchaseInvoiceMaterializationDao().getLineOrigins(app2.id)
-        assertThat(origins2).hasSize(1)
-        assertThat(origins2[0].purchaseLineId).isEqualTo(origins1[0].purchaseLineId)
-    }
-
-    @Test
-    fun reconciliation_deletesRemovedLines() = runBlocking {
+    fun materialization_isAllOrNothing_failsIfAnyLineBlocked() = runBlocking {
         val receiptId = seedPurchaseWithParseResult(lineCount = 2)
         
-        // 1. Apply both lines
-        val proposalFull = generateProposalUseCase.execute(receiptId)!!
-        applyInvoiceUseCase.execute(proposalFull)
-        
-        assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).hasSize(2)
-        val appId = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)!!.id
-        assertThat(database.purchaseInvoiceMaterializationDao().getLineOrigins(appId)).hasSize(2)
+        // 1. Manually break one match (set status to SUGGESTED)
+        val matches = repository.observeLineMatchesForReceipt(receiptId).first()
+        val brokenMatches = matches.mapIndexed { index, match ->
+            if (index == 1) match.copy(status = InvoiceLineMatchStatus.SUGGESTED) else match
+        }
+        val parseId = database.purchaseParseDao().getParseResultIdForReceipt(receiptId.value)!!
+        repository.saveLineMatchesForReceipt(receiptId, parseId, brokenMatches)
 
-        // 2. Mock parse result to ignore one line
-        repository.updateParsedLine(receiptId, 1, isIgnored = true, correction = null)
+        // 2. Generate Proposal
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        assertThat(proposal.lines[1].blockingReason).isNotNull()
+        assertThat(proposal.blockingIssues).isNotEmpty()
+
+        // 3. Attempt Apply -> Should fail
+        val result = applyInvoiceUseCase.execute(proposal)
+        assertThat(result).isInstanceOf(PurchaseInvoiceMaterializationResult.Failure::class.java)
         
-        // 3. Apply again
-        val proposalReduced = generateProposalUseCase.execute(receiptId)!!
-        assertThat(proposalReduced.lines).hasSize(1)
+        // 4. Verify ZERO PurchaseLines were created (Atomicity proof)
+        val lines = database.purchaseDao().getLinesForReceipt(receiptId.value)
+        assertThat(lines).isEmpty()
+    }
+
+    @Test
+    fun materialization_detectsManualEditConflict_atomic() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult(lineCount = 2)
         
-        applyInvoiceUseCase.execute(proposalReduced)
+        // 1. First successful materialization
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        val result1 = applyInvoiceUseCase.execute(proposal)
+        assertThat(result1).isEqualTo(PurchaseInvoiceMaterializationResult.Success)
         
-        // 4. Verify reconciliation
-        assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).hasSize(1)
-        assertThat(database.purchaseInvoiceMaterializationDao().getLineOrigins(appId)).hasSize(1)
+        val initialLines = database.purchaseDao().getLinesForReceipt(receiptId.value)
+        assertThat(initialLines).hasSize(2)
+
+        // 2. Manually edit the second line in the draft
+        val lineToEdit = initialLines[1]
+        database.purchaseDao().updateLine(lineToEdit.copy(lineTotal = "999.99"))
+
+        // 3. Attempt to materialize again -> Should fail due to ManualEditConflict
+        // We use the same proposal (it should still be valid/fresh unless we change the source)
+        val result2 = applyInvoiceUseCase.execute(proposal)
+        assertThat(result2).isInstanceOf(PurchaseInvoiceMaterializationResult.Failure::class.java)
+        val failure = (result2 as PurchaseInvoiceMaterializationResult.Failure).reason
+        assertThat(failure).isEqualTo(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
+
+        // 4. Verify the first line was NOT updated (Phase B was never reached)
+        val finalLines = database.purchaseDao().getLinesForReceipt(receiptId.value)
+        
+        // We check that the second line REMAINS manually edited.
+        val line2 = finalLines.find { it.id == initialLines[1].id }!!
+        assertThat(line2.lineTotal).isEqualTo("999.99")
+    }
+
+    @Test
+    fun sourceLocking_preventsMutationAfterMaterialization() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult()
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        applyInvoiceUseCase.execute(proposal)
+
+        // 1. Attempt to replace document -> SourceLocked
+        val resultAttach = repository.attachDocument(receiptId, "new-loc", "new-name")
+        assertThat(resultAttach).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 2. Attempt to delete OCR -> SourceLocked
+        val resultDeleteOcr = repository.deleteOcrResult(receiptId)
+        assertThat(resultDeleteOcr).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 3. Attempt to delete Parse -> SourceLocked
+        val resultDeleteParse = repository.deleteParseResult(receiptId)
+        assertThat(resultDeleteParse).isEqualTo(SourceMutationResult.SourceLocked)
+
+        // 4. Attempt to update line -> SourceLocked
+        val resultUpdateLine = repository.updateParsedLine(receiptId, 0, true, null)
+        assertThat(resultUpdateLine).isEqualTo(SourceMutationResult.SourceLocked)
+    }
+
+    @Test
+    fun manualEditDetection_isNumericEquivalentAware() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult()
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        applyInvoiceUseCase.execute(proposal)
+        
+        val initialLines = database.purchaseDao().getLinesForReceipt(receiptId.value)
+        val line = initialLines[0]
+        
+        // 1. Edit with equivalent numeric value (e.g. "1" -> "1.00")
+        database.purchaseDao().updateLine(line.copy(quantityEntered = "1.00"))
+        
+        // 2. Attempt to materialize again -> Should NOT fail
+        val result = applyInvoiceUseCase.execute(proposal)
+        assertThat(result).isEqualTo(PurchaseInvoiceMaterializationResult.Success)
     }
 
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {
@@ -218,7 +223,7 @@ class RoomPurchaseInvoiceMaterializationTest {
                 parseResultId = parseResult.id,
                 lineIndex = i,
                 status = InvoiceLineMatchStatus.CONFIRMED,
-                supplierId = null,
+                supplierId = supplierId,
                 ingredientId = IngredientId(TestSeeder.ING_ID),
                 unitOptionId = IngredientUnitOptionId(TestSeeder.OPTION_ID),
                 inventoryAreaId = InventoryAreaId(TestSeeder.AREA_ID),

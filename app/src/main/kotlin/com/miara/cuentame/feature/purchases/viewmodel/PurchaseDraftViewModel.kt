@@ -3,6 +3,7 @@ package com.miara.cuentame.feature.purchases.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.backup.api.PurchaseDocumentStore
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner
@@ -324,7 +325,10 @@ class PurchaseDraftViewModel @Inject constructor(
                 try {
                     _captureState.value = InvoiceCaptureState.ImportingFile
                     _error.value = null
-                    attachPurchaseDocumentUseCase(currentReceiptId, uri)
+                    val status = attachPurchaseDocumentUseCase(currentReceiptId, uri)
+                    if (status == SourceMutationResult.SourceLocked) {
+                        _error.value = Exception("Invoice source is locked after materialization")
+                    }
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -424,7 +428,10 @@ class PurchaseDraftViewModel @Inject constructor(
                 try {
                     _isRemovingDocument.value = true
                     _error.value = null
-                    removePurchaseDocumentUseCase(currentReceiptId)
+                    val status = removePurchaseDocumentUseCase(currentReceiptId)
+                    if (status == SourceMutationResult.SourceLocked) {
+                        _error.value = Exception("Invoice source is locked after materialization")
+                    }
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {

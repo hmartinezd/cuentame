@@ -151,7 +151,7 @@ class GenerateInvoiceProposalUseCaseTest {
         val proposal = useCase.execute(receiptId)
 
         assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.UnresolvedLines))
-        assertEquals(MaterializationBlockingIssue.UnresolvedLines, proposal.lines[0].blockingReason)
+        assertEquals(MaterializationBlockingIssue.UnresolvedMatch, proposal.lines[0].blockingReason)
     }
 
     @Test

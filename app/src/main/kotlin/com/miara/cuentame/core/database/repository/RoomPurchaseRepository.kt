@@ -62,6 +62,7 @@ import com.miara.cuentame.core.database.entity.PurchaseInvoiceParsedLineEntity
 import com.miara.cuentame.core.database.entity.SupplierItemMappingEntity
 import com.miara.cuentame.core.domain.repository.LearnMappingResult
 import com.miara.cuentame.core.domain.repository.MappingConflict
+import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
 import com.miara.cuentame.core.model.supplier.SupplierItemMapping
@@ -365,31 +366,37 @@ class RoomPurchaseRepository @Inject constructor(
         receiptId: PurchaseReceiptId,
         storedLocation: String,
         displayName: String
-    ) {
-        val oldLocation = database.withTransaction {
-            val activeRestaurant = requireActiveRestaurant()
-            val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
+        val oldLocation = try {
+            database.withTransaction {
+                val activeRestaurant = requireActiveRestaurant()
+                val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
-            if (existing.status != DocumentStatus.DRAFT.name) {
-                throw ValidationError.PurchaseNotDraft
+                if (existing.status != DocumentStatus.DRAFT.name) {
+                    throw ValidationError.PurchaseNotDraft
+                }
+
+                val previousPath = existing.attachmentPath
+
+                val updated = existing.copy(
+                    attachmentPath = storedLocation,
+                    attachmentDisplayName = displayName,
+                    updatedAt = timeProvider.now().toEpochMilli()
+                )
+
+                val affected = purchaseDao.updateReceipt(updated)
+                if (affected != 1) {
+                    throw ValidationError.PurchaseNotFound
+                }
+
+                ocrDao.deleteOcrForReceipt(receiptId.value)
+
+                previousPath
             }
-
-            val previousPath = existing.attachmentPath
-
-            val updated = existing.copy(
-                attachmentPath = storedLocation,
-                attachmentDisplayName = displayName,
-                updatedAt = timeProvider.now().toEpochMilli()
-            )
-
-            val affected = purchaseDao.updateReceipt(updated)
-            if (affected != 1) {
-                throw ValidationError.PurchaseNotFound
-            }
-
-            ocrDao.deleteOcrForReceipt(receiptId.value)
-
-            previousPath
+        } catch (e: Exception) {
+            return SourceMutationResult.NotFound
         }
 
         // Clean up old file if it existed, after successful commit
@@ -400,35 +407,42 @@ class RoomPurchaseRepository @Inject constructor(
                 // Best-effort cleanup failure must not fail the attachment operation
             }
         }
+        return SourceMutationResult.Success
     }
 
     override suspend fun removeDocument(
         receiptId: PurchaseReceiptId
-    ) {
-        val oldLocation = database.withTransaction {
-            val activeRestaurant = requireActiveRestaurant()
-            val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
+        val oldLocation = try {
+            database.withTransaction {
+                val activeRestaurant = requireActiveRestaurant()
+                val existing = referenceValidator.validateReceiptOwnership(receiptId, activeRestaurant)
 
-            if (existing.status != DocumentStatus.DRAFT.name) {
-                throw ValidationError.PurchaseNotDraft
+                if (existing.status != DocumentStatus.DRAFT.name) {
+                    throw ValidationError.PurchaseNotDraft
+                }
+
+                val previousPath = existing.attachmentPath
+
+                val updated = existing.copy(
+                    attachmentPath = null,
+                    attachmentDisplayName = null,
+                    updatedAt = timeProvider.now().toEpochMilli()
+                )
+
+                val affected = purchaseDao.updateReceipt(updated)
+                if (affected != 1) {
+                    throw ValidationError.PurchaseNotFound
+                }
+
+                ocrDao.deleteOcrForReceipt(receiptId.value)
+
+                previousPath
             }
-
-            val previousPath = existing.attachmentPath
-
-            val updated = existing.copy(
-                attachmentPath = null,
-                attachmentDisplayName = null,
-                updatedAt = timeProvider.now().toEpochMilli()
-            )
-
-            val affected = purchaseDao.updateReceipt(updated)
-            if (affected != 1) {
-                throw ValidationError.PurchaseNotFound
-            }
-
-            ocrDao.deleteOcrForReceipt(receiptId.value)
-
-            previousPath
+        } catch (e: Exception) {
+            return SourceMutationResult.NotFound
         }
 
         if (oldLocation != null) {
@@ -438,6 +452,7 @@ class RoomPurchaseRepository @Inject constructor(
                 // Best-effort cleanup failure must not fail the removal operation
             }
         }
+        return SourceMutationResult.Success
     }
 
     override fun observeOcrResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceOcrResult?> {
@@ -476,7 +491,9 @@ class RoomPurchaseRepository @Inject constructor(
         pages: List<PurchaseInvoiceOcrPage>,
         expectedAttachmentPath: String,
         expectedDocumentSha256: String
-    ) {
+    ): SourceMutationResult {
+        if (isSourceLocked(result.purchaseReceiptId)) return SourceMutationResult.SourceLocked
+        
         ocrDao.replaceOcrResult(
             receiptId = result.purchaseReceiptId.value,
             expectedAttachmentPath = expectedAttachmentPath,
@@ -504,10 +521,13 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
         )
+        return SourceMutationResult.Success
     }
 
-    override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId) {
+    override suspend fun deleteOcrResult(receiptId: PurchaseReceiptId): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
         ocrDao.deleteOcrForReceipt(receiptId.value)
+        return SourceMutationResult.Success
     }
 
     override fun observeParseResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceParseResult?> {
@@ -542,7 +562,9 @@ class RoomPurchaseRepository @Inject constructor(
         ocrResultId: String,
         sourceDocumentSha256: String,
         result: PurchaseInvoiceParseResult
-    ) {
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
         val parseId = idGenerator.newId()
         
         parseDao.replaceParseResult(
@@ -576,10 +598,13 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
         )
+        return SourceMutationResult.Success
     }
 
-    override suspend fun deleteParseResult(receiptId: PurchaseReceiptId) {
+    override suspend fun deleteParseResult(receiptId: PurchaseReceiptId): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
         parseDao.deleteParseResultForReceipt(receiptId.value)
+        return SourceMutationResult.Success
     }
 
     override suspend fun updateParsedLine(
@@ -587,25 +612,31 @@ class RoomPurchaseRepository @Inject constructor(
         lineIndex: Int,
         isIgnored: Boolean,
         correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
-    ) {
-        val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
+        val parseResult = parseDao.getParseResultForReceipt(receiptId.value) ?: return SourceMutationResult.NotFound
         parseDao.updateParsedLine(
             parseResultId = parseResult.id,
             lineIndex = lineIndex,
             isIgnored = isIgnored,
             correctionJson = correction?.let { json.encodeToString(it) }
         )
+        return SourceMutationResult.Success
     }
 
     override suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
         corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections
-    ) {
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
         parseDao.updateParseResultCorrections(
             receiptId = receiptId.value,
             correctionsJson = json.encodeToString(corrections),
             reviewedAt = timeProvider.now().toEpochMilli()
         )
+        return SourceMutationResult.Success
     }
 
     override suspend fun findReceiptsByInvoiceNumber(
@@ -635,7 +666,9 @@ class RoomPurchaseRepository @Inject constructor(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         matches: List<PurchaseInvoiceLineMatch>
-    ) {
+    ): SourceMutationResult {
+        if (isSourceLocked(receiptId)) return SourceMutationResult.SourceLocked
+        
         database.withTransaction {
             val currentParseResultId = parseDao.getParseResultIdForReceipt(receiptId.value)
             if (currentParseResultId != expectedParseResultId) {
@@ -657,14 +690,15 @@ class RoomPurchaseRepository @Inject constructor(
             
             lineMatchDao.insertMatches(entities)
         }
+        return SourceMutationResult.Success
     }
 
     override suspend fun saveLineMatchForReceipt(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         match: PurchaseInvoiceLineMatch
-    ) {
-        saveLineMatchesForReceipt(receiptId, expectedParseResultId, listOf(match))
+    ): SourceMutationResult {
+        return saveLineMatchesForReceipt(receiptId, expectedParseResultId, listOf(match))
     }
 
     override suspend fun confirmInvoiceLineMatch(
@@ -880,11 +914,22 @@ class RoomPurchaseRepository @Inject constructor(
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PurchaseAlreadyPosted)
             }
 
-            // Re-validate context
-            val currentOcr = observeOcrResult(receiptId).first()
-            if (currentOcr == null) {
-                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentMissing)
+            // --- PHASE A: PREFLIGHT / VALIDATION ---
+
+            // 1. Proposal Readiness
+            if (proposal.blockingIssues.isNotEmpty()) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
             }
+            if (proposal.lines.any { it.blockingReason != null }) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.UnresolvedLines)
+            }
+            if (proposal.supplierProposal == null) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.SupplierChanged)
+            }
+
+            // 2. Source Integrity
+            val currentOcr = observeOcrResult(receiptId).first()
+                ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentMissing)
             if (currentOcr.sourceDocumentSha256 != proposal.sourceDocumentSha256) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentChanged)
             }
@@ -894,7 +939,6 @@ class RoomPurchaseRepository @Inject constructor(
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ParseChanged)
             }
             
-            // Re-compute fingerprint to ensure proposal is fresh
             val currentMatches = observeLineMatchesForReceipt(receiptId).first()
             val currentFingerprint = fingerprinter.fingerprint(
                 receiptId = receiptId,
@@ -908,21 +952,54 @@ class RoomPurchaseRepository @Inject constructor(
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
             }
 
+            // 3. Manual Edit Conflict Detection
+            val currentLines = purchaseDao.getLinesForReceipt(receiptId.value)
+            val existingApp = materializationDao.getApplicationForReceipt(receiptId.value)
+            val applicationId = existingApp?.id ?: idGenerator.newId()
+            val existingOrigins = materializationDao.getLineOrigins(applicationId)
+
+            // Check proposed lines for conflicts
+            proposal.lines.forEach { lineProposal ->
+                val existingOrigin = existingOrigins.find { it.sourceLineIndex == lineProposal.lineIndex }
+                val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
+                
+                if (existingLine != null) {
+                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(existingOrigin.lastMaterializedSnapshotJson)
+                    if (existingLine.isManuallyEdited(snapshot)) {
+                         return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
+                    }
+                }
+            }
+
+            // Check reconciliation (deletions) for conflicts
+            val removedOrigins = existingOrigins.filter { origin ->
+                proposal.lines.none { it.lineIndex == origin.sourceLineIndex }
+            }
+            
+            removedOrigins.forEach { origin ->
+                val lineToRemove = currentLines.find { it.id == origin.purchaseLineId }
+                if (lineToRemove != null) {
+                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(origin.lastMaterializedSnapshotJson)
+                    if (lineToRemove.isManuallyEdited(snapshot)) {
+                        return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
+                    }
+                }
+            }
+
+            // --- PHASE B: MUTATION ---
+
             // 1. Update Receipt Header
             updateDraft(
                 UpdatePurchaseDraftCommand(
                     receiptId = receiptId,
-                    supplierId = proposal.supplierProposal?.id,
+                    supplierId = proposal.supplierProposal.id,
                     invoiceNumber = proposal.invoiceNumber,
                     purchaseDate = proposal.invoiceDate?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant() ?: receipt.purchaseDate,
                     notes = receipt.notes
                 )
             )
 
-            // 2. Manage Application Record
-            val existingApp = materializationDao.getApplicationForReceipt(receiptId.value)
-            val applicationId = existingApp?.id ?: idGenerator.newId()
-            
+            // 2. Application Record
             val appEntity = PurchaseInvoiceDraftApplicationEntity(
                 id = applicationId,
                 purchaseReceiptId = receiptId.value,
@@ -933,31 +1010,20 @@ class RoomPurchaseRepository @Inject constructor(
             )
             materializationDao.upsertApplication(appEntity)
 
-            // 3. Materialize Lines
-            val currentLines = purchaseDao.getLinesForReceipt(receiptId.value)
-            val existingOrigins = materializationDao.getLineOrigins(applicationId)
-            
             val now = timeProvider.now().toEpochMilli()
             val newOrigins = mutableListOf<PurchaseInvoiceLineOriginEntity>()
 
-            // A. Process Proposed Lines
+            // 3. Line Mutation
             proposal.lines.forEach { lineProposal ->
-                if (lineProposal.blockingReason != null) return@forEach
-                
                 val existingOrigin = existingOrigins.find { it.sourceLineIndex == lineProposal.lineIndex }
                 val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
                 
                 val purchaseLineId = existingLine?.id ?: idGenerator.newId()
 
-                if (existingLine != null) {
-                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(existingOrigin.lastMaterializedSnapshotJson)
-                    if (existingLine.isManuallyEdited(snapshot)) {
-                         return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
-                    }
-                }
-
-                val unitCostBase = if (lineProposal.quantityBase > BigDecimal.ZERO) {
-                    lineProposal.lineTotal.divide(lineProposal.quantityBase, MathContext.DECIMAL128)
+                val qtyBase = lineProposal.quantityBase ?: BigDecimal.ZERO
+                val lineTotal = lineProposal.lineTotal ?: BigDecimal.ZERO
+                val unitCostBase = if (qtyBase > BigDecimal.ZERO) {
+                    lineTotal.divide(qtyBase, MathContext.DECIMAL128)
                 } else {
                     BigDecimal.ZERO
                 }
@@ -965,12 +1031,12 @@ class RoomPurchaseRepository @Inject constructor(
                 val lineEntity = PurchaseLineEntity(
                     id = purchaseLineId,
                     purchaseReceiptId = receiptId.value,
-                    ingredientId = lineProposal.ingredientId.value,
-                    areaId = lineProposal.areaId.value,
-                    ingredientUnitOptionId = lineProposal.unitOptionId.value,
-                    quantityEntered = lineProposal.quantityEntered.toPlainString(),
-                    quantityBase = lineProposal.quantityBase.toPlainString(),
-                    lineTotal = lineProposal.lineTotal.toPlainString(),
+                    ingredientId = lineProposal.ingredientId?.value ?: "",
+                    areaId = lineProposal.areaId?.value ?: "",
+                    ingredientUnitOptionId = lineProposal.unitOptionId?.value ?: "",
+                    quantityEntered = lineProposal.quantityEntered?.toPlainString() ?: "0",
+                    quantityBase = qtyBase.toPlainString(),
+                    lineTotal = lineTotal.toPlainString(),
                     unitCostBase = unitCostBase.toPlainString(),
                     notes = existingLine?.notes,
                     createdAt = existingLine?.createdAt ?: now,
@@ -984,11 +1050,11 @@ class RoomPurchaseRepository @Inject constructor(
                 }
 
                 val newSnapshot = PurchaseLineSnapshot(
-                    ingredientId = lineProposal.ingredientId.value,
-                    areaId = lineProposal.areaId.value,
-                    unitOptionId = lineProposal.unitOptionId.value,
-                    quantityEntered = lineProposal.quantityEntered.stripTrailingZeros().toPlainString(),
-                    lineTotal = lineProposal.lineTotal.stripTrailingZeros().toPlainString(),
+                    ingredientId = lineProposal.ingredientId?.value ?: "",
+                    areaId = lineProposal.areaId?.value ?: "",
+                    unitOptionId = lineProposal.unitOptionId?.value ?: "",
+                    quantityEntered = lineProposal.quantityEntered?.stripTrailingZeros()?.toPlainString() ?: "0",
+                    lineTotal = lineTotal.stripTrailingZeros().toPlainString(),
                     unitCostBase = unitCostBase.stripTrailingZeros().toPlainString()
                 )
 
@@ -1003,20 +1069,9 @@ class RoomPurchaseRepository @Inject constructor(
                 )
             }
             
-            // B. Reconciliation
-            val removedOrigins = existingOrigins.filter { origin ->
-                proposal.lines.none { it.lineIndex == origin.sourceLineIndex && it.blockingReason == null }
-            }
-            
+            // 4. Obsolete Line Deletion
             removedOrigins.forEach { origin ->
-                val lineToRemove = currentLines.find { it.id == origin.purchaseLineId }
-                if (lineToRemove != null) {
-                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(origin.lastMaterializedSnapshotJson)
-                    if (lineToRemove.isManuallyEdited(snapshot)) {
-                        return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
-                    }
-                    purchaseDao.deleteLine(lineToRemove.id)
-                }
+                purchaseDao.deleteLine(origin.purchaseLineId)
                 materializationDao.deleteLineOrigin(origin.purchaseLineId)
             }
             
@@ -1053,5 +1108,9 @@ class RoomPurchaseRepository @Inject constructor(
         } catch (e: Exception) {
             false
         }
+    }
+
+    private suspend fun isSourceLocked(receiptId: PurchaseReceiptId): Boolean {
+        return materializationDao.getApplicationForReceipt(receiptId.value) != null
     }
 }

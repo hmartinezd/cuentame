@@ -17,6 +17,7 @@ object TestSeeder {
     const val UNIT_ID = "unit-test-1"
     const val ING_ID = "ing-test-1"
     const val OPTION_ID = "opt-test-1"
+    const val SUPPLIER_ID = "supplier-test-1"
 
     suspend fun seedBaseline(db: RestaurantInventoryDatabase) {
         db.restaurantDao().insert(
@@ -25,6 +26,22 @@ object TestSeeder {
                 name = "Test Restaurant",
                 currencyCode = "USD",
                 localeTag = "en-US",
+                createdAt = 0L,
+                updatedAt = 0L,
+                deletedAt = null
+            )
+        )
+
+        db.supplierDao().insert(
+            SupplierEntity(
+                id = SUPPLIER_ID,
+                restaurantId = RESTAURANT_ID,
+                name = "Test Supplier",
+                normalizedName = "test supplier",
+                phone = null,
+                email = null,
+                notes = null,
+                isActive = true,
                 createdAt = 0L,
                 updatedAt = 0L,
                 deletedAt = null

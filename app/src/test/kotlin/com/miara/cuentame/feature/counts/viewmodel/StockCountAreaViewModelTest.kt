@@ -70,6 +70,8 @@ class StockCountAreaViewModelTest {
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = emptyList<Ingredient>()
         override fun observeIngredient(id: IngredientId) = flowOf(null)
         override suspend fun getById(id: IngredientId): Ingredient? = Ingredient(id, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = 
+            getUnitOptions(IngredientId("any"), true).find { it.id == id }
         override suspend fun updateIngredient(command: UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = flowOf(emptyList<IngredientUnitOption>())

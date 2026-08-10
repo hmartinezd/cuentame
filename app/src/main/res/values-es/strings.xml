@@ -864,4 +864,20 @@
     <string name="ocr_materialization_error_conflict">Una línea fue editada manualmente en el borrador. La aplicación no sobrescribirá sus cambios.</string>
     <string name="ocr_materialization_parse_changed">El análisis de la factura ha cambiado. Por favor, actualice.</string>
     <string name="ocr_materialization_conversion_preview">Vista previa de conversión</string>
+    <string name="ocr_materialization_error_source_locked">La fuente de la factura está bloqueada porque ya se ha materializado en un borrador.</string>
+    <string name="ocr_materialization_error_blocked_line">Al menos una línea activa está bloqueada por datos faltantes o inválidos. La materialización debe ser de todo o nada.</string>
+    <string name="ocr_materialization_unresolved_match">Coincidencia no resuelta</string>
+    <string name="ocr_materialization_invalid_confirmed_match">Coincidencia confirmada inválida</string>
+    <string name="ocr_materialization_missing_ingredient">Falta ingrediente</string>
+    <string name="ocr_materialization_missing_unit_option">Falta opción de unidad</string>
+    <string name="ocr_materialization_invalid_unit_option">Opción de unidad inválida</string>
+    <string name="ocr_materialization_missing_area">Falta área</string>
+    <string name="ocr_materialization_missing_quantity">Falta cantidad</string>
+    <string name="ocr_materialization_invalid_quantity">Cantidad inválida</string>
+    <string name="ocr_materialization_missing_line_total">Falta total de línea</string>
+    <string name="ocr_materialization_invalid_line_total">Total de línea inválido</string>
+    <string name="ocr_materialization_invalid_conversion">Conversión inválida</string>
+    <string name="ocr_materialization_failure_title">Error de Materialización</string>
+    <string name="ocr_header_correction_dialog_title">Corregir Campo de Encabezado</string>
+    <string name="ocr_line_correction_dialog_title">Corregir Línea de Factura</string>
 </resources>
