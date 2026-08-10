@@ -844,4 +844,9 @@
     <string name="ocr_matching_ignore_line">Ignorar línea</string>
     <string name="ocr_matching_change">Cambiar</string>
     <string name="ocr_matching_not_detected_symbol">—</string>
+    <string name="ocr_matching_low_confidence">Baja confianza</string>
+    <string name="ocr_matching_medium_confidence">Confianza media</string>
+    <string name="ocr_matching_edited">Editado</string>
+    <string name="ocr_matching_original">Original</string>
+    <string name="ocr_matching_deselect">Deshacer selección</string>
 </resources>

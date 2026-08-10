@@ -7,6 +7,7 @@ import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
+import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
 import java.math.BigDecimal
 
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculationResult
@@ -1845,8 +1846,17 @@ object BackupSnapshotIntegrityValidator {
             
             if (match.mappingId != null) {
                 val mapping = ctx.mappingById[match.mappingId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: match to reusable mapping")
-                if (mapping.supplierId != match.supplierId || mapping.ingredientId != match.ingredientId) {
-                    return err(RELATIONSHIP_MISMATCH, "Incompatible mapping provenance in match")
+                
+                val compatibilityError = MatchIntegrityPolicy.isMappingCompatible(
+                    matchIngredientId = match.ingredientId,
+                    matchUnitOptionId = match.unitOptionId,
+                    matchAreaId = match.inventoryAreaId,
+                    mappingIngredientId = mapping.ingredientId,
+                    mappingUnitOptionId = mapping.unitOptionId,
+                    mappingAreaId = mapping.inventoryAreaId
+                )
+                if (compatibilityError != null) {
+                    return err(RELATIONSHIP_MISMATCH, compatibilityError)
                 }
             }
 
@@ -1857,23 +1867,16 @@ object BackupSnapshotIntegrityValidator {
                 return err(INVALID_ENUM, "Invalid match status")
             }
 
-            when (status) {
-                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.CONFIRMED -> {
-                    if (match.ingredientId == null || match.confirmedAt == null) {
-                        return err(INVALID_MATCH_STATUS, "CONFIRMED match requires ingredient and confirmedAt")
-                    }
-                }
-                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.SUGGESTED,
-                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.NEEDS_REVIEW -> {
-                    if (match.confirmedAt != null) {
-                        return err(INVALID_MATCH_STATUS, "Non-CONFIRMED match must not have confirmedAt")
-                    }
-                }
-                com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.UNMATCHED -> {
-                    if (match.confirmedAt != null || match.mappingId != null) {
-                        return err(INVALID_MATCH_STATUS, "UNMATCHED match must not have confirmedAt or mappingId")
-                    }
-                }
+            val invariantError = MatchIntegrityPolicy.validateInvariants(
+                status = status,
+                ingredientId = match.ingredientId,
+                unitOptionId = match.unitOptionId,
+                inventoryAreaId = match.inventoryAreaId,
+                confirmedAt = match.confirmedAt,
+                mappingId = match.mappingId
+            )
+            if (invariantError != null) {
+                return err(INVALID_MATCH_STATUS, invariantError)
             }
         }
         

@@ -187,18 +187,10 @@ interface PurchaseRepository {
         receiptId: PurchaseReceiptId
     ): Flow<List<PurchaseInvoiceLineMatch>>
 
-    suspend fun saveLineMatches(
-        matches: List<PurchaseInvoiceLineMatch>
-    )
-
     suspend fun saveLineMatchesForReceipt(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
         matches: List<PurchaseInvoiceLineMatch>
-    )
-
-    suspend fun saveLineMatch(
-        match: PurchaseInvoiceLineMatch
     )
 
     suspend fun saveLineMatchForReceipt(
@@ -206,4 +198,15 @@ interface PurchaseRepository {
         expectedParseResultId: String,
         match: PurchaseInvoiceLineMatch
     )
+
+    suspend fun confirmInvoiceLineMatch(
+        receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
+        expectedSupplierId: SupplierId?,
+        lineIndex: Int,
+        ingredientId: IngredientId,
+        unitOptionId: IngredientUnitOptionId?,
+        inventoryAreaId: InventoryAreaId?,
+        forceLearnMapping: Boolean
+    ): LearnMappingResult
 }

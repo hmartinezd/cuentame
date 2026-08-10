@@ -48,10 +48,23 @@ import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import com.miara.cuentame.core.database.dao.PurchaseParseDao
 import com.miara.cuentame.core.database.dao.PurchaseInvoiceLineMatchDao
+import com.miara.cuentame.core.database.dao.SupplierItemMappingDao
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrPageEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrResultEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceParseResultEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceParsedLineEntity
+import com.miara.cuentame.core.database.entity.SupplierItemMappingEntity
+import com.miara.cuentame.core.database.mapper.toDomain
+import com.miara.cuentame.core.database.mapper.toEntity
+import com.miara.cuentame.core.domain.repository.LearnMappingResult
+import com.miara.cuentame.core.domain.repository.MappingConflict
+import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
+import com.miara.cuentame.core.model.supplier.SupplierItemMapping
+import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
+import com.miara.cuentame.core.ocr.parser.effectiveValue
+import com.miara.cuentame.core.ocr.parser.isEdited
+import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -88,6 +101,7 @@ class RoomPurchaseRepository @Inject constructor(
     private val ocrDao: PurchaseOcrDao,
     private val parseDao: PurchaseParseDao,
     private val lineMatchDao: PurchaseInvoiceLineMatchDao,
+    private val mappingDao: SupplierItemMappingDao,
     private val json: Json
 ) : PurchaseRepository {
 
@@ -609,12 +623,6 @@ class RoomPurchaseRepository @Inject constructor(
         }
     }
 
-    override suspend fun saveLineMatches(matches: List<PurchaseInvoiceLineMatch>) {
-        val activeRestaurant = requireActiveRestaurant()
-        matches.forEach { validateMatchIntegrity(activeRestaurant.id, it) }
-        lineMatchDao.insertMatches(matches.map { it.toEntity() })
-    }
-
     override suspend fun saveLineMatchesForReceipt(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
@@ -643,13 +651,6 @@ class RoomPurchaseRepository @Inject constructor(
         }
     }
 
-    override suspend fun saveLineMatch(match: PurchaseInvoiceLineMatch) {
-        val activeRestaurant = requireActiveRestaurant()
-        validateMatchInvariants(match)
-        validateMatchIntegrity(activeRestaurant.id, match)
-        lineMatchDao.insertMatches(listOf(match.toEntity()))
-    }
-
     override suspend fun saveLineMatchForReceipt(
         receiptId: PurchaseReceiptId,
         expectedParseResultId: String,
@@ -658,25 +659,154 @@ class RoomPurchaseRepository @Inject constructor(
         saveLineMatchesForReceipt(receiptId, expectedParseResultId, listOf(match))
     }
 
-    private fun validateMatchInvariants(match: PurchaseInvoiceLineMatch) {
-        when (match.status) {
-            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.CONFIRMED -> {
-                if (match.ingredientId == null || match.confirmedAt == null) {
-                    throw ValidationError.InvalidMatchStatus
-                }
+    override suspend fun confirmInvoiceLineMatch(
+        receiptId: PurchaseReceiptId,
+        expectedParseResultId: String,
+        expectedSupplierId: SupplierId?,
+        lineIndex: Int,
+        ingredientId: IngredientId,
+        unitOptionId: IngredientUnitOptionId?,
+        inventoryAreaId: InventoryAreaId?,
+        forceLearnMapping: Boolean
+    ): LearnMappingResult = database.withTransaction {
+        val activeRestaurant = requireActiveRestaurant()
+        
+        // 1. Load Purchase and Parse
+        val purchase = purchaseDao.getReceiptById(receiptId.value)
+            ?: throw ValidationError.PurchaseNotFound
+        if (purchase.restaurantId != activeRestaurant.id) throw ValidationError.PurchaseOwnershipMismatch
+        
+        // Revalidate Supplier Context
+        if (purchase.supplierId != expectedSupplierId?.value) {
+            throw ValidationError.SupplierOwnershipMismatch // Or a more specific error
+        }
+
+        val parse = parseDao.getParseResultForReceipt(receiptId.value)
+            ?: throw ValidationError.ParseResultChanged
+        if (parse.id != expectedParseResultId) throw ValidationError.ParseResultChanged
+        
+        // 2. Load Parsed Line
+        val parsedLines = parseDao.getParsedLines(parse.id)
+        val lineEntity = parsedLines.find { it.lineIndex == lineIndex }
+            ?: throw ValidationError.InvalidLineIndex
+        if (lineEntity.isIgnored) throw ValidationError.InvalidMatchStatus
+        
+        val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(lineEntity.evidenceJson)
+        val correction = lineEntity.correctionJson?.let { json.decodeFromString<com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection>(it) }
+        
+        // 3. Validate Target Invariants for CONFIRMED
+        if (unitOptionId == null || inventoryAreaId == null) {
+             throw ValidationError.InvalidMatchStatus
+        }
+
+        val match = PurchaseInvoiceLineMatch(
+            parseResultId = parse.id,
+            lineIndex = lineIndex,
+            status = InvoiceLineMatchStatus.CONFIRMED,
+            supplierId = purchase.supplierId?.let { SupplierId(it) },
+            ingredientId = ingredientId,
+            unitOptionId = unitOptionId,
+            inventoryAreaId = inventoryAreaId,
+            mappingId = null,
+            matchMethod = "UserSelection",
+            matchConfidence = 1.0f,
+            confirmedAt = timeProvider.now()
+        )
+        
+        validateMatchIntegrity(activeRestaurant.id, match)
+        
+        // 4. Upsert CONFIRMED staged match
+        lineMatchDao.insertMatches(listOf(match.toEntity()))
+        
+        // 5. Learn Mapping if Supplier exists
+        val supplierId = purchase.supplierId?.let { SupplierId(it) }
+        if (supplierId != null) {
+            val vendorCode = baseLine.vendorCode.effectiveValue(correction?.vendorCode)
+            val description = baseLine.description.effectiveValue(correction?.description)
+            val packageText = baseLine.packageText.effectiveValue(correction?.packageText)
+            
+            val normalizedCode = InventoryNormalization.normalizeVendorCode(vendorCode)
+            val mappingParams = if (normalizedCode.isNotEmpty()) {
+                SupplierItemMappingKeyType.VENDOR_CODE to normalizedCode
+            } else {
+                val d = InventoryNormalization.normalizeDescription(description)
+                val p = InventoryNormalization.normalizePackageText(packageText)
+                SupplierItemMappingKeyType.DESCRIPTION_PACKAGE to "$d|$p"
             }
-            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.SUGGESTED,
-            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.NEEDS_REVIEW -> {
-                if (match.confirmedAt != null) {
-                    throw ValidationError.InvalidMatchStatus
+            
+            val keyType = mappingParams.first
+            val key = mappingParams.second
+            
+            val existing = mappingDao.getMapping(activeRestaurant.id, supplierId.value, keyType, key)
+            val now = timeProvider.now()
+            
+            if (existing != null) {
+                val isSameTarget = existing.ingredientId == ingredientId.value &&
+                        existing.unitOptionId == unitOptionId.value &&
+                        existing.inventoryAreaId == inventoryAreaId.value
+                
+                if (isSameTarget) {
+                    mappingDao.insertMapping(existing.copy(lastConfirmedAt = now.toEpochMilli()))
+                    return@withTransaction LearnMappingResult.NoChanges
                 }
-            }
-            com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.UNMATCHED -> {
-                if (match.confirmedAt != null || match.mappingId != null) {
-                    throw ValidationError.InvalidMatchStatus
+                
+                if (!forceLearnMapping) {
+                    return@withTransaction LearnMappingResult.Conflict(
+                        MappingConflict(
+                            existingMapping = existing.toDomain(),
+                            newIngredientId = ingredientId,
+                            newUnitOptionId = unitOptionId,
+                            newInventoryAreaId = inventoryAreaId
+                        )
+                    )
                 }
+                
+                mappingDao.insertMapping(existing.copy(
+                    ingredientId = ingredientId.value,
+                    unitOptionId = unitOptionId.value,
+                    inventoryAreaId = inventoryAreaId.value,
+                    updatedAt = now.toEpochMilli(),
+                    lastConfirmedAt = now.toEpochMilli(),
+                    sourceVendorCode = vendorCode,
+                    sourceDescription = description,
+                    sourcePackageText = packageText
+                ))
+                return@withTransaction LearnMappingResult.Learned
+            } else {
+                val newMapping = SupplierItemMappingEntity(
+                    id = idGenerator.newId(),
+                    restaurantId = activeRestaurant.id,
+                    supplierId = supplierId.value,
+                    keyType = keyType,
+                    normalizedKey = key,
+                    sourceVendorCode = vendorCode,
+                    sourceDescription = description,
+                    sourcePackageText = packageText,
+                    ingredientId = ingredientId.value,
+                    unitOptionId = unitOptionId.value,
+                    inventoryAreaId = inventoryAreaId.value,
+                    createdAt = now.toEpochMilli(),
+                    updatedAt = now.toEpochMilli(),
+                    lastConfirmedAt = now.toEpochMilli()
+                )
+                mappingDao.insertMapping(newMapping)
+                return@withTransaction LearnMappingResult.Learned
             }
         }
+        
+        LearnMappingResult.NoChanges
+    }
+
+    private fun validateMatchInvariants(match: PurchaseInvoiceLineMatch) {
+        val error = MatchIntegrityPolicy.validateInvariants(
+            status = match.status,
+            ingredientId = match.ingredientId,
+            unitOptionId = match.unitOptionId,
+            inventoryAreaId = match.inventoryAreaId,
+            confirmedAt = match.confirmedAt,
+            mappingId = match.mappingId
+        )
+        if (error != null) throw ValidationError.InvalidMatchStatus
     }
 
     private suspend fun validateMatchIntegrity(
@@ -707,6 +837,28 @@ class RoomPurchaseRepository @Inject constructor(
             val area = areaDao.getById(match.inventoryAreaId.value)
                 ?: throw ValidationError.RecordNotFound
             if (area.restaurantId != restaurantId) throw ValidationError.InvalidPurchaseArea
+        }
+
+        if (match.mappingId != null) {
+            val mapping = mappingDao.getMappingById(match.mappingId)
+                ?: throw ValidationError.RecordNotFound
+            
+            if (mapping.restaurantId != restaurantId) throw ValidationError.SupplierOwnershipMismatch
+            if (match.supplierId != null && mapping.supplierId != match.supplierId.value) throw ValidationError.SupplierOwnershipMismatch
+            
+            val error = MatchIntegrityPolicy.isMappingCompatible(
+                matchIngredientId = match.ingredientId?.value,
+                matchUnitOptionId = match.unitOptionId?.value,
+                matchAreaId = match.inventoryAreaId?.value,
+                mappingIngredientId = mapping.ingredientId,
+                mappingUnitOptionId = mapping.unitOptionId,
+                mappingAreaId = mapping.inventoryAreaId
+            )
+            if (error != null) {
+                if (error.contains("ingredient")) throw ValidationError.IngredientOwnershipMismatch
+                if (error.contains("unit")) throw ValidationError.InvalidPurchaseUnitOption
+                if (error.contains("area")) throw ValidationError.InvalidPurchaseArea
+            }
         }
     }
 }

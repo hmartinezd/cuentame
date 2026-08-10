@@ -27,6 +27,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import javax.inject.Inject
 
@@ -43,7 +45,8 @@ data class ReviewDetectedInvoiceUiState(
     val allAreas: List<InventoryArea> = emptyList(),
     val ingredientUnitOptions: Map<IngredientId, List<IngredientUnitOption>> = emptyMap(),
     val matchSummary: MatchSummary = MatchSummary(0, 0, 0),
-    val matchingLineIndex: Int? = null
+    val matchingLineIndex: Int? = null,
+    val preselectedIngredientId: IngredientId? = null
 )
 
 data class MatchSummary(
@@ -73,6 +76,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     val uiState: StateFlow<ReviewDetectedInvoiceUiState> = _uiState.asStateFlow()
 
     private var lastAutoMatchedKey: String? = null
+    private val autoMatchMutex = Mutex()
 
     init {
         observeData()
@@ -88,8 +92,12 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                     val lineIndex = savedStateHandle.get<Int>("matchingLineIndex")
                     if (lineIndex != null) {
                         onSelectIngredientForMatch(ingredientId)
-                        // Recover matching dialog state
-                        _uiState.update { it.copy(matchingLineIndex = lineIndex) }
+                        _uiState.update { 
+                            it.copy(
+                                matchingLineIndex = lineIndex,
+                                preselectedIngredientId = ingredientId
+                            ) 
+                        }
                     }
                     savedStateHandle["createdIngredientId"] = null
                 }
@@ -97,7 +105,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     }
 
     fun onStartMatch(lineIndex: Int?) {
-        _uiState.update { it.copy(matchingLineIndex = lineIndex) }
+        _uiState.update { it.copy(matchingLineIndex = lineIndex, preselectedIngredientId = null) }
         savedStateHandle["matchingLineIndex"] = lineIndex
     }
 
@@ -148,8 +156,18 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
 
                 val currentAutoMatchKey = "${receiptId.value}_${details?.receipt?.supplierId?.value}_${result?.id}"
                 if (details?.receipt?.supplierId != null && result != null && matches.isEmpty() && lastAutoMatchedKey != currentAutoMatchKey) {
-                    lastAutoMatchedKey = currentAutoMatchKey
-                    triggerAutoMatching(details.receipt.supplierId)
+                    viewModelScope.launch {
+                        autoMatchMutex.withLock {
+                            if (lastAutoMatchedKey != currentAutoMatchKey) {
+                                try {
+                                    triggerAutoMatching(details.receipt.supplierId)
+                                    lastAutoMatchedKey = currentAutoMatchKey
+                                } catch (e: Exception) {
+                                    // Retry safe: keep lastAutoMatchedKey as is
+                                }
+                            }
+                        }
+                    }
                 }
 
                 val activeLines = result?.lines?.filter { !it.isIgnored } ?: emptyList()
@@ -280,65 +298,37 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val result = uiState.value.result ?: return@launch
-            val line = result.lines.find { it.index == lineIndex } ?: return@launch
-            val supplierId = uiState.value.purchaseDetails?.receipt?.supplierId
-            val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)
-
-            val match = PurchaseInvoiceLineMatch(
-                parseResultId = result.id,
-                lineIndex = lineIndex,
-                status = InvoiceLineMatchStatus.CONFIRMED,
-                supplierId = supplierId,
-                ingredientId = ingredientId,
-                unitOptionId = unitOptionId,
-                inventoryAreaId = inventoryAreaId,
-                mappingId = null,
-                matchMethod = "UserSelection",
-                matchConfidence = 1.0f,
-                confirmedAt = Instant.now()
-            )
-            repository.saveLineMatchForReceipt(receiptId, result.id, match)
-
-            if (supplierId != null) {
-                val effectiveLine = line.toEffective()
-                val normalizedCode = InventoryNormalization.normalizeVendorCode(effectiveLine.vendorCode)
-                
-                val mappingParams = if (normalizedCode.isNotEmpty()) {
-                    SupplierItemMappingKeyType.VENDOR_CODE to normalizedCode
-                } else {
-                    val d = InventoryNormalization.normalizeDescription(effectiveLine.description)
-                    val p = InventoryNormalization.normalizePackageText(effectiveLine.packageText)
-                    SupplierItemMappingKeyType.DESCRIPTION_PACKAGE to "$d|$p"
-                }
-                val keyType = mappingParams.first
-                val key = mappingParams.second
-
-                val learnResult = mappingRepository.learnMapping(
-                    restaurantId = restId,
-                    supplierId = supplierId,
-                    keyType = keyType,
-                    normalizedKey = key,
-                    sourceVendorCode = effectiveLine.vendorCode,
-                    sourceDescription = effectiveLine.description,
-                    sourcePackageText = effectiveLine.packageText,
+            
+            try {
+                val learnResult = repository.confirmInvoiceLineMatch(
+                    receiptId = receiptId,
+                    expectedParseResultId = result.id,
+                    expectedSupplierId = uiState.value.purchaseDetails?.receipt?.supplierId,
+                    lineIndex = lineIndex,
                     ingredientId = ingredientId,
                     unitOptionId = unitOptionId,
                     inventoryAreaId = inventoryAreaId,
-                    force = false
+                    forceLearnMapping = false
                 )
 
                 if (learnResult is LearnMappingResult.Conflict) {
                     _uiState.update { it.copy(activeMappingConflict = learnResult.conflict) }
                 }
+            } catch (e: Exception) {
+                // UI should probably show an error if parse changed
             }
         }
     }
 
     fun onConfirmConflict(replace: Boolean) {
         val conflict = uiState.value.activeMappingConflict ?: return
+        val currentSupplierId = uiState.value.purchaseDetails?.receipt?.supplierId
         _uiState.update { it.copy(activeMappingConflict = null) }
         
         if (!replace) return
+        
+        // Revalidate supplier context
+        if (currentSupplierId != conflict.existingMapping.supplierId) return
 
         viewModelScope.launch {
             val restId = RestaurantId(activeRestaurantProvider.getActiveRestaurant().id)

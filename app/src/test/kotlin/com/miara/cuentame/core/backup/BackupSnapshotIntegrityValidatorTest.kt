@@ -3,6 +3,7 @@ package com.miara.cuentame.core.backup
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.model.backup.BackupManifest
+import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
 import org.junit.Test
 
 class BackupSnapshotIntegrityValidatorTest {
@@ -468,6 +469,69 @@ class BackupSnapshotIntegrityValidatorTest {
         val result = BackupSnapshotIntegrityValidator.validate(dto, manifest.copy(databaseSchemaVersion = 8))
         assertThat(result.isFailure).isTrue()
         assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RESTAURANT_ISOLATION_FAILURE)
+    }
+
+    @Test
+    fun `validate rejects incompatible mapping unit option in match`() {
+        val dto = createEmptyDto().copy(
+            suppliers = listOf(mockkSupplier("s1")),
+            ingredients = listOf(mockkIngredient("ing1")),
+            units = listOf(mockkUnit("u1")),
+            ingredientUnitOptions = listOf(
+                mockkOption("opt1", "ing1"),
+                mockkOption("opt2", "ing1")
+            ),
+            supplierItemMappings = listOf(
+                SupplierItemMappingBackupDto("m1", restId, "s1", "VENDOR_CODE", "K1", null, null, null, "ing1", "opt1", null, 0L, 0L, 0L)
+            ),
+            purchaseReceipts = listOf(mockkReceipt("p1", "DRAFT").copy(attachmentId = "attachment-1")),
+            purchaseInvoiceOcrResults = listOf(mockkOcr("o1", "p1")),
+            purchaseInvoiceParseResults = listOf(mockkParse("pr1", "p1", "o1")),
+            purchaseInvoiceParsedLines = listOf(mockkParsedLine("pr1", 0)),
+            purchaseInvoiceLineMatches = listOf(
+                PurchaseInvoiceLineMatchBackupDto("pr1", 0, "SUGGESTED", "s1", "ing1", "opt2", null, "m1", "Mapping", 1f, null)
+            )
+        )
+        val m = manifest.copy(
+            databaseSchemaVersion = 8,
+            attachments = listOf(BackupAttachmentMetadata("attachment-1", "path/to/doc", "doc", "application/pdf", 100L, "sha256", emptyList()))
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, m)
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH)
+        assertThat(result.exceptionOrNull()?.message).contains("Incompatible mapping unit option")
+    }
+
+    @Test
+    fun `validate rejects incompatible mapping area in match`() {
+        val dto = createEmptyDto().copy(
+            suppliers = listOf(mockkSupplier("s1")),
+            ingredients = listOf(mockkIngredient("ing1")),
+            units = listOf(mockkUnit("u1")),
+            inventoryAreas = listOf(
+                mockkArea("area1"),
+                mockkArea("area2")
+            ),
+            ingredientUnitOptions = listOf(mockkOption("opt1", "ing1")),
+            supplierItemMappings = listOf(
+                SupplierItemMappingBackupDto("m1", restId, "s1", "VENDOR_CODE", "K1", null, null, null, "ing1", null, "area1", 0L, 0L, 0L)
+            ),
+            purchaseReceipts = listOf(mockkReceipt("p1", "DRAFT").copy(attachmentId = "attachment-1")),
+            purchaseInvoiceOcrResults = listOf(mockkOcr("o1", "p1")),
+            purchaseInvoiceParseResults = listOf(mockkParse("pr1", "p1", "o1")),
+            purchaseInvoiceParsedLines = listOf(mockkParsedLine("pr1", 0)),
+            purchaseInvoiceLineMatches = listOf(
+                PurchaseInvoiceLineMatchBackupDto("pr1", 0, "SUGGESTED", "s1", "ing1", "opt1", "area2", "m1", "Mapping", 1f, null)
+            )
+        )
+        val m = manifest.copy(
+            databaseSchemaVersion = 8,
+            attachments = listOf(BackupAttachmentMetadata("attachment-1", "path/to/doc", "doc", "application/pdf", 100L, "sha256", emptyList()))
+        )
+        val result = BackupSnapshotIntegrityValidator.validate(dto, m)
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH)
+        assertThat(result.exceptionOrNull()?.message).contains("Incompatible mapping area")
     }
 
     // Helpers

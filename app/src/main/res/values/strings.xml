@@ -844,4 +844,9 @@
     <string name="ocr_matching_ignore_line">Ignore line</string>
     <string name="ocr_matching_change">Change</string>
     <string name="ocr_matching_not_detected_symbol">—</string>
+    <string name="ocr_matching_low_confidence">Low confidence</string>
+    <string name="ocr_matching_medium_confidence">Medium confidence</string>
+    <string name="ocr_matching_edited">Edited</string>
+    <string name="ocr_matching_original">Original</string>
+    <string name="ocr_matching_deselect">Deselect</string>
 </resources>

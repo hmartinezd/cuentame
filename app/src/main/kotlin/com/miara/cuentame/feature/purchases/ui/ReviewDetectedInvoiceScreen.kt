@@ -145,6 +145,7 @@ fun ReviewDetectedInvoiceScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     SupplierSelectionHeader(
                         selectedSupplierId = uiState.purchaseDetails?.receipt?.supplierId,
+                        supplierName = uiState.purchaseDetails?.supplierName,
                         suggestedSuppliers = uiState.suggestedSuppliers,
                         onSelect = onSelectSupplier,
                         onChangeSupplier = { showingSupplierSelection = true }
@@ -256,22 +257,23 @@ fun ReviewDetectedInvoiceScreen(
         if (uiState.matchingLineIndex != null) {
             val line = uiState.result?.lines?.find { it.index == uiState.matchingLineIndex }
             if (line != null) {
-                MatchProductDialog(
-                    line = line,
-                    currentMatch = uiState.matches.find { it.lineIndex == uiState.matchingLineIndex },
-                    ingredients = uiState.allIngredients,
-                    areas = uiState.allAreas,
-                    unitOptions = uiState.ingredientUnitOptions,
-                    onDismiss = { onStartMatch(null) },
-                    onConfirmMatch = { ingId, optId, areaId ->
-                        onConfirmMatch(line.index, ingId, optId, areaId)
-                        onStartMatch(null)
-                    },
-                    onSelectIngredient = onSelectIngredientForMatch,
-                    onCreateNewIngredient = { name ->
-                        onStartCreateIngredient(line.index, name)
-                    }
-                )
+                    MatchProductDialog(
+                        line = line,
+                        currentMatch = uiState.matches.find { it.lineIndex == uiState.matchingLineIndex },
+                        preselectedIngredientId = uiState.preselectedIngredientId,
+                        ingredients = uiState.allIngredients,
+                        areas = uiState.allAreas,
+                        unitOptions = uiState.ingredientUnitOptions,
+                        onDismiss = { onStartMatch(null) },
+                        onConfirmMatch = { ingId, optId, areaId ->
+                            onConfirmMatch(line.index, ingId, optId, areaId)
+                            onStartMatch(null)
+                        },
+                        onSelectIngredient = onSelectIngredientForMatch,
+                        onCreateNewIngredient = { name ->
+                            onStartCreateIngredient(line.index, name)
+                        }
+                    )
             }
         }
 
@@ -299,6 +301,7 @@ fun ReviewDetectedInvoiceScreen(
 @Composable
 fun SupplierSelectionHeader(
     selectedSupplierId: SupplierId?,
+    supplierName: String?,
     suggestedSuppliers: List<Supplier>,
     onSelect: (SupplierId) -> Unit,
     onChangeSupplier: () -> Unit
@@ -342,7 +345,7 @@ fun SupplierSelectionHeader(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = stringResource(R.string.ocr_matching_matched),
+                    text = supplierName ?: stringResource(R.string.ocr_matching_matched),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -390,6 +393,7 @@ fun StatusBadge(count: Int, label: String, color: Color) {
 fun MatchProductDialog(
     line: ParsedInvoiceLineCandidate,
     currentMatch: PurchaseInvoiceLineMatch?,
+    preselectedIngredientId: IngredientId?,
     ingredients: List<Ingredient>,
     areas: List<InventoryArea>,
     unitOptions: Map<IngredientId, List<IngredientUnitOption>>,
@@ -398,10 +402,31 @@ fun MatchProductDialog(
     onSelectIngredient: (IngredientId) -> Unit,
     onCreateNewIngredient: (String) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedIngredient by remember { mutableStateOf<Ingredient?>(null) }
-    var selectedUnitOptionId by remember { mutableStateOf<IngredientUnitOptionId?>(null) }
-    var selectedAreaId by remember { mutableStateOf<InventoryAreaId?>(null) }
+    val initialSearch = remember(line) { line.description.effectiveValue(line.correction?.description) ?: "" }
+    var searchQuery by remember { mutableStateOf(initialSearch) }
+    
+    val initialIngredient = remember(currentMatch, preselectedIngredientId, ingredients) {
+        val id = preselectedIngredientId ?: currentMatch?.ingredientId
+        ingredients.find { it.id == id }
+    }
+    
+    var selectedIngredient by remember { mutableStateOf<Ingredient?>(initialIngredient) }
+    
+    val initialUnitOptionId = remember(currentMatch, selectedIngredient) {
+        if (selectedIngredient?.id == currentMatch?.ingredientId) currentMatch?.unitOptionId else null
+    }
+    var selectedUnitOptionId by remember { mutableStateOf<IngredientUnitOptionId?>(initialUnitOptionId) }
+    
+    val initialAreaId = remember(currentMatch, selectedIngredient) {
+        if (selectedIngredient?.id == currentMatch?.ingredientId) currentMatch?.inventoryAreaId 
+        else selectedIngredient?.defaultAreaId
+    }
+    var selectedAreaId by remember { mutableStateOf<InventoryAreaId?>(initialAreaId) }
+
+    // Trigger loading unit options if preselected
+    LaunchedEffect(selectedIngredient) {
+        selectedIngredient?.let { onSelectIngredient(it.id) }
+    }
 
     val filteredIngredients = remember(searchQuery, ingredients) {
         if (searchQuery.isBlank()) emptyList()
@@ -457,7 +482,7 @@ fun MatchProductDialog(
                 } else {
                     ListItem(
                         headlineContent = { Text(selectedIngredient!!.name) },
-                        trailingContent = { IconButton(onClick = { selectedIngredient = null }) { Icon(Icons.Default.Close, contentDescription = "Deselect") } },
+                        trailingContent = { IconButton(onClick = { selectedIngredient = null }) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ocr_matching_deselect)) } },
                         modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
                     )
 
@@ -732,7 +757,7 @@ fun <T> ParsedFieldRow(
                 )
                 if (isEdited) {
                     Text(
-                        text = "Edited (Original: ${formatValue(field.normalizedValue)})",
+                        text = "${stringResource(R.string.ocr_matching_edited)} (${stringResource(R.string.ocr_matching_original)}: ${formatValue(field.normalizedValue)})",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -741,11 +766,11 @@ fun <T> ParsedFieldRow(
         },
         trailingContent = {
             if (isEdited) {
-                Icon(Icons.Default.Edit, contentDescription = "Edited", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.ocr_matching_edited), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
             } else if (field.confidenceBand == ConfidenceBand.Low) {
-                Icon(Icons.Default.Info, contentDescription = "Low confidence", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Info, contentDescription = stringResource(R.string.ocr_matching_low_confidence), tint = MaterialTheme.colorScheme.error)
             } else if (field.confidenceBand == ConfidenceBand.Medium) {
-                Icon(Icons.Default.Info, contentDescription = "Medium confidence", tint = Color(0xFFFFA500)) // Orange
+                Icon(Icons.Default.Info, contentDescription = stringResource(R.string.ocr_matching_medium_confidence), tint = Color(0xFFFFA500)) // Orange
             }
         }
     )
