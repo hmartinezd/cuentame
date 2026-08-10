@@ -21,15 +21,6 @@ class CsvTemplateGenerator @Inject constructor() {
             CsvParser.HEADER_REORDER_POINT
         )
 
-        val exampleRows = listOf(
-            listOf(
-                "Tomato", "TOM001", "Produce", "lb", "lb", "Case 25 lb", "25", "Walk-in Cooler", "Sysco", "12345", "1.42", "10"
-            ),
-            listOf(
-                "Milk", "MILK01", "Dairy", "gal", "gal", "Crate 4 gal", "4", "Walk-in Cooler", "Local Dairy", "MD-100", "4.50", "2"
-            )
-        )
-
-        csvWriter().writeAll(listOf(headers) + exampleRows, outputStream)
+        csvWriter().writeAll(listOf(headers), outputStream)
     }
 }

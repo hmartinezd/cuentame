@@ -1,24 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cuéntame</string>
 
     <!-- Navigation -->
-    <string name="nav_home">Inicio</string>
+    <string name="nav_home">Panel</string>
     <string name="nav_inventory">Inventario</string>
-    <string name="nav_count">Conteo</string>
+    <string name="nav_count">Conteos</string>
     <string name="nav_activity">Actividad</string>
     <string name="nav_reports">Reportes</string>
     <string name="nav_settings">Ajustes</string>
-    <string name="home_settings_desc">Administra el restaurante, áreas, categorías, proveedores, preferencias y copias de seguridad</string>
+    <string name="home_settings_desc">Gestionar restaurante, áreas, categorías, proveedores, preferencias y copias de seguridad</string>
 
     <!-- Placeholders -->
     <string name="home_title">Panel de Control</string>
-    <string name="home_description">Bienvenido a Cuéntame Inventario. Aquí aparecerá el resumen del estado de su restaurante.</string>
+    <string name="home_description">Bienvenido al Inventario de Cuéntame. El resumen del estado de su restaurante aparecerá aquí.</string>
     <string name="inventory_title">Ingredientes</string>
     <string name="inventory_description">Gestione sus ingredientes, unidades y empaques.</string>
-    <string name="count_title">Conteo Físico</string>
+    <string name="count_title">Conteos Físicos</string>
     <string name="count_description">Realice conteos de inventario por área.</string>
     <string name="activity_title">Movimientos</string>
-    <string name="activity_description">Rastree compras, mermas y ajustes.</string>
+    <string name="activity_description">Siga compras, mermas y ajustes.</string>
     <string name="reports_title">Analítica</string>
     <string name="reports_description">Vea informes de valor de inventario y uso.</string>
 
@@ -33,35 +34,35 @@
     <string name="onboarding_field_currency">Moneda</string>
     <string name="onboarding_field_language">Idioma de la Aplicación</string>
     <string name="onboarding_currency_note">La moneda se utiliza para calcular el valor total del inventario.</string>
-    <string name="onboarding_language_note">Puede cambiar el idioma en cualquier momento en los Ajustes.</string>
+    <string name="onboarding_language_note">Puede cambiar el idioma en cualquier momento en Ajustes.</string>
     <string name="onboarding_areas_title">Áreas de Inventario</string>
-    <string name="onboarding_areas_desc">¿Dónde guarda sus artículos? Seleccione los que apliquen o añada los suyos.</string>
+    <string name="onboarding_areas_desc">¿Dónde guarda sus artículos? Seleccione las que correspondan o añada las suyas propias.</string>
     <string name="onboarding_add_area">Añadir área personalizada</string>
     <string name="onboarding_area_required">Se requiere al menos un área.</string>
-    <string name="onboarding_areas_selection_empty">Por favor, seleccione al menos un área de almacenamiento.</string>
+    <string name="onboarding_areas_selection_empty">Por favor seleccione al menos un área de almacenamiento.</string>
     <string name="onboarding_categories_title">Categorías de Ingredientes</string>
-    <string name="onboarding_categories_desc">Organice sus artículos en grupos. Esto ayuda con los reportes y conteos.</string>
+    <string name="onboarding_categories_desc">Organice sus artículos en grupos. Esto ayuda con los informes y conteos.</string>
     <string name="onboarding_add_category">Añadir categoría personalizada</string>
     <string name="onboarding_category_recommend">Recomendamos usar categorías para organizar mejor su inventario.</string>
     <string name="onboarding_review_title">Revisar Configuración</string>
     <string name="onboarding_finish_action">Finalizar configuración</string>
 
     <!-- Templates -->
-    <string name="template_area_walk_in">Cámara refrigerada</string>
+    <string name="template_area_walk_in">Cámara Frigorífica</string>
     <string name="template_area_freezer">Congelador</string>
-    <string name="template_area_dry_storage">Almacén seco</string>
+    <string name="template_area_dry_storage">Almacén Seco</string>
     <string name="template_area_bar">Bar</string>
-    <string name="template_area_prep">Área de preparación</string>
-    <string name="template_area_line">Línea de cocina</string>
+    <string name="template_area_prep">Área de Preparación</string>
+    <string name="template_area_line">Línea de Cocina</string>
     <string name="template_cat_meat">Carnes</string>
-    <string name="template_cat_seafood">Mariscos</string>
+    <string name="template_cat_seafood">Pescados y Mariscos</string>
     <string name="template_cat_dairy">Lácteos</string>
-    <string name="template_cat_produce">Frutas y vegetales</string>
-    <string name="template_cat_dry">Productos secos</string>
+    <string name="template_cat_produce">Frutas y Verduras</string>
+    <string name="template_cat_dry">Abarrotes / Secos</string>
     <string name="template_cat_beverages">Bebidas</string>
     <string name="template_cat_alcohol">Alcohol</string>
     <string name="template_cat_bakery">Panadería</string>
-    <string name="template_cat_cleaning">Productos de limpieza</string>
+    <string name="template_cat_cleaning">Artículos de Limpieza</string>
     <string name="template_cat_other">Otros</string>
 
     <!-- Generic Actions & Labels -->
@@ -72,17 +73,20 @@
     <string name="action_add">Añadir</string>
     <string name="action_remove">Eliminar</string>
     <string name="action_archive">Archivar</string>
+    <string name="action_restore">Restaurar</string>
     <string name="action_confirm">Confirmar</string>
     <string name="action_search">Buscar…</string>
     <string name="action_discard">Descartar</string>
     <string name="action_stay">Permanecer</string>
-    <string name="action_dismiss">Descartar</string>
-    <string name="action_retry_desc">Reintentar</string>
+    <string name="action_dismiss">Cerrar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_ok">Aceptar</string>
     <string name="optional">Opcional</string>
     <string name="all">Todos</string>
     <string name="notes">Notas</string>
     <string name="not_available">No disponible</string>
-    <string name="not_applicable">N/D</string>
+    <string name="not_applicable">N/A</string>
     <string name="status_label">Estado</string>
 
     <!-- Generic Statuses -->
@@ -90,29 +94,33 @@
     <string name="status_posted">Publicado</string>
     <string name="status_voided">Anulado</string>
     <string name="status_completed">Completado</string>
-    <string name="status_active">Activa</string>
-    <string name="status_archived">Archivada</string>
-    <string name="status_in_progress">En progreso</string>
+    <string name="status_active">Activo</string>
+    <string name="status_archived">Archivado</string>
+    <string name="status_in_progress">En Progreso</string>
     <string name="status_unavailable">Estado no disponible</string>
+    <string name="not_started">No iniciado</string>
+    <string name="area_completed">Área completada</string>
+    <string name="pending_item">Pendiente</string>
+    <string name="counted_item">Contado</string>
 
-    <!-- Activity Statuses -->
+    <!-- Activity Statuses (Legacy/Dashboard references) -->
     <string name="activity_status_posted">Publicado</string>
     <string name="activity_status_voided">Anulado</string>
     <string name="activity_status_completed">Completado</string>
 
     <!-- Settings -->
     <string name="settings_restaurant">Perfil del Restaurante</string>
-    <string name="settings_areas">Áreas de Inventario</string>
+    <string name="settings_areas">Áreas de Almacenamiento</string>
     <string name="settings_categories">Categorías de Ingredientes</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="settings_language">Idioma</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_theme">Tema</string>
     <string name="settings_dynamic_color">Color Dinámico</string>
-    <string name="theme_system">Predeterminado del sistema</string>
-    <string name="theme_light">Claro</string>
-    <string name="theme_dark">Oscuro</string>
-    <string name="lang_en">Inglés</string>
+    <string name="theme_system">Seguir sistema</string>
+    <string name="theme_light">Modo claro</string>
+    <string name="theme_dark">Modo oscuro</string>
+    <string name="lang_en">English</string>
     <string name="lang_es">Español</string>
     <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
     <string name="about_version">Versión %s</string>
@@ -121,167 +129,27 @@
     <string name="error_name_empty">El nombre no puede estar vacío</string>
     <string name="error_duplicate_name">Este nombre ya está en uso</string>
     <string name="error_generic">Algo salió mal. Por favor, inténtelo de nuevo.</string>
-    <string name="error_final_area">No se puede archivar la última área activa</string>
-    <string name="error_invalid_currency">Código de moneda inválido</string>
-    <string name="error_unsupported_locale">Idioma no soportado</string>
+    <string name="error_final_area">La última área activa no puede ser archivada</string>
+    <string name="error_invalid_currency">Código de moneda no válido</string>
+    <string name="error_unsupported_locale">Idioma no compatible</string>
     <string name="error_no_areas">Se requiere al menos un área</string>
     <string name="error_area_not_found">Área de inventario no encontrada</string>
-    <string name="error_draft_corrupted">El borrador de configuración estaba corrupto y ha sido reiniciado</string>
+    <string name="error_draft_corrupted">El borrador de configuración se corrompió y ha sido reiniciado</string>
     <string name="error_draft_save">Error al guardar el borrador</string>
     <string name="error_overlapping_area">El área %1$s ya está incluida en otro conteo en borrador</string>
     <string name="error_no_restaurant">Restaurante no configurado</string>
-    <string name="error_unit_option_used_by_recipe">Esta unidad es utilizada por una receta no archivada y no se puede archivar.</string>
-    <string name="error_unit_option_used_by_recipe_comp">Esta unidad es utilizada como componente en una receta y no se puede archivar.</string>
+    <string name="error_unit_option_used_by_recipe">La opción de unidad se utiliza como unidad de rendimiento por una receta de preparación no archivada</string>
+    <string name="error_unit_option_used_by_recipe_comp">La opción de unidad es utilizada por un componente en una receta de preparación no archivada</string>
 
     <!-- States -->
     <string name="state_loading_desc">Cargando…</string>
     <string name="state_empty_desc">Nada que mostrar todavía.</string>
     <string name="state_error_desc">Algo salió mal.</string>
 
-    <!-- Dashboard & Reports -->
-    <string name="dashboard_title">Panel de Control</string>
-    <string name="range_7_days">7 días</string>
-    <string name="range_30_days">30 días</string>
-    <string name="range_90_days">90 días</string>
-    <string name="range_7_days_label">Últimos 7 días</string>
-    <string name="range_30_days_label">Últimos 30 días</string>
-    <string name="range_90_days_label">Últimos 90 días</string>
-    <string name="reports_overview_title">Resumen de Reportes</string>
-    <string name="reports_current_period">Periodo actual</string>
-    <string name="reports_previous_period">Periodo anterior</string>
-    <string name="reports_absolute_change">Cambio absoluto</string>
-    <string name="reports_inventory_overview">Resumen de inventario</string>
-    <string name="reports_view_inventory_details">Ver detalles de inventario</string>
-    <string name="reports_view_purchase_details">Ver detalles de compras</string>
-    <string name="reports_view_waste_details">Ver detalles de mermas</string>
-    <string name="reports_purchasing">Compras</string>
-    <string name="reports_waste">Mermas</string>
-    <string name="reports_operational_alerts">Alertas operativas</string>
-    <string name="reports_stock_count_summary">Resumen de conteos</string>
-    <string name="reports_top_waste">Principales Mermas</string>
-    <string name="reports_no_posted_waste">Sin mermas publicadas en este periodo</string>
-    <string name="reports_no_completed_counts">Sin conteos completados</string>
-    <string name="reports_error_title">Error de reportes</string>
-    <string name="reports_error_desc">No pudimos cargar los datos del reporte. Inténtalo de nuevo.</string>
-    <string name="dashboard_date_range_filter_label">Filtro de rango de fechas del panel</string>
-    <string name="dashboard_range_description">Filtrar por %1$s</string>
-    <string name="dashboard_range_selected_description">Filtrar por %1$s, seleccionado</string>
-    <string name="inventory_value_label">Valor Actual del Inventario</string>
-    <string name="purchase_spend_label">Gasto en Compras</string>
-    <string name="waste_value_label">Valor de Mermas</string>
-    <string name="negative_balances_label">Saldos Negativos</string>
-    <string name="data_completeness_label">Integridad de datos</string>
-    <string name="valuation_coverage_label">Cobertura de valoración</string>
-    <string name="missing_costs_label">Costos faltantes</string>
-    <string name="missing_unit_options_label">Opciones de unidad faltantes</string>
-    <string name="stock_counts">Conteos de stock</string>
-    <string name="completed_counts_label">Conteos completados</string>
-    <string name="adjusted_lines_label">Líneas ajustadas</string>
-    <string name="most_recent_count_label">Último conteo</string>
-    <string name="top_waste_label">Principales Mermas</string>
-    <string name="recent_activity_label">Actividad Reciente</string>
-    <string name="no_posted_waste_period">Sin mermas publicadas en este periodo</string>
-    <string name="no_recent_activity">Sin actividad reciente</string>
-    <string name="comparison_new">Nuevo</string>
-    <string name="comparison_no_change">Sin cambios</string>
-    <string name="activity_type_purchase">Compra</string>
-    <string name="activity_type_waste">Merma</string>
-    <string name="activity_type_stock_count">Conteo</string>
-    <string name="unknown_inventory_activity">Actividad de inventario desconocida</string>
-    <string name="activity_type_unavailable">Tipo de actividad no disponible</string>
-    <string name="source_type_unavailable">Tipo de origen no disponible</string>
-    <string name="log_waste_action">Registrar Merma</string>
-    <string name="new_purchase_action">Nueva Compra</string>
-    <string name="start_count_action">Iniciar Conteo</string>
-    <string name="view_reports_action">Ver Reportes</string>
-    <string name="coverage_format">%1$d / %2$d</string>
-    <string name="trend_increase">Aumento del %1$s</string>
-    <string name="trend_decrease">Disminución del %1$s</string>
-    <string name="trend_no_change">Sin cambios</string>
-    <string name="missing_costs_desc">Ingredientes con stock pero sin proyección de costo</string>
-    <string name="missing_unit_options_desc">Ingredientes activos sin opciones de unidad</string>
-    <string name="setup_required_title">Configuración Requerida</string>
-    <string name="setup_required_desc">Por favor, complete la configuración del restaurante para ver el panel de control.</string>
-    <string name="dashboard_error_title">Error del Panel</string>
-    <string name="dashboard_error_desc">No pudimos cargar los datos del panel. Inténtalo de nuevo.</string>
-    <string name="summary_partial">Resumen parcial</string>
-    <string name="from_previous_period">vs periodo anterior</string>
-    <string name="items_count_format">%1$d artículos</string>
-    <string name="activity_description_format">%1$s: %2$s. %3$s el %4$s. %5$s</string>
-    <string name="activity_description_no_value">%1$s: %2$s. %3$s el %4$s</string>
-    <string name="reports_inventory_semantics">%1$s. Valor: %2$s. Ingredientes valorados: %3$s. Cobertura: %4$s. Costos faltantes: %5$d</string>
-    <string name="reports_comparison_semantics">%1$s. Actual: %2$s. Anterior: %3$s. Cambio: %4$s. %5$s %6$s</string>
-    <string name="reports_alerts_semantics">Alertas: %1$d saldos negativos, %2$d costos faltantes, %3$d sin opciones de unidad</string>
-    <string name="reports_counts_semantics">Conteos: %1$d completados, %2$d líneas ajustadas. Último: %3$s</string>
-    <string name="reports_top_waste_row_semantics">%1$s. Valor: %2$s. Cantidad: %3$s. Eventos: %4$d</string>
-
-    <!-- Detailed Reports -->
-    <string name="inventory_detail_title">Detalle de Inventario</string>
-    <string name="purchase_detail_title">Detalles de Compra</string>
-    <string name="waste_detail_title">Detalles de Merma</string>
-    <string name="current_avg_cost_label">Costo promedio actual</string>
-    <string name="current_inventory_value_label">Valor de inventario actual</string>
-    <string name="stocked_areas_label">Áreas con stock</string>
-    <string name="negative_area_balances_label">Saldos de área negativos</string>
-    <string name="missing_current_cost_label">Falta costo actual</string>
-    <string name="posted_receipts_label">Recibos publicados</string>
-    <string name="posted_waste_events_label">Eventos de merma publicados</string>
-    <string name="no_stocked_ingredients">Sin ingredientes con stock</string>
-    <string name="no_posted_purchases_period">Sin compras publicadas en este periodo</string>
-    <string name="historical_waste_value_label">Valor de merma histórico</string>
-    <string name="purchase_date_label">Fecha de compra</string>
-    <string name="line_count_label">Cantidad de líneas</string>
-    <string name="event_count_label">Cantidad de eventos</string>
-    <string name="area_label">Área</string>
-    <string name="reason_label">Razón</string>
-    <string name="notes_label">Notas</string>
-    <string name="updating_report">Actualizando informe</string>
-    <string name="updating_dashboard">Actualizando panel</string>
-    <string name="refresh_error_message">No se pudo actualizar el informe. Se muestran los resultados anteriores.</string>
-    <string name="refresh_error_dashboard">No se pudo actualizar el panel. Se muestran los resultados de %2$s.</string>
-    <string name="refresh_context_updating">Se muestran los resultados de %1$s mientras se actualiza el informe de %2$s.</string>
-    <string name="refresh_context_error">No se pudo actualizar el informe de %1$s. Se muestran los resultados de %2$s.</string>
-    <string name="refresh_context_updating_dashboard">Se muestra el panel de %1$s mientras se actualiza para %2$s.</string>
-    <string name="refresh_context_error_dashboard">No se pudo actualizar el panel de %1$s. Se muestran los resultados de %2$s.</string>
-    <string name="inventory_row_semantics">%1$s. Cantidad: %2$s. Costo: %3$s. Valor: %4$s</string>
-    <string name="inventory_row_missing_cost_warning">. Falta costo actual</string>
-    <string name="inventory_row_negative_areas_warning">. %1$d saldos de área negativos</string>
-    <string name="purchase_row_semantics">%1$s. Fecha: %2$s. Líneas: %3$d. Total: %4$s. Estado: %5$s</string>
-    <string name="waste_row_semantics">%1$s. Área: %2$s. Razón: %3$s. Cantidad: %4$s. Valor: %5$s. Fecha: %6$s</string>
-    <string name="waste_row_notes_semantics">. Notas: %1$s</string>
-
-    <!-- Accessibility -->
-    <string name="move_up">Mover %1$s arriba</string>
-    <string name="move_down">Mover %1$s abajo</string>
-    <string name="archive_item">Archivar %1$s</string>
-    <string name="rename_item">Renombrar %1$s</string>
-    <string name="archive_area_confirmation">¿Está seguro de que desea archivar %1$s?</string>
-    <string name="archive_category_confirmation">¿Está seguro de que desea archivar %1$s?</string>
-    <string name="action_add_area">Añadir área de inventario</string>
-    <string name="action_add_category">Añadir categoría de ingredientes</string>
-    <string name="action_remove_item">Eliminar %1$s</string>
-    <string name="archive_confirm_action">Archivar</string>
-    <string name="add_item_desc">Añadir %1$s</string>
-
     <!-- Ingredients -->
     <string name="ingredients_title">Ingredientes</string>
     <string name="ingredient_name">Nombre del Ingrediente</string>
     <string name="add_ingredient">Añadir Ingrediente</string>
-    <string name="import_csv">Importar CSV</string>
-    <string name="save_template">Descargar plantilla CSV</string>
-    <string name="choose_csv">Elegir archivo CSV</string>
-    <string name="import_ready">Listo</string>
-    <string name="import_warning">Advertencia</string>
-    <string name="import_error">Error</string>
-    <string name="import_skipped">Omitido</string>
-    <string name="import_row">Fila</string>
-    <string name="edit_row">Editar fila</string>
-    <string name="confirm_import_button">Confirmar importación (%1$d filas)</string>
-    <string name="import_complete">Importación completa</string>
-    <string name="import_failed">Importación fallida</string>
-    <string name="stale_import_data">Datos desactualizados</string>
-    <string name="edit_ingredient">Editar Ingrediente</string>
-    <string name="archive_ingredient">Archivar Ingrediente</string>
     <string name="category">Categoría</string>
     <string name="uncategorized">Sin categoría</string>
     <string name="measurement_dimension">Dimensión de Medida</string>
@@ -315,6 +183,50 @@
     <string name="desc_is_default_count">%1$s es la unidad por defecto para conteo</string>
     <string name="desc_is_default_purchase">%1$s es la unidad por defecto para compra</string>
     <string name="no_ingredients">No se encontraron ingredientes</string>
+
+    <!-- CSV Import -->
+    <string name="import_csv">Importar Ingredientes</string>
+    <string name="choose_csv">Elegir Archivo</string>
+    <string name="download_template">Descargar Plantilla</string>
+    <string name="import_csv_desc">Importe sus ingredientes desde un archivo CSV</string>
+    <string name="import_row">Fila</string>
+    <string name="import_no_category">Sin categoría</string>
+    <string name="import_unknown">Desconocido</string>
+    <string name="import_confirm_button">Confirmar Importación (%1$d filas)</string>
+    <string name="import_ingredients_created">%1$d ingredientes creados</string>
+    <string name="import_categories_created">%1$d categorías creadas</string>
+    <string name="import_suppliers_created">%1$d proveedores creados</string>
+    <string name="import_mappings_created">%1$d mapeos de proveedor creados</string>
+    <string name="import_rows_skipped">%1$d filas omitidas</string>
+    <string name="import_view_ingredients">Ver Ingredientes</string>
+    <string name="import_failed">Importación Fallida</string>
+    <string name="import_retry">Reintentar</string>
+    <string name="import_stale_title">Datos Desactualizados</string>
+    <string name="import_stale_desc">La base de datos ha cambiado desde que previsualizó la importación. Por favor, actualice e intente de nuevo.</string>
+    <string name="import_refresh">Actualizar Vista Previa</string>
+    <string name="import_edit_row_title">Editar Fila %1$d</string>
+    <string name="import_field_ingredient_name">Nombre del Ingrediente</string>
+    <string name="import_field_sku">SKU</string>
+    <string name="import_field_category">Categoría</string>
+    <string name="import_field_base_unit">Unidad Base</string>
+    <string name="import_field_count_unit">Unidad de Conteo</string>
+    <string name="import_field_purchase_package">Paquete de Compra</string>
+    <string name="import_field_package_conversion">Factor de Conversión</string>
+    <string name="import_field_default_area">Área por Defecto</string>
+    <string name="import_field_supplier">Proveedor</string>
+    <string name="import_field_vendor_code">Código de Proveedor</string>
+    <string name="import_field_current_cost">Costo Actual</string>
+    <string name="import_field_reorder_point">Punto de Reorden</string>
+    <string name="import_error_invalid_plan">El plan de importación contiene errores. Corríjalos u omita las filas inválidas.</string>
+    <string name="import_error_restaurant_unavailable">La información del restaurante no está disponible.</string>
+    <string name="import_error_persistence">Error al guardar los datos en la base de datos.</string>
+    <string name="import_error_file_read">Error al leer el archivo CSV.</string>
+    <string name="import_error_unknown">Ocurrió un error desconocido: %1$s</string>
+    <string name="import_summary_total">Total</string>
+    <string name="import_summary_ready">Listo</string>
+    <string name="import_summary_warnings">Advertencias</string>
+    <string name="import_summary_errors">Errores</string>
+    <string name="import_summary_skipped">Omitidas</string>
 
     <!-- Suppliers -->
     <string name="suppliers">Proveedores</string>
@@ -407,11 +319,7 @@
     <string name="count_default_name">Inventario — %1$s</string>
     <string name="count_review_title">Revisión de Ajustes</string>
     <string name="count_by_area">Conteo por área</string>
-    <string name="not_started">No iniciado</string>
-    <string name="area_completed">Área completada</string>
     <string name="reopen_area">Reabrir área</string>
-    <string name="pending_item">Pendiente</string>
-    <string name="counted_item">Contado</string>
     <string name="expected_quantity">Cantidad esperada</string>
     <string name="expected_quantity_format">Esperado: %1$s %2$s</string>
     <string name="counted_quantity">Cantidad contada</string>
@@ -487,7 +395,7 @@
     <string name="reason_customer_return">Devolución de cliente</string>
     <string name="reason_quality_rejection">Rechazo por calidad</string>
     <string name="reason_other">Otro</string>
-    <string name="waste_reason_unavailable">Motivo de desperdicio no disponible</string>
+    <string name="waste_reason_unavailable">Motivo de desperecidio no disponible</string>
 
     <!-- Waste Errors -->
     <string name="error_waste_not_found">Evento de merma no encontrado</string>
@@ -603,7 +511,6 @@
     <string name="error_multiplier_positive">El multiplicador debe ser positivo</string>
     <string name="error_missing_component_area">Uno o más componentes no tienen un área de origen</string>
     <string name="error_cost_unavailable">El costo no está disponible para uno o más componentes</string>
-    <string name="error_unknown">Se ha producido un error desconocido</string>
     <string name="error_restricted_by_archive">Esta operación está restringida por un período de inventario archivado</string>
     <string name="error_scanner_unavailable">Escáner no disponible en este dispositivo</string>
     <string name="error_scanner_module_downloading">Preparando el módulo del escáner. Por favor, inténtelo de nuevo en un momento.</string>
@@ -723,7 +630,7 @@
     <string name="backup_error_serialization">Error al serializar los datos.</string>
     <string name="backup_error_database">Error al leer la base de datos.</string>
     <string name="backup_error_attachment_missing">Falta el adjunto: %1$s</string>
-    <string name="backup_error_attachment_unreadable">Adjunto ilegible: %1$s</string>
+    <string name="backup_error_attachment_unreadable">Adjunto ileible: %1$s</string>
     <string name="backup_error_checksum">Error de suma de comprobación: %1$s</string>
     <string name="backup_error_validation">Error al validar el archivo: %1$s</string>
     <string name="backup_error_attachments_unsupported">Los archivos adjuntos no son compatibles con el formato de copia de seguridad seleccionado.</string>
@@ -763,7 +670,7 @@
     <string name="restore_confirm_title">Confirmar Restauración</string>
     <string name="restore_confirm_message">Esto reemplazará TODOS los ingredientes e historial actuales. Los archivos adjuntos también serán reemplazados por los de la copia de seguridad. Esta acción no se puede deshacer manualmente. Si la restauración falla, la aplicación intentará volver al estado actual.</string>
     <string name="restore_phase_staging">Validando copia de seguridad…</string>
-    <string name="restore_phase_staged">Preparando restauración…</string>
+    <string name="restore_phase_staged">Preparing restauración…</string>
     <string name="restore_phase_preparing">Preparando reversión del sistema…</string>
     <string name="restore_phase_database">Restaurando tablas de datos…</string>
     <string name="restore_phase_attachments">Restaurando archivos adjuntos…</string>
@@ -776,14 +683,6 @@
     <string name="restore_recovery_success_message">Sus datos anteriores han sido restaurados.</string>
     <string name="restore_recovery_required_title">Manual Recovery Required</string>
     <string name="restore_recovery_required_message">The restore operation was interrupted and the system could not automatically roll back. Please contact support or attempt to restore again with a valid backup.</string>
-    <string name="inventory_activity_filter_ingredient_unavailable">Ingrediente no disponible</string>
-    <string name="inventory_activity_filter_area_unavailable">Área no disponible</string>
-    <string name="inventory_activity_filter_date_range">Rango de fechas</string>
-    <string name="inventory_activity_filter_direction">Dirección</string>
-    <string name="inventory_activity_filter_apply">Aplicar filtros</string>
-    <string name="inventory_activity_filter_cancel">Cancelar</string>
-    <string name="inventory_activity_filter_categories">Categorías</string>
-    <string name="inventory_activity_filter_include_reversals">Incluir reversiones</string>
 
     <!-- Documentos de Factura -->
     <string name="purchase_invoice_document">Documento de factura</string>
@@ -806,6 +705,7 @@
     <string name="purchase_pdf_page_render_failure">No se pudo renderizar la página %1$d.</string>
     <string name="purchase_document_pdf_page_desc">Página de factura %1$d</string>
     <string name="purchase_image_decode_failure">No se pudo cargar la imagen del documento.</string>
+
     <!-- OCR -->
     <string name="ocr_viewer_title">Texto Detectado</string>
     <string name="ocr_viewer_metadata">Metadatos OCR</string>
@@ -829,8 +729,6 @@
     <string name="ocr_tax_label">Impuesto</string>
     <string name="ocr_supplier_section_title">Proveedor</string>
     <string name="ocr_error_document_changed">El documento fue reemplazado durante el análisis.</string>
-    <string name="action_cancel">Cancelar</string>
-    <string name="action_ok">Aceptar</string>
     <string name="product_description">Descripción</string>
     <string name="product_quantity">Cantidad</string>
     <string name="product_price">Precio</string>

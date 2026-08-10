@@ -16,6 +16,9 @@ interface SupplierDao {
     @Query("SELECT * FROM suppliers WHERE restaurantId = :restaurantId ORDER BY isActive DESC, name ASC")
     fun observeAllSuppliers(restaurantId: String): Flow<List<SupplierEntity>>
 
+    @Query("SELECT * FROM suppliers WHERE restaurantId = :restaurantId ORDER BY isActive DESC, name ASC")
+    suspend fun getAllSuppliersSync(restaurantId: String): List<SupplierEntity>
+
     @Query("SELECT * FROM suppliers WHERE id = :id")
     suspend fun getById(id: String): SupplierEntity?
 

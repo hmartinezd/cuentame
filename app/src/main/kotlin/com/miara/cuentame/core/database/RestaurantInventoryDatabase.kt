@@ -71,19 +71,10 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Create temporary table with nullable averageUnitCostBase
                 db.execSQL("CREATE TABLE IF NOT EXISTS `ingredient_cost_projection_new` (`restaurantId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `averageUnitCostBase` TEXT, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`restaurantId`, `ingredientId`))")
-                
-                // 2. Copy all existing rows
                 db.execSQL("INSERT INTO `ingredient_cost_projection_new` (`restaurantId`, `ingredientId`, `averageUnitCostBase`, `updatedAt`) SELECT `restaurantId`, `ingredientId`, `averageUnitCostBase`, `updatedAt` FROM `ingredient_cost_projection`")
-                
-                // 3. Drop the old table
                 db.execSQL("DROP TABLE `ingredient_cost_projection`")
-                
-                // 4. Rename the temporary table
                 db.execSQL("ALTER TABLE `ingredient_cost_projection_new` RENAME TO `ingredient_cost_projection`")
-                
-                // 5. Recreate indexes
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_restaurantId` ON `ingredient_cost_projection` (`restaurantId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_ingredient_cost_projection_ingredientId` ON `ingredient_cost_projection` (`ingredientId`)")
             }
@@ -91,7 +82,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Create preparation_recipes table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `preparation_recipes` (
                         `id` TEXT NOT NULL, 
@@ -113,15 +103,12 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`yieldUnitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
                     )
                 """.trimIndent())
-                
-                // Create indices for preparation_recipes
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId` ON `preparation_recipes` (`restaurantId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_outputIngredientId` ON `preparation_recipes` (`outputIngredientId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_yieldUnitOptionId` ON `preparation_recipes` (`yieldUnitOptionId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_outputIngredientId` ON `preparation_recipes` (`restaurantId`, `outputIngredientId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipes_restaurantId_status` ON `preparation_recipes` (`restaurantId`, `status`)")
 
-                // Create preparation_recipe_components table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `preparation_recipe_components` (
                         `id` TEXT NOT NULL, 
@@ -140,8 +127,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
                     )
                 """.trimIndent())
-                
-                // Create indices for preparation_recipe_components
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_recipeId` ON `preparation_recipe_components` (`recipeId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_componentIngredientId` ON `preparation_recipe_components` (`componentIngredientId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_preparation_recipe_components_unitOptionId` ON `preparation_recipe_components` (`unitOptionId`)")
@@ -151,7 +136,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Create production_batches table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `production_batches` (
                         `id` TEXT NOT NULL, 
@@ -187,8 +171,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`outputUnitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
                     )
                 """.trimIndent())
-
-                // Create indices for production_batches
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId` ON `production_batches` (`restaurantId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_recipeId` ON `production_batches` (`recipeId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_outputIngredientId` ON `production_batches` (`outputIngredientId`)")
@@ -199,7 +181,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId_effectiveAt` ON `production_batches` (`restaurantId`, `effectiveAt`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batches_restaurantId_status` ON `production_batches` (`restaurantId`, `status`)")
 
-                // Create production_batch_components table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `production_batch_components` (
                         `id` TEXT NOT NULL, 
@@ -229,8 +210,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`unitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
                     )
                 """.trimIndent())
-
-                // Create indices for production_batch_components
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_productionBatchId` ON `production_batch_components` (`productionBatchId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_componentIngredientId` ON `production_batch_components` (`componentIngredientId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_production_batch_components_sourceAreaId` ON `production_batch_components` (`sourceAreaId`)")
@@ -263,7 +242,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`purchaseReceiptId`) REFERENCES `purchase_receipts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """.trimIndent())
-                
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_purchaseReceiptId` ON `purchase_invoice_ocr_results` (`purchaseReceiptId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_sourceDocumentSha256` ON `purchase_invoice_ocr_results` (`sourceDocumentSha256`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_results_processedAt` ON `purchase_invoice_ocr_results` (`processedAt`)")
@@ -280,7 +258,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`ocrResultId`) REFERENCES `purchase_invoice_ocr_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """.trimIndent())
-                
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_ocr_pages_ocrResultId` ON `purchase_invoice_ocr_pages` (`ocrResultId`)")
             }
         }
@@ -306,7 +283,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`ocrResultId`) REFERENCES `purchase_invoice_ocr_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_purchaseReceiptId` ON `purchase_invoice_parse_results` (`purchaseReceiptId`)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_ocrResultId` ON `purchase_invoice_parse_results` (`ocrResultId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parse_results_sourceDocumentSha256` ON `purchase_invoice_parse_results` (`sourceDocumentSha256`)")
@@ -323,14 +299,12 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`parseResultId`) REFERENCES `purchase_invoice_parse_results`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_parsed_lines_parseResultId` ON `purchase_invoice_parsed_lines` (`parseResultId`)")
             }
         }
 
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Create supplier_item_mappings table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `supplier_item_mappings` (
                         `id` TEXT NOT NULL, 
@@ -355,7 +329,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`inventoryAreaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_restaurantId` ON `supplier_item_mappings` (`restaurantId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_supplierId` ON `supplier_item_mappings` (`supplierId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_ingredientId` ON `supplier_item_mappings` (`ingredientId`)")
@@ -363,7 +336,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_supplier_item_mappings_inventoryAreaId` ON `supplier_item_mappings` (`inventoryAreaId`)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_supplier_item_mappings_restaurantId_supplierId_keyType_normalizedKey` ON `supplier_item_mappings` (`restaurantId`, `supplierId`, `keyType`, `normalizedKey`)")
 
-                // Create purchase_invoice_line_matches table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `purchase_invoice_line_matches` (
                         `parseResultId` TEXT NOT NULL, 
@@ -386,7 +358,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`mappingId`) REFERENCES `supplier_item_mappings`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_parseResultId` ON `purchase_invoice_line_matches` (`parseResultId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_supplierId` ON `purchase_invoice_line_matches` (`supplierId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_matches_ingredientId` ON `purchase_invoice_line_matches` (`ingredientId`)")
@@ -411,7 +382,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`parseResultId`) REFERENCES `purchase_invoice_parse_results`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_draft_applications_purchaseReceiptId` ON `purchase_invoice_draft_applications` (`purchaseReceiptId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_draft_applications_parseResultId` ON `purchase_invoice_draft_applications` (`parseResultId`)")
 
@@ -427,7 +397,6 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                         FOREIGN KEY(`applicationId`) REFERENCES `purchase_invoice_draft_applications`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """.trimIndent())
-
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_purchaseLineId` ON `purchase_invoice_line_origins` (`purchaseLineId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_applicationId` ON `purchase_invoice_line_origins` (`applicationId`)")
             }

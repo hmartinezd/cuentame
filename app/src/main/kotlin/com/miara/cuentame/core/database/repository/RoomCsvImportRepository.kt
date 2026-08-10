@@ -14,6 +14,8 @@ import com.miara.cuentame.core.database.dao.IngredientCategoryDao
 import com.miara.cuentame.core.database.dao.IngredientCostProjectionDao
 import com.miara.cuentame.core.database.dao.IngredientDao
 import com.miara.cuentame.core.database.dao.IngredientUnitOptionDao
+import com.miara.cuentame.core.database.dao.InventoryAreaDao
+import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.SupplierDao
 import com.miara.cuentame.core.database.dao.SupplierItemMappingDao
 import com.miara.cuentame.core.database.dao.UnitDao
@@ -25,17 +27,13 @@ import com.miara.cuentame.core.database.entity.SupplierEntity
 import com.miara.cuentame.core.database.entity.SupplierItemMappingEntity
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.domain.repository.CsvImportRepository
+import com.miara.cuentame.core.domain.repository.ImportFailure
 import com.miara.cuentame.core.domain.repository.ImportResult
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
-import com.miara.cuentame.core.model.ingredient.Ingredient
-import com.miara.cuentame.core.model.ingredient.IngredientCategory
-import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
-import com.miara.cuentame.core.model.supplier.Supplier
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
 import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
 import com.miara.cuentame.feature.ingredient.import.domain.CsvImportRowStatus
 import java.math.BigDecimal
-import java.time.Instant
 import javax.inject.Inject
 
 class RoomCsvImportRepository @Inject constructor(
@@ -47,6 +45,8 @@ class RoomCsvImportRepository @Inject constructor(
     private val mappingDao: SupplierItemMappingDao,
     private val costDao: IngredientCostProjectionDao,
     private val unitDao: UnitDao,
+    private val restaurantDao: RestaurantDao,
+    private val areaDao: InventoryAreaDao,
     private val converter: StandardUnitConverter,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider
@@ -59,17 +59,92 @@ class RoomCsvImportRepository @Inject constructor(
         return try {
             database.withTransaction {
                 val now = timeProvider.now()
-                val includedRows = document.rows.filter { it.isIncluded && it.status != CsvImportRowStatus.ERROR && it.status != CsvImportRowStatus.SKIPPED }
+                val includedRows = document.rows.filter { it.isIncluded }
                 
                 if (includedRows.isEmpty()) {
-                    return@withTransaction ImportResult.Success(0, 0, 0, 0, document.rows.count { !it.isIncluded || it.status == CsvImportRowStatus.SKIPPED })
+                    return@withTransaction ImportResult.Success(0, 0, 0, 0, document.rows.size)
+                }
+
+                // Require every included row to be valid according to the plan
+                if (includedRows.any { it.status == CsvImportRowStatus.ERROR }) {
+                    return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
                 }
 
                 // 1. Re-validate critical state (TOCTOU)
-                val existingIngredients = ingredientDao.getActiveIngredients(restaurantId.value)
-                val includedNormalizedNames = includedRows.mapNotNull { it.normalizedData?.name?.normalizeName() }
-                if (existingIngredients.any { it.normalizedName in includedNormalizedNames }) {
-                    return@withTransaction ImportResult.StaleData
+                val restaurant = restaurantDao.getById(restaurantId.value)
+                if (restaurant == null || restaurant.deletedAt != null) {
+                    return@withTransaction ImportResult.Failure(ImportFailure.RestaurantUnavailable)
+                }
+
+                // Load all relevant state for re-validation in bulk
+                val existingIngredients = ingredientDao.getAllIngredients(restaurantId.value)
+                val allCategories = categoryDao.getAllCategoriesSync()
+                val activeAreas = areaDao.getActiveAreasSync(restaurantId.value)
+                val allSuppliers = supplierDao.getAllSuppliersSync(restaurantId.value)
+                val allMappings = mappingDao.getAllMappingsSync(restaurantId.value)
+                val systemUnits = unitDao.getAllSync()
+
+                val normIngMap = existingIngredients.associateBy { it.normalizedName }
+                val skuMap = existingIngredients.filter { it.sku != null }.associateBy { it.sku!!.trim().lowercase() }
+                val catMap = allCategories.associateBy { it.id }
+                val catNormMap = allCategories.associateBy { it.normalizedName }
+                val areaMap = activeAreas.associateBy { it.id }
+                val supMap = allSuppliers.associateBy { it.id }
+                val supNormMap = allSuppliers.associateBy { it.normalizedName }
+                val mapLookup = allMappings.associateBy { "${it.supplierId}|${it.normalizedKey}" }
+                val unitLookup = systemUnits.associateBy { it.id }
+
+                // Check for conflicts
+                for (row in includedRows) {
+                    val data = row.normalizedData ?: return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    
+                    // Name/SKU conflicts
+                    if (normIngMap.containsKey(data.name.normalizeName())) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
+                    if (data.sku != null && skuMap.containsKey(data.sku.trim().lowercase())) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
+
+                    // Unit validation
+                    val baseUnit = unitLookup[data.resolvedBaseUnitId?.value] ?: return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    if (!baseUnit.isSystem) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    
+                    if (data.resolvedCountUnitId != null) {
+                        val countUnit = unitLookup[data.resolvedCountUnitId.value] ?: return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                        if (countUnit.dimension != baseUnit.dimension) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
+
+                    // Category validation
+                    if (data.resolvedCategoryId != null) {
+                        val cat = catMap[data.resolvedCategoryId.value] ?: return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                        if (!cat.isActive || cat.deletedAt != null || cat.restaurantId != restaurantId.value) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    } else if (!data.categoryName.isNullOrBlank()) {
+                        if (catNormMap.containsKey(data.categoryName.normalizeName())) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
+
+                    // Supplier validation
+                    if (data.resolvedSupplierId != null) {
+                        val sup = supMap[data.resolvedSupplierId.value] ?: return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                        if (!sup.isActive || sup.deletedAt != null || sup.restaurantId != restaurantId.value) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    } else if (!data.supplierName.isNullOrBlank()) {
+                        if (supNormMap.containsKey(data.supplierName.normalizeName())) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
+
+                    // Mapping validation
+                    if (!data.vendorItemCode.isNullOrBlank()) {
+                        val supId = data.resolvedSupplierId?.value ?: data.supplierName?.let { supNormMap[it.normalizeName()]?.id }
+                        if (supId != null) {
+                            val mappingKey = "$supId|${data.vendorItemCode.normalizeName()}"
+                            if (mapLookup.containsKey(mappingKey)) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                        }
+                    }
+
+                    // Area validation
+                    if (data.resolvedDefaultAreaId != null) {
+                        val area = areaMap[data.resolvedDefaultAreaId.value] ?: return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                        if (area.restaurantId != restaurantId.value) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
+                    }
                 }
 
                 // 2. Resolve or Create Categories
@@ -80,27 +155,23 @@ class RoomCsvImportRepository @Inject constructor(
                     if (!catName.isNullOrBlank()) {
                         val norm = catName.normalizeName()
                         if (!categoryCache.containsKey(norm)) {
-                            val existing = categoryDao.findByNormalizedName(restaurantId.value, norm)
-                            if (existing != null) {
-                                categoryCache[norm] = IngredientCategoryId(existing.id)
-                            } else {
-                                val newId = IngredientCategoryId(idGenerator.newId())
-                                categoryDao.upsert(
-                                    IngredientCategoryEntity(
-                                        id = newId.value,
-                                        restaurantId = restaurantId.value,
-                                        name = catName,
-                                        normalizedName = norm,
-                                        sortOrder = 0,
-                                        isActive = true,
-                                        createdAt = now.toEpochMilli(),
-                                        updatedAt = now.toEpochMilli(),
-                                        deletedAt = null
-                                    )
+                            // Already checked in re-validation
+                            val newId = IngredientCategoryId(idGenerator.newId())
+                            categoryDao.upsert(
+                                IngredientCategoryEntity(
+                                    id = newId.value,
+                                    restaurantId = restaurantId.value,
+                                    name = catName,
+                                    normalizedName = norm,
+                                    sortOrder = 0,
+                                    isActive = true,
+                                    createdAt = now.toEpochMilli(),
+                                    updatedAt = now.toEpochMilli(),
+                                    deletedAt = null
                                 )
-                                categoryCache[norm] = newId
-                                categoriesCreated++
-                            }
+                            )
+                            categoryCache[norm] = newId
+                            categoriesCreated++
                         }
                     }
                 }
@@ -113,29 +184,25 @@ class RoomCsvImportRepository @Inject constructor(
                     if (!supName.isNullOrBlank()) {
                         val norm = supName.normalizeName()
                         if (!supplierCache.containsKey(norm)) {
-                            val existing = supplierDao.findByNormalizedName(restaurantId.value, norm)
-                            if (existing != null) {
-                                supplierCache[norm] = SupplierId(existing.id)
-                            } else {
-                                val newId = SupplierId(idGenerator.newId())
-                                supplierDao.insert(
-                                    SupplierEntity(
-                                        id = newId.value,
-                                        restaurantId = restaurantId.value,
-                                        name = supName,
-                                        normalizedName = norm,
-                                        phone = null,
-                                        email = null,
-                                        notes = null,
-                                        isActive = true,
-                                        createdAt = now.toEpochMilli(),
-                                        updatedAt = now.toEpochMilli(),
-                                        deletedAt = null
-                                    )
+                            // Already checked in re-validation
+                            val newId = SupplierId(idGenerator.newId())
+                            supplierDao.insert(
+                                SupplierEntity(
+                                    id = newId.value,
+                                    restaurantId = restaurantId.value,
+                                    name = supName,
+                                    normalizedName = norm,
+                                    phone = null,
+                                    email = null,
+                                    notes = null,
+                                    isActive = true,
+                                    createdAt = now.toEpochMilli(),
+                                    updatedAt = now.toEpochMilli(),
+                                    deletedAt = null
                                 )
-                                supplierCache[norm] = newId
-                                suppliersCreated++
-                            }
+                            )
+                            supplierCache[norm] = newId
+                            suppliersCreated++
                         }
                     }
                 }
@@ -145,9 +212,9 @@ class RoomCsvImportRepository @Inject constructor(
                 var mappingsCreated = 0
                 
                 includedRows.forEach { row ->
-                    val data = row.normalizedData ?: return@forEach
+                    val data = row.normalizedData!!
                     val ingredientId = IngredientId(idGenerator.newId())
-                    val baseUnitId = data.resolvedBaseUnitId ?: return@forEach
+                    val baseUnitId = data.resolvedBaseUnitId!!
                     
                     val ingredient = IngredientEntity(
                         id = ingredientId.value,
@@ -169,18 +236,23 @@ class RoomCsvImportRepository @Inject constructor(
                     ingredientsCreated++
 
                     // Base Option
-                    val baseUnit = unitDao.getById(baseUnitId.value)?.toDomain() ?: throw IllegalStateException("Base unit not found")
+                    val baseUnitEntity = unitDao.getById(baseUnitId.value) ?: throw IllegalStateException("Base unit not found")
+                    val baseUnitDomain = baseUnitEntity.toDomain()
                     val baseOptionId = IngredientUnitOptionId(idGenerator.newId())
+                    
+                    val isBaseDefaultCount = data.countUnitName == null || data.countUnitName.normalizeName() == baseUnitDomain.symbol.normalizeName() || data.countUnitName.normalizeName() == baseUnitDomain.name.normalizeName()
+                    val isBaseDefaultPurchase = data.purchasePackageName == null
+
                     val baseOption = IngredientUnitOptionEntity(
                         id = baseOptionId.value,
                         ingredientId = ingredientId.value,
-                        displayName = baseUnit.symbol,
-                        shortLabel = baseUnit.symbol,
-                        standardUnitId = baseUnit.id.value,
+                        displayName = baseUnitDomain.symbol,
+                        shortLabel = baseUnitDomain.symbol,
+                        standardUnitId = baseUnitDomain.id.value,
                         factorToBase = BigDecimal.ONE,
                         isBase = true,
-                        isDefaultCount = data.countUnitName == null || data.countUnitName.normalizeName() == baseUnit.symbol.normalizeName() || data.countUnitName.normalizeName() == baseUnit.name.normalizeName(),
-                        isDefaultPurchase = data.purchasePackageName == null,
+                        isDefaultCount = isBaseDefaultCount,
+                        isDefaultPurchase = isBaseDefaultPurchase,
                         isActive = true,
                         createdAt = now.toEpochMilli(),
                         updatedAt = now.toEpochMilli(),
@@ -188,20 +260,21 @@ class RoomCsvImportRepository @Inject constructor(
                     )
                     unitOptionDao.insert(baseOption)
 
-                    var currentDefaultPurchaseOptionId = if (baseOption.isDefaultPurchase) baseOption.id else null
+                    var currentDefaultPurchaseOptionId = if (isBaseDefaultPurchase) baseOption.id else null
 
                     // Count Option (if different from base)
                     if (data.resolvedCountUnitId != null && data.resolvedCountUnitId != baseUnitId) {
-                        val countUnit = unitDao.getById(data.resolvedCountUnitId.value)?.toDomain() ?: throw IllegalStateException("Count unit not found")
-                        val factor = converter.convert(BigDecimal.ONE, countUnit, baseUnit)
+                        val countUnitEntity = unitDao.getById(data.resolvedCountUnitId.value) ?: throw IllegalStateException("Count unit not found")
+                        val countUnitDomain = countUnitEntity.toDomain()
+                        val factor = converter.convert(BigDecimal.ONE, countUnitDomain, baseUnitDomain)
                         val countOptionId = IngredientUnitOptionId(idGenerator.newId())
                         unitOptionDao.insert(
                             IngredientUnitOptionEntity(
                                 id = countOptionId.value,
                                 ingredientId = ingredientId.value,
-                                displayName = countUnit.symbol,
-                                shortLabel = countUnit.symbol,
-                                standardUnitId = countUnit.id.value,
+                                displayName = countUnitDomain.symbol,
+                                shortLabel = countUnitDomain.symbol,
+                                standardUnitId = countUnitDomain.id.value,
                                 factorToBase = factor,
                                 isBase = false,
                                 isDefaultCount = true,
@@ -240,7 +313,8 @@ class RoomCsvImportRepository @Inject constructor(
                     // Supplier Mapping
                     val supplierId = data.resolvedSupplierId ?: data.supplierName?.let { supplierCache[it.normalizeName()] }
                     if (supplierId != null && !data.vendorItemCode.isNullOrBlank()) {
-                        mappingDao.insertMapping(
+                        // Already checked in re-validation that it doesn't exist
+                        mappingDao.insertMappingStrict(
                             SupplierItemMappingEntity(
                                 id = idGenerator.newId(),
                                 restaurantId = restaurantId.value,
@@ -283,7 +357,8 @@ class RoomCsvImportRepository @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            ImportResult.Failure(e.message ?: "Unknown error during import")
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            ImportResult.Failure(ImportFailure.Unknown(e.message))
         }
     }
 }

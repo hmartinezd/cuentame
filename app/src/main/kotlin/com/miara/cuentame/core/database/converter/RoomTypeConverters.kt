@@ -1,6 +1,8 @@
 package com.miara.cuentame.core.database.converter
 
 import androidx.room.TypeConverter
+import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -23,5 +25,25 @@ class RoomTypeConverters {
     @TypeConverter
     fun decimalToString(value: BigDecimal?): String? {
         return value?.toPlainString()
+    }
+
+    @TypeConverter
+    fun fromSupplierItemMappingKeyType(value: SupplierItemMappingKeyType?): String? {
+        return value?.name
+    }
+
+    @TypeConverter
+    fun toSupplierItemMappingKeyType(value: String?): SupplierItemMappingKeyType? {
+        return value?.let { SupplierItemMappingKeyType.valueOf(it) }
+    }
+
+    @TypeConverter
+    fun fromInvoiceLineMatchStatus(value: InvoiceLineMatchStatus?): String? {
+        return value?.name
+    }
+
+    @TypeConverter
+    fun toInvoiceLineMatchStatus(value: String?): InvoiceLineMatchStatus? {
+        return value?.let { InvoiceLineMatchStatus.valueOf(it) }
     }
 }

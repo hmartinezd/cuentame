@@ -20,10 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.miara.cuentame.R
+import com.miara.cuentame.core.domain.repository.ImportFailure
 import com.miara.cuentame.core.domain.repository.ImportResult
+import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
 import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportRow
 import com.miara.cuentame.feature.ingredient.import.domain.CsvImportIssueSeverity
 import com.miara.cuentame.feature.ingredient.import.domain.CsvImportRowStatus
@@ -70,7 +74,7 @@ fun CsvImportRoute(
     CsvImportScreen(
         uiState = uiState,
         onBack = onBack,
-        onChooseFile = { filePicker.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv")) },
+        onChooseFile = { filePicker.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "text/plain")) },
         onDownloadTemplate = { templatePicker.launch("cuentame_ingredient_template.csv") },
         onToggleSelection = viewModel::toggleRowSelection,
         onEditRow = { editingRow = it },
@@ -107,10 +111,10 @@ fun CsvImportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Import Ingredients") },
+                title = { Text(stringResource(R.string.import_csv)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -158,10 +162,10 @@ fun EmptyState(onChooseFile: () -> Unit, onDownloadTemplate: () -> Unit, error: 
     ) {
         Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Import your ingredients from a CSV file", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.import_csv_desc), style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = onChooseFile) {
-            Text("Choose File")
+            Text(stringResource(R.string.choose_csv))
         }
         if (error != null) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -172,14 +176,14 @@ fun EmptyState(onChooseFile: () -> Unit, onDownloadTemplate: () -> Unit, error: 
         OutlinedButton(onClick = onDownloadTemplate) {
             Icon(Icons.Default.FileDownload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Download Template")
+            Text(stringResource(R.string.download_template))
         }
     }
 }
 
 @Composable
 fun ImportPreviewContent(
-    document: com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument,
+    document: CsvIngredientImportDocument,
     isCommitting: Boolean,
     onToggleSelection: (Int) -> Unit,
     onEditRow: (CsvIngredientImportRow) -> Unit,
@@ -224,7 +228,7 @@ fun ImportPreviewContent(
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
                         val count = document.rows.count { it.isIncluded && it.status != CsvImportRowStatus.ERROR }
-                        Text("Confirm Import ($count rows)")
+                        Text(stringResource(R.string.import_confirm_button, count))
                     }
                 }
             }
@@ -234,7 +238,7 @@ fun ImportPreviewContent(
 
 @Composable
 fun ImportSummaryHeader(
-    document: com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument,
+    document: CsvIngredientImportDocument,
     selectedFilter: CsvImportRowFilter,
     onFilterSelected: (CsvImportRowFilter) -> Unit
 ) {
@@ -242,11 +246,11 @@ fun ImportSummaryHeader(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        SummaryItem("Total", document.rows.size.toString(), isSelected = selectedFilter == CsvImportRowFilter.ALL, onClick = { onFilterSelected(CsvImportRowFilter.ALL) })
-        SummaryItem("Ready", document.rows.count { it.status == CsvImportRowStatus.READY && it.isIncluded }.toString(), isSelected = selectedFilter == CsvImportRowFilter.READY, onClick = { onFilterSelected(CsvImportRowFilter.READY) })
-        SummaryItem("Warnings", document.rows.count { it.status == CsvImportRowStatus.WARNING && it.isIncluded }.toString(), color = MaterialTheme.colorScheme.tertiary, isSelected = selectedFilter == CsvImportRowFilter.WARNING, onClick = { onFilterSelected(CsvImportRowFilter.WARNING) })
-        SummaryItem("Errors", document.rows.count { it.status == CsvImportRowStatus.ERROR && it.isIncluded }.toString(), color = MaterialTheme.colorScheme.error, isSelected = selectedFilter == CsvImportRowFilter.ERROR, onClick = { onFilterSelected(CsvImportRowFilter.ERROR) })
-        SummaryItem("Skipped", document.rows.count { !it.isIncluded }.toString(), isSelected = selectedFilter == CsvImportRowFilter.SKIPPED, onClick = { onFilterSelected(CsvImportRowFilter.SKIPPED) })
+        SummaryItem(stringResource(R.string.import_summary_total), document.rows.size.toString(), isSelected = selectedFilter == CsvImportRowFilter.ALL, onClick = { onFilterSelected(CsvImportRowFilter.ALL) })
+        SummaryItem(stringResource(R.string.import_summary_ready), document.rows.count { it.status == CsvImportRowStatus.READY && it.isIncluded }.toString(), isSelected = selectedFilter == CsvImportRowFilter.READY, onClick = { onFilterSelected(CsvImportRowFilter.READY) })
+        SummaryItem(stringResource(R.string.import_summary_warnings), document.rows.count { it.status == CsvImportRowStatus.WARNING && it.isIncluded }.toString(), color = MaterialTheme.colorScheme.tertiary, isSelected = selectedFilter == CsvImportRowFilter.WARNING, onClick = { onFilterSelected(CsvImportRowFilter.WARNING) })
+        SummaryItem(stringResource(R.string.import_summary_errors), document.rows.count { it.status == CsvImportRowStatus.ERROR && it.isIncluded }.toString(), color = MaterialTheme.colorScheme.error, isSelected = selectedFilter == CsvImportRowFilter.ERROR, onClick = { onFilterSelected(CsvImportRowFilter.ERROR) })
+        SummaryItem(stringResource(R.string.import_summary_skipped), document.rows.count { !it.isIncluded }.toString(), isSelected = selectedFilter == CsvImportRowFilter.SKIPPED, onClick = { onFilterSelected(CsvImportRowFilter.SKIPPED) })
     }
 }
 
@@ -283,11 +287,11 @@ fun ImportRowItem(
         Checkbox(
             checked = row.isIncluded,
             onCheckedChange = { onToggleSelection() },
-            enabled = row.status != CsvImportRowStatus.ERROR
+            enabled = true
         )
         Column(modifier = Modifier.weight(1f).clickable(onClick = onClick)) {
-            Text(row.normalizedData?.name ?: row.rawData["ingredient_name"] ?: "Unknown", style = MaterialTheme.typography.bodyLarge)
-            Text("Row ${row.rowNumber} • ${row.normalizedData?.categoryName ?: "No category"}", style = MaterialTheme.typography.bodySmall)
+            Text(row.normalizedData?.name ?: row.rawData["ingredient_name"] ?: stringResource(R.string.import_unknown), style = MaterialTheme.typography.bodyLarge)
+            Text("${stringResource(R.string.import_row)} ${row.rowNumber} • ${row.normalizedData?.categoryName ?: stringResource(R.string.import_no_category)}", style = MaterialTheme.typography.bodySmall)
             
             if (row.issues.isNotEmpty()) {
                 val firstIssue = row.issues.first()
@@ -308,7 +312,7 @@ fun ImportRowItem(
             }
         }
         TextButton(onClick = onClick) {
-            Text("Edit")
+            Text(stringResource(R.string.action_edit))
         }
     }
 }
@@ -328,40 +332,38 @@ fun ImportResultContent(
             is ImportResult.Success -> {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Import Complete", style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.import_complete), style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("${result.ingredientsCreated} ingredients created")
-                Text("${result.categoriesCreated} categories created")
-                Text("${result.suppliersCreated} suppliers created")
-                Text("${result.mappingsCreated} vendor mappings created")
+                Text(stringResource(R.string.import_ingredients_created, result.ingredientsCreated))
+                Text(stringResource(R.string.import_categories_created, result.categoriesCreated))
+                Text(stringResource(R.string.import_suppliers_created, result.suppliersCreated))
+                Text(stringResource(R.string.import_mappings_created, result.mappingsCreated))
                 if (result.rowsSkipped > 0) {
-                    Text("${result.rowsSkipped} rows skipped")
+                    Text(stringResource(R.string.import_rows_skipped, result.rowsSkipped))
                 }
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                    Text("View Ingredients")
+                    Text(stringResource(R.string.import_view_ingredients))
                 }
             }
             is ImportResult.Failure -> {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Import Failed", style = MaterialTheme.typography.headlineSmall)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(result.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(32.dp))
-                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Retry")
+                val errorMessage = when (result.failure) {
+                    ImportFailure.InvalidPlan -> stringResource(R.string.import_error_invalid_plan)
+                    ImportFailure.StateChanged -> stringResource(R.string.import_stale_desc)
+                    ImportFailure.RestaurantUnavailable -> stringResource(R.string.import_error_restaurant_unavailable)
+                    ImportFailure.PersistenceFailure -> stringResource(R.string.import_error_persistence)
+                    ImportFailure.FileReadFailure -> stringResource(R.string.import_error_file_read)
+                    is ImportFailure.Unknown -> stringResource(R.string.import_error_unknown, result.failure.message ?: "")
                 }
-            }
-            ImportResult.StaleData -> {
+                
                 Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(64.dp))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Data Stale", style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.import_failed), style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("The database has changed since you previewed the import. Please refresh and try again.", style = MaterialTheme.typography.bodyMedium)
+                Text(errorMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Refresh Preview")
+                    Text(stringResource(R.string.import_retry))
                 }
             }
         }
@@ -379,69 +381,69 @@ fun ImportRowEditDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Row ${row.rowNumber}") },
+        title = { Text(stringResource(R.string.import_edit_row_title, row.rowNumber)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ImportEditField(
-                    label = "Ingredient Name",
+                    label = stringResource(R.string.import_field_ingredient_name),
                     value = rawData[CsvParser.HEADER_INGREDIENT_NAME] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_INGREDIENT_NAME to it) }
                 )
                 ImportEditField(
-                    label = "SKU",
+                    label = stringResource(R.string.import_field_sku),
                     value = rawData[CsvParser.HEADER_SKU] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_SKU to it) }
                 )
                 ImportEditField(
-                    label = "Category",
+                    label = stringResource(R.string.import_field_category),
                     value = rawData[CsvParser.HEADER_CATEGORY] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_CATEGORY to it) }
                 )
                 ImportEditField(
-                    label = "Base Unit",
+                    label = stringResource(R.string.import_field_base_unit),
                     value = rawData[CsvParser.HEADER_BASE_UNIT] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_BASE_UNIT to it) }
                 )
                 ImportEditField(
-                    label = "Count Unit",
+                    label = stringResource(R.string.import_field_count_unit),
                     value = rawData[CsvParser.HEADER_COUNT_UNIT] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_COUNT_UNIT to it) }
                 )
                 ImportEditField(
-                    label = "Purchase Package",
+                    label = stringResource(R.string.import_field_purchase_package),
                     value = rawData[CsvParser.HEADER_PURCHASE_PACKAGE] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_PURCHASE_PACKAGE to it) }
                 )
                 ImportEditField(
-                    label = "Package Conversion Factor",
+                    label = stringResource(R.string.import_field_package_conversion),
                     value = rawData[CsvParser.HEADER_PACKAGE_CONVERSION] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_PACKAGE_CONVERSION to it) }
                 )
                 ImportEditField(
-                    label = "Default Area",
+                    label = stringResource(R.string.import_field_default_area),
                     value = rawData[CsvParser.HEADER_DEFAULT_AREA] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_DEFAULT_AREA to it) }
                 )
                 ImportEditField(
-                    label = "Supplier",
+                    label = stringResource(R.string.import_field_supplier),
                     value = rawData[CsvParser.HEADER_SUPPLIER] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_SUPPLIER to it) }
                 )
                 ImportEditField(
-                    label = "Vendor Item Code",
+                    label = stringResource(R.string.import_field_vendor_code),
                     value = rawData[CsvParser.HEADER_VENDOR_CODE] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_VENDOR_CODE to it) }
                 )
                 ImportEditField(
-                    label = "Current Cost",
+                    label = stringResource(R.string.import_field_current_cost),
                     value = rawData[CsvParser.HEADER_CURRENT_COST] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_CURRENT_COST to it) }
                 )
                 ImportEditField(
-                    label = "Reorder Point",
+                    label = stringResource(R.string.import_field_reorder_point),
                     value = rawData[CsvParser.HEADER_REORDER_POINT] ?: "",
                     onValueChange = { rawData = rawData + (CsvParser.HEADER_REORDER_POINT to it) }
                 )
@@ -449,12 +451,12 @@ fun ImportRowEditDialog(
         },
         confirmButton = {
             Button(onClick = { onSave(row.copy(rawData = rawData)) }) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

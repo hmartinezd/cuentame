@@ -1,0 +1,117 @@
+package com.miara.cuentame.feature.ingredient.import.ui
+
+import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.domain.repository.CsvImportRepository
+import com.miara.cuentame.core.domain.repository.ImportResult
+import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
+import com.miara.cuentame.feature.ingredient.import.domain.CsvImportService
+import com.miara.cuentame.feature.ingredient.import.domain.CsvParser
+import com.miara.cuentame.feature.ingredient.import.domain.CsvTemplateGenerator
+import com.miara.cuentame.feature.ingredient.import.domain.CsvImportRowStatus
+import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportRow
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import java.io.ByteArrayInputStream
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class CsvImportViewModelTest {
+    private val csvParser = mockk<CsvParser>()
+    private val importService = mockk<CsvImportService>()
+    private val importRepository = mockk<CsvImportRepository>()
+    private val restaurantRepository = mockk<RestaurantRepository>()
+    private val templateGenerator = mockk<CsvTemplateGenerator>()
+    
+    private lateinit var viewModel: CsvImportViewModel
+    private val testDispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        viewModel = CsvImportViewModel(
+            csvParser,
+            importService,
+            importRepository,
+            restaurantRepository,
+            templateGenerator
+        )
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `initial state is empty`() {
+        val state = viewModel.uiState.value
+        assertThat(state.document == null).isTrue()
+        assertThat(state.isParsing).isFalse()
+        assertThat(state.isCommitting).isFalse()
+    }
+
+    @Test
+    fun `loadCsv success updates state`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        
+        val rows = listOf(mapOf("name" to "Tomato"))
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(rows)
+        
+        val doc = CsvIngredientImportDocument(emptyList())
+        coEvery { importService.processCsv(any(), any()) } returns doc
+        
+        viewModel.loadCsv(ByteArrayInputStream("".toByteArray()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        val state = viewModel.uiState.value
+        assertThat(state.document == doc).isTrue()
+        assertThat(state.isParsing).isFalse()
+    }
+
+    @Test
+    fun `confirmImport single-flight guard`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        
+        val doc = CsvIngredientImportDocument(listOf(
+            CsvIngredientImportRow(1, emptyMap(), null, emptyList(), CsvImportRowStatus.READY, true)
+        ))
+        
+        // Use manual update to set document
+        viewModel.loadCsv(ByteArrayInputStream("".toByteArray())) // trigger load
+        // But we need a document in state. We'll mock the parser/service
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        coEvery { importService.processCsv(any(), any()) } returns doc
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coEvery { importRepository.commitImport(any(), any()) } coAnswers {
+            kotlinx.coroutines.delay(1000)
+            ImportResult.Success(1, 0, 0, 0, 0)
+        }
+
+        viewModel.confirmImport()
+        viewModel.confirmImport() // Second call should be ignored
+        
+        assertThat(viewModel.uiState.value.isCommitting).isTrue()
+        
+        testDispatcher.scheduler.advanceTimeBy(2000)
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        assertThat(viewModel.uiState.value.isCommitting).isFalse()
+        // Repository should be called only once
+        io.mockk.coVerify(exactly = 1) { importRepository.commitImport(any(), any()) }
+    }
+}

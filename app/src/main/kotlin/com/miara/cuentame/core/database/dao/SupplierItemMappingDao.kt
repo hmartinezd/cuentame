@@ -25,6 +25,12 @@ interface SupplierItemMappingDao {
     @Query("SELECT * FROM supplier_item_mappings WHERE id = :id")
     suspend fun getMappingById(id: String): SupplierItemMappingEntity?
 
+    @Query("SELECT * FROM supplier_item_mappings WHERE restaurantId = :restaurantId")
+    suspend fun getAllMappingsSync(restaurantId: String): List<SupplierItemMappingEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertMappingStrict(mapping: SupplierItemMappingEntity)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMapping(mapping: SupplierItemMappingEntity)
 

@@ -56,6 +56,7 @@ object DatabaseModule {
             RestaurantInventoryDatabase.MIGRATION_4_5,
             RestaurantInventoryDatabase.MIGRATION_5_6,
             RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10
         )

@@ -19,6 +19,14 @@ sealed class ImportResult {
         val rowsSkipped: Int
     ) : ImportResult()
     
-    data class Failure(val message: String) : ImportResult()
-    object StaleData : ImportResult()
+    data class Failure(val failure: ImportFailure) : ImportResult()
+}
+
+sealed interface ImportFailure {
+    data object InvalidPlan : ImportFailure
+    data object StateChanged : ImportFailure
+    data object RestaurantUnavailable : ImportFailure
+    data object PersistenceFailure : ImportFailure
+    data object FileReadFailure : ImportFailure
+    data class Unknown(val message: String?) : ImportFailure
 }

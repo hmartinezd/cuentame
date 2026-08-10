@@ -38,6 +38,8 @@ interface SupplierItemMappingRepository {
         supplierId: SupplierId
     ): List<SupplierItemMapping>
 
+    suspend fun getAllMappings(restaurantId: RestaurantId): List<SupplierItemMapping>
+
     /**
      * Attempts to learn a mapping from a confirmed line match.
      * @param force If true, overwrites any existing mapping without reporting a conflict.

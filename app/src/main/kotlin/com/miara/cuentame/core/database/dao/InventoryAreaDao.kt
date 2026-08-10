@@ -17,6 +17,9 @@ interface InventoryAreaDao {
     @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId AND deletedAt IS NULL ORDER BY sortOrder")
     fun observeAllAreas(restaurantId: String): Flow<List<InventoryAreaEntity>>
 
+    @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId AND isActive = 1 AND deletedAt IS NULL ORDER BY sortOrder")
+    suspend fun getActiveAreasSync(restaurantId: String): List<InventoryAreaEntity>
+
     @Query("SELECT * FROM inventory_areas WHERE id = :id")
     suspend fun getById(id: String): InventoryAreaEntity?
 

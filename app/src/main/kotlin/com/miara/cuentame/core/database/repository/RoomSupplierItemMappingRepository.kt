@@ -54,8 +54,11 @@ class RoomSupplierItemMappingRepository @Inject constructor(
         restaurantId: RestaurantId,
         supplierId: SupplierId
     ): List<SupplierItemMapping> {
-        // I need to add this query to mappingDao
         return mappingDao.getMappingsForSupplierSync(restaurantId.value, supplierId.value).map { it.toDomain() }
+    }
+
+    override suspend fun getAllMappings(restaurantId: RestaurantId): List<SupplierItemMapping> {
+        return mappingDao.getAllMappingsSync(restaurantId.value).map { it.toDomain() }
     }
 
     override suspend fun learnMapping(

@@ -188,7 +188,6 @@ interface RestoreDao {
         deleteAllStockCounts()
         deleteAllPurchaseLines()
         deleteAllPurchaseInvoiceOcrPages()
-        deleteAllPurchaseInvoiceLineMatches()
         deleteAllPurchaseInvoiceParsedLines()
         deleteAllPurchaseInvoiceLineMatches()
         deleteAllPurchaseInvoiceLineOrigins()

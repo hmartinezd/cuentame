@@ -12,6 +12,9 @@ interface UnitDao {
     @Query("SELECT * FROM units ORDER BY sortOrder")
     fun observeAll(): Flow<List<UnitEntity>>
 
+    @Query("SELECT * FROM units ORDER BY sortOrder")
+    suspend fun getAllSync(): List<UnitEntity>
+
     @Query("SELECT * FROM units WHERE dimension = :dimension ORDER BY sortOrder")
     fun observeByDimension(dimension: String): Flow<List<UnitEntity>>
 
