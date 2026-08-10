@@ -23,6 +23,8 @@ object AppRoutes {
     fun ingredientCreate(prefillName: String? = null): String =
         "inventory/create" + (prefillName?.let { "?prefillName=${encoder.encode(it)}" } ?: "")
 
+    fun ingredientImport(): String = "inventory/import"
+
     fun ingredientEdit(id: IngredientId): String =
         "inventory/${encoder.encode(id.value)}/edit"
 

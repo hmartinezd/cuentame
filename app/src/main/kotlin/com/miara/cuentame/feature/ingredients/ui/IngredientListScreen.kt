@@ -4,13 +4,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SoupKitchen
@@ -28,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -54,6 +60,7 @@ import com.miara.cuentame.feature.ingredients.viewmodel.IngredientListViewModel
 @Composable
 fun IngredientListRoute(
     onAddIngredient: () -> Unit,
+    onImportCsv: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
     onManagePreparations: () -> Unit,
     viewModel: IngredientListViewModel = hiltViewModel()
@@ -66,6 +73,7 @@ fun IngredientListRoute(
         onCategoryFilterChanged = viewModel::onCategoryFilterChanged,
         onShowArchivedToggled = viewModel::onShowArchivedToggled,
         onAddIngredient = onAddIngredient,
+        onImportCsv = onImportCsv,
         onIngredientClick = onIngredientClick,
         onManagePreparations = onManagePreparations
     )
@@ -79,6 +87,7 @@ fun IngredientListScreen(
     onCategoryFilterChanged: (IngredientCategoryFilter) -> Unit,
     onShowArchivedToggled: (Boolean) -> Unit,
     onAddIngredient: () -> Unit,
+    onImportCsv: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
     onManagePreparations: () -> Unit
 ) {
@@ -105,7 +114,8 @@ fun IngredientListScreen(
                 currentFilter = uiState.categoryFilter,
                 onFilterChange = onCategoryFilterChanged,
                 showArchived = uiState.showArchived,
-                onShowArchivedToggle = onShowArchivedToggled
+                onShowArchivedToggle = onShowArchivedToggled,
+                onImportCsv = onImportCsv
             )
 
             ElevatedCard(
@@ -155,7 +165,8 @@ fun SearchAndFilterBar(
     currentFilter: IngredientCategoryFilter,
     onFilterChange: (IngredientCategoryFilter) -> Unit,
     showArchived: Boolean,
-    onShowArchivedToggle: (Boolean) -> Unit
+    onShowArchivedToggle: (Boolean) -> Unit,
+    onImportCsv: () -> Unit
 ) {
     var filterMenuExpanded by remember { mutableStateOf(false) }
 
@@ -229,6 +240,14 @@ fun SearchAndFilterBar(
                 checked = showArchived,
                 onCheckedChange = onShowArchivedToggle
             )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            TextButton(onClick = onImportCsv) {
+                Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.import_csv))
+            }
         }
     }
 }

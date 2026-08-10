@@ -23,6 +23,7 @@ turbine = "1.1.0"
 truth = "1.4.2"
 mockk = "1.13.13"
 mlKitDocumentScanner = "16.0.0"
+kotlin-csv = "1.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -87,6 +88,7 @@ mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 mockkAndroid = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 google-mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlKitDocumentScanner" }
 google-mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version = "16.0.1" }
+kotlin-csv = { group = "com.github.doyaaaaaken", name = "kotlin-csv-jvm", version.ref = "kotlin-csv" }
 # Gradle Plugins
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
 kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
