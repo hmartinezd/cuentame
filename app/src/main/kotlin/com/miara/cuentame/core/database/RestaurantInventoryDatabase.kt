@@ -432,5 +432,11 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_applicationId` ON `purchase_invoice_line_origins` (`applicationId`)")
             }
         }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_applicationId_sourceLineIndex` ON `purchase_invoice_line_origins` (`applicationId`, `sourceLineIndex`)")
+            }
+        }
     }
 }

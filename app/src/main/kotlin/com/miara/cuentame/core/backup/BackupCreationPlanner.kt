@@ -334,6 +334,12 @@ class BackupCreationPlanner @Inject constructor(
             tables["purchase_invoice_line_matches"] = TableMetadata(dto.purchaseInvoiceLineMatches.size, false)
         }
 
+        // Add Materialization tables for schema 9+
+        if (appVersionProvider.databaseSchemaVersion >= 9) {
+            tables["purchase_invoice_draft_applications"] = TableMetadata(dto.purchaseInvoiceDraftApplications.size, false)
+            tables["purchase_invoice_line_origins"] = TableMetadata(dto.purchaseInvoiceLineOrigins.size, false)
+        }
+
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 }

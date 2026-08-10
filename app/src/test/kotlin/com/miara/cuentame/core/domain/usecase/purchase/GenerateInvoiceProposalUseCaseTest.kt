@@ -2,11 +2,13 @@ package com.miara.cuentame.core.domain.usecase.purchase
 
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.domain.service.PurchaseInvoiceFingerprinter
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryArea
+import com.miara.cuentame.core.model.inventory.UnitOfMeasure
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
@@ -19,6 +21,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -32,7 +35,9 @@ class GenerateInvoiceProposalUseCaseTest {
     private val ingredientRepository = mockk<IngredientRepository>()
     private val supplierRepository = mockk<SupplierRepository>()
     private val areaRepository = mockk<InventoryAreaRepository>()
+    private val unitRepository = mockk<UnitRepository>()
     private val lineCalculator = PurchaseLineCalculator()
+    private val fingerprinter = mockk<PurchaseInvoiceFingerprinter>()
     
     private lateinit var useCase: GenerateInvoiceProposalUseCase
 
@@ -41,6 +46,7 @@ class GenerateInvoiceProposalUseCaseTest {
     private val ingredientId = IngredientId("i1")
     private val unitOptionId = IngredientUnitOptionId("u1")
     private val areaId = InventoryAreaId("a1")
+    private val baseUnitId = UnitId("u_base")
 
     @Before
     fun setup() {
@@ -49,93 +55,35 @@ class GenerateInvoiceProposalUseCaseTest {
             ingredientRepository,
             supplierRepository,
             areaRepository,
-            lineCalculator
+            unitRepository,
+            lineCalculator,
+            fingerprinter
         )
+        
+        every { fingerprinter.fingerprint(any(), any(), any(), any(), any()) } returns "test-fingerprint"
     }
 
     @Test
     fun `successful proposal generation`() = runBlocking {
         // Arrange
-        val receipt = PurchaseReceipt(
-            id = receiptId,
-            restaurantId = restaurantId,
-            purchaseDate = Instant.now(),
-            status = DocumentStatus.DRAFT,
-            attachmentPath = "path/to/invoice.pdf",
-            createdAt = Instant.now(),
-            updatedAt = Instant.now()
-        )
-        val parseResult = PurchaseInvoiceParseResult(
-            id = "p1",
-            supplierNameCandidate = ParsedField("Sysco", "Sysco", 0.9f),
-            invoiceNumber = ParsedField("INV123", "INV123", 0.9f),
-            invoiceDate = ParsedField("2023-01-01", LocalDate.of(2023, 1, 1), 0.9f),
-            currency = ParsedField("USD", "USD", 1.0f),
-            subtotal = ParsedField("100", BigDecimal("100"), 0.9f),
-            discount = ParsedField(null, null, null),
-            fees = ParsedField(null, null, null),
-            tax = ParsedField(null, null, null),
-            total = ParsedField("100", BigDecimal("100"), 0.9f),
-            lines = listOf(
-                ParsedInvoiceLineCandidate(
-                    index = 0,
-                    vendorCode = ParsedField("V1", "V1", 0.9f),
-                    description = ParsedField("Tomato", "Tomato", 0.9f),
-                    quantity = ParsedField("2", BigDecimal("2"), 0.9f),
-                    packageText = ParsedField("CS", "CS", 0.9f),
-                    unitPrice = ParsedField("10", BigDecimal("10"), 0.9f),
-                    lineTotal = ParsedField("20", BigDecimal("20"), 0.9f),
-                    confidence = 0.9f
-                )
-            ),
-            confidence = 0.9f
-        )
-        val ocrResult = PurchaseInvoiceOcrResult(
-            id = "o1",
-            purchaseReceiptId = receiptId,
-            sourceDocumentSha256 = "sha256",
-            sourceMimeType = "application/pdf",
-            engine = "test",
-            evidenceSchemaVersion = 1,
-            pageCount = 1,
-            fullText = "",
-            processedAt = Instant.now()
-        )
-        val matches = listOf(
-            PurchaseInvoiceLineMatch(
-                parseResultId = "p1",
-                lineIndex = 0,
-                status = InvoiceLineMatchStatus.CONFIRMED,
-                supplierId = SupplierId("s1"),
-                ingredientId = ingredientId,
-                unitOptionId = unitOptionId,
-                inventoryAreaId = areaId,
-                mappingId = null,
-                matchMethod = "manual",
-                matchConfidence = 1.0f,
-                confirmedAt = Instant.now()
-            )
-        )
+        val receipt = createReceipt(DocumentStatus.DRAFT, supplierId = SupplierId("s1"))
+        val parseResult = createParseResult()
+        val ocrResult = createOcrResult()
+        val matches = listOf(createMatch())
 
         coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
         every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(parseResult)
         every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(ocrResult)
         every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(matches)
         
-        coEvery { ingredientRepository.getById(ingredientId) } returns Ingredient(
-            id = ingredientId, 
-            restaurantId = restaurantId, 
-            name = "Tomato", 
-            normalizedName = "tomato", 
-            categoryId = null, 
-            baseUnitId = UnitId("u_base"), 
-            defaultAreaId = areaId, 
-            isActive = true, 
-            createdAt = Instant.now(), 
-            updatedAt = Instant.now()
-        )
-        coEvery { ingredientRepository.getUnitOption(unitOptionId) } returns IngredientUnitOption(unitOptionId, ingredientId, "Case", "CS", null, BigDecimal("1"), false, false, false, true, Instant.now(), Instant.now())
-        coEvery { areaRepository.getById(areaId) } returns InventoryArea(areaId, restaurantId, "Walk-In", "walk-in", 0, true, Instant.now(), Instant.now())
+        coEvery { supplierRepository.getSupplier(SupplierId("s1")) } returns mockk {
+            every { id } returns SupplierId("s1")
+            every { name } returns "Sysco"
+        }
+        coEvery { ingredientRepository.getById(ingredientId) } returns createIngredient()
+        coEvery { ingredientRepository.getUnitOption(unitOptionId) } returns createUnitOption()
+        coEvery { areaRepository.getById(areaId) } returns createArea()
+        coEvery { unitRepository.getById(baseUnitId) } returns UnitOfMeasure(baseUnitId, "Each", "ea", com.miara.cuentame.core.model.inventory.UnitDimension.COUNT, BigDecimal.ONE, true, 0)
 
         // Act
         val proposal = useCase.execute(receiptId)
@@ -144,6 +92,7 @@ class GenerateInvoiceProposalUseCaseTest {
         assert(proposal != null)
         assertEquals(receiptId, proposal!!.purchaseReceiptId)
         assertEquals("p1", proposal.parseResultId)
+        assertEquals("test-fingerprint", proposal.sourceStateFingerprint)
         assertEquals(1, proposal.lines.size)
         assertEquals(BigDecimal("2"), proposal.lines[0].quantityEntered)
         assertEquals(BigDecimal("20"), proposal.lines[0].lineTotal)
@@ -151,46 +100,181 @@ class GenerateInvoiceProposalUseCaseTest {
     }
 
     @Test
+    fun `blocks when status is not DRAFT`() = runBlocking {
+        val receipt = createReceipt(DocumentStatus.POSTED)
+        coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
+        every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(createParseResult())
+        every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(createOcrResult())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList())
+
+        val proposal = useCase.execute(receiptId)
+
+        assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.PurchaseAlreadyPosted))
+    }
+
+    @Test
+    fun `blocks when attachment is missing`() = runBlocking {
+        val receipt = createReceipt(DocumentStatus.DRAFT, attachmentPath = null)
+        coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
+        every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(createParseResult())
+        every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(createOcrResult())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList())
+
+        val proposal = useCase.execute(receiptId)
+
+        assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.DocumentChanged))
+    }
+
+    @Test
+    fun `blocks when supplier is missing`() = runBlocking {
+        val receipt = createReceipt(DocumentStatus.DRAFT, supplierId = null)
+        coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
+        every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(createParseResult())
+        every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(createOcrResult())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList())
+
+        val proposal = useCase.execute(receiptId)
+
+        assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.MissingSupplier))
+    }
+
+    @Test
     fun `blocks when lines are unresolved`() = runBlocking {
-        // Arrange
-        val receipt = PurchaseReceipt(
-            id = receiptId,
-            restaurantId = restaurantId,
-            purchaseDate = Instant.now(),
-            status = DocumentStatus.DRAFT,
-            attachmentPath = "path",
-            createdAt = Instant.now(),
-            updatedAt = Instant.now()
-        )
-        val parseResult = PurchaseInvoiceParseResult(
-            id = "p1",
-            supplierNameCandidate = ParsedField(null, null, null),
-            invoiceNumber = ParsedField(null, null, null),
-            invoiceDate = ParsedField(null, null, null),
-            currency = ParsedField(null, null, null),
-            subtotal = ParsedField(null, null, null),
-            discount = ParsedField(null, null, null),
-            fees = ParsedField(null, null, null),
-            tax = ParsedField(null, null, null),
-            total = ParsedField(null, null, null),
-            lines = listOf(
-                ParsedInvoiceLineCandidate(0, ParsedField(null, null, null), ParsedField("Tomato", null, null), ParsedField(null, null, null), ParsedField(null, null, null), ParsedField(null, null, null), ParsedField(null, null, null), null)
-            ),
-            confidence = null
-        )
-        val ocrResult = mockk<PurchaseInvoiceOcrResult> {
-            every { sourceDocumentSha256 } returns "sha"
-        }
+        val receipt = createReceipt(DocumentStatus.DRAFT)
+        val parseResult = createParseResult(lines = listOf(createParsedLine(index = 0)))
+        
+        coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
+        every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(parseResult)
+        every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(createOcrResult())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList()) // No matches
+
+        val proposal = useCase.execute(receiptId)
+
+        assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.UnresolvedLines))
+        assertEquals(MaterializationBlockingIssue.UnresolvedLines, proposal.lines[0].blockingReason)
+    }
+
+    @Test
+    fun `no silent line drops - all active lines are included`() = runBlocking {
+        val receipt = createReceipt(DocumentStatus.DRAFT)
+        val parseResult = createParseResult(lines = listOf(
+            createParsedLine(index = 0, isIgnored = false),
+            createParsedLine(index = 1, isIgnored = true),
+            createParsedLine(index = 2, isIgnored = false)
+        ))
+
+        coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
+        every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(parseResult)
+        every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(createOcrResult())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList())
+
+        val proposal = useCase.execute(receiptId)
+
+        assertEquals(2, proposal!!.lines.size)
+        assertEquals(0, proposal.lines[0].lineIndex)
+        assertEquals(2, proposal.lines[1].lineIndex)
+    }
+
+    @Test
+    fun `fingerprinter determinism is reflected in proposal`() = runBlocking {
+        val receipt = createReceipt(DocumentStatus.DRAFT)
+        val parseResult = createParseResult()
+        val ocrResult = createOcrResult()
+        val matches = emptyList<PurchaseInvoiceLineMatch>()
 
         coEvery { purchaseRepository.getReceipt(receiptId) } returns receipt
         every { purchaseRepository.observeParseResult(receiptId) } returns flowOf(parseResult)
         every { purchaseRepository.observeOcrResult(receiptId) } returns flowOf(ocrResult)
-        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(emptyList())
+        every { purchaseRepository.observeLineMatchesForReceipt(receiptId) } returns flowOf(matches)
 
-        // Act
+        every { fingerprinter.fingerprint(receiptId, any(), "sha256", parseResult, matches) } returns "specific-hash"
+
         val proposal = useCase.execute(receiptId)
 
-        // Assert
-        assertTrue(proposal!!.blockingIssues.contains(MaterializationBlockingIssue.UnresolvedLines))
+        assertEquals("specific-hash", proposal!!.sourceStateFingerprint)
     }
+
+    private fun createReceipt(
+        status: DocumentStatus, 
+        supplierId: SupplierId? = null,
+        attachmentPath: String? = "path"
+    ) = PurchaseReceipt(
+        id = receiptId,
+        restaurantId = restaurantId,
+        supplierId = supplierId,
+        purchaseDate = Instant.now(),
+        status = status,
+        attachmentPath = attachmentPath,
+        createdAt = Instant.now(),
+        updatedAt = Instant.now()
+    )
+
+    private fun createParseResult(lines: List<ParsedInvoiceLineCandidate> = listOf(createParsedLine())) = PurchaseInvoiceParseResult(
+        id = "p1",
+        supplierNameCandidate = ParsedField("Sysco", "Sysco", 0.9f),
+        invoiceNumber = ParsedField("INV123", "INV123", 0.9f),
+        invoiceDate = ParsedField("2023-01-01", LocalDate.of(2023, 1, 1), 0.9f),
+        currency = ParsedField("USD", "USD", 1.0f),
+        subtotal = ParsedField("100", BigDecimal("100"), 0.9f),
+        discount = ParsedField(null, null, null),
+        fees = ParsedField(null, null, null),
+        tax = ParsedField(null, null, null),
+        total = ParsedField("100", BigDecimal("100"), 0.9f),
+        lines = lines,
+        confidence = 0.9f
+    )
+
+    private fun createParsedLine(index: Int = 0, isIgnored: Boolean = false) = ParsedInvoiceLineCandidate(
+        index = index,
+        vendorCode = ParsedField("V1", "V1", 0.9f),
+        description = ParsedField("Tomato", "Tomato", 0.9f),
+        quantity = ParsedField("2", BigDecimal("2"), 0.9f),
+        packageText = ParsedField("CS", "CS", 0.9f),
+        unitPrice = ParsedField("10", BigDecimal("10"), 0.9f),
+        lineTotal = ParsedField("20", BigDecimal("20"), 0.9f),
+        isIgnored = isIgnored,
+        confidence = 0.9f
+    )
+
+    private fun createOcrResult() = PurchaseInvoiceOcrResult(
+        id = "o1",
+        purchaseReceiptId = receiptId,
+        sourceDocumentSha256 = "sha256",
+        sourceMimeType = "application/pdf",
+        engine = "test",
+        evidenceSchemaVersion = 1,
+        pageCount = 1,
+        fullText = "",
+        processedAt = Instant.now()
+    )
+
+    private fun createMatch() = PurchaseInvoiceLineMatch(
+        parseResultId = "p1",
+        lineIndex = 0,
+        status = InvoiceLineMatchStatus.CONFIRMED,
+        supplierId = SupplierId("s1"),
+        ingredientId = ingredientId,
+        unitOptionId = unitOptionId,
+        inventoryAreaId = areaId,
+        mappingId = null,
+        matchMethod = "manual",
+        matchConfidence = 1.0f,
+        confirmedAt = Instant.now()
+    )
+
+    private fun createIngredient() = Ingredient(
+        id = ingredientId, 
+        restaurantId = restaurantId, 
+        name = "Tomato", 
+        normalizedName = "tomato", 
+        categoryId = null, 
+        baseUnitId = baseUnitId, 
+        defaultAreaId = areaId, 
+        isActive = true, 
+        createdAt = Instant.now(), 
+        updatedAt = Instant.now()
+    )
+
+    private fun createUnitOption() = IngredientUnitOption(unitOptionId, ingredientId, "Case", "CS", null, BigDecimal("1"), false, false, false, true, Instant.now(), Instant.now())
+    private fun createArea() = InventoryArea(areaId, restaurantId, "Walk-In", "walk-in", 0, true, Instant.now(), Instant.now())
 }

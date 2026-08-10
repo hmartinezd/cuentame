@@ -809,9 +809,15 @@
     <string name="ocr_action_review">Review details</string>
     <string name="ocr_action_parse">Extract details</string>
     <string name="ocr_action_retry">Retry analysis</string>
-    <string name="ocr_action_edit_line">Edit line</string>
+    <string name="ocr_header_corrections_title">Header Corrections</string>
+    <string name="ocr_invoice_number_label">Invoice Number</string>
+    <string name="ocr_date_label">Date</string>
+    <string name="ocr_total_label">Total</string>
+    <string name="ocr_tax_label">Tax</string>
+    <string name="ocr_supplier_section_title">Supplier</string>
     <string name="ocr_error_document_changed">Document was replaced during analysis.</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
     <string name="product_description">Description</string>
     <string name="product_quantity">Quantity</string>
     <string name="product_price">Price</string>
@@ -850,8 +856,12 @@
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deselect</string>
     <string name="ocr_materialization_apply_to_draft">Apply to Purchase Draft</string>
+    <string name="ocr_materialization_lines_ready">%1$d lines ready to apply</string>
     <string name="ocr_materialization_unresolved_lines_warning">Some lines are not matched. These will not be added to the draft.</string>
     <string name="ocr_materialization_success">Invoice applied to draft successfully.</string>
+    <string name="ocr_materialization_success_title">Success</string>
     <string name="ocr_materialization_error_already_posted">This purchase is already posted and cannot be modified.</string>
     <string name="ocr_materialization_error_conflict">A line was manually edited in the draft. Applying will not overwrite your changes.</string>
+    <string name="ocr_materialization_parse_changed">Invoice analysis changed. Please refresh.</string>
+    <string name="ocr_materialization_conversion_preview">Conversion Preview</string>
 </resources>

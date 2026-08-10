@@ -13,6 +13,7 @@ data class PurchaseInvoiceDraftProposal(
     val purchaseReceiptId: PurchaseReceiptId,
     val parseResultId: String,
     val sourceDocumentSha256: String,
+    val sourceStateFingerprint: String,
     val supplierProposal: SupplierProposal?,
     val invoiceNumber: String?,
     val invoiceDate: LocalDate?,
@@ -41,9 +42,12 @@ data class PurchaseInvoiceLineProposal(
     val areaName: String,
     val quantityEntered: BigDecimal,
     val quantityBase: BigDecimal,
+    val factorToBase: BigDecimal,
+    val baseUnitSymbol: String,
     val unitPrice: BigDecimal?,
     val lineTotal: BigDecimal,
-    val warnings: List<InvoiceParseWarning> = emptyList()
+    val warnings: List<InvoiceParseWarning> = emptyList(),
+    val blockingReason: MaterializationBlockingIssue? = null
 )
 
 enum class MaterializationBlockingIssue {

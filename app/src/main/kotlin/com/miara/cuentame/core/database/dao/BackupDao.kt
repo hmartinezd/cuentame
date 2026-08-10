@@ -37,7 +37,9 @@ interface BackupDao {
             purchaseInvoiceParseResults = getPurchaseInvoiceParseResults(restaurantId),
             purchaseInvoiceParsedLines = getPurchaseInvoiceParsedLines(restaurantId),
             supplierItemMappings = getSupplierItemMappings(restaurantId),
-            purchaseInvoiceLineMatches = getPurchaseInvoiceLineMatches(restaurantId)
+            purchaseInvoiceLineMatches = getPurchaseInvoiceLineMatches(restaurantId),
+            purchaseInvoiceDraftApplications = getPurchaseInvoiceDraftApplications(restaurantId),
+            purchaseInvoiceLineOrigins = getPurchaseInvoiceLineOrigins(restaurantId)
         )
     }
 
@@ -177,6 +179,23 @@ interface BackupDao {
         ORDER BY parse.id ASC, m.lineIndex ASC
     """)
     suspend fun getPurchaseInvoiceLineMatches(restaurantId: String): List<PurchaseInvoiceLineMatchEntity>
+
+    @Query("""
+        SELECT app.* FROM purchase_invoice_draft_applications app
+        JOIN purchase_receipts pr ON app.purchaseReceiptId = pr.id
+        WHERE pr.restaurantId = :restaurantId
+        ORDER BY app.id ASC
+    """)
+    suspend fun getPurchaseInvoiceDraftApplications(restaurantId: String): List<PurchaseInvoiceDraftApplicationEntity>
+
+    @Query("""
+        SELECT origin.* FROM purchase_invoice_line_origins origin
+        JOIN purchase_invoice_draft_applications app ON origin.applicationId = app.id
+        JOIN purchase_receipts pr ON app.purchaseReceiptId = pr.id
+        WHERE pr.restaurantId = :restaurantId
+        ORDER BY origin.purchaseLineId ASC
+    """)
+    suspend fun getPurchaseInvoiceLineOrigins(restaurantId: String): List<PurchaseInvoiceLineOriginEntity>
 
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {

@@ -43,7 +43,8 @@ interface PurchaseParseDao {
         result: PurchaseInvoiceParseResultEntity,
         lines: List<PurchaseInvoiceParsedLineEntity>,
         ocrDao: PurchaseOcrDao,
-        lineMatchDao: PurchaseInvoiceLineMatchDao
+        lineMatchDao: PurchaseInvoiceLineMatchDao,
+        materializationDao: PurchaseInvoiceMaterializationDao
     ) {
         val currentOcr = ocrDao.getOcrResultForReceiptSync(receiptId)
             ?: throw IllegalStateException("OCR Result missing for receipt $receiptId")
@@ -58,6 +59,12 @@ interface PurchaseParseDao {
 
         if (currentOcr.purchaseReceiptId != receiptId) {
             throw IllegalStateException("OCR result ownership mismatch")
+        }
+
+        // Lifecycle safety: block re-parse if materialized
+        val existingApp = materializationDao.getApplicationForReceipt(receiptId)
+        if (existingApp != null) {
+            throw IllegalStateException("Cannot replace parse result: invoice already materialized to Purchase Draft")
         }
 
         val existingParse = getParseResultForReceipt(receiptId)

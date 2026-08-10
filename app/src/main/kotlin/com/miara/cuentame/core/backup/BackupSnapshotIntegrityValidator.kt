@@ -60,6 +60,7 @@ object BackupSnapshotIntegrityValidator {
             validateParseResult(dto, ctx)?.let { throw it }
             validateMappings(dto, ctx)?.let { throw it }
             validateStagedMatches(dto, ctx)?.let { throw it }
+            validateMaterialization(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: Exception) {
@@ -132,6 +133,8 @@ object BackupSnapshotIntegrityValidator {
         val ocrResultById = dto.purchaseInvoiceOcrResults.associateBy { it.id }
         val parseResultById = dto.purchaseInvoiceParseResults.associateBy { it.id }
         val mappingById = dto.supplierItemMappings.associateBy { it.id }
+        val applicationById = dto.purchaseInvoiceDraftApplications.associateBy { it.id }
+        val originByLineId = dto.purchaseInvoiceLineOrigins.associateBy { it.purchaseLineId }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -178,7 +181,10 @@ object BackupSnapshotIntegrityValidator {
         check(dto.productionBatches, { it.id }, "production_batches")?.let { return it }
         check(dto.productionBatchComponents, { it.id }, "production_batch_components")?.let { return it }
         check(dto.purchaseInvoiceOcrResults, { it.id }, "purchase_invoice_ocr_results")?.let { return it }
+        check(dto.purchaseInvoiceParseResults, { it.id }, "purchase_invoice_parse_results")?.let { return it }
         check(dto.supplierItemMappings, { it.id }, "supplier_item_mappings")?.let { return it }
+        check(dto.purchaseInvoiceDraftApplications, { it.id }, "purchase_invoice_draft_applications")?.let { return it }
+        check(dto.purchaseInvoiceLineOrigins, { it.purchaseLineId }, "purchase_invoice_line_origins")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -193,6 +199,18 @@ object BackupSnapshotIntegrityValidator {
         val ocrPageKeys = dto.purchaseInvoiceOcrPages.map { it.ocrResultId to it.pageIndex }
         if (ocrPageKeys.distinct().size != ocrPageKeys.size) {
             return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in purchase_invoice_ocr_pages")
+        }
+
+        // Parsed line composite keys
+        val parsedLineKeys = dto.purchaseInvoiceParsedLines.map { it.parseResultId to it.lineIndex }
+        if (parsedLineKeys.distinct().size != parsedLineKeys.size) {
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in purchase_invoice_parsed_lines")
+        }
+        
+        // Staged match composite keys
+        val matchKeys = dto.purchaseInvoiceLineMatches.map { it.parseResultId to it.lineIndex }
+        if (matchKeys.distinct().size != matchKeys.size) {
+            return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in purchase_invoice_line_matches")
         }
 
         // Cost projection composite keys
@@ -227,6 +245,16 @@ object BackupSnapshotIntegrityValidator {
                 val parent = receiptById[ocr.purchaseReceiptId]
                 parent == null || parent.restaurantId != restaurantId
             }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_ocr_results")
+
+        if (dto.purchaseInvoiceParseResults.any { parse ->
+                val parent = receiptById[parse.purchaseReceiptId]
+                parent == null || parent.restaurantId != restaurantId
+            }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_parse_results")
+
+        if (dto.purchaseInvoiceDraftApplications.any { app ->
+                val parent = receiptById[app.purchaseReceiptId]
+                parent == null || parent.restaurantId != restaurantId
+            }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_draft_applications")
 
         return null
     }
@@ -315,6 +343,24 @@ object BackupSnapshotIntegrityValidator {
             if (!ctx.recipeById.containsKey(comp.recipeId)) {
                 return err(BROKEN_FOREIGN_KEY, "Broken FK: preparation recipe component to recipe")
             }
+        }
+
+        // Materialization
+        for (app in dto.purchaseInvoiceDraftApplications) {
+            if (!ctx.receiptById.containsKey(app.purchaseReceiptId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: materialization_app to receipt")
+            if (!ctx.parseResultById.containsKey(app.parseResultId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: materialization_app to parse")
+            
+            val parseResult = ctx.parseResultById[app.parseResultId]!!
+            if (parseResult.purchaseReceiptId != app.purchaseReceiptId) return err(RELATIONSHIP_MISMATCH, "Materialization app receipt/parse result mismatch")
+        }
+
+        for (origin in dto.purchaseInvoiceLineOrigins) {
+            if (!ctx.purchaseLineById.containsKey(origin.purchaseLineId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: line_origin to purchase_line")
+            if (!ctx.applicationById.containsKey(origin.applicationId)) return err(BROKEN_FOREIGN_KEY, "Broken FK: line_origin to materialization_app")
+            
+            val app = ctx.applicationById[origin.applicationId]!!
+            val line = ctx.purchaseLineById[origin.purchaseLineId]!!
+            if (line.purchaseReceiptId != app.purchaseReceiptId) return err(RELATIONSHIP_MISMATCH, "Line origin receipt mismatch via application")
         }
 
         return null
@@ -1886,6 +1932,22 @@ object BackupSnapshotIntegrityValidator {
             return err(DUPLICATE_COMPOSITE_KEY, "Duplicate staged match index for same result")
         }
         
+        return null
+    }
+
+    private fun validateMaterialization(
+        dto: BackupSnapshotDto,
+        ctx: ValidationContext
+    ): BackupSnapshotIntegrityException? {
+        // Unique logical origin check: (applicationId, sourceLineIndex)
+        val logicalOrigins = mutableSetOf<Pair<String, Int>>()
+        for (origin in dto.purchaseInvoiceLineOrigins) {
+            val key = origin.applicationId to origin.sourceLineIndex
+            if (!logicalOrigins.add(key)) {
+                return err(DUPLICATE_COMPOSITE_KEY, "Duplicate logical source origin for application ${origin.applicationId} line ${origin.sourceLineIndex}")
+            }
+        }
+
         return null
     }
 

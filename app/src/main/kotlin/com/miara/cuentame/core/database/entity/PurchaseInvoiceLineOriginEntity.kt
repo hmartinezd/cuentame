@@ -23,7 +23,8 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["purchaseLineId"], unique = true),
-        Index("applicationId")
+        Index("applicationId"),
+        Index(value = ["applicationId", "sourceLineIndex"], unique = true)
     ]
 )
 data class PurchaseInvoiceLineOriginEntity(

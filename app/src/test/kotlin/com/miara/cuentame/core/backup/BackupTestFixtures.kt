@@ -6,6 +6,7 @@ import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupPreferencesDto
 import com.miara.cuentame.core.model.backup.TableMetadata
+import com.miara.cuentame.core.common.database.DatabaseSchema
 import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -41,7 +42,9 @@ object BackupTestFixtures {
         purchaseInvoiceParseResults = emptyList(),
         purchaseInvoiceParsedLines = emptyList(),
         supplierItemMappings = emptyList(),
-        purchaseInvoiceLineMatches = emptyList()
+        purchaseInvoiceLineMatches = emptyList(),
+        purchaseInvoiceDraftApplications = emptyList(),
+        purchaseInvoiceLineOrigins = emptyList()
     )
 
     fun createPopulatedCurrentSnapshot(): BackupSnapshotDto {
@@ -51,7 +54,9 @@ object BackupTestFixtures {
             purchaseInvoiceParseResults = emptyList(),
             purchaseInvoiceParsedLines = emptyList(),
             supplierItemMappings = emptyList(),
-            purchaseInvoiceLineMatches = emptyList()
+            purchaseInvoiceLineMatches = emptyList(),
+            purchaseInvoiceDraftApplications = emptyList(),
+            purchaseInvoiceLineOrigins = emptyList()
         )
     }
 
@@ -284,7 +289,7 @@ object BackupTestFixtures {
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",
             appVersionCode = 1,
-            databaseSchemaVersion = 8,
+            databaseSchemaVersion = DatabaseSchema.VERSION,
             restaurantId = "r1",
             restaurantName = "Test Rest",
             localeTag = "en-US",
@@ -315,7 +320,9 @@ object BackupTestFixtures {
                 "purchase_invoice_parse_results" to TableMetadata(0, false),
                 "purchase_invoice_parsed_lines" to TableMetadata(0, false),
                 "supplier_item_mappings" to TableMetadata(0, false),
-                "purchase_invoice_line_matches" to TableMetadata(0, false)
+                "purchase_invoice_line_matches" to TableMetadata(0, false),
+                "purchase_invoice_draft_applications" to TableMetadata(0, false),
+                "purchase_invoice_line_origins" to TableMetadata(0, false)
             ).entries.sortedBy { it.key }.associate { it.key to it.value },
             attachments = listOf(
                 BackupAttachmentMetadata(

@@ -19,15 +19,18 @@ interface PurchaseInvoiceMaterializationDao {
     @Query("SELECT * FROM purchase_invoice_line_origins WHERE applicationId = :applicationId")
     suspend fun getLineOrigins(applicationId: String): List<PurchaseInvoiceLineOriginEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertApplication(application: PurchaseInvoiceDraftApplicationEntity)
+    @Upsert
+    suspend fun upsertApplication(application: PurchaseInvoiceDraftApplicationEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLineOrigins(origins: List<PurchaseInvoiceLineOriginEntity>)
+    @Upsert
+    suspend fun upsertLineOrigins(origins: List<PurchaseInvoiceLineOriginEntity>)
 
     @Query("DELETE FROM purchase_invoice_draft_applications WHERE id = :applicationId")
     suspend fun deleteApplication(applicationId: String)
 
     @Query("DELETE FROM purchase_invoice_line_origins WHERE applicationId = :applicationId")
     suspend fun deleteLineOrigins(applicationId: String)
+
+    @Query("DELETE FROM purchase_invoice_line_origins WHERE purchaseLineId = :purchaseLineId")
+    suspend fun deleteLineOrigin(purchaseLineId: String)
 }

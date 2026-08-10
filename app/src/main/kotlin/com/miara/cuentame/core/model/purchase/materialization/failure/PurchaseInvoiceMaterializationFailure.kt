@@ -1,19 +1,24 @@
 package com.miara.cuentame.core.model.purchase.materialization.failure
 
+sealed interface PurchaseInvoiceMaterializationResult {
+    data object Success : PurchaseInvoiceMaterializationResult
+    data class Failure(val reason: PurchaseInvoiceMaterializationFailure) : PurchaseInvoiceMaterializationResult
+}
+
 sealed interface PurchaseInvoiceMaterializationFailure {
-    object PurchaseNotFound : PurchaseInvoiceMaterializationFailure
-    object PurchaseAlreadyPosted : PurchaseInvoiceMaterializationFailure
-    object DocumentMissing : PurchaseInvoiceMaterializationFailure
-    object DocumentChanged : PurchaseInvoiceMaterializationFailure
-    object ParseChanged : PurchaseInvoiceMaterializationFailure
-    object InvoiceStateChanged : PurchaseInvoiceMaterializationFailure
-    object SupplierChanged : PurchaseInvoiceMaterializationFailure
-    object UnresolvedLines : PurchaseInvoiceMaterializationFailure
-    object InvalidConfirmedMatch : PurchaseInvoiceMaterializationFailure
-    object MissingQuantity : PurchaseInvoiceMaterializationFailure
-    object MissingRequiredUnitOption : PurchaseInvoiceMaterializationFailure
-    object MissingRequiredArea : PurchaseInvoiceMaterializationFailure
-    object DraftChanged : PurchaseInvoiceMaterializationFailure
-    object ManualEditConflict : PurchaseInvoiceMaterializationFailure
-    object PersistenceFailed : PurchaseInvoiceMaterializationFailure
+    data object PurchaseNotFound : PurchaseInvoiceMaterializationFailure
+    data object PurchaseAlreadyPosted : PurchaseInvoiceMaterializationFailure
+    data object DocumentMissing : PurchaseInvoiceMaterializationFailure
+    data object DocumentChanged : PurchaseInvoiceMaterializationFailure
+    data object ParseChanged : PurchaseInvoiceMaterializationFailure
+    data object InvoiceStateChanged : PurchaseInvoiceMaterializationFailure
+    data object SupplierChanged : PurchaseInvoiceMaterializationFailure
+    data object UnresolvedLines : PurchaseInvoiceMaterializationFailure
+    data object InvalidConfirmedMatch : PurchaseInvoiceMaterializationFailure
+    data object MissingQuantity : PurchaseInvoiceMaterializationFailure
+    data object MissingRequiredUnitOption : PurchaseInvoiceMaterializationFailure
+    data object MissingRequiredArea : PurchaseInvoiceMaterializationFailure
+    data object DraftChanged : PurchaseInvoiceMaterializationFailure
+    data object ManualEditConflict : PurchaseInvoiceMaterializationFailure
+    data object PersistenceFailed : PurchaseInvoiceMaterializationFailure
 }

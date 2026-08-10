@@ -130,7 +130,9 @@ class BackupMetadataConsistencyTest {
         purchaseInvoiceParseResults = emptyList(),
         purchaseInvoiceParsedLines = emptyList(),
         supplierItemMappings = emptyList(),
-        purchaseInvoiceLineMatches = emptyList()
+        purchaseInvoiceLineMatches = emptyList(),
+        purchaseInvoiceDraftApplications = emptyList(),
+        purchaseInvoiceLineOrigins = emptyList()
     )
 
     private fun createManifestForSnapshot(
@@ -172,7 +174,9 @@ class BackupMetadataConsistencyTest {
             "purchase_invoice_parse_results" to snapshot.purchaseInvoiceParseResults.size,
             "purchase_invoice_parsed_lines" to snapshot.purchaseInvoiceParsedLines.size,
             "supplier_item_mappings" to snapshot.supplierItemMappings.size,
-            "purchase_invoice_line_matches" to snapshot.purchaseInvoiceLineMatches.size
+            "purchase_invoice_line_matches" to snapshot.purchaseInvoiceLineMatches.size,
+            "purchase_invoice_draft_applications" to snapshot.purchaseInvoiceDraftApplications.size,
+            "purchase_invoice_line_origins" to snapshot.purchaseInvoiceLineOrigins.size
         )
 
         for (table in expectedTables) {

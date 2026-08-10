@@ -51,6 +51,8 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertPurchaseInvoiceParsedLines(any()) } just Runs
         coEvery { restoreDao.insertSupplierItemMappings(any()) } just Runs
         coEvery { restoreDao.insertPurchaseInvoiceLineMatches(any()) } just Runs
+        coEvery { restoreDao.insertPurchaseInvoiceDraftApplications(any()) } just Runs
+        coEvery { restoreDao.insertPurchaseInvoiceLineOrigins(any()) } just Runs
 
         val transactionSlot = slot<suspend () -> Any?>()
         coEvery { database.withTransaction(capture(transactionSlot)) } coAnswers {
@@ -100,6 +102,8 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertPurchaseInvoiceParsedLines(any())
             restoreDao.insertSupplierItemMappings(any())
             restoreDao.insertPurchaseInvoiceLineMatches(any())
+            restoreDao.insertPurchaseInvoiceDraftApplications(any())
+            restoreDao.insertPurchaseInvoiceLineOrigins(any())
         }
     }
 
@@ -140,7 +144,9 @@ class RestoreDatabaseApplierTest {
         purchaseInvoiceParseResults = emptyList(),
         purchaseInvoiceParsedLines = emptyList(),
         supplierItemMappings = emptyList(),
-        purchaseInvoiceLineMatches = emptyList()
+        purchaseInvoiceLineMatches = emptyList(),
+        purchaseInvoiceDraftApplications = emptyList(),
+        purchaseInvoiceLineOrigins = emptyList()
     )
 
     private fun createMinimalSnapshot() = BackupSnapshotDto(
@@ -169,6 +175,8 @@ class RestoreDatabaseApplierTest {
         purchaseInvoiceParseResults = emptyList(),
         purchaseInvoiceParsedLines = emptyList(),
         supplierItemMappings = emptyList(),
-        purchaseInvoiceLineMatches = emptyList()
+        purchaseInvoiceLineMatches = emptyList(),
+        purchaseInvoiceDraftApplications = emptyList(),
+        purchaseInvoiceLineOrigins = emptyList()
     )
 }

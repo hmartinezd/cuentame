@@ -19,7 +19,6 @@ import com.miara.cuentame.core.database.dao.PurchaseDao
 import com.miara.cuentame.core.database.dao.PurchaseOcrDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.SupplierDao
-import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
@@ -46,16 +45,21 @@ import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
+import com.miara.cuentame.core.domain.service.PurchaseInvoiceFingerprinter
+import com.miara.cuentame.core.model.purchase.materialization.PurchaseInvoiceDraftProposal
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationFailure
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceDraftApplicationEntity
+import com.miara.cuentame.core.database.entity.PurchaseInvoiceLineOriginEntity
 import com.miara.cuentame.core.database.dao.PurchaseParseDao
 import com.miara.cuentame.core.database.dao.PurchaseInvoiceLineMatchDao
 import com.miara.cuentame.core.database.dao.SupplierItemMappingDao
+import com.miara.cuentame.core.database.dao.PurchaseInvoiceMaterializationDao
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrPageEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceOcrResultEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceParseResultEntity
 import com.miara.cuentame.core.database.entity.PurchaseInvoiceParsedLineEntity
 import com.miara.cuentame.core.database.entity.SupplierItemMappingEntity
-import com.miara.cuentame.core.database.mapper.toDomain
-import com.miara.cuentame.core.database.mapper.toEntity
 import com.miara.cuentame.core.domain.repository.LearnMappingResult
 import com.miara.cuentame.core.domain.repository.MappingConflict
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
@@ -71,6 +75,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import java.math.BigDecimal
@@ -102,6 +107,8 @@ class RoomPurchaseRepository @Inject constructor(
     private val parseDao: PurchaseParseDao,
     private val lineMatchDao: PurchaseInvoiceLineMatchDao,
     private val mappingDao: SupplierItemMappingDao,
+    private val materializationDao: PurchaseInvoiceMaterializationDao,
+    private val fingerprinter: PurchaseInvoiceFingerprinter,
     private val json: Json
 ) : PurchaseRepository {
 
@@ -126,7 +133,7 @@ class RoomPurchaseRepository @Inject constructor(
                 val supplierFlow = if (entity.supplierId != null) {
                     supplierDao.observeById(entity.supplierId)
                 } else {
-                    kotlinx.coroutines.flow.flowOf(null)
+                    flowOf(null)
                 }
                 
                 combine(linesFlow, supplierFlow) { lines, supplier ->
@@ -141,7 +148,7 @@ class RoomPurchaseRepository @Inject constructor(
                 }
             }
             if (summaryFlows.isEmpty()) {
-                kotlinx.coroutines.flow.flowOf(emptyList())
+                flowOf(emptyList())
             } else {
                 combine(summaryFlows) { it.toList() }
             }
@@ -150,13 +157,13 @@ class RoomPurchaseRepository @Inject constructor(
 
     override fun observePurchase(id: PurchaseReceiptId): Flow<PurchaseDetails?> {
         return purchaseDao.observeReceiptById(id.value).flatMapLatest { receiptEntity ->
-            if (receiptEntity == null) return@flatMapLatest kotlinx.coroutines.flow.flowOf(null)
+            if (receiptEntity == null) return@flatMapLatest flowOf(null)
             
             val linesFlow = purchaseDao.observeLinesForReceipt(id.value)
             val supplierFlow = if (receiptEntity.supplierId != null) {
                 supplierDao.observeById(receiptEntity.supplierId)
             } else {
-                kotlinx.coroutines.flow.flowOf(null)
+                flowOf(null)
             }
 
             combine(linesFlow, supplierFlow) { lineEntities, supplierEntity ->
@@ -544,6 +551,7 @@ class RoomPurchaseRepository @Inject constructor(
             expectedSourceDocumentSha256 = sourceDocumentSha256,
             ocrDao = ocrDao,
             lineMatchDao = lineMatchDao,
+            materializationDao = materializationDao,
             result = PurchaseInvoiceParseResultEntity(
                 id = parseId,
                 purchaseReceiptId = receiptId.value,
@@ -678,7 +686,7 @@ class RoomPurchaseRepository @Inject constructor(
         
         // Revalidate Supplier Context
         if (purchase.supplierId != expectedSupplierId?.value) {
-            throw ValidationError.SupplierOwnershipMismatch // Or a more specific error
+            throw ValidationError.SupplierOwnershipMismatch
         }
 
         val parse = parseDao.getParseResultForReceipt(receiptId.value)
@@ -859,6 +867,191 @@ class RoomPurchaseRepository @Inject constructor(
                 if (error.contains("unit")) throw ValidationError.InvalidPurchaseUnitOption
                 if (error.contains("area")) throw ValidationError.InvalidPurchaseArea
             }
+        }
+    }
+
+    override suspend fun applyInvoiceToDraft(proposal: PurchaseInvoiceDraftProposal): PurchaseInvoiceMaterializationResult = try {
+        database.withTransaction {
+            val receiptId = proposal.purchaseReceiptId
+            val receipt = getReceipt(receiptId)
+                ?: return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PurchaseNotFound)
+
+            if (receipt.status != DocumentStatus.DRAFT) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PurchaseAlreadyPosted)
+            }
+
+            // Re-validate context
+            val currentOcr = observeOcrResult(receiptId).first()
+            if (currentOcr == null) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentMissing)
+            }
+            if (currentOcr.sourceDocumentSha256 != proposal.sourceDocumentSha256) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.DocumentChanged)
+            }
+
+            val currentParse = observeParseResult(receiptId).first()
+            if (currentParse == null || (currentParse.id != proposal.parseResultId)) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ParseChanged)
+            }
+            
+            // Re-compute fingerprint to ensure proposal is fresh
+            val currentMatches = observeLineMatchesForReceipt(receiptId).first()
+            val currentFingerprint = fingerprinter.fingerprint(
+                receiptId = receiptId,
+                supplierId = receipt.supplierId?.value,
+                sourceDocumentSha256 = currentOcr.sourceDocumentSha256,
+                parseResult = currentParse,
+                matches = currentMatches
+            )
+            
+            if (currentFingerprint != proposal.sourceStateFingerprint) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
+            }
+
+            // 1. Update Receipt Header
+            updateDraft(
+                UpdatePurchaseDraftCommand(
+                    receiptId = receiptId,
+                    supplierId = proposal.supplierProposal?.id,
+                    invoiceNumber = proposal.invoiceNumber,
+                    purchaseDate = proposal.invoiceDate?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant() ?: receipt.purchaseDate,
+                    notes = receipt.notes
+                )
+            )
+
+            // 2. Manage Application Record
+            val existingApp = materializationDao.getApplicationForReceipt(receiptId.value)
+            val applicationId = existingApp?.id ?: idGenerator.newId()
+            
+            val appEntity = PurchaseInvoiceDraftApplicationEntity(
+                id = applicationId,
+                purchaseReceiptId = receiptId.value,
+                parseResultId = proposal.parseResultId,
+                sourceDocumentSha256 = proposal.sourceDocumentSha256,
+                sourceStateFingerprint = currentFingerprint,
+                appliedAt = timeProvider.now().toEpochMilli()
+            )
+            materializationDao.upsertApplication(appEntity)
+
+            // 3. Materialize Lines
+            val currentLines = purchaseDao.getLinesForReceipt(receiptId.value)
+            val existingOrigins = materializationDao.getLineOrigins(applicationId)
+            
+            val now = timeProvider.now().toEpochMilli()
+            val newOrigins = mutableListOf<PurchaseInvoiceLineOriginEntity>()
+
+            // A. Process Proposed Lines
+            proposal.lines.forEach { lineProposal ->
+                if (lineProposal.blockingReason != null) return@forEach
+                
+                val existingOrigin = existingOrigins.find { it.sourceLineIndex == lineProposal.lineIndex }
+                val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
+                
+                val purchaseLineId = existingLine?.id ?: idGenerator.newId()
+
+                if (existingLine != null) {
+                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(existingOrigin.lastMaterializedSnapshotJson)
+                    if (existingLine.isManuallyEdited(snapshot)) {
+                         return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
+                    }
+                }
+
+                val unitCostBase = if (lineProposal.quantityBase > BigDecimal.ZERO) {
+                    lineProposal.lineTotal.divide(lineProposal.quantityBase, MathContext.DECIMAL128)
+                } else {
+                    BigDecimal.ZERO
+                }
+
+                val lineEntity = PurchaseLineEntity(
+                    id = purchaseLineId,
+                    purchaseReceiptId = receiptId.value,
+                    ingredientId = lineProposal.ingredientId.value,
+                    areaId = lineProposal.areaId.value,
+                    ingredientUnitOptionId = lineProposal.unitOptionId.value,
+                    quantityEntered = lineProposal.quantityEntered.toPlainString(),
+                    quantityBase = lineProposal.quantityBase.toPlainString(),
+                    lineTotal = lineProposal.lineTotal.toPlainString(),
+                    unitCostBase = unitCostBase.toPlainString(),
+                    notes = existingLine?.notes,
+                    createdAt = existingLine?.createdAt ?: now,
+                    updatedAt = now
+                )
+                
+                if (existingLine != null) {
+                    purchaseDao.updateLine(lineEntity)
+                } else {
+                    purchaseDao.insertLine(lineEntity)
+                }
+
+                val newSnapshot = PurchaseLineSnapshot(
+                    ingredientId = lineProposal.ingredientId.value,
+                    areaId = lineProposal.areaId.value,
+                    unitOptionId = lineProposal.unitOptionId.value,
+                    quantityEntered = lineProposal.quantityEntered.stripTrailingZeros().toPlainString(),
+                    lineTotal = lineProposal.lineTotal.stripTrailingZeros().toPlainString(),
+                    unitCostBase = unitCostBase.stripTrailingZeros().toPlainString()
+                )
+
+                newOrigins.add(
+                    PurchaseInvoiceLineOriginEntity(
+                        purchaseLineId = purchaseLineId,
+                        applicationId = applicationId,
+                        sourceLineIndex = lineProposal.lineIndex,
+                        sourceStateFingerprint = currentFingerprint,
+                        lastMaterializedSnapshotJson = json.encodeToString(newSnapshot)
+                    )
+                )
+            }
+            
+            // B. Reconciliation
+            val removedOrigins = existingOrigins.filter { origin ->
+                proposal.lines.none { it.lineIndex == origin.sourceLineIndex && it.blockingReason == null }
+            }
+            
+            removedOrigins.forEach { origin ->
+                val lineToRemove = currentLines.find { it.id == origin.purchaseLineId }
+                if (lineToRemove != null) {
+                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(origin.lastMaterializedSnapshotJson)
+                    if (lineToRemove.isManuallyEdited(snapshot)) {
+                        return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
+                    }
+                    purchaseDao.deleteLine(lineToRemove.id)
+                }
+                materializationDao.deleteLineOrigin(origin.purchaseLineId)
+            }
+            
+            materializationDao.upsertLineOrigins(newOrigins)
+            
+            PurchaseInvoiceMaterializationResult.Success
+        }
+    } catch (e: Exception) {
+        PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PersistenceFailed)
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class PurchaseLineSnapshot(
+        val ingredientId: String,
+        val areaId: String,
+        val unitOptionId: String,
+        val quantityEntered: String,
+        val lineTotal: String,
+        val unitCostBase: String
+    )
+
+    private fun PurchaseLineEntity.isManuallyEdited(snapshot: PurchaseLineSnapshot): Boolean {
+        return ingredientId != snapshot.ingredientId ||
+                areaId != snapshot.areaId ||
+                ingredientUnitOptionId != snapshot.unitOptionId ||
+                !BigDecimal(quantityEntered).compareCanonical(snapshot.quantityEntered) ||
+                !BigDecimal(lineTotal).compareCanonical(snapshot.lineTotal) ||
+                !BigDecimal(unitCostBase).compareCanonical(snapshot.unitCostBase)
+    }
+
+    private fun BigDecimal.compareCanonical(other: String): Boolean {
+        return try {
+            this.stripTrailingZeros().compareTo(BigDecimal(other).stripTrailingZeros()) == 0
+        } catch (e: Exception) {
+            false
         }
     }
 }

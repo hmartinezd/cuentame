@@ -7,7 +7,7 @@ object BackupFormatV1Contract {
     const val BACKUP_FORMAT_VERSION = 1
     val DATABASE_SCHEMA_VERSION = DatabaseSchema.VERSION
 
-    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8)
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8, 9, 10)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -60,7 +60,9 @@ object BackupFormatV1Contract {
         "purchase_invoice_parse_results",
         "purchase_invoice_parsed_lines",
         "supplier_item_mappings",
-        "purchase_invoice_line_matches"
+        "purchase_invoice_line_matches",
+        "purchase_invoice_draft_applications",
+        "purchase_invoice_line_origins"
     )
 
     fun expectedTablesForSchema(schemaVersion: Int): Set<String> {
@@ -126,6 +128,20 @@ object BackupFormatV1Contract {
                 "purchase_invoice_parsed_lines",
                 "supplier_item_mappings",
                 "purchase_invoice_line_matches"
+            )
+            9, 10 -> base + setOf(
+                "preparation_recipes",
+                "preparation_recipe_components",
+                "production_batches",
+                "production_batch_components",
+                "purchase_invoice_ocr_results",
+                "purchase_invoice_ocr_pages",
+                "purchase_invoice_parse_results",
+                "purchase_invoice_parsed_lines",
+                "supplier_item_mappings",
+                "purchase_invoice_line_matches",
+                "purchase_invoice_draft_applications",
+                "purchase_invoice_line_origins"
             )
             else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }

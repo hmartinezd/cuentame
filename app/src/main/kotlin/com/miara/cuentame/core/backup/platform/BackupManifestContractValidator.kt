@@ -245,6 +245,15 @@ object BackupManifestContractValidator {
             }
         }
 
+        if (manifest.databaseSchemaVersion >= 9) {
+            actualCounts["purchase_invoice_draft_applications"] = snapshot.purchaseInvoiceDraftApplications.size
+            actualCounts["purchase_invoice_line_origins"] = snapshot.purchaseInvoiceLineOrigins.size
+        } else {
+            if (snapshot.purchaseInvoiceDraftApplications.isNotEmpty() || snapshot.purchaseInvoiceLineOrigins.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
         for ((table, metadata) in manifest.tableMetadata) {
             val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch
             if (actual != metadata.entryCount) {

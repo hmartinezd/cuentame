@@ -11,6 +11,8 @@ import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
+import com.miara.cuentame.core.model.purchase.materialization.PurchaseInvoiceDraftProposal
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
@@ -209,4 +211,6 @@ interface PurchaseRepository {
         inventoryAreaId: InventoryAreaId?,
         forceLearnMapping: Boolean
     ): LearnMappingResult
+
+    suspend fun applyInvoiceToDraft(proposal: PurchaseInvoiceDraftProposal): PurchaseInvoiceMaterializationResult
 }

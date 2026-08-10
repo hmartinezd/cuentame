@@ -7,6 +7,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.domain.repository.CreatePurchaseDraftCommand
 import com.miara.cuentame.core.domain.usecase.purchase.ApplyInvoiceToPurchaseDraftUseCase
 import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUseCase
+import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
@@ -138,7 +139,7 @@ class RoomPurchaseRepositoryMaterializationTest {
         assertThat(proposal!!.blockingIssues).isEmpty()
 
         val result = applyInvoiceUseCase.execute(proposal)
-        assertThat(result.isSuccess).isTrue()
+        assertThat(result).isEqualTo(PurchaseInvoiceMaterializationResult.Success)
 
         // 3. Assert: Verify PurchaseLines
         val lines = database.purchaseDao().getLinesForReceipt(receiptId.value)
@@ -154,7 +155,7 @@ class RoomPurchaseRepositoryMaterializationTest {
 
         // 5. Act: Apply Again (Idempotency)
         val result2 = applyInvoiceUseCase.execute(proposal)
-        assertThat(result2.isSuccess).isTrue()
+        assertThat(result2).isEqualTo(PurchaseInvoiceMaterializationResult.Success)
         
         val lines2 = database.purchaseDao().getLinesForReceipt(receiptId.value)
         assertThat(lines2).hasSize(1) // Still 1
