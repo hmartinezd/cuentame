@@ -19,6 +19,7 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.NormalizedIngredi
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportService
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
+import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -291,7 +292,8 @@ class RoomCsvImportRepositoryTest {
                 val number = index + 1
                 val category = if (number % 3 == 0) "Produce" else "New Category ${number % 4}"
                 val supplier = if (number % 3 == 0) "Sysco" else "New Supplier ${number % 2}"
-                append("Ingredient $number,SKU-$number,$category,Pound,oz,Case,${number + 1},Dry Storage,$supplier,VC-$number,1.25,5\n")
+                val vendorCode = if (number == 1) "  vc.item-1  " else "VC-$number"
+                append("Ingredient $number,SKU-$number,$category,Pound,oz,Case,${number + 1},Dry Storage,$supplier,$vendorCode,1.25,5\n")
             }
         }
         val parsed = CsvParser().parse(ByteArrayInputStream(csv.toByteArray())) as CsvParser.ParseResult.Success
@@ -318,6 +320,12 @@ class RoomCsvImportRepositoryTest {
         assertThat(tableCount("purchase_receipts")).isEqualTo(0)
         assertThat(tableCount("purchase_lines")).isEqualTo(0)
         assertThat(tableCount("inventory_movements")).isEqualTo(0)
+        db.supplierItemMappingDao().getAllMappingsSync(restId.value).forEach { mapping ->
+            mapping.sourceVendorCode?.let { sourceVendorCode ->
+                assertThat(mapping.normalizedKey)
+                    .isEqualTo(InventoryNormalization.normalizeVendorCode(sourceVendorCode))
+            }
+        }
         val ingredients = db.ingredientDao().getActiveIngredients(restId.value)
         assertThat(ingredients.all { it.defaultAreaId == "dry-area" }).isTrue()
         assertThat(ingredients.all { it.reorderPointBase == BigDecimal("5") }).isTrue()

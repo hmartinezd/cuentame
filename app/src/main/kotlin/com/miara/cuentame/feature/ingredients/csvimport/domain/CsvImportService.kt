@@ -180,7 +180,7 @@ class CsvImportService @Inject constructor(
 
         if (baseUnit != null && countUnit != null) {
             if (baseUnit.dimension != countUnit.dimension) {
-                issues.add(CsvImportRowIssue(HEADER_COUNT_UNIT, CsvImportIssueCode.INCOMPATIBLE_COUNT_UNIT, CsvImportIssueSeverity.ERROR, listOf(countUnit.dimension.name, baseUnit.dimension.name)))
+                issues.add(CsvImportRowIssue(HEADER_COUNT_UNIT, CsvImportIssueCode.INCOMPATIBLE_COUNT_UNIT, CsvImportIssueSeverity.ERROR, listOf(countUnit.symbol, baseUnit.symbol)))
             }
         }
 

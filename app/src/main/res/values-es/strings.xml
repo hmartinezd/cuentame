@@ -240,7 +240,7 @@
     <string name="csv_issue_unit_required">La unidad es obligatoria</string>
     <string name="csv_issue_unknown_unit">Unidad desconocida: %1$s</string>
     <string name="csv_issue_ambiguous_unit">Unidad ambigua: %1$s (%2$s)</string>
-    <string name="csv_issue_incompatible_count_unit">La dimensión de conteo (%1$s) no es compatible con la unidad base (%2$s)</string>
+    <string name="csv_issue_incompatible_count_unit">La unidad de conteo %1$s no es compatible con la unidad base %2$s.</string>
     <string name="csv_issue_category_created">Se creará la categoría: %1$s</string>
     <string name="csv_issue_category_archived">La categoría está archivada: %1$s</string>
     <string name="csv_issue_category_inactive">La categoría está inactiva: %1$s</string>

@@ -13,6 +13,7 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImpo
 import com.miara.cuentame.core.domain.repository.ImportFailure
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,7 +66,8 @@ class CsvImportViewModelTest {
     @Test
     fun `loadCsv success updates state`() = runTest {
         val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
-        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        val restaurantId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        every { restaurant.id } returns restaurantId
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
         
         val rows = listOf(mapOf("name" to "Tomato"))
@@ -158,6 +160,115 @@ class CsvImportViewModelTest {
         assertThat(viewModel.uiState.value.parserWarnings).containsExactly(warning)
         assertThat(viewModel.uiState.value.document?.rows).isEmpty()
         io.mockk.coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
+    }
+
+    @Test
+    fun `new malformed file clears old preview and cannot confirm`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val rowsA = listOf(mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato"))
+        val docA = CsvIngredientImportDocument(listOf(
+            CsvIngredientImportRow(2, rowsA.single(), null, emptyList(), CsvImportRowStatus.READY, true)
+        ))
+        every { csvParser.parse(any()) } returnsMany listOf(
+            CsvParser.ParseResult.Success(rowsA),
+            CsvParser.ParseResult.Error(CsvParser.ParseErrorType.MALFORMED_CSV)
+        )
+        coEvery { importService.processCsv(any(), rowsA) } returns docA
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(viewModel.uiState.value.document).isEqualTo(docA)
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.document).isNull()
+        assertThat(viewModel.uiState.value.parseError).isEqualTo(CsvParser.ParseErrorType.MALFORMED_CSV)
+        coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
+    }
+
+    @Test
+    fun `new valid file replaces parser warnings`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val warning = CsvParser.CsvParserWarning.UnknownColumn("legacy")
+        every { csvParser.parse(any()) } returnsMany listOf(
+            CsvParser.ParseResult.Success(emptyList(), listOf(warning)),
+            CsvParser.ParseResult.Success(emptyList())
+        )
+        coEvery { importService.processCsv(any(), any()) } returns CsvIngredientImportDocument(emptyList())
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(viewModel.uiState.value.parserWarnings).containsExactly(warning)
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.parserWarnings).isEmpty()
+    }
+
+    @Test
+    fun `StateChanged remains visible until refresh replaces preview and preserves selections`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        val restaurantId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        every { restaurant.id } returns restaurantId
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val rawRows = listOf(mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato"), mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Onion"))
+        val initial = CsvIngredientImportDocument(rawRows.mapIndexed { index, raw ->
+            CsvIngredientImportRow(index + 2, raw, null, emptyList(), CsvImportRowStatus.READY, true)
+        })
+        val refreshed = CsvIngredientImportDocument(rawRows.mapIndexed { index, raw ->
+            CsvIngredientImportRow(index + 2, raw, null, emptyList(), CsvImportRowStatus.READY, true)
+        })
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(rawRows)
+        coEvery { importService.processCsv(any(), rawRows) } returnsMany listOf(initial, refreshed)
+        coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Failure(ImportFailure.StateChanged)
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.toggleRowSelection(3)
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.document).isNotNull()
+        assertThat(viewModel.uiState.value.importResult).isEqualTo(ImportResult.Failure(ImportFailure.StateChanged))
+
+        viewModel.refreshPreview()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 2) { importService.processCsv(restaurantId, rawRows) }
+        assertThat(viewModel.uiState.value.document?.rows?.single { it.rowNumber == 3 }?.isIncluded).isFalse()
+        assertThat(viewModel.uiState.value.importResult).isNull()
+    }
+
+    @Test
+    fun `refresh row error blocks confirmation`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val raw = mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato")
+        val initial = CsvIngredientImportDocument(listOf(CsvIngredientImportRow(2, raw, null, emptyList(), CsvImportRowStatus.READY, true)))
+        val refreshed = CsvIngredientImportDocument(listOf(CsvIngredientImportRow(2, raw, null, emptyList(), CsvImportRowStatus.ERROR, true)))
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(listOf(raw))
+        coEvery { importService.processCsv(any(), any()) } returnsMany listOf(initial, refreshed)
+        coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Failure(ImportFailure.StateChanged)
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.refreshPreview()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.document?.rows?.single()?.status).isEqualTo(CsvImportRowStatus.ERROR)
+        coVerify(exactly = 1) { importRepository.commitImport(any(), any()) }
     }
 
     @Test

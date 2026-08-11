@@ -86,6 +86,27 @@ class CsvImportServiceTest {
     }
 
     @Test
+    fun `incompatible count unit issue uses unit symbols`() = runTest {
+        val each = UnitOfMeasure(
+            id = com.miara.cuentame.core.common.ids.UnitId("each"), name = "Each", symbol = "ea",
+            dimension = UnitDimension.COUNT, factorToCanonical = BigDecimal.ONE, isSystem = true, sortOrder = 1
+        )
+        val lb = UnitOfMeasure(
+            id = com.miara.cuentame.core.common.ids.UnitId("lb"), name = "Pound", symbol = "lb",
+            dimension = UnitDimension.MASS, factorToCanonical = BigDecimal.ONE, isSystem = true, sortOrder = 0
+        )
+        every { unitRepository.observeAll() } returns flowOf(listOf(lb, each))
+
+        val result = service.processCsv(
+            restaurantId,
+            listOf(row() + (CsvParser.HEADER_COUNT_UNIT to "ea"))
+        )
+
+        val issue = result.rows.single().issues.single { it.code == CsvImportIssueCode.INCOMPATIBLE_COUNT_UNIT }
+        assertThat(issue.parameters).containsExactly("ea", "lb").inOrder()
+    }
+
+    @Test
     fun `detect duplicate name in CSV error`() = runTest {
         val rawRows = listOf(
             mapOf(

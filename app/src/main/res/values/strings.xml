@@ -246,7 +246,7 @@
     <string name="csv_issue_unit_required">Unit is required</string>
     <string name="csv_issue_unknown_unit">Unknown unit: %1$s</string>
     <string name="csv_issue_ambiguous_unit">Ambiguous unit: %1$s (%2$s)</string>
-    <string name="csv_issue_incompatible_count_unit">Count unit dimension (%1$s) is incompatible with base unit (%2$s)</string>
+    <string name="csv_issue_incompatible_count_unit">Count unit %1$s is incompatible with base unit %2$s.</string>
     <string name="csv_issue_category_created">Category will be created: %1$s</string>
     <string name="csv_issue_category_archived">Category is archived: %1$s</string>
     <string name="csv_issue_category_inactive">Category is inactive: %1$s</string>

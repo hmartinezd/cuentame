@@ -79,7 +79,8 @@ fun CsvImportRoute(
         onEditRow = { editingRow = it },
         onConfirm = viewModel::confirmImport,
         onDone = onViewIngredients,
-        onResetResult = viewModel::resetImportResult
+        onResetResult = viewModel::resetImportResult,
+        onRefreshPreview = viewModel::refreshPreview
     )
 
     if (editingRow != null) {
@@ -105,7 +106,8 @@ fun CsvImportScreen(
     onEditRow: (CsvIngredientImportRow) -> Unit,
     onConfirm: () -> Unit,
     onDone: () -> Unit,
-    onResetResult: () -> Unit
+    onResetResult: () -> Unit,
+    onRefreshPreview: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -125,7 +127,9 @@ fun CsvImportScreen(
                     ImportResultContent(
                         result = uiState.importResult,
                         onDone = onDone,
-                        onDismiss = onResetResult
+                        onDismiss = onResetResult,
+                        onRefresh = onRefreshPreview,
+                        isRefreshing = uiState.isRefreshing
                     )
                 }
                 uiState.isParsing -> {
@@ -369,7 +373,9 @@ private fun csvIssueMessage(code: CsvImportIssueCode, parameters: List<String>):
 fun ImportResultContent(
     result: ImportResult,
     onDone: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRefresh: () -> Unit,
+    isRefreshing: Boolean
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -395,6 +401,7 @@ fun ImportResultContent(
                 }
             }
             is ImportResult.Failure -> {
+                val isStale = result.failure == ImportFailure.StateChanged
                 val errorMessage = when (result.failure) {
                     ImportFailure.InvalidPlan -> stringResource(R.string.import_error_invalid_plan)
                     ImportFailure.StateChanged -> stringResource(R.string.import_stale_desc)
@@ -406,12 +413,23 @@ fun ImportResultContent(
                 
                 Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(64.dp))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(R.string.import_failed), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(if (isStale) R.string.import_stale_title else R.string.import_failed),
+                    style = MaterialTheme.typography.headlineSmall
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(errorMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(32.dp))
-                Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.import_retry))
+                Button(
+                    onClick = if (isStale) onRefresh else onDismiss,
+                    enabled = !isRefreshing,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text(stringResource(if (isStale) R.string.import_refresh else R.string.import_retry))
+                    }
                 }
             }
         }

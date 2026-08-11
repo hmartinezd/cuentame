@@ -20,10 +20,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 @HiltViewModel
@@ -39,31 +41,80 @@ class CsvImportViewModel @Inject constructor(
     val uiState: StateFlow<CsvImportUiState> = _uiState.asStateFlow()
 
     private val confirmMutex = Mutex()
+    private val loadGeneration = AtomicLong()
 
     internal var parsingDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     fun loadCsv(inputStream: InputStream) {
+        val generation = loadGeneration.incrementAndGet()
+        _uiState.update {
+            it.copy(
+                document = null,
+                isParsing = true,
+                parseError = null,
+                parserWarnings = emptyList(),
+                importResult = null
+            )
+        }
         viewModelScope.launch {
-            _uiState.update { it.copy(isParsing = true, parseError = null) }
             try {
-                val parseResult = withContext(parsingDispatcher) { inputStream.use(csvParser::parse) }
+                val parseResult = try {
+                    withContext(parsingDispatcher) { inputStream.use(csvParser::parse) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    CsvParser.ParseResult.Error(CsvParser.ParseErrorType.READ_FAILURE)
+                }
+                if (generation != loadGeneration.get()) return@launch
                 when (parseResult) {
                     is CsvParser.ParseResult.Success -> {
-                        val restaurant = restaurantRepository.getRestaurant()
-                        if (restaurant == null) {
-                            _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
-                            return@launch
+                        try {
+                            val restaurant = restaurantRepository.getRestaurant()
+                            if (restaurant == null) {
+                                _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
+                                return@launch
+                            }
+                            val document = importService.processCsv(restaurant.id, parseResult.rows)
+                            if (generation == loadGeneration.get()) {
+                                _uiState.update { it.copy(document = document, parserWarnings = parseResult.warnings) }
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            if (generation == loadGeneration.get()) {
+                                _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.Unexpected)) }
+                            }
                         }
-                        val document = importService.processCsv(restaurant.id, parseResult.rows)
-                        _uiState.update { it.copy(document = document, parserWarnings = parseResult.warnings) }
                     }
                     is CsvParser.ParseResult.Error -> _uiState.update { it.copy(parseError = parseResult.type) }
                 }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _uiState.update { it.copy(parseError = CsvParser.ParseErrorType.READ_FAILURE) }
             } finally {
-                _uiState.update { it.copy(isParsing = false) }
+                if (generation == loadGeneration.get()) {
+                    _uiState.update { it.copy(isParsing = false) }
+                }
+            }
+        }
+    }
+
+    fun refreshPreview() {
+        val staleDocument = _uiState.value.document ?: return
+        if (_uiState.value.importResult != ImportResult.Failure(ImportFailure.StateChanged)) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            try {
+                val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+                val refreshed = importService.processCsv(restaurant.id, staleDocument.rows.map { it.rawData })
+                val selections = staleDocument.rows.associate { it.rowNumber to it.isIncluded }
+                val rows = refreshed.rows.map { row ->
+                    row.copy(isIncluded = selections[row.rowNumber] ?: row.isIncluded)
+                }
+                _uiState.update { it.copy(document = refreshed.copy(rows = rows), importResult = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Keep StateChanged visible until a refresh succeeds.
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }
@@ -152,6 +203,7 @@ data class CsvImportUiState(
     val isParsing: Boolean = false,
     val parseError: CsvParser.ParseErrorType? = null,
     val parserWarnings: List<CsvParser.CsvParserWarning> = emptyList(),
+    val isRefreshing: Boolean = false,
     val isCommitting: Boolean = false,
     val importResult: ImportResult? = null
 )
