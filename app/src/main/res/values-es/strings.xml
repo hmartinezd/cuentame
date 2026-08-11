@@ -1016,6 +1016,7 @@
   <string name="cost_invalid_ingredient">costo actual del ingrediente no válido</string>
   <string name="cost_nested_partial">el costo de la preparación es parcial</string>
   <string name="cost_nested_uncosted">el costo de la preparación no está disponible</string>
+  <string name="cost_nested_yield_unavailable">el rendimiento de salida de la preparación no está disponible</string>
   <string name="cost_dependency_cycle">ciclo de dependencia de receta</string>
   <string name="component_current_cost_format">Costo actual del componente: %1$s</string>
   <string name="current_unit_cost_format">%1$s / %2$s</string>
@@ -1023,6 +1024,7 @@
   <string name="cost_source_preparation">Fuente: receta de preparación activa</string>
   <string name="component_vendor_impact_format">Impacto del último precio del proveedor: %1$s</string>
   <string name="last_production_title">Última producción</string>
+  <string name="production_date_format">Producido: %1$s</string>
   <string name="historical_batch_cost_format">Costo histórico del lote: %1$s</string>
   <string name="historical_output_cost_format">Costo histórico de salida: %1$s / %2$s</string>
 </resources>

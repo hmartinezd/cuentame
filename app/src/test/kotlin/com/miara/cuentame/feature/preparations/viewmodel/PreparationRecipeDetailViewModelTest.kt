@@ -8,6 +8,8 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.PreparationRecipeRepository
+import com.miara.cuentame.core.domain.repository.PreparationCostRepository
+import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -171,6 +174,37 @@ class PreparationRecipeDetailViewModelTest {
     }
 
     @Test
+    fun `cost states last production and reactive updates are preserved`() = runTest {
+        val recipe = createRecipe("rec1", "out1")
+        val option = createUnitOption("o1", "out1")
+        val costs = MutableStateFlow(cost(PreparationCostStatus.FULLY_COSTED, BigDecimal.TEN))
+        val costRepository = mockk<PreparationCostRepository>()
+        every { preparationRecipeRepository.observeRecipe(recipe.id) } returns flowOf(recipe)
+        every { costRepository.observeRecipeCost(recipe.id) } returns costs
+        coEvery { ingredientRepository.getById(IngredientId("out1")) } returns mockk { every { name } returns "Output Name" }
+        coEvery { ingredientRepository.getUnitOptions(IngredientId("out1"), true) } returns listOf(option)
+
+        viewModel = PreparationRecipeDetailViewModel(
+            preparationRecipeRepository, ingredientRepository, SavedStateHandle(mapOf("recipeId" to "rec1")), costRepository
+        )
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.currentCost?.status).isEqualTo(PreparationCostStatus.FULLY_COSTED)
+        assertThat(viewModel.uiState.value.currentCost?.lastProduction).isNotNull()
+
+        costs.value = cost(PreparationCostStatus.PARTIALLY_COSTED, null)
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.currentCost?.status).isEqualTo(PreparationCostStatus.PARTIALLY_COSTED)
+
+        costs.value = cost(PreparationCostStatus.UNCOSTED, null).copy(
+            components = listOf(componentWithReason(PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_YIELD_UNAVAILABLE))
+        )
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.currentCost?.components?.single()?.missingReason)
+            .isEqualTo(PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_YIELD_UNAVAILABLE)
+    }
+
+    @Test
     fun `route classification - missing or blank recipeId results in InvalidRoute`() = runTest {
         viewModel = PreparationRecipeDetailViewModel(
             preparationRecipeRepository, ingredientRepository, 
@@ -229,5 +263,17 @@ class PreparationRecipeDetailViewModelTest {
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
         archivedAt = null
+    )
+
+    private fun cost(status: PreparationCostStatus, total: BigDecimal?) = PreparationRecipeCost(
+        PreparationRecipeId("rec1"), status, 1, if (total != null) 1 else 0, if (total == null) 1 else 0,
+        total ?: BigDecimal.ONE, total, BigDecimal.ONE, "lb", total, total, "lb", emptySet(),
+        emptyList(), PreparationPriceImpact(BigDecimal.ZERO, 0, 1),
+        HistoricalPreparationCost(com.miara.cuentame.core.common.ids.ProductionBatchId("batch"), Instant.EPOCH, BigDecimal.TEN, BigDecimal.ONE)
+    )
+
+    private fun componentWithReason(reason: PreparationCostMissingReason) = PreparationComponentCost(
+        com.miara.cuentame.core.common.ids.PreparationRecipeComponentId("component"), IngredientId("nested"), "Nested",
+        BigDecimal.ONE, "lb", BigDecimal.ONE, "lb", null, null, null, reason, null
     )
 }

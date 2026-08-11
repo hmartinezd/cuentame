@@ -8,8 +8,13 @@ import javax.inject.Inject
 
 data class PreparationCostIngredientInput(
     val id: IngredientId, val name: String, val baseUnitSymbol: String,
-    val averageUnitCostBase: BigDecimal?
+    val currentCost: CurrentIngredientCost
 )
+sealed interface CurrentIngredientCost {
+    data class Available(val value: BigDecimal) : CurrentIngredientCost
+    data object Missing : CurrentIngredientCost
+    data object Invalid : CurrentIngredientCost
+}
 data class PreparationCostComponentInput(
     val id: PreparationRecipeComponentId, val ingredientId: IngredientId,
     val quantityEntered: BigDecimal, val enteredUnitLabel: String?, val quantityBase: BigDecimal,
@@ -50,6 +55,12 @@ class PreparationCostCalculator @Inject constructor() {
                     missing(component, ingredient, PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE, child.id)
                 } else {
                     val childCost = calculateRecipe(child, byId, activeByOutput, ingredients, nextVisiting)
+                    val childYield = child.standardYieldQuantityBase?.takeIf { it > BigDecimal.ZERO }
+                    val scaledImpact = childYield?.let { yield ->
+                        childCost.priceImpact.knownSubtotal
+                            .multiply(component.quantityBase.divide(yield, MathContext.DECIMAL128))
+                            .takeIf { childCost.priceImpact.coveredLeafCount > 0 }
+                    }
                     val missing = if (childCost.components.any { it.missingReason == PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE }) {
                         PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE
                     } else when (childCost.status) {
@@ -58,29 +69,31 @@ class PreparationCostCalculator @Inject constructor() {
                         PreparationCostStatus.UNCOSTED -> PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_UNCOSTED
                     }
                     if (missing != null || childCost.costPerOutputBaseUnit == null) {
-                        missing(component, ingredient, missing ?: PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_UNCOSTED, child.id,
-                            childCost.priceImpact.knownSubtotal.takeIf { childCost.priceImpact.coveredLeafCount > 0 },
-                            childCost.priceImpact.coveredLeafCount, childCost.priceImpact.totalLeafCount)
+                        missing(component, ingredient, missing ?: PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_YIELD_UNAVAILABLE, child.id,
+                            scaledImpact,
+                            if (childYield != null) childCost.priceImpact.coveredLeafCount else 0,
+                            childCost.priceImpact.totalLeafCount)
                     } else {
                         val unit = childCost.costPerOutputBaseUnit
                         PreparationComponentCost(component.id, component.ingredientId, ingredient?.name.orEmpty(),
                             component.quantityEntered, component.enteredUnitLabel, component.quantityBase,
                             ingredient?.baseUnitSymbol.orEmpty(), unit, component.quantityBase.multiply(unit),
                             PreparationCostSource.ACTIVE_PREPARATION_RECIPE, null,
-                            childCost.priceImpact.knownSubtotal, child.id,
+                            scaledImpact, child.id,
                             childCost.priceImpact.coveredLeafCount, childCost.priceImpact.totalLeafCount)
                     }
                 }
             } else {
-                val unit = ingredient?.averageUnitCostBase
-                when {
-                    unit == null -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_MISSING)
-                    unit < BigDecimal.ZERO -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID)
-                    else -> PreparationComponentCost(component.id, component.ingredientId, ingredient.name,
-                        component.quantityEntered, component.enteredUnitLabel, component.quantityBase,
-                        ingredient.baseUnitSymbol, unit, component.quantityBase.multiply(unit),
-                        PreparationCostSource.INGREDIENT_AVERAGE_COST, null,
-                        component.vendorDeltaPerBase?.let(component.quantityBase::multiply))
+                when (val cost = ingredient?.currentCost ?: CurrentIngredientCost.Missing) {
+                    CurrentIngredientCost.Missing -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_MISSING)
+                    CurrentIngredientCost.Invalid -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+                    is CurrentIngredientCost.Available -> if (cost.value < BigDecimal.ZERO) {
+                        missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+                    } else PreparationComponentCost(component.id, component.ingredientId, ingredient!!.name,
+                            component.quantityEntered, component.enteredUnitLabel, component.quantityBase,
+                            ingredient.baseUnitSymbol, cost.value, component.quantityBase.multiply(cost.value),
+                            PreparationCostSource.INGREDIENT_AVERAGE_COST, null,
+                            component.vendorDeltaPerBase?.let(component.quantityBase::multiply))
                 }
             }
         }

@@ -1015,6 +1015,7 @@
   <string name="cost_invalid_ingredient">invalid current ingredient cost</string>
   <string name="cost_nested_partial">preparation cost is partially costed</string>
   <string name="cost_nested_uncosted">preparation cost is unavailable</string>
+  <string name="cost_nested_yield_unavailable">preparation output yield is unavailable</string>
   <string name="cost_dependency_cycle">recipe dependency cycle</string>
   <string name="component_current_cost_format">Current component cost: %1$s</string>
   <string name="current_unit_cost_format">%1$s / %2$s</string>
@@ -1022,6 +1023,7 @@
   <string name="cost_source_preparation">Source: active preparation recipe</string>
   <string name="component_vendor_impact_format">Latest vendor-price impact: %1$s</string>
   <string name="last_production_title">Last production</string>
+  <string name="production_date_format">Produced: %1$s</string>
   <string name="historical_batch_cost_format">Historical batch cost: %1$s</string>
   <string name="historical_output_cost_format">Historical output cost: %1$s / %2$s</string>
 </resources>

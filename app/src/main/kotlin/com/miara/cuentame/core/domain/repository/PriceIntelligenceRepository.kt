@@ -74,6 +74,6 @@ data class PriceIncreaseAlert(
 
 interface PriceIntelligenceRepository {
     fun observeIngredientPriceHistory(ingredientId: IngredientId): Flow<IngredientPriceHistory>
-    fun observePriceComparisons(ingredientIds: Set<IngredientId>): Flow<Map<IngredientId, VendorPriceComparison>>
+    fun observePriceComparisons(restaurantId: RestaurantId, ingredientIds: Set<IngredientId>): Flow<Map<IngredientId, VendorPriceComparison>>
     fun observeLargePriceIncreases(): Flow<List<PriceIncreaseAlert>>
 }

@@ -10,7 +10,8 @@ class PreparationCostCalculatorTest {
     private val calculator = PreparationCostCalculator()
     private fun bd(value: String) = BigDecimal(value)
     private fun assertDecimal(actual: BigDecimal?, expected: String) = assertThat(actual?.compareTo(bd(expected))).isEqualTo(0)
-    private fun ingredient(id: String, cost: String?) = PreparationCostIngredientInput(IngredientId(id), id, "lb", cost?.let(::bd))
+    private fun ingredient(id: String, cost: String?) = PreparationCostIngredientInput(
+        IngredientId(id), id, "lb", cost?.let { CurrentIngredientCost.Available(bd(it)) } ?: CurrentIngredientCost.Missing)
     private fun component(id: String, ingredient: String, qty: String, delta: String? = null) =
         PreparationCostComponentInput(PreparationRecipeComponentId(id), IngredientId(ingredient), bd(qty), "lb", bd(qty), delta?.let(::bd))
     private fun recipe(id: String, output: String, status: PreparationRecipeStatus = PreparationRecipeStatus.DRAFT,
@@ -104,5 +105,62 @@ class PreparationCostCalculatorTest {
         assertThat(result.priceImpact.coveredLeafCount).isEqualTo(3)
         assertThat(result.priceImpact.totalLeafCount).isEqualTo(4)
         assertThat(result.priceImpact.isComplete).isFalse()
+    }
+
+    @Test fun nestedVendorImpactScalesForFullFractionalAndMultipleBatchUsage() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, yield = "4", baseYield = "4",
+            components = listOf(component("tomato", "tomato", "2", "1")))
+        fun impactFor(quantity: String) = calculator.calculate(
+            PreparationRecipeId("parent"),
+            listOf(recipe("parent", "dish", components = listOf(component("sauce", "sauce", quantity))), child),
+            listOf("dish", "sauce", "tomato").associate { IngredientId(it) to ingredient(it, if (it == "tomato") "1" else null) }
+        )!!.priceImpact.knownSubtotal
+
+        assertDecimal(impactFor("4"), "2")
+        assertDecimal(impactFor("2"), "1")
+        assertDecimal(impactFor("1"), ".5")
+        assertDecimal(impactFor("10"), "5")
+    }
+
+    @Test fun nestedNegativeImpactIsScaled() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, baseYield = "4",
+            components = listOf(component("tomato", "tomato", "2", "-1")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), listOf("dish", "sauce", "tomato")
+            .associate { IngredientId(it) to ingredient(it, if (it == "tomato") "1" else null) })!!
+        assertDecimal(result.priceImpact.knownSubtotal, "-.5")
+    }
+
+    @Test fun nestedPartialImpactScalesKnownSubtotalAndPreservesLeafCoverage() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, baseYield = "4", components = listOf(
+            component("known", "known", "2", "1"), component("unknown", "unknown", "1")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), listOf("dish", "sauce", "known", "unknown")
+            .associate { IngredientId(it) to ingredient(it, if (it in setOf("known", "unknown")) "1" else null) })!!
+        assertDecimal(result.priceImpact.knownSubtotal, ".5")
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(1)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(2)
+        assertThat(result.priceImpact.isComplete).isFalse()
+    }
+
+    @Test fun fullyCostedNestedRecipeWithoutBaseYieldHasYieldReasonAndNoImpact() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, baseYield = null,
+            components = listOf(component("tomato", "tomato", "2", "1")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), listOf("dish", "sauce", "tomato")
+            .associate { IngredientId(it) to ingredient(it, if (it == "tomato") "1" else null) })!!
+        assertThat(result.components.single().missingReason)
+            .isEqualTo(PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_YIELD_UNAVAILABLE)
+        assertThat(result.components.single().vendorPriceImpact).isNull()
+        assertThat(result.priceImpact.isComplete).isFalse()
+    }
+
+    @Test fun explicitInvalidIngredientCostIsNotMissing() {
+        val r = recipe("r", "out", components = listOf(component("c", "bad", "1")))
+        val result = calculator.calculate(r.id, listOf(r), mapOf(
+            IngredientId("out") to ingredient("out", null),
+            IngredientId("bad") to PreparationCostIngredientInput(IngredientId("bad"), "bad", "lb", CurrentIngredientCost.Invalid)
+        ))!!
+        assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_INVALID)
     }
 }

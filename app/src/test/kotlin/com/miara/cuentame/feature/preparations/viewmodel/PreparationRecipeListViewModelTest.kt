@@ -5,6 +5,9 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.PreparationRecipeRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.repository.PreparationCostRepository
+import com.miara.cuentame.core.model.ingredient.PreparationCostStatus
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeCostSummary
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeSummary
 import com.miara.cuentame.core.model.restaurant.Restaurant
@@ -14,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -181,6 +185,35 @@ class PreparationRecipeListViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.error).isInstanceOf(RestaurantNotConfiguredException::class.java)
+    }
+
+    @Test
+    fun `cost summaries stay joined by recipe id through reactive updates and filtering`() = runTest {
+        val recipes = listOf(
+            createSummary("rec1", "Onion", "Onion", PreparationRecipeStatus.ACTIVE),
+            createSummary("rec2", "Tomato", "Tomato", PreparationRecipeStatus.DRAFT)
+        )
+        val summaries = MutableStateFlow(listOf(
+            PreparationRecipeCostSummary(PreparationRecipeId("rec2"), PreparationCostStatus.UNCOSTED, null),
+            PreparationRecipeCostSummary(PreparationRecipeId("rec1"), PreparationCostStatus.FULLY_COSTED, java.math.BigDecimal.TEN)
+        ))
+        val costRepository = mockk<PreparationCostRepository>()
+        every { preparationRecipeRepository.observeRecipes(restaurantId, false) } returns flowOf(recipes)
+        every { costRepository.observeRecipeCostSummaries(restaurantId) } returns summaries
+
+        viewModel = PreparationRecipeListViewModel(preparationRecipeRepository, restaurantRepository, costRepository)
+        backgroundScope.launch { viewModel.uiState.collect() }
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.costs[PreparationRecipeId("rec1")]?.status).isEqualTo(PreparationCostStatus.FULLY_COSTED)
+        assertThat(viewModel.uiState.value.costs[PreparationRecipeId("rec2")]?.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+
+        viewModel.onSearchQueryChanged("tomato")
+        summaries.value = summaries.value.map {
+            if (it.recipeId == PreparationRecipeId("rec2")) it.copy(status = PreparationCostStatus.PARTIALLY_COSTED) else it
+        }
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.recipes.single().id).isEqualTo(PreparationRecipeId("rec2"))
+        assertThat(viewModel.uiState.value.costs[PreparationRecipeId("rec2")]?.status).isEqualTo(PreparationCostStatus.PARTIALLY_COSTED)
     }
 
     private fun createSummary(id: String, name: String, ingName: String, status: PreparationRecipeStatus) = PreparationRecipeSummary(

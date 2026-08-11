@@ -9,6 +9,7 @@ import com.miara.cuentame.core.domain.service.*
 import com.miara.cuentame.core.model.ingredient.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,15 +61,26 @@ class RoomPreparationCostRepository @Inject constructor(
         return combine(structural, unitDao.observeAll()) { s, units -> s to units }
             .flatMapLatest { (s, units) ->
                 val ids = s.ingredients.map { IngredientId(it.id) }.toSet()
-                priceRepository.observePriceComparisons(ids).map { comparisons ->
+                priceRepository.observePriceComparisons(RestaurantId(restaurantId), ids)
+                    .catch { error ->
+                        if (error is CancellationException) throw error
+                        emit(emptyMap())
+                    }.map { comparisons ->
                     val options = s.options.associateBy { it.id }
                     val unitSymbols = units.associate { it.id to it.symbol }
                     val costs = s.costs.associateBy { it.ingredientId }
                     val deltas = comparisons.mapValues { it.value.absoluteChange }
                     val ingredients = s.ingredients.associate { entity ->
-                        val value = costs[entity.id]?.averageUnitCostBase?.toBigDecimalOrNull()
+                        val projection = costs[entity.id]
+                        val currentCost = when {
+                            projection?.averageUnitCostBase == null -> CurrentIngredientCost.Missing
+                            else -> projection.averageUnitCostBase.toBigDecimalOrNull()
+                                ?.takeIf { it >= java.math.BigDecimal.ZERO }
+                                ?.let(CurrentIngredientCost::Available)
+                                ?: CurrentIngredientCost.Invalid
+                        }
                         IngredientId(entity.id) to PreparationCostIngredientInput(
-                            IngredientId(entity.id), entity.name, unitSymbols[entity.baseUnitId].orEmpty(), value)
+                            IngredientId(entity.id), entity.name, unitSymbols[entity.baseUnitId].orEmpty(), currentCost)
                     }
                     val components = s.components.groupBy { it.recipeId }
                     val recipeInputs = s.recipes.map { recipe ->

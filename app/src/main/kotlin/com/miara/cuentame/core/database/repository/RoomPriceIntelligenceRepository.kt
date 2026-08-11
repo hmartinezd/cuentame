@@ -47,10 +47,8 @@ class RoomPriceIntelligenceRepository @Inject constructor(
                     .thenByDescending { it.purchaseDate }.thenBy { it.ingredientName })
         }
 
-    override fun observePriceComparisons(ingredientIds: Set<IngredientId>): Flow<Map<IngredientId, VendorPriceComparison>> =
-        activeRestaurantProvider.observeActiveRestaurant().flatMapLatest { restaurant ->
-            purchaseDao.observeVendorPriceRows(restaurant?.id ?: "", null)
-        }.map { rows ->
+    override fun observePriceComparisons(restaurantId: RestaurantId, ingredientIds: Set<IngredientId>): Flow<Map<IngredientId, VendorPriceComparison>> =
+        purchaseDao.observeVendorPriceRows(restaurantId.value, null).map { rows ->
             rows.map(::toObservation).filter { it.ingredientId in ingredientIds }
                 .groupBy { it.ingredientId }
                 .mapValues { calculator.comparison(it.value) }

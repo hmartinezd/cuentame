@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -307,6 +308,10 @@ fun PreparationRecipeDetailScreen(
 
 @Composable
 private fun CurrentCostSection(cost: PreparationRecipeCost) {
+    val locale = LocalConfiguration.current.locales[0]
+    val productionDateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).withZone(ZoneId.systemDefault())
+    }
     val status = when (cost.status) {
         PreparationCostStatus.FULLY_COSTED -> stringResource(R.string.cost_status_fully)
         PreparationCostStatus.PARTIALLY_COSTED -> stringResource(R.string.cost_status_partially)
@@ -335,6 +340,7 @@ private fun CurrentCostSection(cost: PreparationRecipeCost) {
             cost.lastProduction?.let { historical ->
                 HorizontalDivider()
                 Text(stringResource(R.string.last_production_title), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.production_date_format, productionDateFormatter.format(historical.producedAt)))
                 Text(stringResource(R.string.historical_batch_cost_format, historical.batchCost?.let { Formatters.formatCurrency(it, cost.currencyCode) } ?: stringResource(R.string.status_unavailable)))
                 historical.outputUnitCostBase?.let { Text(stringResource(R.string.historical_output_cost_format, Formatters.formatCurrency(it, cost.currencyCode), cost.outputBaseUnitSymbol)) }
             }
@@ -346,7 +352,9 @@ private fun CurrentCostSection(cost: PreparationRecipeCost) {
 private fun ComponentCostDetails(cost: PreparationComponentCost, currencyCode: String) {
     cost.componentCurrentCost?.let { Text(stringResource(R.string.component_current_cost_format, Formatters.formatCurrency(it, currencyCode)), style = MaterialTheme.typography.bodySmall) }
     cost.currentUnitCostBase?.let { Text(stringResource(R.string.current_unit_cost_format, Formatters.formatCurrency(it, currencyCode), cost.baseUnitSymbol), style = MaterialTheme.typography.labelSmall) }
-    Text(stringResource(if (cost.costSource == PreparationCostSource.ACTIVE_PREPARATION_RECIPE) R.string.cost_source_preparation else R.string.cost_source_average), style = MaterialTheme.typography.labelSmall)
+    cost.costSource?.let { source ->
+        Text(stringResource(if (source == PreparationCostSource.ACTIVE_PREPARATION_RECIPE) R.string.cost_source_preparation else R.string.cost_source_average), style = MaterialTheme.typography.labelSmall)
+    }
     cost.vendorPriceImpact?.let { Text(stringResource(R.string.component_vendor_impact_format, Formatters.formatCurrency(it, currencyCode)), style = MaterialTheme.typography.labelSmall) }
     cost.missingReason?.let { Text(missingReasonText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
 }
@@ -357,6 +365,7 @@ private fun missingReasonText(reason: PreparationCostMissingReason): String = st
     PreparationCostMissingReason.INGREDIENT_COST_INVALID -> R.string.cost_invalid_ingredient
     PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_PARTIAL -> R.string.cost_nested_partial
     PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_UNCOSTED -> R.string.cost_nested_uncosted
+    PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_YIELD_UNAVAILABLE -> R.string.cost_nested_yield_unavailable
     PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE -> R.string.cost_dependency_cycle
 })
 
