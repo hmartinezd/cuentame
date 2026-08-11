@@ -979,7 +979,14 @@
   <string name="latest_normalized_cost">Latest: %1$s per %2$s</string>
   <string name="previous_normalized_cost">Previous: %1$s per %2$s</string>
   <string name="previous_price_missing">No previous comparable price</string>
-  <string name="price_change_format">Change: %1$s%% (%2$s)</string>
+  <string name="price_change_format">Change: %1$s (%2$s)</string>
+  <string name="latest_supplier_date">Latest supplier: %1$s • %2$s</string>
+  <string name="coverage_vendor_unknown">Vendor item could not be verified for this purchase.</string>
+  <string name="coverage_package_unknown">Historical package label is unavailable.</string>
+  <string name="coverage_provenance_diverged">This purchase line was manually changed after invoice matching; vendor item identity is not attributed automatically.</string>
+  <string name="coverage_previous_zero">Percentage change cannot be calculated from a zero previous price.</string>
+  <string name="coverage_contradictory_vendor">Previous purchases use a different vendor item.</string>
+  <string name="coverage_invalid_quantity">Historical quantity data is incomplete.</string>
   <string name="large_price_increase">Large price increase</string>
   <string name="price_coverage_warning">Some source details are incomplete; compare with care.</string>
   <string name="recent_supplier_prices">Recent supplier comparison</string>

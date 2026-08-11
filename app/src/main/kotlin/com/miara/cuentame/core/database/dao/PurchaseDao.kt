@@ -20,9 +20,10 @@ interface PurchaseDao {
         SELECT pr.id AS purchaseReceiptId, pl.id AS purchaseLineId,
             pr.restaurantId, r.currencyCode, pl.ingredientId, i.name AS ingredientName,
             u.symbol AS baseUnitSymbol, pr.supplierId, s.name AS supplierName,
-            pr.purchaseDate, pr.postedAt, pl.ingredientUnitOptionId,
+            pr.purchaseDate, pr.postedAt, pl.ingredientUnitOptionId, pl.areaId,
             iuo.displayName AS purchaseUnitLabel, pl.quantityEntered,
             pl.quantityBase, pl.lineTotal, pl.unitCostBase,
+            origin.lastMaterializedSnapshotJson AS originSnapshotJson,
             pil.evidenceJson AS parsedLineEvidenceJson,
             pil.correctionJson AS parsedLineCorrectionJson
         FROM purchase_receipts pr

@@ -23,7 +23,8 @@ class PriceIntelligenceCalculator(
         if (previous == null) {
             val contradiction = remaining.any { candidate ->
                 valid(candidate) && candidate.ingredientId == latest.ingredientId && candidate.supplierId == latest.supplierId &&
-                    latest.vendorItemCode != null && candidate.vendorItemCode != null && latest.vendorItemCode != candidate.vendorItemCode
+                    latest.normalizedVendorItemKey != null && candidate.normalizedVendorItemKey != null &&
+                    latest.normalizedVendorItemKey != candidate.normalizedVendorItemKey
             }
             val reason = if (contradiction) PriceDataCoverage.CONTRADICTORY_VENDOR_ITEMS else PriceDataCoverage.PREVIOUS_PRICE_MISSING
             return VendorPriceComparison(latest, null, null, null, PriceDirection.UNDEFINED, latest.coverage + reason)
@@ -61,6 +62,7 @@ class PriceIntelligenceCalculator(
     private fun valid(o: VendorPriceObservation) = o.quantityEntered > BigDecimal.ZERO && o.quantityBase > BigDecimal.ZERO && o.unitCostBase >= BigDecimal.ZERO
     private fun comparable(a: VendorPriceObservation, b: VendorPriceObservation): Boolean {
         if (!valid(a) || !valid(b) || a.ingredientId != b.ingredientId || a.supplierId != b.supplierId) return false
-        return a.vendorItemCode == null || b.vendorItemCode == null || a.vendorItemCode == b.vendorItemCode
+        return a.normalizedVendorItemKey == null || b.normalizedVendorItemKey == null ||
+            a.normalizedVendorItemKey == b.normalizedVendorItemKey
     }
 }

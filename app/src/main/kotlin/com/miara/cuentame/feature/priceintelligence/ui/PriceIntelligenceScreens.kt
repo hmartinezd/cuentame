@@ -54,11 +54,12 @@ import java.time.format.DateTimeFormatter
         item { Text(stringResource(R.string.price_summary), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         item { Text(stringResource(R.string.latest_normalized_cost, money(latest.unitCostBase, latest.currencyCode), latest.baseUnitSymbol)) }
         item { Text(c.previous?.let { stringResource(R.string.previous_normalized_cost, money(it.unitCostBase, it.currencyCode), it.baseUnitSymbol) } ?: stringResource(R.string.previous_price_missing)) }
-        c.percentChange?.let { item { Text(stringResource(R.string.price_change_format, it.stripTrailingZeros().toPlainString(), money(c.absoluteChange!!, latest.currencyCode))) } }
+        c.percentChange?.let { item { Text(stringResource(R.string.price_change_format, Formatters.formatPercent(it), money(c.absoluteChange!!, latest.currencyCode))) } }
+        item { Text(stringResource(R.string.latest_supplier_date, latest.supplierName ?: stringResource(R.string.no_supplier), date(latest.purchaseDate))) }
         if (c.percentChange != null && c.percentChange >= java.math.BigDecimal.TEN) item { Text(stringResource(R.string.large_price_increase), color = MaterialTheme.colorScheme.error) }
-        if (c.coverage.isNotEmpty()) item { Text(stringResource(R.string.price_coverage_warning), color = MaterialTheme.colorScheme.secondary) }
+        if (c.coverage.isNotEmpty()) item { Column { Text(stringResource(R.string.price_coverage_warning), color = MaterialTheme.colorScheme.secondary); c.coverage.forEach { Text(coverageText(it), color = MaterialTheme.colorScheme.secondary) } } }
         item { Text(stringResource(R.string.recent_supplier_prices), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp)) }
-        items(history.recentSupplierPrices) { p -> Text("${p.observation.supplierName ?: stringResource(R.string.no_supplier)}: ${money(p.observation.unitCostBase, p.observation.currencyCode)}/${p.observation.baseUnitSymbol}${if (p.isLowest) " • ${stringResource(R.string.lowest_price)}" else ""}") }
+        items(history.recentSupplierPrices) { p -> Column { Text("${p.observation.supplierName ?: stringResource(R.string.no_supplier)}: ${money(p.observation.unitCostBase, p.observation.currencyCode)}/${p.observation.baseUnitSymbol} • ${date(p.observation.purchaseDate)}${if (p.isLowest) " • ${stringResource(R.string.lowest_price)}" else ""}"); p.observation.coverage.forEach { Text(coverageText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) } } }
         item { Text(stringResource(R.string.price_history_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp)) }
         items(history.observations, key = { it.purchaseLineId.value }) { PriceRow(it) { onSource(it.purchaseReceiptId, it.purchaseLineId) }; HorizontalDivider() }
     }
@@ -89,7 +90,7 @@ import java.time.format.DateTimeFormatter
             PriceAlertsState.Loading -> Center(padding) { CircularProgressIndicator() }
             PriceAlertsState.Error -> Center(padding) { Button(onClick = onRetry) { Text(stringResource(R.string.action_retry_desc)) } }
             is PriceAlertsState.Ready -> if (state.alerts.isEmpty()) Center(padding) { Text(stringResource(R.string.price_increases_empty)) } else LazyColumn(Modifier.padding(padding)) {
-                items(state.alerts) { a -> ListItem(modifier = Modifier.clickable { onSource(a.purchaseReceiptId, a.purchaseLineId) }, headlineContent = { Text(a.ingredientName) }, supportingContent = { Text("${a.supplierName ?: stringResource(R.string.no_supplier)} • ${money(a.previousCost, a.currencyCode)} → ${money(a.latestCost, a.currencyCode)}") }, trailingContent = { Text("+${a.percentIncrease.stripTrailingZeros().toPlainString()}%", color = MaterialTheme.colorScheme.error) }); HorizontalDivider() }
+                items(state.alerts) { a -> ListItem(modifier = Modifier.clickable { onSource(a.purchaseReceiptId, a.purchaseLineId) }, headlineContent = { Text(a.ingredientName) }, supportingContent = { Text("${a.supplierName ?: stringResource(R.string.no_supplier)} • ${money(a.previousCost, a.currencyCode)} → ${money(a.latestCost, a.currencyCode)} • ${date(a.purchaseDate)}") }, trailingContent = { Text("+${Formatters.formatPercent(a.percentIncrease)}", color = MaterialTheme.colorScheme.error) }); HorizontalDivider() }
             }
         }
     }
@@ -97,3 +98,15 @@ import java.time.format.DateTimeFormatter
 
 @Composable private fun Center(padding: PaddingValues, content: @Composable () -> Unit) = Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { content() }
 private fun money(value: java.math.BigDecimal, currencyCode: String) = Formatters.formatCurrency(value, currencyCode)
+private fun date(value: java.time.Instant) = DateTimeFormatter.ofPattern("MMM d, yyyy").withZone(ZoneId.systemDefault()).format(value)
+
+@Composable private fun coverageText(value: PriceDataCoverage): String = stringResource(when (value) {
+    PriceDataCoverage.VENDOR_ITEM_UNKNOWN -> R.string.coverage_vendor_unknown
+    PriceDataCoverage.PACKAGE_LABEL_UNKNOWN -> R.string.coverage_package_unknown
+    PriceDataCoverage.SOURCE_PROVENANCE_DIVERGED -> R.string.coverage_provenance_diverged
+    PriceDataCoverage.PREVIOUS_PRICE_MISSING -> R.string.previous_price_missing
+    PriceDataCoverage.PREVIOUS_PRICE_ZERO -> R.string.coverage_previous_zero
+    PriceDataCoverage.CONTRADICTORY_VENDOR_ITEMS -> R.string.coverage_contradictory_vendor
+    PriceDataCoverage.INVALID_HISTORICAL_QUANTITY -> R.string.coverage_invalid_quantity
+    else -> R.string.price_coverage_warning
+})

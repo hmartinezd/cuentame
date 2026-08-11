@@ -25,8 +25,10 @@ class PriceHistoryViewModel @Inject constructor(
     private val retry = MutableStateFlow(0)
     val state: StateFlow<PriceHistoryState> = retry.flatMapLatest {
         repository.observeIngredientPriceHistory(ingredientId)
-    }.map<IngredientPriceHistory, PriceHistoryState> { PriceHistoryState.Ready(it) }
-        .catch { emit(PriceHistoryState.Error) }
+            .map<IngredientPriceHistory, PriceHistoryState> { PriceHistoryState.Ready(it) }
+            .onStart { emit(PriceHistoryState.Loading) }
+            .catch { emit(PriceHistoryState.Error) }
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PriceHistoryState.Loading)
     fun retry() { retry.value++ }
 }
@@ -43,9 +45,12 @@ class PriceAlertsViewModel @Inject constructor(
     private val repository: PriceIntelligenceRepository
 ) : ViewModel() {
     private val retry = MutableStateFlow(0)
-    val state: StateFlow<PriceAlertsState> = retry.flatMapLatest { repository.observeLargePriceIncreases() }
-        .map<List<PriceIncreaseAlert>, PriceAlertsState> { PriceAlertsState.Ready(it) }
-        .catch { emit(PriceAlertsState.Error) }
+    val state: StateFlow<PriceAlertsState> = retry.flatMapLatest {
+        repository.observeLargePriceIncreases()
+            .map<List<PriceIncreaseAlert>, PriceAlertsState> { PriceAlertsState.Ready(it) }
+            .onStart { emit(PriceAlertsState.Loading) }
+            .catch { emit(PriceAlertsState.Error) }
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PriceAlertsState.Loading)
     fun retry() { retry.value++ }
 }

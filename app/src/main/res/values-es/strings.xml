@@ -980,7 +980,14 @@
   <string name="latest_normalized_cost">Último: %1$s por %2$s</string>
   <string name="previous_normalized_cost">Anterior: %1$s por %2$s</string>
   <string name="previous_price_missing">No hay precio anterior comparable</string>
-  <string name="price_change_format">Cambio: %1$s%% (%2$s)</string>
+  <string name="price_change_format">Cambio: %1$s (%2$s)</string>
+  <string name="latest_supplier_date">Proveedor más reciente: %1$s • %2$s</string>
+  <string name="coverage_vendor_unknown">No se pudo verificar el artículo del proveedor para esta compra.</string>
+  <string name="coverage_package_unknown">La etiqueta histórica del paquete no está disponible.</string>
+  <string name="coverage_provenance_diverged">Esta línea se cambió manualmente después de cotejar la factura; el artículo del proveedor no se atribuye automáticamente.</string>
+  <string name="coverage_previous_zero">No se puede calcular el cambio porcentual desde un precio anterior de cero.</string>
+  <string name="coverage_contradictory_vendor">Las compras anteriores usan un artículo de proveedor diferente.</string>
+  <string name="coverage_invalid_quantity">Los datos históricos de cantidad están incompletos.</string>
   <string name="large_price_increase">Aumento grande de precio</string>
   <string name="price_coverage_warning">Faltan algunos detalles de origen; compare con cuidado.</string>
   <string name="recent_supplier_prices">Comparación reciente de proveedores</string>

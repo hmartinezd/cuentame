@@ -1074,8 +1074,7 @@ class RoomPurchaseRepository @Inject constructor(
                 val existingLine = existingOrigin?.let { origin -> currentLines.find { it.id == origin.purchaseLineId } }
                 
                 if (existingLine != null) {
-                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(existingOrigin.lastMaterializedSnapshotJson)
-                    if (existingLine.isManuallyEdited(snapshot)) {
+                    if (!existingLine.matchesMaterializationSnapshot(existingOrigin.lastMaterializedSnapshotJson, json)) {
                          return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
                     }
                 }
@@ -1088,8 +1087,7 @@ class RoomPurchaseRepository @Inject constructor(
             removedOrigins.forEach { origin ->
                 val lineToRemove = currentLines.find { it.id == origin.purchaseLineId }
                 if (lineToRemove != null) {
-                    val snapshot = json.decodeFromString<PurchaseLineSnapshot>(origin.lastMaterializedSnapshotJson)
-                    if (lineToRemove.isManuallyEdited(snapshot)) {
+                    if (!lineToRemove.matchesMaterializationSnapshot(origin.lastMaterializedSnapshotJson, json)) {
                         return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.ManualEditConflict)
                     }
                 }
@@ -1150,7 +1148,7 @@ class RoomPurchaseRepository @Inject constructor(
                     purchaseDao.insertLine(lineEntity)
                 }
 
-                val newSnapshot = PurchaseLineSnapshot(
+                val newSnapshot = PurchaseLineMaterializationSnapshot(
                     ingredientId = vLine.ingredientId.value,
                     areaId = vLine.areaId.value,
                     unitOptionId = vLine.unitOptionId.value,
@@ -1185,17 +1183,6 @@ class RoomPurchaseRepository @Inject constructor(
         PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PersistenceFailed)
     }
 
-    @kotlinx.serialization.Serializable
-    private data class PurchaseLineSnapshot(
-        val ingredientId: String,
-        val areaId: String,
-        val unitOptionId: String,
-        val quantityEntered: String,
-        val quantityBase: String,
-        val lineTotal: String,
-        val unitCostBase: String
-    )
-
     private data class ValidatedMaterializationLine(
         val lineIndex: Int,
         val ingredientId: IngredientId,
@@ -1207,24 +1194,6 @@ class RoomPurchaseRepository @Inject constructor(
         val lineTotal: BigDecimal,
         val unitCostBase: BigDecimal
     )
-
-    private fun PurchaseLineEntity.isManuallyEdited(snapshot: PurchaseLineSnapshot): Boolean {
-        return ingredientId != snapshot.ingredientId ||
-                areaId != snapshot.areaId ||
-                ingredientUnitOptionId != snapshot.unitOptionId ||
-                !BigDecimal(quantityEntered).compareCanonical(snapshot.quantityEntered) ||
-                !BigDecimal(quantityBase).compareCanonical(snapshot.quantityBase) ||
-                !BigDecimal(lineTotal).compareCanonical(snapshot.lineTotal) ||
-                !BigDecimal(unitCostBase).compareCanonical(snapshot.unitCostBase)
-    }
-
-    private fun BigDecimal.compareCanonical(other: String): Boolean {
-        return try {
-            this.stripTrailingZeros().compareTo(BigDecimal(other).stripTrailingZeros()) == 0
-        } catch (e: Exception) {
-            false
-        }
-    }
 
     private suspend fun isSourceLocked(receiptId: PurchaseReceiptId): Boolean {
         return materializationDao.getApplicationForReceipt(receiptId.value) != null

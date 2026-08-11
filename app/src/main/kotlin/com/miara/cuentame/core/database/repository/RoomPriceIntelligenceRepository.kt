@@ -8,6 +8,8 @@ import com.miara.cuentame.core.domain.service.PriceIntelligenceCalculator
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection
 import com.miara.cuentame.core.ocr.parser.effectiveValue
+import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
+import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -51,10 +53,15 @@ class RoomPriceIntelligenceRepository @Inject constructor(
         val total = row.lineTotal.toBigDecimalOrNull() ?: BigDecimal.ZERO
         val unitCost = row.unitCostBase.toBigDecimalOrNull() ?: BigDecimal.ZERO
         val validQuantity = entered > BigDecimal.ZERO && base > BigDecimal.ZERO
+        val provenanceExists = row.originSnapshotJson != null
+        val provenanceTrusted = provenanceExists && row.asEntity().matchesMaterializationSnapshot(row.originSnapshotJson, json)
+        val vendorCode = if (provenanceTrusted) vendorCode(row) else null
+        val normalizedVendorKey = vendorCode?.let(InventoryNormalization::normalizeVendorCode)?.takeIf(String::isNotBlank)
         val coverage = buildSet {
             if (!validQuantity) add(PriceDataCoverage.INVALID_HISTORICAL_QUANTITY)
-            if (row.purchaseUnitLabel.isNullOrBlank()) add(PriceDataCoverage.PACKAGE_LABEL_UNKNOWN)
-            if (vendorCode(row) == null) add(PriceDataCoverage.VENDOR_ITEM_UNKNOWN)
+            if (historicalPackageLabel(row, provenanceTrusted).isNullOrBlank()) add(PriceDataCoverage.PACKAGE_LABEL_UNKNOWN)
+            if (provenanceExists && !provenanceTrusted) add(PriceDataCoverage.SOURCE_PROVENANCE_DIVERGED)
+            if (vendorCode == null) add(PriceDataCoverage.VENDOR_ITEM_UNKNOWN)
         }
         return VendorPriceObservation(
             PurchaseReceiptId(row.purchaseReceiptId), PurchaseLineId(row.purchaseLineId),
@@ -65,9 +72,14 @@ class RoomPriceIntelligenceRepository @Inject constructor(
             entered.takeIf { it > BigDecimal.ZERO }?.let { total.divide(it, MathContext.DECIMAL128) },
             unitCost,
             entered.takeIf { it > BigDecimal.ZERO }?.let { base.divide(it, MathContext.DECIMAL128) },
-            row.purchaseUnitLabel, vendorCode(row), coverage
+            historicalPackageLabel(row, provenanceTrusted), vendorCode, coverage, normalizedVendorKey
         )
     }
+
+    private fun VendorPriceObservationRow.asEntity() = PurchaseLineEntity(
+        purchaseLineId, purchaseReceiptId, ingredientId, areaId, ingredientUnitOptionId,
+        quantityEntered, quantityBase, lineTotal, unitCostBase, null, 0, 0
+    )
 
     /** Decode only the immutable accepted parse source; current supplier mappings are never consulted. */
     private fun vendorCode(row: VendorPriceObservationRow): String? = runCatching {
@@ -76,5 +88,15 @@ class RoomPriceIntelligenceRepository @Inject constructor(
         val correction = row.parsedLineCorrectionJson?.takeIf { it != "null" }
             ?.let { json.decodeFromString<ParsedInvoiceLineCorrection>(it) }
         evidence.vendorCode.effectiveValue(correction?.vendorCode)?.trim()?.takeIf(String::isNotBlank)
+    }.getOrNull()
+
+    /** Current unit-option labels are mutable; only immutable, trusted invoice package text is historical. */
+    private fun historicalPackageLabel(row: VendorPriceObservationRow, provenanceTrusted: Boolean): String? = runCatching {
+        if (!provenanceTrusted) return null
+        val evidence = row.parsedLineEvidenceJson?.let { json.decodeFromString<ParsedInvoiceLineCandidate>(it) }
+            ?: return null
+        val correction = row.parsedLineCorrectionJson?.takeIf { it != "null" }
+            ?.let { json.decodeFromString<ParsedInvoiceLineCorrection>(it) }
+        evidence.packageText.effectiveValue(correction?.packageText)?.trim()?.takeIf(String::isNotBlank)
     }.getOrNull()
 }

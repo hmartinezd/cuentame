@@ -77,6 +77,8 @@ data class VendorPriceObservationRow(
     val quantityBase: String,
     val lineTotal: String,
     val unitCostBase: String,
+    val areaId: String,
+    val originSnapshotJson: String?,
     val parsedLineEvidenceJson: String?,
     val parsedLineCorrectionJson: String?
 )

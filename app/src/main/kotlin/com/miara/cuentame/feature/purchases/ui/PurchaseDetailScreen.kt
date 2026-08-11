@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
@@ -144,7 +145,13 @@ fun PurchaseDetailScreen(
             }
             is PurchaseDetailState.Ready -> {
                 val details = state.details
+                val listState = rememberLazyListState()
+                LaunchedEffect(highlightLineId, details.receipt.id) {
+                    val lineIndex = details.lines.indexOfFirst { it.line.id == highlightLineId }
+                    if (lineIndex >= 0) listState.animateScrollToItem(lineIndex + 3)
+                }
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)

@@ -8,7 +8,8 @@ import java.time.Instant
 enum class PriceDataCoverage {
     COMPLETE, VENDOR_ITEM_UNKNOWN, PACKAGE_LABEL_UNKNOWN,
     INVALID_HISTORICAL_QUANTITY, PREVIOUS_PRICE_MISSING, PREVIOUS_PRICE_ZERO,
-    CONTRADICTORY_VENDOR_ITEMS, NO_RECENT_COMPARABLE_SUPPLIER_PRICE
+    CONTRADICTORY_VENDOR_ITEMS, NO_RECENT_COMPARABLE_SUPPLIER_PRICE,
+    SOURCE_PROVENANCE_DIVERGED
 }
 
 data class VendorPriceObservation(
@@ -30,7 +31,8 @@ data class VendorPriceObservation(
     val historicalConversionRatio: BigDecimal?,
     val purchaseUnitLabel: String?,
     val vendorItemCode: String?,
-    val coverage: Set<PriceDataCoverage>
+    val coverage: Set<PriceDataCoverage>,
+    val normalizedVendorItemKey: String? = vendorItemCode
 )
 
 enum class PriceDirection { INCREASED, DECREASED, UNCHANGED, UNDEFINED }
