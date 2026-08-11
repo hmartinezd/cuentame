@@ -15,6 +15,9 @@ interface IngredientCategoryDao {
     @Query("SELECT * FROM ingredient_categories WHERE deletedAt IS NULL ORDER BY sortOrder")
     suspend fun getAllCategoriesSync(): List<IngredientCategoryEntity>
 
+    @Query("SELECT * FROM ingredient_categories WHERE restaurantId = :restaurantId ORDER BY sortOrder")
+    suspend fun getAllCategoriesForRestaurant(restaurantId: String): List<IngredientCategoryEntity>
+
     @Query("SELECT * FROM ingredient_categories WHERE id = :id")
     suspend fun getById(id: String): IngredientCategoryEntity?
 

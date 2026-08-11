@@ -1,7 +1,6 @@
 package com.miara.cuentame.core.domain.repository
 
 import com.miara.cuentame.core.common.ids.RestaurantId
-import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
 
 interface CsvImportRepository {
     suspend fun commitImport(
@@ -28,5 +27,5 @@ sealed interface ImportFailure {
     data object RestaurantUnavailable : ImportFailure
     data object PersistenceFailure : ImportFailure
     data object FileReadFailure : ImportFailure
-    data class Unknown(val message: String?) : ImportFailure
+    data object Unexpected : ImportFailure
 }

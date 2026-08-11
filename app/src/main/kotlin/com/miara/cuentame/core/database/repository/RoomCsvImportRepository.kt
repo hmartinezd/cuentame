@@ -31,8 +31,9 @@ import com.miara.cuentame.core.domain.repository.ImportFailure
 import com.miara.cuentame.core.domain.repository.ImportResult
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
-import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
-import com.miara.cuentame.feature.ingredient.import.domain.CsvImportRowStatus
+import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
+import com.miara.cuentame.core.domain.repository.CsvIngredientImportDocument
+import com.miara.cuentame.core.domain.repository.CsvImportRowStatus
 import java.math.BigDecimal
 import javax.inject.Inject
 
@@ -66,7 +67,32 @@ class RoomCsvImportRepository @Inject constructor(
                 }
 
                 // Require every included row to be valid according to the plan
-                if (includedRows.any { it.status == CsvImportRowStatus.ERROR }) {
+                if (includedRows.any { it.status == CsvImportRowStatus.ERROR || it.normalizedData == null }) {
+                    return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                }
+
+                val planData = includedRows.map { it.normalizedData!! }
+                if (planData.any { data ->
+                        data.name.normalizeName().isBlank() || data.resolvedBaseUnitId == null ||
+                            (!data.countUnitName.isNullOrBlank() && data.resolvedCountUnitId == null) ||
+                            (data.purchasePackageName.isNullOrBlank() != (data.packageConversionFactor == null)) ||
+                            (!data.vendorItemCode.isNullOrBlank() && data.resolvedSupplierId == null && data.supplierName.isNullOrBlank()) ||
+                            data.currentCostPerBaseUnit?.let { it < BigDecimal.ZERO } == true ||
+                            data.reorderPointBase?.let { it < BigDecimal.ZERO } == true ||
+                            (!data.purchasePackageName.isNullOrBlank() && (data.packageConversionFactor == null || data.packageConversionFactor <= BigDecimal.ZERO))
+                    } || planData.map { it.name.normalizeName() }.toSet().size != planData.size ||
+                    planData.mapNotNull { it.sku?.trim()?.lowercase()?.takeIf(String::isNotBlank) }.let { it.size != it.toSet().size } ||
+                    planData.mapNotNull { data ->
+                        val supplierKey = data.resolvedSupplierId?.value ?: data.supplierName?.normalizeName()
+                        val vendorKey = InventoryNormalization.normalizeVendorCode(data.vendorItemCode)
+                        if (supplierKey != null && vendorKey.isNotBlank()) "$supplierKey|$vendorKey" else null
+                    }.let { it.size != it.toSet().size } || planData.any { data ->
+                        listOfNotNull(
+                            data.baseUnitName.takeIf(String::isNotBlank),
+                            data.countUnitName?.takeIf { it.isNotBlank() && data.resolvedCountUnitId != data.resolvedBaseUnitId },
+                            data.purchasePackageName?.takeIf(String::isNotBlank)
+                        ).map { it.normalizeName() }.let { names -> names.size != names.toSet().size }
+                    }) {
                     return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
                 }
 
@@ -78,7 +104,7 @@ class RoomCsvImportRepository @Inject constructor(
 
                 // Load all relevant state for re-validation in bulk
                 val existingIngredients = ingredientDao.getAllIngredients(restaurantId.value)
-                val allCategories = categoryDao.getAllCategoriesSync()
+                val allCategories = categoryDao.getAllCategoriesForRestaurant(restaurantId.value)
                 val activeAreas = areaDao.getActiveAreasSync(restaurantId.value)
                 val allSuppliers = supplierDao.getAllSuppliersSync(restaurantId.value)
                 val allMappings = mappingDao.getAllMappingsSync(restaurantId.value)
@@ -91,7 +117,7 @@ class RoomCsvImportRepository @Inject constructor(
                 val areaMap = activeAreas.associateBy { it.id }
                 val supMap = allSuppliers.associateBy { it.id }
                 val supNormMap = allSuppliers.associateBy { it.normalizedName }
-                val mapLookup = allMappings.associateBy { "${it.supplierId}|${it.normalizedKey}" }
+                val mapLookup = allMappings.associateBy { "${it.supplierId}|${it.keyType}|${it.normalizedKey}" }
                 val unitLookup = systemUnits.associateBy { it.id }
 
                 // Check for conflicts
@@ -135,7 +161,7 @@ class RoomCsvImportRepository @Inject constructor(
                     if (!data.vendorItemCode.isNullOrBlank()) {
                         val supId = data.resolvedSupplierId?.value ?: data.supplierName?.let { supNormMap[it.normalizeName()]?.id }
                         if (supId != null) {
-                            val mappingKey = "$supId|${data.vendorItemCode.normalizeName()}"
+                            val mappingKey = "$supId|${SupplierItemMappingKeyType.VENDOR_CODE}|${InventoryNormalization.normalizeVendorCode(data.vendorItemCode)}"
                             if (mapLookup.containsKey(mappingKey)) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
                         }
                     }
@@ -148,7 +174,12 @@ class RoomCsvImportRepository @Inject constructor(
                 }
 
                 // 2. Resolve or Create Categories
-                val categoryCache = mutableMapOf<String, IngredientCategoryId>()
+                val categoryCache = includedRows.mapNotNull { row ->
+                    val data = row.normalizedData!!
+                    val name = data.categoryName ?: return@mapNotNull null
+                    val id = data.resolvedCategoryId ?: return@mapNotNull null
+                    name.normalizeName() to id
+                }.toMap().toMutableMap()
                 var categoriesCreated = 0
                 includedRows.forEach { row ->
                     val catName = row.normalizedData?.categoryName
@@ -177,7 +208,12 @@ class RoomCsvImportRepository @Inject constructor(
                 }
 
                 // 3. Resolve or Create Suppliers
-                val supplierCache = mutableMapOf<String, SupplierId>()
+                val supplierCache = includedRows.mapNotNull { row ->
+                    val data = row.normalizedData!!
+                    val name = data.supplierName ?: return@mapNotNull null
+                    val id = data.resolvedSupplierId ?: return@mapNotNull null
+                    name.normalizeName() to id
+                }.toMap().toMutableMap()
                 var suppliersCreated = 0
                 includedRows.forEach { row ->
                     val supName = row.normalizedData?.supplierName
@@ -320,7 +356,7 @@ class RoomCsvImportRepository @Inject constructor(
                                 restaurantId = restaurantId.value,
                                 supplierId = supplierId.value,
                                 keyType = SupplierItemMappingKeyType.VENDOR_CODE,
-                                normalizedKey = data.vendorItemCode.normalizeName(),
+                                normalizedKey = InventoryNormalization.normalizeVendorCode(data.vendorItemCode),
                                 sourceVendorCode = data.vendorItemCode,
                                 sourceDescription = null,
                                 sourcePackageText = data.purchasePackageName,
@@ -358,7 +394,7 @@ class RoomCsvImportRepository @Inject constructor(
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            ImportResult.Failure(ImportFailure.Unknown(e.message))
+            ImportResult.Failure(ImportFailure.PersistenceFailure)
         }
     }
 }

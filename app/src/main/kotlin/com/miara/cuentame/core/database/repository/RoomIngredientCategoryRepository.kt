@@ -31,6 +31,9 @@ class RoomIngredientCategoryRepository @Inject constructor(
         }
     }
 
+    override suspend fun getAllCategoriesForRestaurant(restaurantId: com.miara.cuentame.core.common.ids.RestaurantId): List<IngredientCategory> =
+        categoryDao.getAllCategoriesForRestaurant(restaurantId.value).map { it.toDomain() }
+
     override suspend fun getById(id: IngredientCategoryId): IngredientCategory? {
         return categoryDao.getById(id.value)?.toDomain()
     }

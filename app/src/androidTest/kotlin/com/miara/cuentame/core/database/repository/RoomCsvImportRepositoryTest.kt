@@ -13,10 +13,10 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.domain.repository.ImportFailure
 import com.miara.cuentame.core.domain.repository.ImportResult
 import com.miara.cuentame.core.domain.service.StandardUnitConverter
-import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportDocument
-import com.miara.cuentame.feature.ingredient.import.domain.CsvIngredientImportRow
-import com.miara.cuentame.feature.ingredient.import.domain.NormalizedIngredientData
-import com.miara.cuentame.feature.ingredient.import.domain.CsvImportRowStatus
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportDocument
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportRow
+import com.miara.cuentame.feature.ingredients.csvimport.domain.NormalizedIngredientData
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After

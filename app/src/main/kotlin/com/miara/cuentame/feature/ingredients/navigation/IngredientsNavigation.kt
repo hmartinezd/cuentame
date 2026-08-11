@@ -10,7 +10,7 @@ import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.feature.ingredients.ui.IngredientDetailRoute
 import com.miara.cuentame.feature.ingredients.ui.IngredientFormRoute
 import com.miara.cuentame.feature.ingredients.ui.IngredientListRoute
-import com.miara.cuentame.feature.ingredient.import.ui.CsvImportRoute
+import com.miara.cuentame.feature.ingredients.csvimport.ui.CsvImportRoute
 
 fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
     composable(route = TopLevelDestination.INVENTORY.route) {
