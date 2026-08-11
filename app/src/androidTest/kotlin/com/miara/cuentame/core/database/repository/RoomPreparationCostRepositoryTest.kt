@@ -99,6 +99,26 @@ class RoomPreparationCostRepositoryTest {
         }
     }
 
+    @Test fun missingProjectionStillUsesKnownVendorPriceImpact() = runBlocking {
+        prices.comparisons = mapOf(
+            IngredientId("flour") to VendorPriceComparison(
+                null, null, BigDecimal("0.50"), null, PriceDirection.INCREASED, emptySet()
+            )
+        )
+        repository.observeRecipeCost(PreparationRecipeId("recipe")).test {
+            val cost = awaitNonNull()
+            assertThat(cost.status).isEqualTo(com.miara.cuentame.core.model.ingredient.PreparationCostStatus.UNCOSTED)
+            assertThat(cost.totalBatchCost).isNull()
+            assertThat(cost.components.single().missingReason)
+                .isEqualTo(com.miara.cuentame.core.model.ingredient.PreparationCostMissingReason.INGREDIENT_COST_MISSING)
+            assertDecimal(cost.components.single().vendorPriceImpact, "5")
+            assertThat(cost.priceImpact.coveredLeafCount).isEqualTo(1)
+            assertThat(cost.priceImpact.totalLeafCount).isEqualTo(1)
+            assertThat(cost.priceImpact.isComplete).isTrue()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private suspend fun ingredient(id: String, name: String) {
         db.ingredientDao().insert(IngredientEntity(id, restaurantId.value, name, name.lowercase(), null, "lb", null, null, null, null, true, 0, 0, null))
         db.ingredientUnitOptionDao().insert(option(id, BigDecimal.ONE))
@@ -119,11 +139,12 @@ class RoomPreparationCostRepositoryTest {
     private class FakePrices : PriceIntelligenceRepository {
         var requestedRestaurant: RestaurantId? = null
         var fail = false
+        var comparisons: Map<IngredientId, VendorPriceComparison> = emptyMap()
         override fun observeIngredientPriceHistory(ingredientId: IngredientId): Flow<IngredientPriceHistory> = flow { error("unused") }
         override fun observeLargePriceIncreases(): Flow<List<PriceIncreaseAlert>> = flowOf(emptyList())
         override fun observePriceComparisons(restaurantId: RestaurantId, ingredientIds: Set<IngredientId>): Flow<Map<IngredientId, VendorPriceComparison>> {
             requestedRestaurant = restaurantId
-            return if (fail) flow { throw IllegalStateException("price source") } else flowOf(emptyMap())
+            return if (fail) flow { throw IllegalStateException("price source") } else flowOf(comparisons)
         }
     }
 }

@@ -84,16 +84,27 @@ class PreparationCostCalculator @Inject constructor() {
                     }
                 }
             } else {
+                val leafVendorPriceImpact = component.vendorDeltaPerBase
+                    ?.let(component.quantityBase::multiply)
                 when (val cost = ingredient?.currentCost ?: CurrentIngredientCost.Missing) {
-                    CurrentIngredientCost.Missing -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_MISSING)
-                    CurrentIngredientCost.Invalid -> missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+                    CurrentIngredientCost.Missing -> missing(
+                        component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_MISSING,
+                        impact = leafVendorPriceImpact
+                    )
+                    CurrentIngredientCost.Invalid -> missing(
+                        component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID,
+                        impact = leafVendorPriceImpact
+                    )
                     is CurrentIngredientCost.Available -> if (cost.value < BigDecimal.ZERO) {
-                        missing(component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+                        missing(
+                            component, ingredient, PreparationCostMissingReason.INGREDIENT_COST_INVALID,
+                            impact = leafVendorPriceImpact
+                        )
                     } else PreparationComponentCost(component.id, component.ingredientId, ingredient!!.name,
                             component.quantityEntered, component.enteredUnitLabel, component.quantityBase,
                             ingredient.baseUnitSymbol, cost.value, component.quantityBase.multiply(cost.value),
                             PreparationCostSource.INGREDIENT_AVERAGE_COST, null,
-                            component.vendorDeltaPerBase?.let(component.quantityBase::multiply))
+                            leafVendorPriceImpact)
                 }
             }
         }

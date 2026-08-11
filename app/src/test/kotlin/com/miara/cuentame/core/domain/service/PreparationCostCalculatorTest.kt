@@ -163,4 +163,77 @@ class PreparationCostCalculatorTest {
         ))!!
         assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_INVALID)
     }
+
+    @Test fun missingCurrentCostKeepsKnownPositiveVendorImpact() {
+        val r = recipe("r", "out", components = listOf(component("c", "missing", "4", ".5")))
+        val result = calculator.calculate(r.id, listOf(r), mapOf(
+            IngredientId("out") to ingredient("out", null), IngredientId("missing") to ingredient("missing", null)
+        ))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.totalBatchCost).isNull()
+        assertDecimal(result.knownCostSubtotal, "0")
+        assertThat(result.components.single().componentCurrentCost).isNull()
+        assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_MISSING)
+        assertDecimal(result.components.single().vendorPriceImpact, "2")
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(1)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(1)
+        assertThat(result.priceImpact.isComplete).isTrue()
+    }
+
+    @Test fun invalidCurrentCostKeepsKnownNegativeVendorImpact() {
+        val r = recipe("r", "out", components = listOf(component("c", "invalid", "8", "-.25")))
+        val result = calculator.calculate(r.id, listOf(r), mapOf(
+            IngredientId("out") to ingredient("out", null),
+            IngredientId("invalid") to PreparationCostIngredientInput(
+                IngredientId("invalid"), "invalid", "lb", CurrentIngredientCost.Invalid
+            )
+        ))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+        assertDecimal(result.components.single().vendorPriceImpact, "-2")
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(1)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(1)
+    }
+
+    @Test fun missingCurrentCostKeepsKnownZeroVendorImpactCovered() {
+        val r = recipe("r", "out", components = listOf(component("c", "missing", "2", "0")))
+        val result = calculator.calculate(r.id, listOf(r), mapOf(
+            IngredientId("out") to ingredient("out", null), IngredientId("missing") to ingredient("missing", null)
+        ))!!
+        assertDecimal(result.components.single().vendorPriceImpact, "0")
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(1)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(1)
+    }
+
+    @Test fun missingCurrentCostWithoutComparisonLeavesVendorImpactUncovered() {
+        val r = recipe("r", "out", components = listOf(component("c", "missing", "2")))
+        val result = calculator.calculate(r.id, listOf(r), mapOf(
+            IngredientId("out") to ingredient("out", null), IngredientId("missing") to ingredient("missing", null)
+        ))!!
+        assertThat(result.components.single().vendorPriceImpact).isNull()
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(0)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(1)
+    }
+
+    @Test fun incompleteNestedChildStillPropagatesKnownVendorImpact() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, baseYield = "4",
+            components = listOf(component("tomato", "tomato", "5", ".4")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), listOf("dish", "sauce", "tomato")
+            .associate { IngredientId(it) to ingredient(it, null) })!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.components.single().componentCurrentCost).isNull()
+        assertDecimal(result.components.single().vendorPriceImpact, ".5")
+        assertThat(result.priceImpact.isComplete).isTrue()
+    }
+
+    @Test fun incompleteNestedChildWithInvalidBaseYieldDoesNotPropagateImpact() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, baseYield = "0",
+            components = listOf(component("tomato", "tomato", "5", ".4")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), listOf("dish", "sauce", "tomato")
+            .associate { IngredientId(it) to ingredient(it, null) })!!
+        assertThat(result.components.single().vendorPriceImpact).isNull()
+        assertThat(result.priceImpact.isComplete).isFalse()
+    }
 }
