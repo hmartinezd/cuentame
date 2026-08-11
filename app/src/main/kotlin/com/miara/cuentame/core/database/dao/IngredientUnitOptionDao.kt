@@ -47,6 +47,9 @@ interface IngredientUnitOptionDao {
     @Query("SELECT * FROM ingredient_unit_options WHERE ingredientId IN (:ingredientIds)")
     suspend fun getByIngredients(ingredientIds: List<String>): List<IngredientUnitOptionEntity>
 
+    @Query("SELECT iuo.* FROM ingredient_unit_options iuo JOIN ingredients i ON i.id = iuo.ingredientId WHERE i.restaurantId = :restaurantId")
+    fun observeAllForRestaurant(restaurantId: String): Flow<List<IngredientUnitOptionEntity>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(option: IngredientUnitOptionEntity)
 

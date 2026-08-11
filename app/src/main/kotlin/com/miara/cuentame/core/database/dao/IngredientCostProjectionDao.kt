@@ -22,4 +22,7 @@ interface IngredientCostProjectionDao {
 
     @Query("SELECT * FROM ingredient_cost_projection")
     suspend fun getAll(): List<IngredientCostProjectionEntity>
+
+    @Query("SELECT * FROM ingredient_cost_projection WHERE restaurantId = :restaurantId")
+    fun observeAllForRestaurant(restaurantId: String): Flow<List<IngredientCostProjectionEntity>>
 }

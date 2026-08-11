@@ -88,6 +88,12 @@ interface PreparationRecipeDao {
     @Query("SELECT * FROM preparation_recipes WHERE restaurantId = :restaurantId")
     suspend fun getAllRecipesForRestaurant(restaurantId: String): List<PreparationRecipeEntity>
 
+    @Query("SELECT * FROM preparation_recipes WHERE restaurantId = :restaurantId")
+    fun observeAllRecipesForRestaurant(restaurantId: String): Flow<List<PreparationRecipeEntity>>
+
+    @Query("SELECT prc.* FROM preparation_recipe_components prc JOIN preparation_recipes pr ON pr.id = prc.recipeId WHERE pr.restaurantId = :restaurantId ORDER BY prc.recipeId, prc.sortOrder, prc.id")
+    fun observeAllComponentsForRestaurant(restaurantId: String): Flow<List<PreparationRecipeComponentEntity>>
+
     @Query("""
         SELECT pr.* FROM preparation_recipes pr
         JOIN preparation_recipe_components prc ON pr.id = prc.recipeId

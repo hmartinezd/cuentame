@@ -8,7 +8,9 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.PreparationRecipeRepository
+import com.miara.cuentame.core.domain.repository.PreparationCostRepository
 import com.miara.cuentame.core.model.ingredient.PreparationRecipe
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeCost
 import com.miara.cuentame.feature.preparations.presentation.toPreparationRecipeUserMessage
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +32,8 @@ sealed interface RecipeDetailLoadResult {
         val outputIngredientName: String,
         val yieldUnitLabel: String,
         val componentNames: Map<PreparationRecipeComponentId, String>,
-        val componentUnitLabels: Map<PreparationRecipeComponentId, String>
+        val componentUnitLabels: Map<PreparationRecipeComponentId, String>,
+        val currentCost: PreparationRecipeCost?
     ) : RecipeDetailLoadResult
     data object NotFound : RecipeDetailLoadResult
     data object InvalidRoute : RecipeDetailLoadResult
@@ -45,6 +48,7 @@ data class PreparationRecipeDetailUiState(
     val yieldUnitLabel: String = "",
     val componentNames: Map<PreparationRecipeComponentId, String> = emptyMap(),
     val componentUnitLabels: Map<PreparationRecipeComponentId, String> = emptyMap(),
+    val currentCost: PreparationRecipeCost? = null,
     val error: Throwable? = null,
     val inlineError: UiMessage? = null
 )
@@ -53,7 +57,8 @@ data class PreparationRecipeDetailUiState(
 class PreparationRecipeDetailViewModel @Inject constructor(
     private val preparationRecipeRepository: PreparationRecipeRepository,
     private val ingredientRepository: IngredientRepository,
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val preparationCostRepository: PreparationCostRepository = EmptyPreparationCostRepository
 ) : ViewModel() {
 
     private val recipeId = savedStateHandle.get<String>("recipeId")
@@ -73,8 +78,8 @@ class PreparationRecipeDetailViewModel @Inject constructor(
         if (rId == null) {
             flowOf(RecipeDetailLoadResult.InvalidRoute)
         } else {
-            preparationRecipeRepository.observeRecipe(rId)
-                .mapLatest { recipe ->
+            combine(preparationRecipeRepository.observeRecipe(rId), preparationCostRepository.observeRecipeCost(rId)) { recipe, cost -> recipe to cost }
+                .mapLatest { (recipe, cost) ->
                     if (recipe == null) return@mapLatest RecipeDetailLoadResult.NotFound
 
                     val outputIngredient = ingredientRepository.getById(recipe.outputIngredientId)
@@ -102,7 +107,8 @@ class PreparationRecipeDetailViewModel @Inject constructor(
                         outputIngredientName = outputIngredient.name,
                         yieldUnitLabel = yieldUnitLabel,
                         componentNames = componentNames,
-                        componentUnitLabels = componentUnitLabels
+                        componentUnitLabels = componentUnitLabels,
+                        currentCost = cost
                     )
                 }
                 .onStart { emit(RecipeDetailLoadResult.Loading) }
@@ -144,6 +150,7 @@ class PreparationRecipeDetailViewModel @Inject constructor(
                     yieldUnitLabel = result.yieldUnitLabel,
                     componentNames = result.componentNames,
                     componentUnitLabels = result.componentUnitLabels,
+                    currentCost = result.currentCost,
                     inlineError = inlineError
                 )
             }
@@ -207,4 +214,9 @@ class PreparationRecipeDetailViewModel @Inject constructor(
     fun clearInlineError() {
         _inlineError.value = null
     }
+}
+
+private object EmptyPreparationCostRepository : PreparationCostRepository {
+    override fun observeRecipeCost(recipeId: PreparationRecipeId) = flowOf(null)
+    override fun observeRecipeCostSummaries(restaurantId: com.miara.cuentame.core.common.ids.RestaurantId) = flowOf(emptyList<com.miara.cuentame.core.model.ingredient.PreparationRecipeCostSummary>())
 }

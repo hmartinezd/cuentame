@@ -78,6 +78,9 @@ interface ProductionBatchDao {
 
     @Query("SELECT COUNT(*) FROM production_batch_components pbc JOIN production_batches pb ON pbc.productionBatchId = pb.id WHERE pbc.sourceAreaId = :areaId AND pb.status = 'DRAFT'")
     suspend fun countDraftsUsingComponentSourceArea(areaId: String): Int
+
+    @Query("SELECT * FROM production_batches WHERE recipeId = :recipeId AND status = 'POSTED' AND voidedAt IS NULL ORDER BY effectiveAt DESC, createdAt DESC LIMIT 1")
+    fun observeLatestPostedForRecipe(recipeId: String): Flow<ProductionBatchEntity?>
 }
 
 data class ProductionBatchSummaryRow(

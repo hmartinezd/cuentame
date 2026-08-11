@@ -25,6 +25,8 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeSummary
+import com.miara.cuentame.core.model.ingredient.PreparationRecipeCostSummary
+import com.miara.cuentame.core.model.ingredient.PreparationCostStatus
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeListUiState
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeListViewModel
 import java.time.ZoneId
@@ -156,6 +158,7 @@ fun PreparationRecipeListScreen(
                         items(uiState.recipes, key = { it.id.value }) { recipe ->
                             PreparationRecipeItem(
                                 recipe = recipe,
+                                cost = uiState.costs[recipe.id],
                                 onClick = { onRecipeClick(recipe.id, recipe.status) }
                             )
                             HorizontalDivider()
@@ -257,6 +260,7 @@ private fun RecipeListFilters(
 @Composable
 private fun PreparationRecipeItem(
     recipe: PreparationRecipeSummary,
+    cost: PreparationRecipeCostSummary?,
     onClick: () -> Unit
 ) {
     val dateTimeFormatter = remember {
@@ -284,6 +288,13 @@ private fun PreparationRecipeItem(
                     text = stringResource(R.string.component_count_format, recipe.componentCount),
                     style = MaterialTheme.typography.bodySmall
                 )
+                cost?.let {
+                    Text(when (it.status) {
+                        PreparationCostStatus.FULLY_COSTED -> stringResource(R.string.cost_status_fully)
+                        PreparationCostStatus.PARTIALLY_COSTED -> stringResource(R.string.cost_status_partially)
+                        PreparationCostStatus.UNCOSTED -> stringResource(R.string.cost_status_uncosted)
+                    }, style = MaterialTheme.typography.bodySmall)
+                }
                 Text(
                     text = stringResource(R.string.last_updated_format, dateTimeFormatter.format(recipe.updatedAt)),
                     style = MaterialTheme.typography.labelSmall,

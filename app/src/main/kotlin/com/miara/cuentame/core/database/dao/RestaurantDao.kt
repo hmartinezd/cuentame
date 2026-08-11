@@ -18,6 +18,9 @@ interface RestaurantDao {
     @Query("SELECT * FROM restaurants WHERE id = :id")
     suspend fun getById(id: String): RestaurantEntity?
 
+    @Query("SELECT * FROM restaurants WHERE id = :id")
+    fun observeById(id: String): Flow<RestaurantEntity?>
+
     @Insert
     suspend fun insert(restaurant: RestaurantEntity)
 

@@ -21,6 +21,7 @@ import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PreparationRecipeId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.model.ingredient.*
 import com.miara.cuentame.core.presentation.ui.UiMessage
 import com.miara.cuentame.core.presentation.ui.toDisplayText
 import com.miara.cuentame.feature.preparations.viewmodel.PreparationRecipeDetailEvent
@@ -202,18 +203,26 @@ fun PreparationRecipeDetailScreen(
                                 DetailHeader(recipe, uiState.outputIngredientName, uiState.yieldUnitLabel)
                             }
 
+                            uiState.currentCost?.let { cost ->
+                                item { CurrentCostSection(cost) }
+                            }
+
                             item {
                                 Text(stringResource(R.string.components), style = MaterialTheme.typography.titleMedium)
                             }
 
                             items(recipe.components.sortedBy { it.sortOrder }) { component ->
-                                val ingredientName = uiState.componentNames[component.id] ?: component.componentIngredientId.value
+                                val componentCost = uiState.currentCost?.components?.find { it.recipeComponentId == component.id }
+                                val ingredientName = uiState.componentNames[component.id] ?: componentCost?.ingredientName.orEmpty()
                                 val unitLabel = uiState.componentUnitLabels[component.id] ?: component.unitOptionId.value
                                 
                                 ListItem(
                                     headlineContent = { Text(ingredientName) },
                                     supportingContent = {
-                                        Text("${Formatters.formatQuantity(component.quantityEntered)} $unitLabel")
+                                        Column {
+                                            Text("${Formatters.formatQuantity(component.quantityEntered)} $unitLabel")
+                                            if (componentCost != null) ComponentCostDetails(componentCost, uiState.currentCost?.currencyCode ?: "USD")
+                                        }
                                     }
                                 )
                                 HorizontalDivider()
@@ -295,6 +304,61 @@ fun PreparationRecipeDetailScreen(
         )
     }
 }
+
+@Composable
+private fun CurrentCostSection(cost: PreparationRecipeCost) {
+    val status = when (cost.status) {
+        PreparationCostStatus.FULLY_COSTED -> stringResource(R.string.cost_status_fully)
+        PreparationCostStatus.PARTIALLY_COSTED -> stringResource(R.string.cost_status_partially)
+        PreparationCostStatus.UNCOSTED -> stringResource(R.string.cost_status_uncosted)
+    }
+    ElevatedCard(modifier = Modifier.fillMaxWidth().testTag("current_recipe_cost")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.current_cost_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.cost_coverage_format, status, cost.costedComponentCount, cost.totalComponentCount))
+            cost.totalBatchCost?.let { Text(stringResource(R.string.current_batch_cost_format, Formatters.formatCurrency(it, cost.currencyCode)), fontWeight = FontWeight.Bold) }
+            if (cost.status == PreparationCostStatus.PARTIALLY_COSTED) {
+                Text(stringResource(R.string.known_cost_subtotal_format, Formatters.formatCurrency(cost.knownCostSubtotal, cost.currencyCode)))
+            }
+            cost.standardYieldQuantity?.let { Text(stringResource(R.string.standard_yield_format, Formatters.formatQuantity(it, cost.yieldUnitLabel))) }
+            cost.costPerYieldUnit?.let { Text(stringResource(R.string.cost_per_yield_format, Formatters.formatCurrency(it, cost.currencyCode), cost.yieldUnitLabel.orEmpty())) }
+            cost.costPerOutputBaseUnit?.let { Text(stringResource(R.string.cost_per_base_format, Formatters.formatCurrency(it, cost.currencyCode), cost.outputBaseUnitSymbol)) }
+            if (cost.yieldWarnings.isNotEmpty()) Text(stringResource(R.string.cost_yield_warning), color = MaterialTheme.colorScheme.error)
+            val impact = cost.priceImpact
+            if (impact.coveredLeafCount > 0) Text(stringResource(
+                if (impact.isComplete) R.string.vendor_impact_complete_format else R.string.vendor_impact_partial_format,
+                Formatters.formatCurrency(impact.knownSubtotal, cost.currencyCode), impact.coveredLeafCount, impact.totalLeafCount
+            ))
+            cost.components.filter { it.missingReason != null }.forEach {
+                Text("• ${it.ingredientName} — ${missingReasonText(it.missingReason!!)}", color = MaterialTheme.colorScheme.error)
+            }
+            cost.lastProduction?.let { historical ->
+                HorizontalDivider()
+                Text(stringResource(R.string.last_production_title), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.historical_batch_cost_format, historical.batchCost?.let { Formatters.formatCurrency(it, cost.currencyCode) } ?: stringResource(R.string.status_unavailable)))
+                historical.outputUnitCostBase?.let { Text(stringResource(R.string.historical_output_cost_format, Formatters.formatCurrency(it, cost.currencyCode), cost.outputBaseUnitSymbol)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComponentCostDetails(cost: PreparationComponentCost, currencyCode: String) {
+    cost.componentCurrentCost?.let { Text(stringResource(R.string.component_current_cost_format, Formatters.formatCurrency(it, currencyCode)), style = MaterialTheme.typography.bodySmall) }
+    cost.currentUnitCostBase?.let { Text(stringResource(R.string.current_unit_cost_format, Formatters.formatCurrency(it, currencyCode), cost.baseUnitSymbol), style = MaterialTheme.typography.labelSmall) }
+    Text(stringResource(if (cost.costSource == PreparationCostSource.ACTIVE_PREPARATION_RECIPE) R.string.cost_source_preparation else R.string.cost_source_average), style = MaterialTheme.typography.labelSmall)
+    cost.vendorPriceImpact?.let { Text(stringResource(R.string.component_vendor_impact_format, Formatters.formatCurrency(it, currencyCode)), style = MaterialTheme.typography.labelSmall) }
+    cost.missingReason?.let { Text(missingReasonText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+}
+
+@Composable
+private fun missingReasonText(reason: PreparationCostMissingReason): String = stringResource(when (reason) {
+    PreparationCostMissingReason.INGREDIENT_COST_MISSING -> R.string.cost_missing_ingredient
+    PreparationCostMissingReason.INGREDIENT_COST_INVALID -> R.string.cost_invalid_ingredient
+    PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_PARTIAL -> R.string.cost_nested_partial
+    PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_UNCOSTED -> R.string.cost_nested_uncosted
+    PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE -> R.string.cost_dependency_cycle
+})
 
 @Composable
 private fun DetailHeader(

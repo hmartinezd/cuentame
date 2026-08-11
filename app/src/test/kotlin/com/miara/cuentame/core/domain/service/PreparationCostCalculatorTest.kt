@@ -1,0 +1,108 @@
+package com.miara.cuentame.core.domain.service
+
+import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.common.ids.*
+import com.miara.cuentame.core.model.ingredient.*
+import org.junit.Test
+import java.math.BigDecimal
+
+class PreparationCostCalculatorTest {
+    private val calculator = PreparationCostCalculator()
+    private fun bd(value: String) = BigDecimal(value)
+    private fun assertDecimal(actual: BigDecimal?, expected: String) = assertThat(actual?.compareTo(bd(expected))).isEqualTo(0)
+    private fun ingredient(id: String, cost: String?) = PreparationCostIngredientInput(IngredientId(id), id, "lb", cost?.let(::bd))
+    private fun component(id: String, ingredient: String, qty: String, delta: String? = null) =
+        PreparationCostComponentInput(PreparationRecipeComponentId(id), IngredientId(ingredient), bd(qty), "lb", bd(qty), delta?.let(::bd))
+    private fun recipe(id: String, output: String, status: PreparationRecipeStatus = PreparationRecipeStatus.DRAFT,
+                       yield: String? = "1", baseYield: String? = yield, components: List<PreparationCostComponentInput>) =
+        PreparationCostRecipeInput(PreparationRecipeId(id), IngredientId(output), status, yield?.let(::bd), baseYield?.let(::bd), "lb", components)
+
+    @Test fun fullyCostedUsesBigDecimalWithoutIntermediateRounding() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", components = listOf(component("c", "flour", "3.333")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("flour") to ingredient("flour", "1.2345")))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.FULLY_COSTED)
+        assertDecimal(result.totalBatchCost, "4.1145885")
+        assertDecimal(result.costPerYieldUnit, "4.1145885")
+    }
+
+    @Test fun legitimateZeroIsCosted() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", components = listOf(component("c", "water", "2")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("water") to ingredient("water", "0")))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.FULLY_COSTED)
+        assertDecimal(result.totalBatchCost, "0")
+    }
+
+    @Test fun partialShowsKnownSubtotalButNoTotal() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", components = listOf(component("a", "a", "2"), component("b", "b", "4")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("a") to ingredient("a", "3"), IngredientId("b") to ingredient("b", null)))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.PARTIALLY_COSTED)
+        assertDecimal(result.knownCostSubtotal, "6")
+        assertThat(result.totalBatchCost).isNull()
+        assertThat(result.components.last().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_MISSING)
+    }
+
+    @Test fun allMissingIsUncostedAndNegativeIsInvalid() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", components = listOf(component("a", "a", "1"), component("b", "b", "1")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("a") to ingredient("a", null), IngredientId("b") to ingredient("b", "-1")))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.components.last().missingReason).isEqualTo(PreparationCostMissingReason.INGREDIENT_COST_INVALID)
+    }
+
+    @Test fun yieldAndBaseYieldAreSeparate() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", yield = "2", baseYield = "4", components = listOf(component("c", "a", "8")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("a") to ingredient("a", "1")))!!
+        assertDecimal(result.costPerYieldUnit, "4")
+        assertDecimal(result.costPerOutputBaseUnit, "2")
+    }
+
+    @Test fun missingOrZeroYieldKeepsBatchCost() {
+        val result = calculator.calculate(PreparationRecipeId("r"), listOf(recipe("r", "out", yield = null, baseYield = "0", components = listOf(component("c", "a", "1")))),
+            mapOf(IngredientId("out") to ingredient("out", null), IngredientId("a") to ingredient("a", "2")))!!
+        assertDecimal(result.totalBatchCost, "2")
+        assertThat(result.costPerYieldUnit).isNull()
+        assertThat(result.costPerOutputBaseUnit).isNull()
+        assertThat(result.yieldWarnings).hasSize(2)
+    }
+
+    @Test fun activeNestedRecipeOverridesInventoryProjection() {
+        val child = recipe("child", "dough", PreparationRecipeStatus.ACTIVE, yield = "2", baseYield = "2", components = listOf(component("flour", "flour", "4")))
+        val parent = recipe("parent", "pizza", components = listOf(component("dough", "dough", "3")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), mapOf(
+            IngredientId("pizza") to ingredient("pizza", null), IngredientId("dough") to ingredient("dough", "99"), IngredientId("flour") to ingredient("flour", "2")))!!
+        assertDecimal(result.totalBatchCost, "12")
+        assertThat(result.components.single().costSource).isEqualTo(PreparationCostSource.ACTIVE_PREPARATION_RECIPE)
+    }
+
+    @Test fun draftNestedRecipeIsNotAuthoritative() {
+        val child = recipe("child", "dough", PreparationRecipeStatus.DRAFT, components = listOf(component("flour", "flour", "4")))
+        val parent = recipe("parent", "pizza", components = listOf(component("dough", "dough", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), mapOf(IngredientId("pizza") to ingredient("pizza", null), IngredientId("dough") to ingredient("dough", "5"), IngredientId("flour") to ingredient("flour", "2")))!!
+        assertDecimal(result.totalBatchCost, "5")
+        assertThat(result.components.single().costSource).isEqualTo(PreparationCostSource.INGREDIENT_AVERAGE_COST)
+    }
+
+    @Test fun nestedPartialDoesNotFallBackToPreparedIngredientProjection() {
+        val child = recipe("child", "sauce", PreparationRecipeStatus.ACTIVE, components = listOf(component("missing", "tomato", "1")))
+        val parent = recipe("parent", "dish", components = listOf(component("sauce", "sauce", "1")))
+        val result = calculator.calculate(parent.id, listOf(parent, child), mapOf(IngredientId("dish") to ingredient("dish", null), IngredientId("sauce") to ingredient("sauce", "20"), IngredientId("tomato") to ingredient("tomato", null)))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.ACTIVE_NESTED_RECIPE_UNCOSTED)
+    }
+
+    @Test fun dependencyCycleReturnsTypedIncompleteReason() {
+        val a = recipe("a", "aOut", PreparationRecipeStatus.ACTIVE, components = listOf(component("ab", "bOut", "1")))
+        val b = recipe("b", "bOut", PreparationRecipeStatus.ACTIVE, components = listOf(component("ba", "aOut", "1")))
+        val result = calculator.calculate(a.id, listOf(a, b), mapOf(IngredientId("aOut") to ingredient("aOut", "1"), IngredientId("bOut") to ingredient("bOut", "1")))!!
+        assertThat(result.status).isEqualTo(PreparationCostStatus.UNCOSTED)
+        assertThat(result.components.single().missingReason).isEqualTo(PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE)
+    }
+
+    @Test fun vendorImpactSupportsPositiveNegativeZeroAndPartialCoverage() {
+        val r = recipe("r", "out", components = listOf(component("a", "a", "2", ".5"), component("b", "b", "3", "-.2"), component("c", "c", "1", "0"), component("d", "d", "1")))
+        val result = calculator.calculate(r.id, listOf(r), listOf("out", "a", "b", "c", "d").associate { IngredientId(it) to ingredient(it, if (it == "out") null else "1") })!!
+        assertDecimal(result.priceImpact.knownSubtotal, "0.4")
+        assertThat(result.priceImpact.coveredLeafCount).isEqualTo(3)
+        assertThat(result.priceImpact.totalLeafCount).isEqualTo(4)
+        assertThat(result.priceImpact.isComplete).isFalse()
+    }
+}
