@@ -58,6 +58,29 @@ data class RecentPurchaseActivityRow(
     val lineTotal: String
 )
 
+/** One immutable posted purchase-line fact used by vendor price intelligence. */
+data class VendorPriceObservationRow(
+    val purchaseReceiptId: String,
+    val purchaseLineId: String,
+    val restaurantId: String,
+    val currencyCode: String,
+    val ingredientId: String,
+    val ingredientName: String,
+    val baseUnitSymbol: String,
+    val supplierId: String?,
+    val supplierName: String?,
+    val purchaseDate: Long,
+    val postedAt: Long?,
+    val ingredientUnitOptionId: String,
+    val purchaseUnitLabel: String?,
+    val quantityEntered: String,
+    val quantityBase: String,
+    val lineTotal: String,
+    val unitCostBase: String,
+    val parsedLineEvidenceJson: String?,
+    val parsedLineCorrectionJson: String?
+)
+
 data class RecentWasteActivityRow(
     val id: String,
     val status: String,

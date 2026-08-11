@@ -18,6 +18,7 @@ import com.miara.cuentame.core.database.repository.RoomProductionBatchRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryActivityRepository
 import com.miara.cuentame.core.database.repository.RoomSupplierItemMappingRepository
 import com.miara.cuentame.core.database.repository.RoomCsvImportRepository
+import com.miara.cuentame.core.database.repository.RoomPriceIntelligenceRepository
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
 import com.miara.cuentame.core.domain.repository.SupplierItemMappingRepository
@@ -34,6 +35,7 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.domain.repository.SupplierRepository
 import com.miara.cuentame.core.domain.repository.UnitRepository
+import com.miara.cuentame.core.domain.repository.PriceIntelligenceRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -115,4 +117,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCsvImportRepository(repo: RoomCsvImportRepository): CsvImportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPriceIntelligenceRepository(repo: RoomPriceIntelligenceRepository): PriceIntelligenceRepository
 }

@@ -40,8 +40,14 @@ object AppRoutes {
     fun purchaseDraft(id: PurchaseReceiptId): String =
         "purchases/${encoder.encode(id.value)}"
 
-    fun purchaseDetail(id: PurchaseReceiptId): String =
-        "purchases/${encoder.encode(id.value)}/detail"
+    fun purchaseDetail(id: PurchaseReceiptId, highlightLineId: PurchaseLineId? = null): String =
+        "purchases/${encoder.encode(id.value)}/detail" +
+            (highlightLineId?.let { "?highlightLineId=${encoder.encode(it.value)}" } ?: "")
+
+    fun ingredientPriceHistory(id: IngredientId): String =
+        "inventory/${encoder.encode(id.value)}/prices"
+
+    fun reportPriceIncreases(): String = "reports/price-increases"
 
     fun purchaseDocument(id: PurchaseReceiptId): String =
         "purchases/${encoder.encode(id.value)}/document"

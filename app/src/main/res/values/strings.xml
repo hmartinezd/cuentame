@@ -973,4 +973,22 @@
   <string name="inventory_activity_filter_cancel">Cancel</string>
   <string name="inventory_activity_filter_categories">Categories</string>
   <string name="inventory_activity_filter_include_reversals">Include Reversals</string>
+  <string name="price_history_title">Price History</string>
+  <string name="price_history_empty">No posted purchase history yet</string>
+  <string name="price_summary">Summary</string>
+  <string name="latest_normalized_cost">Latest: %1$s per %2$s</string>
+  <string name="previous_normalized_cost">Previous: %1$s per %2$s</string>
+  <string name="previous_price_missing">No previous comparable price</string>
+  <string name="price_change_format">Change: %1$s%% (%2$s)</string>
+  <string name="large_price_increase">Large price increase</string>
+  <string name="price_coverage_warning">Some source details are incomplete; compare with care.</string>
+  <string name="recent_supplier_prices">Recent supplier comparison</string>
+  <string name="lowest_price">Lowest recent price</string>
+  <string name="entered_unit_price">Entered unit: %1$s per %2$s</string>
+  <string name="normalized_cost">Normalized: %1$s per %2$s</string>
+  <string name="vendor_item">Vendor item: %1$s</string>
+  <string name="vendor_item_unknown">Unknown</string>
+  <string name="unit_unknown">unit unknown</string>
+  <string name="price_increases_title">Large Price Increases</string>
+  <string name="price_increases_empty">No current increases at or above 10%%</string>
 </resources>

@@ -73,6 +73,7 @@ fun IngredientDetailRoute(
     ingredientId: IngredientId,
     onEditClick: (IngredientId) -> Unit,
     onViewActivity: (IngredientId) -> Unit,
+    onViewPriceHistory: (IngredientId) -> Unit = {},
     onBack: () -> Unit,
     viewModel: IngredientDetailViewModel = hiltViewModel()
 ) {
@@ -125,6 +126,7 @@ fun IngredientDetailRoute(
         onBack = onBack,
         onEditClick = { onEditClick(ingredientId) },
         onViewActivity = { onViewActivity(ingredientId) },
+        onViewPriceHistory = { onViewPriceHistory(ingredientId) },
         onArchiveIngredient = viewModel::onArchiveIngredient,
         onSetDefaultCount = viewModel::onSetDefaultCount,
         onSetDefaultPurchase = viewModel::onSetDefaultPurchase,
@@ -160,6 +162,7 @@ fun IngredientDetailScreen(
     onBack: () -> Unit,
     onEditClick: () -> Unit,
     onViewActivity: () -> Unit,
+    onViewPriceHistory: () -> Unit = {},
     onArchiveIngredient: () -> Unit,
     onSetDefaultCount: (IngredientUnitOptionId) -> Unit,
     onSetDefaultPurchase: (IngredientUnitOptionId) -> Unit,
@@ -231,6 +234,15 @@ fun IngredientDetailScreen(
                     Icon(Icons.Default.History, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.ingredient_view_activity))
+                }
+
+                Button(
+                    onClick = onViewPriceHistory,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("ingredient_price_history")
+                ) {
+                    Icon(Icons.Default.ShoppingCart, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.price_history_title))
                 }
 
                 Row(

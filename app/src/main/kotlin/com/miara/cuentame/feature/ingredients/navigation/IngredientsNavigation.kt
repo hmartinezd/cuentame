@@ -56,6 +56,7 @@ fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
                 ingredientId = IngredientId(idStr),
                 onEditClick = { id -> navController.navigate(AppRoutes.ingredientEdit(id)) },
                 onViewActivity = { id -> navController.navigate(AppRoutes.inventoryActivity(ingredientId = id)) },
+                onViewPriceHistory = { id -> navController.navigate(AppRoutes.ingredientPriceHistory(id)) },
                 onBack = { navController.popBackStack() }
             )
         }

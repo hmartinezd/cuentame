@@ -43,6 +43,7 @@ fun ReportsRoute(
     onNavigateToInventory: () -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit,
+    onNavigateToPriceIncreases: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
@@ -54,6 +55,7 @@ fun ReportsRoute(
         onNavigateToInventory = onNavigateToInventory,
         onNavigateToPurchases = onNavigateToPurchases,
         onNavigateToWaste = onNavigateToWaste,
+        onNavigateToPriceIncreases = onNavigateToPriceIncreases,
         onRetry = viewModel::onRetry,
         modifier = modifier
     )
@@ -66,6 +68,7 @@ fun ReportsScreen(
     onNavigateToInventory: () -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit,
+    onNavigateToPriceIncreases: () -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,6 +114,7 @@ fun ReportsScreen(
                     onNavigateToInventory = onNavigateToInventory,
                     onNavigateToPurchases = onNavigateToPurchases,
                     onNavigateToWaste = onNavigateToWaste
+                    ,onNavigateToPriceIncreases = onNavigateToPriceIncreases
                 )
             }
         }
@@ -125,6 +129,7 @@ private fun ReportsContent(
     onNavigateToInventory: () -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit
+    ,onNavigateToPriceIncreases: () -> Unit = {}
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -220,6 +225,14 @@ private fun ReportsContent(
                 onViewDetails = { onNavigateToWaste(state.selectedRange) },
                 viewDetailsTag = "reports_view_waste_details"
             )
+        }
+
+        item {
+            OutlinedButton(onClick = onNavigateToPriceIncreases, modifier = Modifier.fillMaxWidth().testTag("reports_price_increases")) {
+                Icon(Icons.Default.TrendingUp, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.price_increases_title))
+            }
         }
 
         item {

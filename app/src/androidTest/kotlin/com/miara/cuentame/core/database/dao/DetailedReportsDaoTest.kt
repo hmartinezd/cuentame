@@ -136,6 +136,29 @@ class DetailedReportsDaoTest {
     }
 
     @Test
+    fun vendorPriceRows_onlyPosted_areDeterministic_andKeepPersistedEconomics() = runBlocking {
+        val restId = "price-rest"
+        seedDependencies(restId)
+        purchaseDao.insertReceipt(createReceipt("z-receipt", restId, 1000L, DocumentStatus.POSTED.name))
+        purchaseDao.insertLine(createLine("b-line", "z-receipt", "48").copy(quantityEntered = "2", quantityBase = "24", unitCostBase = "2"))
+        purchaseDao.insertReceipt(createReceipt("a-receipt", restId, 1000L, DocumentStatus.POSTED.name))
+        purchaseDao.insertLine(createLine("a-line", "a-receipt", "30").copy(quantityEntered = "3", quantityBase = "10", unitCostBase = "3"))
+        purchaseDao.insertReceipt(createReceipt("draft", restId, 2000L, DocumentStatus.DRAFT.name))
+        purchaseDao.insertLine(createLine("draft-line", "draft", "1"))
+        purchaseDao.insertReceipt(createReceipt("voided", restId, 3000L, DocumentStatus.VOIDED.name))
+        purchaseDao.insertLine(createLine("voided-line", "voided", "1"))
+
+        // Editing today's option conversion must not rewrite posted line snapshots.
+        val option = db.ingredientUnitOptionDao().getById("opt1")!!
+        db.ingredientUnitOptionDao().update(option.copy(factorToBase = BigDecimal("999")))
+
+        val rows = purchaseDao.observeVendorPriceRows(restId, "ing1").first()
+        assertThat(rows.map { it.purchaseLineId }).containsExactly("a-line", "b-line").inOrder()
+        assertThat(rows.single { it.purchaseLineId == "b-line" }.unitCostBase).isEqualTo("2")
+        assertThat(rows.single { it.purchaseLineId == "b-line" }.quantityBase).isEqualTo("24")
+    }
+
+    @Test
     fun wasteValueRows_filtersByStatus() {
         runBlocking {
             val restId = "rest-1"

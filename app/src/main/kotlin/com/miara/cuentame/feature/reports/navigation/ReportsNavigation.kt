@@ -19,6 +19,7 @@ fun NavGraphBuilder.reportsGraph(navController: NavHostController) {
             onNavigateToInventory = { navController.navigate(Destination.REPORT_INVENTORY_DETAIL.route) },
             onNavigateToPurchases = { range -> navController.navigate(AppRoutes.reportPurchaseDetail(range.name)) },
             onNavigateToWaste = { range -> navController.navigate(AppRoutes.reportWasteDetail(range.name)) }
+            ,onNavigateToPriceIncreases = { navController.navigate(AppRoutes.reportPriceIncreases()) }
         )
     }
     composable(route = Destination.REPORT_INVENTORY_DETAIL.route) {

@@ -25,7 +25,7 @@ enum class Destination(val route: String) {
     PURCHASE_DRAFT("purchases/{receiptId}"),
     PURCHASE_LINE_CREATE("purchases/{receiptId}/line"),
     PURCHASE_LINE_EDIT("purchases/{receiptId}/line/{lineId}"),
-    PURCHASE_DETAIL("purchases/{receiptId}/detail"),
+    PURCHASE_DETAIL("purchases/{receiptId}/detail?highlightLineId={highlightLineId}"),
     PURCHASE_DOCUMENT("purchases/{receiptId}/document"),
     PURCHASE_RAW_OCR("purchases/{receiptId}/ocr"),
     PURCHASE_REVIEW("purchases/{receiptId}/review"),
@@ -33,11 +33,13 @@ enum class Destination(val route: String) {
     INGREDIENT_CREATE("inventory/create?prefillName={prefillName}"),
     INGREDIENT_IMPORT("inventory/import"),
     INGREDIENT_DETAIL("inventory/{ingredientId}"),
+    INGREDIENT_PRICE_HISTORY("inventory/{ingredientId}/prices"),
     INGREDIENT_EDIT("inventory/{ingredientId}/edit"),
     
     REPORT_INVENTORY_DETAIL("reports/inventory"),
     REPORT_PURCHASE_DETAIL("reports/purchases?range={range}"),
     REPORT_WASTE_DETAIL("reports/waste?range={range}"),
+    REPORT_PRICE_INCREASES("reports/price-increases"),
     
     SUPPLIER_LIST("suppliers"),
     SUPPLIER_CREATE("suppliers/create"),

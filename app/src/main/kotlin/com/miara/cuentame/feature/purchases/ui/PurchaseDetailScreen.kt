@@ -46,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.domain.repository.PurchaseDetails
 import com.miara.cuentame.core.domain.repository.PurchaseLineWithDetails
@@ -61,6 +62,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun PurchaseDetailRoute(
+    highlightLineId: PurchaseLineId? = null,
     onBack: () -> Unit,
     onNavigateToDocument: (PurchaseReceiptId) -> Unit,
     viewModel: PurchaseDetailViewModel = hiltViewModel()
@@ -92,6 +94,7 @@ fun PurchaseDetailRoute(
         onBack = onBack,
         onViewDocument = { (uiState.state as? PurchaseDetailState.Ready)?.details?.receipt?.id?.let { onNavigateToDocument(it) } },
         onVoid = viewModel::onVoid
+        ,highlightLineId = highlightLineId
     )
 }
 
@@ -103,6 +106,7 @@ fun PurchaseDetailScreen(
     onBack: () -> Unit,
     onViewDocument: () -> Unit,
     onVoid: () -> Unit
+    ,highlightLineId: PurchaseLineId? = null
 ) {
     var showVoidConfirm by remember { mutableStateOf(false) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
@@ -182,8 +186,8 @@ fun PurchaseDetailScreen(
                         )
                     }
 
-                    items(details.lines) { line ->
-                        ReadOnlyPurchaseLineItem(line, uiState.currencyCode)
+                    items(details.lines, key = { it.line.id.value }) { line ->
+                        ReadOnlyPurchaseLineItem(line, uiState.currencyCode, line.line.id == highlightLineId)
                         HorizontalDivider()
                     }
 
@@ -356,9 +360,13 @@ fun StatusChip(status: DocumentStatus, modifier: Modifier = Modifier) {
 @Composable
 fun ReadOnlyPurchaseLineItem(
     line: PurchaseLineWithDetails,
-    currencyCode: String
+    currencyCode: String,
+    highlighted: Boolean = false
 ) {
     ListItem(
+        modifier = Modifier
+            .background(if (highlighted) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+            .testTag(if (highlighted) "purchase_highlighted_line_${line.line.id.value}" else "purchase_line_${line.line.id.value}"),
         headlineContent = {
             Text(
                 text = line.ingredientName ?: stringResource(R.string.uncategorized),

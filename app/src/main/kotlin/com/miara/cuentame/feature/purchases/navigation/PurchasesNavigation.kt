@@ -3,10 +3,12 @@ package com.miara.cuentame.feature.purchases.navigation
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
+import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.feature.purchases.ui.PurchaseDetailRoute
 import com.miara.cuentame.feature.purchases.ui.PurchaseDocumentViewerRoute
@@ -93,10 +95,11 @@ fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() }
         )
     }
-    composable(route = Destination.PURCHASE_DETAIL.route) { backStackEntry ->
+    composable(route = Destination.PURCHASE_DETAIL.route, arguments = listOf(navArgument("highlightLineId") { nullable = true; defaultValue = null })) { backStackEntry ->
         val idStr = backStackEntry.arguments?.getString("receiptId")
         if (idStr != null) {
             PurchaseDetailRoute(
+                highlightLineId = backStackEntry.arguments?.getString("highlightLineId")?.let { PurchaseLineId(it) },
                 onBack = { navController.popBackStack() },
                 onNavigateToDocument = { rid -> navController.navigate(AppRoutes.purchaseDocument(rid)) }
             )

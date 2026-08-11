@@ -11,10 +11,41 @@ import com.miara.cuentame.core.database.entity.PurchaseLineEntity
 import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.model.PurchaseSpendRow
 import com.miara.cuentame.core.database.model.RecentPurchaseActivityRow
+import com.miara.cuentame.core.database.model.VendorPriceObservationRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PurchaseDao {
+    @Query("""
+        SELECT pr.id AS purchaseReceiptId, pl.id AS purchaseLineId,
+            pr.restaurantId, r.currencyCode, pl.ingredientId, i.name AS ingredientName,
+            u.symbol AS baseUnitSymbol, pr.supplierId, s.name AS supplierName,
+            pr.purchaseDate, pr.postedAt, pl.ingredientUnitOptionId,
+            iuo.displayName AS purchaseUnitLabel, pl.quantityEntered,
+            pl.quantityBase, pl.lineTotal, pl.unitCostBase,
+            pil.evidenceJson AS parsedLineEvidenceJson,
+            pil.correctionJson AS parsedLineCorrectionJson
+        FROM purchase_receipts pr
+        JOIN purchase_lines pl ON pl.purchaseReceiptId = pr.id
+        JOIN restaurants r ON r.id = pr.restaurantId
+        JOIN ingredients i ON i.id = pl.ingredientId AND i.restaurantId = pr.restaurantId
+        JOIN units u ON u.id = i.baseUnitId
+        LEFT JOIN suppliers s ON s.id = pr.supplierId AND s.restaurantId = pr.restaurantId
+        LEFT JOIN ingredient_unit_options iuo ON iuo.id = pl.ingredientUnitOptionId
+        LEFT JOIN purchase_invoice_line_origins origin ON origin.purchaseLineId = pl.id
+        LEFT JOIN purchase_invoice_draft_applications app ON app.id = origin.applicationId
+        LEFT JOIN purchase_invoice_parsed_lines pil
+          ON pil.parseResultId = app.parseResultId AND pil.lineIndex = origin.sourceLineIndex
+        WHERE pr.restaurantId = :restaurantId AND pr.status = 'POSTED'
+          AND (:ingredientId IS NULL OR pl.ingredientId = :ingredientId)
+        ORDER BY pr.purchaseDate DESC, pr.postedAt DESC,
+          pr.id ASC, pl.id ASC
+    """)
+    fun observeVendorPriceRows(
+        restaurantId: String,
+        ingredientId: String?
+    ): Flow<List<VendorPriceObservationRow>>
+
     @Query("""
         SELECT 
             pr.id as receiptId,
