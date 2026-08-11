@@ -17,6 +17,9 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImpo
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportRow
 import com.miara.cuentame.feature.ingredients.csvimport.domain.NormalizedIngredientData
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportService
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
+import java.io.ByteArrayInputStream
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -30,6 +33,12 @@ import java.time.Instant
 class RoomCsvImportRepositoryTest {
     private lateinit var db: RestaurantInventoryDatabase
     private lateinit var repository: RoomCsvImportRepository
+    private lateinit var importService: CsvImportService
+    private val testIds = object : IdGenerator {
+        private var counter = 0
+        override fun newId(): String = "id-${counter++}"
+    }
+    private val testTime = object : TimeProvider { override fun now(): Instant = Instant.EPOCH }
     private val restId = RestaurantId("rest-1")
 
     @Before
@@ -48,18 +57,31 @@ class RoomCsvImportRepositoryTest {
             db.restaurantDao(),
             db.inventoryAreaDao(),
             StandardUnitConverter(),
-            object : IdGenerator { 
-                private var counter = 0
-                override fun newId(): String = "id-${counter++}" 
-            },
-            object : TimeProvider { override fun now(): Instant = Instant.EPOCH }
+            testIds,
+            testTime
         )
         runBlocking {
             db.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(restId.value, "R", "USD", "en-US", 0L, 0L, null))
             db.unitDao().insertSeedUnits(listOf(
-                com.miara.cuentame.core.database.entity.UnitEntity("u1", "Pound", "lb", "MASS", BigDecimal.ONE, true, 0)
+                com.miara.cuentame.core.database.entity.UnitEntity("u1", "Pound", "lb", "MASS", BigDecimal.ONE, true, 0),
+                com.miara.cuentame.core.database.entity.UnitEntity("u2", "Ounce", "oz", "MASS", BigDecimal("0.0625"), true, 1)
             ))
         }
+        importService = CsvImportService(
+            RoomIngredientRepository(
+                db, db.ingredientDao(), db.ingredientUnitOptionDao(), db.unitDao(), db.restaurantDao(),
+                db.ingredientCategoryDao(), db.preparationRecipeDao(), db.productionBatchDao(),
+                StandardUnitConverter(), testIds, testTime
+            ),
+            RoomIngredientCategoryRepository(db, db.ingredientCategoryDao()),
+            RoomInventoryAreaRepository(db, db.inventoryAreaDao(), db.restaurantDao(), db.productionBatchDao()),
+            RoomSupplierRepository(db.supplierDao(), db.restaurantDao(), testIds, testTime),
+            RoomUnitRepository(db.unitDao()),
+            RoomSupplierItemMappingRepository(
+                db.supplierItemMappingDao(), db.supplierDao(), db.ingredientDao(), db.ingredientUnitOptionDao(),
+                db.inventoryAreaDao(), testIds
+            )
+        )
     }
 
     @After
@@ -175,7 +197,7 @@ class RoomCsvImportRepositoryTest {
         val result = repository.commitImport(restId, doc)
         
         assertThat(result).isInstanceOf(ImportResult.Failure::class.java)
-        assertThat((result as ImportResult.Failure).failure).isEqualTo(ImportFailure.StateChanged)
+        assertThat((result as ImportResult.Failure).failure).isEqualTo(ImportFailure.InvalidPlan)
         
         // Verify zero ingredients created
         assertThat(db.ingredientDao().getActiveIngredients(restId.value)).isEmpty()
@@ -185,12 +207,28 @@ class RoomCsvImportRepositoryTest {
 
     @Test
     fun previewAndEdit_doesNotCreateDatabaseWrites() = runBlocking {
-        // No writes should happen during processCsv (simulated by service in real app)
-        // But here we test the repository commitImport is the ONLY way to write.
-        
+        val parsed = CsvParser().parse(ByteArrayInputStream(
+            "ingredient_name,base_unit,category,supplier,vendor_item_code\nTomato,lb,Produce,Sysco,ABC-1".toByteArray()
+        )) as CsvParser.ParseResult.Success
+        val preview = importService.processCsv(restId, parsed.rows)
+        val editedRows = parsed.rows.map { it + (CsvParser.HEADER_INGREDIENT_NAME to "Roma Tomato") }
+        val edited = importService.processCsv(restId, editedRows)
+        val skipped = edited.copy(rows = edited.rows.map { it.copy(isIncluded = false) })
+        val unskipped = skipped.copy(rows = skipped.rows.map { it.copy(isIncluded = true) })
+
+        assertThat(preview.rows).hasSize(1)
+        assertThat(edited.rows.single().normalizedData?.name).isEqualTo("Roma Tomato")
+        assertThat(skipped.rows.single().isIncluded).isFalse()
+        assertThat(unskipped.rows.single().isIncluded).isTrue()
         assertThat(db.ingredientDao().getActiveIngredients(restId.value)).isEmpty()
         assertThat(db.ingredientCategoryDao().observeAllCategories().first()).isEmpty()
         assertThat(db.supplierDao().observeAllSuppliers(restId.value).first()).isEmpty()
+        assertThat(db.supplierItemMappingDao().getAllMappingsSync(restId.value)).isEmpty()
+        assertThat(tableCount("ingredient_unit_options")).isEqualTo(0)
+        assertThat(tableCount("ingredient_cost_projection")).isEqualTo(0)
+        assertThat(tableCount("purchase_receipts")).isEqualTo(0)
+        assertThat(tableCount("purchase_lines")).isEqualTo(0)
+        assertThat(tableCount("inventory_movements")).isEqualTo(0)
     }
 
     @Test
@@ -235,4 +273,69 @@ class RoomCsvImportRepositoryTest {
         
         assertThat(db.ingredientDao().getActiveIngredients(restId.value)).hasSize(120)
     }
+
+    @Test
+    fun fullPipeline_120CsvRows_previewIsReadOnly_thenCommitSucceeds() = runBlocking {
+        db.ingredientCategoryDao().upsert(com.miara.cuentame.core.database.entity.IngredientCategoryEntity(
+            "existing-category", restId.value, "Produce", "produce", 0, true, 0, 0, null
+        ))
+        db.supplierDao().insert(com.miara.cuentame.core.database.entity.SupplierEntity(
+            "existing-supplier", restId.value, "Sysco", "sysco", null, null, null, true, 0, 0, null
+        ))
+        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(
+            "dry-area", restId.value, "Dry Storage", "dry storage", 0, true, 0, 0, null
+        ))
+        val csv = buildString {
+            append("ingredient_name,sku,category,base_unit,count_unit,purchase_package,package_conversion_factor,default_area,supplier,vendor_item_code,current_cost_per_base_unit,reorder_point_base\n")
+            repeat(120) { index ->
+                val number = index + 1
+                val category = if (number % 3 == 0) "Produce" else "New Category ${number % 4}"
+                val supplier = if (number % 3 == 0) "Sysco" else "New Supplier ${number % 2}"
+                append("Ingredient $number,SKU-$number,$category,Pound,oz,Case,${number + 1},Dry Storage,$supplier,VC-$number,1.25,5\n")
+            }
+        }
+        val parsed = CsvParser().parse(ByteArrayInputStream(csv.toByteArray())) as CsvParser.ParseResult.Success
+        val document = importService.processCsv(restId, parsed.rows)
+
+        assertThat(document.rows).hasSize(120)
+        assertThat(document.rows.none { it.status == CsvImportRowStatus.ERROR }).isTrue()
+        assertThat(tableCount("ingredients")).isEqualTo(0)
+        assertThat(tableCount("ingredient_categories")).isEqualTo(1)
+        assertThat(tableCount("suppliers")).isEqualTo(1)
+
+        val result = repository.commitImport(restId, document) as ImportResult.Success
+
+        assertThat(result.ingredientsCreated).isEqualTo(120)
+        assertThat(result.categoriesCreated).isEqualTo(4)
+        assertThat(result.suppliersCreated).isEqualTo(2)
+        assertThat(result.mappingsCreated).isEqualTo(120)
+        assertThat(tableCount("ingredients")).isEqualTo(120)
+        assertThat(tableCount("ingredient_unit_options")).isEqualTo(360)
+        assertThat(tableCount("ingredient_categories")).isEqualTo(5)
+        assertThat(tableCount("suppliers")).isEqualTo(3)
+        assertThat(tableCount("supplier_item_mappings")).isEqualTo(120)
+        assertThat(tableCount("ingredient_cost_projection")).isEqualTo(120)
+        assertThat(tableCount("purchase_receipts")).isEqualTo(0)
+        assertThat(tableCount("purchase_lines")).isEqualTo(0)
+        assertThat(tableCount("inventory_movements")).isEqualTo(0)
+        val ingredients = db.ingredientDao().getActiveIngredients(restId.value)
+        assertThat(ingredients.all { it.defaultAreaId == "dry-area" }).isTrue()
+        assertThat(ingredients.all { it.reorderPointBase == BigDecimal("5") }).isTrue()
+        ingredients.forEach { ingredient ->
+            val options = db.ingredientUnitOptionDao().getActiveOptions(ingredient.id)
+            assertThat(options.count { it.isBase }).isEqualTo(1)
+            assertThat(options.count { it.isDefaultCount }).isEqualTo(1)
+            assertThat(options.count { it.isDefaultPurchase }).isEqualTo(1)
+            assertThat(options.single { it.isDefaultCount }.factorToBase).isEqualTo(BigDecimal("0.0625"))
+        }
+        assertThat(db.ingredientCostProjectionDao().getAll().all { it.averageUnitCostBase == "1.25" }).isTrue()
+        val mappings = db.supplierItemMappingDao().getAllMappingsSync(restId.value)
+        assertThat(mappings.all { it.unitOptionId != null && it.inventoryAreaId == "dry-area" }).isTrue()
+    }
+
+    private fun tableCount(table: String): Int =
+        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
+            cursor.moveToFirst()
+            cursor.getInt(0)
+        }
 }

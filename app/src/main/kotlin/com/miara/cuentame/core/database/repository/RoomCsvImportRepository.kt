@@ -74,7 +74,7 @@ class RoomCsvImportRepository @Inject constructor(
                 val planData = includedRows.map { it.normalizedData!! }
                 if (planData.any { data ->
                         data.name.normalizeName().isBlank() || data.resolvedBaseUnitId == null ||
-                            (!data.countUnitName.isNullOrBlank() && data.resolvedCountUnitId == null) ||
+                            (data.countUnitName.isNullOrBlank() != (data.resolvedCountUnitId == null)) ||
                             (data.purchasePackageName.isNullOrBlank() != (data.packageConversionFactor == null)) ||
                             (!data.vendorItemCode.isNullOrBlank() && data.resolvedSupplierId == null && data.supplierName.isNullOrBlank()) ||
                             data.currentCostPerBaseUnit?.let { it < BigDecimal.ZERO } == true ||
@@ -86,13 +86,7 @@ class RoomCsvImportRepository @Inject constructor(
                         val supplierKey = data.resolvedSupplierId?.value ?: data.supplierName?.normalizeName()
                         val vendorKey = InventoryNormalization.normalizeVendorCode(data.vendorItemCode)
                         if (supplierKey != null && vendorKey.isNotBlank()) "$supplierKey|$vendorKey" else null
-                    }.let { it.size != it.toSet().size } || planData.any { data ->
-                        listOfNotNull(
-                            data.baseUnitName.takeIf(String::isNotBlank),
-                            data.countUnitName?.takeIf { it.isNotBlank() && data.resolvedCountUnitId != data.resolvedBaseUnitId },
-                            data.purchasePackageName?.takeIf(String::isNotBlank)
-                        ).map { it.normalizeName() }.let { names -> names.size != names.toSet().size }
-                    }) {
+                    }.let { it.size != it.toSet().size }) {
                     return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
                 }
 
@@ -113,12 +107,49 @@ class RoomCsvImportRepository @Inject constructor(
                 val normIngMap = existingIngredients.associateBy { it.normalizedName }
                 val skuMap = existingIngredients.filter { it.sku != null }.associateBy { it.sku!!.trim().lowercase() }
                 val catMap = allCategories.associateBy { it.id }
-                val catNormMap = allCategories.associateBy { it.normalizedName }
+                val catNormMap = allCategories.groupBy { it.normalizedName }
                 val areaMap = activeAreas.associateBy { it.id }
                 val supMap = allSuppliers.associateBy { it.id }
-                val supNormMap = allSuppliers.associateBy { it.normalizedName }
+                val supNormMap = allSuppliers.groupBy { it.normalizedName }
                 val mapLookup = allMappings.associateBy { "${it.supplierId}|${it.keyType}|${it.normalizedKey}" }
                 val unitLookup = systemUnits.associateBy { it.id }
+
+                // Validate the exact option graph that would be persisted before the first write.
+                for (data in planData) {
+                    val baseUnitEntity = unitLookup[data.resolvedBaseUnitId?.value]
+                        ?: return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    if (!baseUnitEntity.isSystem) return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    val baseUnit = baseUnitEntity.toDomain()
+                    val countUnitEntity = data.resolvedCountUnitId?.let { unitLookup[it.value] }
+                    if (data.resolvedCountUnitId != null && countUnitEntity == null) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    }
+                    val countUnit = countUnitEntity?.toDomain()
+                    if (countUnit != null && countUnit.dimension != baseUnit.dimension) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    }
+                    val hasSeparateCount = countUnit != null && countUnit.id != baseUnit.id
+                    val packageName = data.purchasePackageName?.trim()?.takeIf { it.isNotBlank() }
+                    val optionNames = buildList {
+                        add(baseUnit.symbol)
+                        if (hasSeparateCount) add(countUnit!!.symbol)
+                        if (packageName != null) add(packageName)
+                    }.map { it.normalizeName() }
+                    if (optionNames.any { it.isBlank() } || optionNames.size != optionNames.toSet().size) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    }
+                    if (packageName != null && (data.packageConversionFactor == null || data.packageConversionFactor <= BigDecimal.ZERO)) {
+                        return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    }
+                    if (hasSeparateCount) {
+                        val factor = try {
+                            converter.convert(BigDecimal.ONE, countUnit!!, baseUnit)
+                        } catch (_: Exception) {
+                            return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                        }
+                        if (factor <= BigDecimal.ZERO) return@withTransaction ImportResult.Failure(ImportFailure.InvalidPlan)
+                    }
+                }
 
                 // Check for conflicts
                 for (row in includedRows) {
@@ -159,7 +190,9 @@ class RoomCsvImportRepository @Inject constructor(
 
                     // Mapping validation
                     if (!data.vendorItemCode.isNullOrBlank()) {
-                        val supId = data.resolvedSupplierId?.value ?: data.supplierName?.let { supNormMap[it.normalizeName()]?.id }
+                        val supId = data.resolvedSupplierId?.value ?: data.supplierName?.let { name ->
+                            supNormMap[name.normalizeName()].orEmpty().singleOrNull { it.deletedAt == null && it.isActive }?.id
+                        }
                         if (supId != null) {
                             val mappingKey = "$supId|${SupplierItemMappingKeyType.VENDOR_CODE}|${InventoryNormalization.normalizeVendorCode(data.vendorItemCode)}"
                             if (mapLookup.containsKey(mappingKey)) return@withTransaction ImportResult.Failure(ImportFailure.StateChanged)
@@ -276,8 +309,8 @@ class RoomCsvImportRepository @Inject constructor(
                     val baseUnitDomain = baseUnitEntity.toDomain()
                     val baseOptionId = IngredientUnitOptionId(idGenerator.newId())
                     
-                    val isBaseDefaultCount = data.countUnitName == null || data.countUnitName.normalizeName() == baseUnitDomain.symbol.normalizeName() || data.countUnitName.normalizeName() == baseUnitDomain.name.normalizeName()
-                    val isBaseDefaultPurchase = data.purchasePackageName == null
+                    val isBaseDefaultCount = data.resolvedCountUnitId == null || data.resolvedCountUnitId == baseUnitId
+                    val isBaseDefaultPurchase = data.purchasePackageName.isNullOrBlank()
 
                     val baseOption = IngredientUnitOptionEntity(
                         id = baseOptionId.value,

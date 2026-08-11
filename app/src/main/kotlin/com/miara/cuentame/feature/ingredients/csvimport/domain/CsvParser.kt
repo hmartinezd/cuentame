@@ -1,6 +1,8 @@
 package com.miara.cuentame.feature.ingredients.csvimport.domain
 
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
+import com.github.doyaaaaaken.kotlincsv.dsl.context.ExcessFieldsRowBehaviour
+import com.github.doyaaaaaken.kotlincsv.dsl.context.InsufficientFieldsRowBehaviour
 import java.io.IOException
 import java.io.InputStream
 import java.io.PushbackInputStream
@@ -16,20 +18,26 @@ class CsvParser @Inject constructor() {
             stream.unread(bom, 0, bomCount)
         }
 
-        val cells = csvReader { skipEmptyLine = true }.readAll(stream)
+        val cells = csvReader {
+            skipEmptyLine = true
+            insufficientFieldsRowBehaviour = InsufficientFieldsRowBehaviour.EMPTY_STRING
+            excessFieldsRowBehaviour = ExcessFieldsRowBehaviour.ERROR
+        }.readAll(stream)
         if (cells.isEmpty()) return ParseResult.Error(ParseErrorType.EMPTY_FILE)
 
         val headers = cells.first().map { it.trim().lowercase() }
+        if (headers.all { it.isBlank() }) return ParseResult.Error(ParseErrorType.EMPTY_FILE)
         if (headers.size != headers.toSet().size) return ParseResult.Error(ParseErrorType.DUPLICATE_HEADERS)
         if (!headers.containsAll(REQUIRED_HEADERS)) return ParseResult.Error(ParseErrorType.MISSING_HEADERS)
 
         val dataRows = cells.drop(1)
         if (dataRows.size > MAX_ROWS) return ParseResult.Error(ParseErrorType.TOO_MANY_ROWS)
 
+        if (dataRows.any { it.size > headers.size }) return ParseResult.Error(ParseErrorType.MALFORMED_CSV)
         val rows = dataRows.map { values ->
             headers.mapIndexed { index, header -> header to values.getOrElse(index) { "" } }.toMap()
         }
-        val warnings = headers.filterNot(CANONICAL_HEADERS::contains).distinct().map { "Unknown CSV column: $it" }
+        val warnings = headers.filterNot(CANONICAL_HEADERS::contains).distinct().map { CsvParserWarning.UnknownColumn(it) }
         ParseResult.Success(rows, warnings)
     } catch (_: LimitExceededException) {
         ParseResult.Error(ParseErrorType.FILE_TOO_LARGE)
@@ -41,11 +49,14 @@ class CsvParser @Inject constructor() {
     }
 
     sealed class ParseResult {
-        data class Success(val rows: List<Map<String, String>>, val warnings: List<String> = emptyList()) : ParseResult()
+        data class Success(val rows: List<Map<String, String>>, val warnings: List<CsvParserWarning> = emptyList()) : ParseResult()
         data class Error(val type: ParseErrorType, val message: String? = null) : ParseResult()
     }
 
     enum class ParseErrorType { FILE_TOO_LARGE, TOO_MANY_ROWS, EMPTY_FILE, MISSING_HEADERS, DUPLICATE_HEADERS, MALFORMED_CSV, READ_FAILURE }
+    sealed interface CsvParserWarning {
+        data class UnknownColumn(val column: String) : CsvParserWarning
+    }
 
     companion object {
         const val MAX_FILE_SIZE = 5 * 1024 * 1024L

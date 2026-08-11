@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import java.time.Instant
 
 class CsvImportServiceTest {
     private val ingredientRepository = mockk<IngredientRepository>()
@@ -81,7 +82,7 @@ class CsvImportServiceTest {
         val result = service.processCsv(restaurantId, rawRows)
         
         assertThat(result.rows[0].status).isEqualTo(CsvImportRowStatus.ERROR)
-        assertThat(result.rows[0].issues.any { it.message.contains("Unknown unit") }).isTrue()
+        assertThat(result.rows[0].issues.map { it.code }).contains(CsvImportIssueCode.UNKNOWN_UNIT)
     }
 
     @Test
@@ -100,7 +101,7 @@ class CsvImportServiceTest {
         val result = service.processCsv(restaurantId, rawRows)
         
         assertThat(result.rows[1].status).isEqualTo(CsvImportRowStatus.ERROR)
-        assertThat(result.rows[1].issues.any { it.message.contains("Duplicate ingredient name") }).isTrue()
+        assertThat(result.rows[1].issues.map { it.code }).contains(CsvImportIssueCode.DUPLICATE_INGREDIENT_NAME_IN_FILE)
     }
 
     @Test
@@ -129,6 +130,68 @@ class CsvImportServiceTest {
         val result = service.processCsv(restaurantId, rawRows)
         
         assertThat(result.rows[0].status).isEqualTo(CsvImportRowStatus.ERROR)
-        assertThat(result.rows[0].issues.any { it.message.contains("Category is archived") }).isTrue()
+        assertThat(result.rows[0].issues.map { it.code }).contains(CsvImportIssueCode.CATEGORY_ARCHIVED)
     }
+
+    @Test
+    fun `active category wins over archived category with same normalized name`() = runTest {
+        val archived = category("old", deletedAt = Instant.EPOCH)
+        val active = category("active")
+        coEvery { categoryRepository.getAllCategoriesForRestaurant(restaurantId) } returns listOf(archived, active)
+
+        val result = service.processCsv(restaurantId, listOf(row(category = "Produce")))
+
+        assertThat(result.rows.single().normalizedData?.resolvedCategoryId).isEqualTo(active.id)
+        assertThat(result.rows.single().issues.map { it.code }).doesNotContain(CsvImportIssueCode.CATEGORY_ARCHIVED)
+    }
+
+    @Test
+    fun `two active categories are a blocking data conflict`() = runTest {
+        coEvery { categoryRepository.getAllCategoriesForRestaurant(restaurantId) } returns listOf(category("one"), category("two"))
+
+        val result = service.processCsv(restaurantId, listOf(row(category = "Produce")))
+
+        assertThat(result.rows.single().issues.map { it.code }).contains(CsvImportIssueCode.CATEGORY_DATA_CONFLICT)
+        assertThat(result.rows.single().status).isEqualTo(CsvImportRowStatus.ERROR)
+    }
+
+    @Test
+    fun `active supplier wins over archived supplier with same normalized name`() = runTest {
+        val archived = supplier("old", deletedAt = Instant.EPOCH)
+        val active = supplier("active")
+        every { supplierRepository.observeSuppliers(restaurantId, includeArchived = true) } returns flowOf(listOf(archived, active))
+
+        val result = service.processCsv(restaurantId, listOf(row(supplier = "Sysco")))
+
+        assertThat(result.rows.single().normalizedData?.resolvedSupplierId).isEqualTo(active.id)
+        assertThat(result.rows.single().issues.map { it.code }).doesNotContain(CsvImportIssueCode.SUPPLIER_ARCHIVED)
+    }
+
+    @Test
+    fun `two active suppliers are a blocking data conflict`() = runTest {
+        every { supplierRepository.observeSuppliers(restaurantId, includeArchived = true) } returns flowOf(listOf(supplier("one"), supplier("two")))
+
+        val result = service.processCsv(restaurantId, listOf(row(supplier = "Sysco")))
+
+        assertThat(result.rows.single().issues.map { it.code }).contains(CsvImportIssueCode.SUPPLIER_DATA_CONFLICT)
+    }
+
+    private fun row(category: String? = null, supplier: String? = null) = buildMap {
+        put(CsvParser.HEADER_INGREDIENT_NAME, "Tomato")
+        put(CsvParser.HEADER_BASE_UNIT, "lb")
+        category?.let { put(CsvParser.HEADER_CATEGORY, it) }
+        supplier?.let { put(CsvParser.HEADER_SUPPLIER, it) }
+    }
+
+    private fun category(id: String, deletedAt: Instant? = null) =
+        com.miara.cuentame.core.model.ingredient.IngredientCategory(
+            com.miara.cuentame.core.common.ids.IngredientCategoryId(id), restaurantId, "Produce", "produce", 0,
+            true, Instant.EPOCH, Instant.EPOCH, deletedAt
+        )
+
+    private fun supplier(id: String, deletedAt: Instant? = null) =
+        com.miara.cuentame.core.model.supplier.Supplier(
+            com.miara.cuentame.core.common.ids.SupplierId(id), restaurantId, "Sysco", "sysco",
+            isActive = true, createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH, deletedAt = deletedAt
+        )
 }

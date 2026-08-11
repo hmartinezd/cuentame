@@ -34,7 +34,21 @@ data class NormalizedIngredientData(
     val currentCostPerBaseUnit: BigDecimal?,
     val reorderPointBase: BigDecimal?
 )
-data class CsvImportRowIssue(val field: String?, val message: String, val severity: CsvImportIssueSeverity)
+data class CsvImportRowIssue(
+    val field: String?,
+    val code: CsvImportIssueCode,
+    val severity: CsvImportIssueSeverity,
+    val parameters: List<String> = emptyList()
+)
+enum class CsvImportIssueCode {
+    INGREDIENT_NAME_REQUIRED, INVALID_INGREDIENT_NAME, DUPLICATE_INGREDIENT_NAME_IN_FILE,
+    EXISTING_ACTIVE_INGREDIENT, EXISTING_ARCHIVED_INGREDIENT, DUPLICATE_SKU_IN_FILE, EXISTING_SKU,
+    UNIT_REQUIRED, UNKNOWN_UNIT, AMBIGUOUS_UNIT, INCOMPATIBLE_COUNT_UNIT,
+    CATEGORY_WILL_BE_CREATED, CATEGORY_ARCHIVED, CATEGORY_INACTIVE, CATEGORY_DATA_CONFLICT,
+    SUPPLIER_WILL_BE_CREATED, SUPPLIER_ARCHIVED, SUPPLIER_INACTIVE, SUPPLIER_DATA_CONFLICT,
+    UNKNOWN_AREA, VENDOR_CODE_REQUIRES_SUPPLIER, DUPLICATE_VENDOR_CODE, EXISTING_VENDOR_MAPPING,
+    INVALID_PACKAGE_CONVERSION, PACKAGE_CONVERSION_REQUIRED, INVALID_CURRENT_COST, INVALID_REORDER_POINT
+}
 enum class CsvImportIssueSeverity { WARNING, ERROR }
 enum class CsvImportRowStatus { READY, WARNING, ERROR, SKIPPED }
 data class CsvImportSummary(val totalRows: Int, val readyRows: Int, val warningRows: Int, val errorRows: Int, val skippedRows: Int)

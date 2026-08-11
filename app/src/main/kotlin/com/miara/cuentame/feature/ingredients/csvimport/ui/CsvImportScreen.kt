@@ -30,6 +30,7 @@ import com.miara.cuentame.core.domain.repository.ImportResult
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportDocument
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportRow
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportIssueSeverity
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportIssueCode
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
 
@@ -192,7 +193,7 @@ fun EmptyState(onChooseFile: () -> Unit, onDownloadTemplate: () -> Unit, error: 
 @Composable
 fun ImportPreviewContent(
     document: CsvIngredientImportDocument,
-    parserWarnings: List<String>,
+    parserWarnings: List<CsvParser.CsvParserWarning>,
     isCommitting: Boolean,
     onToggleSelection: (Int) -> Unit,
     onEditRow: (CsvIngredientImportRow) -> Unit,
@@ -214,7 +215,10 @@ fun ImportPreviewContent(
     
     Column(modifier = Modifier.fillMaxSize()) {
         parserWarnings.forEach { warning ->
-            Text(stringResource(R.string.import_unknown_column, warning.substringAfterLast(":" ).trim()), modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.tertiary)
+            val message = when (warning) {
+                is CsvParser.CsvParserWarning.UnknownColumn -> stringResource(R.string.import_unknown_column, warning.column)
+            }
+            Text(message, modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.tertiary)
         }
         if (document.rows.isEmpty()) Text(stringResource(R.string.import_no_data_rows), modifier = Modifier.padding(16.dp))
         ImportSummaryHeader(document, selectedFilter, onFilterSelected = { selectedFilter = it })
@@ -317,7 +321,7 @@ fun ImportRowItem(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        firstIssue.message,
+                        csvIssueMessage(firstIssue.code, firstIssue.parameters),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (firstIssue.severity == CsvImportIssueSeverity.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
                     )
@@ -328,6 +332,37 @@ fun ImportRowItem(
             Text(stringResource(R.string.action_edit))
         }
     }
+}
+
+@Composable
+private fun csvIssueMessage(code: CsvImportIssueCode, parameters: List<String>): String = when (code) {
+    CsvImportIssueCode.INGREDIENT_NAME_REQUIRED -> stringResource(R.string.csv_issue_ingredient_name_required)
+    CsvImportIssueCode.INVALID_INGREDIENT_NAME -> stringResource(R.string.csv_issue_invalid_ingredient_name)
+    CsvImportIssueCode.DUPLICATE_INGREDIENT_NAME_IN_FILE -> stringResource(R.string.csv_issue_duplicate_ingredient_name)
+    CsvImportIssueCode.EXISTING_ACTIVE_INGREDIENT -> stringResource(R.string.csv_issue_existing_active_ingredient)
+    CsvImportIssueCode.EXISTING_ARCHIVED_INGREDIENT -> stringResource(R.string.csv_issue_existing_archived_ingredient)
+    CsvImportIssueCode.DUPLICATE_SKU_IN_FILE -> stringResource(R.string.csv_issue_duplicate_sku)
+    CsvImportIssueCode.EXISTING_SKU -> stringResource(R.string.csv_issue_existing_sku)
+    CsvImportIssueCode.UNIT_REQUIRED -> stringResource(R.string.csv_issue_unit_required)
+    CsvImportIssueCode.UNKNOWN_UNIT -> stringResource(R.string.csv_issue_unknown_unit, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.AMBIGUOUS_UNIT -> stringResource(R.string.csv_issue_ambiguous_unit, parameters.getOrElse(0) { "" }, parameters.getOrElse(1) { "" })
+    CsvImportIssueCode.INCOMPATIBLE_COUNT_UNIT -> stringResource(R.string.csv_issue_incompatible_count_unit, parameters.getOrElse(0) { "" }, parameters.getOrElse(1) { "" })
+    CsvImportIssueCode.CATEGORY_WILL_BE_CREATED -> stringResource(R.string.csv_issue_category_created, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.CATEGORY_ARCHIVED -> stringResource(R.string.csv_issue_category_archived, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.CATEGORY_INACTIVE -> stringResource(R.string.csv_issue_category_inactive, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.CATEGORY_DATA_CONFLICT -> stringResource(R.string.csv_issue_category_conflict, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.SUPPLIER_WILL_BE_CREATED -> stringResource(R.string.csv_issue_supplier_created, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.SUPPLIER_ARCHIVED -> stringResource(R.string.csv_issue_supplier_archived, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.SUPPLIER_INACTIVE -> stringResource(R.string.csv_issue_supplier_inactive, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.SUPPLIER_DATA_CONFLICT -> stringResource(R.string.csv_issue_supplier_conflict, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.UNKNOWN_AREA -> stringResource(R.string.csv_issue_unknown_area, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.VENDOR_CODE_REQUIRES_SUPPLIER -> stringResource(R.string.csv_issue_vendor_requires_supplier)
+    CsvImportIssueCode.DUPLICATE_VENDOR_CODE -> stringResource(R.string.csv_issue_duplicate_vendor_code)
+    CsvImportIssueCode.EXISTING_VENDOR_MAPPING -> stringResource(R.string.csv_issue_existing_vendor_mapping, parameters.getOrElse(0) { "" })
+    CsvImportIssueCode.INVALID_PACKAGE_CONVERSION -> stringResource(R.string.csv_issue_invalid_package_conversion)
+    CsvImportIssueCode.PACKAGE_CONVERSION_REQUIRED -> stringResource(R.string.csv_issue_package_conversion_required)
+    CsvImportIssueCode.INVALID_CURRENT_COST -> stringResource(R.string.csv_issue_invalid_current_cost)
+    CsvImportIssueCode.INVALID_REORDER_POINT -> stringResource(R.string.csv_issue_invalid_reorder_point)
 }
 
 @Composable

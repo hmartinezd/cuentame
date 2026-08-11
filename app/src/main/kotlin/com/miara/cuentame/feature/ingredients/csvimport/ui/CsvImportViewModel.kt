@@ -9,6 +9,7 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportDocument
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportRow
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportService
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvTemplateGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,26 +45,25 @@ class CsvImportViewModel @Inject constructor(
     fun loadCsv(inputStream: InputStream) {
         viewModelScope.launch {
             _uiState.update { it.copy(isParsing = true, parseError = null) }
-            
-            val parseResult = try {
-                withContext(parsingDispatcher) { inputStream.use(csvParser::parse) }
+            try {
+                val parseResult = withContext(parsingDispatcher) { inputStream.use(csvParser::parse) }
+                when (parseResult) {
+                    is CsvParser.ParseResult.Success -> {
+                        val restaurant = restaurantRepository.getRestaurant()
+                        if (restaurant == null) {
+                            _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
+                            return@launch
+                        }
+                        val document = importService.processCsv(restaurant.id, parseResult.rows)
+                        _uiState.update { it.copy(document = document, parserWarnings = parseResult.warnings) }
+                    }
+                    is CsvParser.ParseResult.Error -> _uiState.update { it.copy(parseError = parseResult.type) }
+                }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                CsvParser.ParseResult.Error(CsvParser.ParseErrorType.READ_FAILURE)
-            }
-            when (parseResult) {
-                is CsvParser.ParseResult.Success -> {
-                    val restaurant = restaurantRepository.getRestaurant()
-                    if (restaurant == null) {
-                        _uiState.update { it.copy(isParsing = false, importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
-                        return@launch
-                    }
-                    val document = importService.processCsv(restaurant.id, parseResult.rows)
-                    _uiState.update { it.copy(document = document, parserWarnings = parseResult.warnings, isParsing = false) }
-                }
-                is CsvParser.ParseResult.Error -> {
-                    _uiState.update { it.copy(isParsing = false, parseError = parseResult.type) }
-                }
+                _uiState.update { it.copy(parseError = CsvParser.ParseErrorType.READ_FAILURE) }
+            } finally {
+                _uiState.update { it.copy(isParsing = false) }
             }
         }
     }
@@ -104,6 +104,7 @@ class CsvImportViewModel @Inject constructor(
         val state = _uiState.value
         val doc = state.document ?: return
         if (state.isCommitting) return
+        if (doc.rows.none { it.isIncluded } || doc.rows.any { it.isIncluded && it.status == CsvImportRowStatus.ERROR }) return
 
         viewModelScope.launch {
             if (!confirmMutex.tryLock()) return@launch
@@ -131,6 +132,7 @@ class CsvImportViewModel @Inject constructor(
                     ) 
                 }
             } finally {
+                _uiState.update { it.copy(isCommitting = false) }
                 confirmMutex.unlock()
             }
         }
@@ -149,7 +151,7 @@ data class CsvImportUiState(
     val document: CsvIngredientImportDocument? = null,
     val isParsing: Boolean = false,
     val parseError: CsvParser.ParseErrorType? = null,
-    val parserWarnings: List<String> = emptyList(),
+    val parserWarnings: List<CsvParser.CsvParserWarning> = emptyList(),
     val isCommitting: Boolean = false,
     val importResult: ImportResult? = null
 )

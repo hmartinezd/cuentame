@@ -10,6 +10,7 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvTemplateGenerator
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvIngredientImportRow
+import com.miara.cuentame.core.domain.repository.ImportFailure
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -113,6 +114,78 @@ class CsvImportViewModelTest {
         
         assertThat(viewModel.uiState.value.isCommitting).isFalse()
         // Repository should be called only once
+        io.mockk.coVerify(exactly = 1) { importRepository.commitImport(any(), any()) }
+    }
+
+    @Test
+    fun `parser failure clears parsing state`() = runTest {
+        every { csvParser.parse(any()) } throws java.io.IOException("read failed")
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isParsing).isFalse()
+        assertThat(viewModel.uiState.value.parseError).isEqualTo(CsvParser.ParseErrorType.READ_FAILURE)
+    }
+
+    @Test
+    fun `restaurant unavailable clears parsing state`() = runTest {
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        coEvery { restaurantRepository.getRestaurant() } returns null
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isParsing).isFalse()
+        assertThat(viewModel.uiState.value.importResult)
+            .isEqualTo(ImportResult.Failure(ImportFailure.RestaurantUnavailable))
+    }
+
+    @Test
+    fun `typed parser warning reaches UI and header-only document cannot confirm`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val warning = CsvParser.CsvParserWarning.UnknownColumn("legacy")
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList(), listOf(warning))
+        coEvery { importService.processCsv(any(), emptyList()) } returns CsvIngredientImportDocument(emptyList())
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.parserWarnings).containsExactly(warning)
+        assertThat(viewModel.uiState.value.document?.rows).isEmpty()
+        io.mockk.coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
+    }
+
+    @Test
+    fun `skipping error enables confirmation and reincluding blocks it`() = runTest {
+        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
+        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
+        coEvery { restaurantRepository.getRestaurant() } returns restaurant
+        val errorRow = CsvIngredientImportRow(2, emptyMap(), null, emptyList(), CsvImportRowStatus.ERROR, true)
+        val readyRow = CsvIngredientImportRow(3, emptyMap(), null, emptyList(), CsvImportRowStatus.READY, true)
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        coEvery { importService.processCsv(any(), any()) } returns CsvIngredientImportDocument(listOf(errorRow, readyRow))
+        coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Success(1, 0, 0, 0, 1)
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
+
+        viewModel.toggleRowSelection(2)
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+        io.mockk.coVerify(exactly = 1) { importRepository.commitImport(any(), any()) }
+
+        viewModel.resetImportResult()
+        viewModel.toggleRowSelection(2)
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
         io.mockk.coVerify(exactly = 1) { importRepository.commitImport(any(), any()) }
     }
 }

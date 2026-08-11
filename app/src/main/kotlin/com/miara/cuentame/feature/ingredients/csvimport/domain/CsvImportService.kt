@@ -50,9 +50,9 @@ class CsvImportService @Inject constructor(
         val normalizedIngredientsMap = allIngredients.associateBy { it.normalizedName }
         val skuMap = allIngredients.filter { it.sku != null }.associateBy { it.sku!!.trim().lowercase() }
         
-        val categoriesMap = allCategories.associateBy { it.name.normalizeName() }
+        val categoriesMap = allCategories.groupBy { it.name.normalizeName() }
         val areasMap = activeAreas.associateBy { it.name.normalizeName() }
-        val suppliersMap = allSuppliers.associateBy { it.name.normalizeName() }
+        val suppliersMap = allSuppliers.groupBy { it.name.normalizeName() }
         
         val mappingsMap = allMappings.groupBy { "${it.supplierId.value}|${it.keyType}|${it.normalizedKey}" }
         
@@ -92,9 +92,9 @@ class CsvImportService @Inject constructor(
         rawData: Map<String, String>,
         normalizedIngredientsMap: Map<String, com.miara.cuentame.core.model.ingredient.Ingredient>,
         skuMap: Map<String, com.miara.cuentame.core.model.ingredient.Ingredient>,
-        categoriesMap: Map<String, com.miara.cuentame.core.model.ingredient.IngredientCategory>,
+        categoriesMap: Map<String, List<com.miara.cuentame.core.model.ingredient.IngredientCategory>>,
         areasMap: Map<String, com.miara.cuentame.core.model.inventory.InventoryArea>,
-        suppliersMap: Map<String, com.miara.cuentame.core.model.supplier.Supplier>,
+        suppliersMap: Map<String, List<com.miara.cuentame.core.model.supplier.Supplier>>,
         mappingsMap: Map<String, List<SupplierItemMapping>>,
         unitsLookup: Map<String, List<UnitOfMeasure>>,
         csvNormalizedNames: MutableSet<String>,
@@ -124,19 +124,19 @@ class CsvImportService @Inject constructor(
 
         // 1. Ingredient Name Validation
         if (rawName.isBlank()) {
-            issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, "Ingredient name is required", CsvImportIssueSeverity.ERROR))
+            issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, CsvImportIssueCode.INGREDIENT_NAME_REQUIRED, CsvImportIssueSeverity.ERROR))
         } else if (normalizedName.isBlank()) {
-            issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, "Invalid ingredient name", CsvImportIssueSeverity.ERROR))
+            issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, CsvImportIssueCode.INVALID_INGREDIENT_NAME, CsvImportIssueSeverity.ERROR))
         } else {
             if (!csvNormalizedNames.add(normalizedName)) {
-                issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, "Duplicate ingredient name in CSV", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, CsvImportIssueCode.DUPLICATE_INGREDIENT_NAME_IN_FILE, CsvImportIssueSeverity.ERROR))
             }
             val existing = normalizedIngredientsMap[normalizedName]
             if (existing != null) {
                 if (existing.deletedAt != null) {
-                    issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, "An archived ingredient with this name already exists", CsvImportIssueSeverity.ERROR))
+                    issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, CsvImportIssueCode.EXISTING_ARCHIVED_INGREDIENT, CsvImportIssueSeverity.ERROR))
                 } else {
-                    issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, "An active ingredient with this name already exists", CsvImportIssueSeverity.ERROR))
+                    issues.add(CsvImportRowIssue(HEADER_INGREDIENT_NAME, CsvImportIssueCode.EXISTING_ACTIVE_INGREDIENT, CsvImportIssueSeverity.ERROR))
                 }
             }
         }
@@ -144,30 +144,30 @@ class CsvImportService @Inject constructor(
         // 2. SKU Validation
         if (!normalizedSku.isNullOrBlank()) {
             if (!csvSkus.add(normalizedSku)) {
-                issues.add(CsvImportRowIssue(HEADER_SKU, "Duplicate SKU in CSV", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_SKU, CsvImportIssueCode.DUPLICATE_SKU_IN_FILE, CsvImportIssueSeverity.ERROR))
             }
             val existing = skuMap[normalizedSku]
             if (existing != null) {
-                issues.add(CsvImportRowIssue(HEADER_SKU, "An ingredient with this SKU already exists", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_SKU, CsvImportIssueCode.EXISTING_SKU, CsvImportIssueSeverity.ERROR))
             }
         }
 
         // 3. Unit Resolution (Ambiguity Check)
         fun resolveUnit(raw: String?, field: String, required: Boolean): UnitOfMeasure? {
             if (raw.isNullOrBlank()) {
-                if (required) issues.add(CsvImportRowIssue(field, "Unit is required", CsvImportIssueSeverity.ERROR))
+                if (required) issues.add(CsvImportRowIssue(field, CsvImportIssueCode.UNIT_REQUIRED, CsvImportIssueSeverity.ERROR))
                 return null
             }
             val matches = unitsLookup[raw.normalizeName()] ?: emptyList()
             return when {
                 matches.isEmpty() -> {
-                    issues.add(CsvImportRowIssue(field, "Unknown unit: $raw", CsvImportIssueSeverity.ERROR))
+                    issues.add(CsvImportRowIssue(field, CsvImportIssueCode.UNKNOWN_UNIT, CsvImportIssueSeverity.ERROR, listOf(raw)))
                     null
                 }
                 matches.size > 1 -> {
                     val distinctIds = matches.map { it.id }.distinct()
                     if (distinctIds.size > 1) {
-                        issues.add(CsvImportRowIssue(field, "Ambiguous unit: $raw (${matches.joinToString { it.symbol }})", CsvImportIssueSeverity.ERROR))
+                        issues.add(CsvImportRowIssue(field, CsvImportIssueCode.AMBIGUOUS_UNIT, CsvImportIssueSeverity.ERROR, listOf(raw, matches.distinctBy { it.id }.joinToString { it.symbol })))
                         null
                     } else matches.first()
                 }
@@ -180,52 +180,64 @@ class CsvImportService @Inject constructor(
 
         if (baseUnit != null && countUnit != null) {
             if (baseUnit.dimension != countUnit.dimension) {
-                issues.add(CsvImportRowIssue(HEADER_COUNT_UNIT, "Count unit dimension (${countUnit.dimension}) is incompatible with base unit (${baseUnit.dimension})", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_COUNT_UNIT, CsvImportIssueCode.INCOMPATIBLE_COUNT_UNIT, CsvImportIssueSeverity.ERROR, listOf(countUnit.dimension.name, baseUnit.dimension.name)))
             }
         }
 
         // 4. Category / Supplier / Area Resolution (Archived Record Policy)
         val category = if (!rawCategory.isNullOrBlank()) {
-            val existing = categoriesMap[rawCategory.normalizeName()]
+            val matches = categoriesMap[rawCategory.normalizeName()].orEmpty()
+            val active = matches.filter { it.deletedAt == null && it.isActive }
+            val inactive = matches.filter { it.deletedAt == null && !it.isActive }
             when {
-                existing == null -> {
-                    issues.add(CsvImportRowIssue(HEADER_CATEGORY, "Category will be created: $rawCategory", CsvImportIssueSeverity.WARNING))
+                matches.isEmpty() -> {
+                    issues.add(CsvImportRowIssue(HEADER_CATEGORY, CsvImportIssueCode.CATEGORY_WILL_BE_CREATED, CsvImportIssueSeverity.WARNING, listOf(rawCategory)))
                     null
                 }
-                existing.deletedAt != null -> {
-                    issues.add(CsvImportRowIssue(HEADER_CATEGORY, "Category is archived: $rawCategory", CsvImportIssueSeverity.ERROR))
+                active.size > 1 -> {
+                    issues.add(CsvImportRowIssue(HEADER_CATEGORY, CsvImportIssueCode.CATEGORY_DATA_CONFLICT, CsvImportIssueSeverity.ERROR, listOf(rawCategory)))
                     null
                 }
-                !existing.isActive -> {
-                     issues.add(CsvImportRowIssue(HEADER_CATEGORY, "Category is inactive: $rawCategory", CsvImportIssueSeverity.ERROR))
+                active.size == 1 -> active.single()
+                inactive.isNotEmpty() -> {
+                     issues.add(CsvImportRowIssue(HEADER_CATEGORY, CsvImportIssueCode.CATEGORY_INACTIVE, CsvImportIssueSeverity.ERROR, listOf(rawCategory)))
                      null
                 }
-                else -> existing
+                else -> {
+                    issues.add(CsvImportRowIssue(HEADER_CATEGORY, CsvImportIssueCode.CATEGORY_ARCHIVED, CsvImportIssueSeverity.ERROR, listOf(rawCategory)))
+                    null
+                }
             }
         } else null
 
         val supplier = if (!rawSupplier.isNullOrBlank()) {
-            val existing = suppliersMap[rawSupplier.normalizeName()]
+            val matches = suppliersMap[rawSupplier.normalizeName()].orEmpty()
+            val active = matches.filter { it.deletedAt == null && it.isActive }
+            val inactive = matches.filter { it.deletedAt == null && !it.isActive }
             when {
-                existing == null -> {
-                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, "Supplier will be created: $rawSupplier", CsvImportIssueSeverity.WARNING))
+                matches.isEmpty() -> {
+                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, CsvImportIssueCode.SUPPLIER_WILL_BE_CREATED, CsvImportIssueSeverity.WARNING, listOf(rawSupplier)))
                     null
                 }
-                existing.deletedAt != null -> {
-                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, "Supplier is archived: $rawSupplier", CsvImportIssueSeverity.ERROR))
+                active.size > 1 -> {
+                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, CsvImportIssueCode.SUPPLIER_DATA_CONFLICT, CsvImportIssueSeverity.ERROR, listOf(rawSupplier)))
                     null
                 }
-                !existing.isActive -> {
-                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, "Supplier is inactive: $rawSupplier", CsvImportIssueSeverity.ERROR))
+                active.size == 1 -> active.single()
+                inactive.isNotEmpty() -> {
+                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, CsvImportIssueCode.SUPPLIER_INACTIVE, CsvImportIssueSeverity.ERROR, listOf(rawSupplier)))
                     null
                 }
-                else -> existing
+                else -> {
+                    issues.add(CsvImportRowIssue(HEADER_SUPPLIER, CsvImportIssueCode.SUPPLIER_ARCHIVED, CsvImportIssueSeverity.ERROR, listOf(rawSupplier)))
+                    null
+                }
             }
         } else null
 
         val area = if (!rawDefaultArea.isNullOrBlank()) {
             areasMap[rawDefaultArea.normalizeName()] ?: run {
-                issues.add(CsvImportRowIssue(HEADER_DEFAULT_AREA, "Unknown or inactive storage area: $rawDefaultArea", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_DEFAULT_AREA, CsvImportIssueCode.UNKNOWN_AREA, CsvImportIssueSeverity.ERROR, listOf(rawDefaultArea)))
                 null
             }
         } else null
@@ -233,20 +245,20 @@ class CsvImportService @Inject constructor(
         // 5. Vendor Code Logic
         if (!normalizedVendorCode.isBlank()) {
             if (rawSupplier.isNullOrBlank()) {
-                issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, "Vendor item code requires a supplier", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, CsvImportIssueCode.VENDOR_CODE_REQUIRES_SUPPLIER, CsvImportIssueSeverity.ERROR))
             } else {
                 val supKey = rawSupplier.normalizeName()
                 val conflictKey = "$supKey|$normalizedVendorCode"
                 if (!csvVendorCodes.add(conflictKey)) {
-                    issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, "Duplicate supplier + vendor code in CSV", CsvImportIssueSeverity.ERROR))
+                    issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, CsvImportIssueCode.DUPLICATE_VENDOR_CODE, CsvImportIssueSeverity.ERROR))
                 }
                 
-                val existingSupplier = suppliersMap[supKey]
+                val existingSupplier = suppliersMap[supKey].orEmpty().singleOrNull { it.deletedAt == null && it.isActive }
                 if (existingSupplier != null) {
                     val mappingKey = "${existingSupplier.id.value}|${com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType.VENDOR_CODE}|$normalizedVendorCode"
                     val existingMappings = mappingsMap[mappingKey] ?: emptyList()
                     if (existingMappings.isNotEmpty()) {
-                        issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, "Supplier mapping for '$normalizedVendorCode' already exists in database", CsvImportIssueSeverity.ERROR))
+                        issues.add(CsvImportRowIssue(HEADER_VENDOR_CODE, CsvImportIssueCode.EXISTING_VENDOR_MAPPING, CsvImportIssueSeverity.ERROR, listOf(normalizedVendorCode)))
                     }
                 }
             }
@@ -256,19 +268,19 @@ class CsvImportService @Inject constructor(
         val packageConversion = if (!rawPackageConversion.isNullOrBlank()) {
             val value = rawPackageConversion.toBigDecimalOrNull()
             if (value == null || value <= BigDecimal.ZERO) {
-                issues.add(CsvImportRowIssue(HEADER_PACKAGE_CONVERSION, "Package conversion factor must be a positive number", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_PACKAGE_CONVERSION, CsvImportIssueCode.INVALID_PACKAGE_CONVERSION, CsvImportIssueSeverity.ERROR))
                 null
             } else value
         } else null
 
         if (!rawPurchasePackage.isNullOrBlank() && packageConversion == null) {
-            issues.add(CsvImportRowIssue(HEADER_PACKAGE_CONVERSION, "Package conversion factor is required when purchase package is specified", CsvImportIssueSeverity.ERROR))
+            issues.add(CsvImportRowIssue(HEADER_PACKAGE_CONVERSION, CsvImportIssueCode.PACKAGE_CONVERSION_REQUIRED, CsvImportIssueSeverity.ERROR))
         }
 
         val currentCost = if (!rawCurrentCost.isNullOrBlank()) {
             val value = rawCurrentCost.toBigDecimalOrNull()
             if (value == null || value < BigDecimal.ZERO) {
-                issues.add(CsvImportRowIssue(HEADER_CURRENT_COST, "Current cost must be a non-negative number", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_CURRENT_COST, CsvImportIssueCode.INVALID_CURRENT_COST, CsvImportIssueSeverity.ERROR))
                 null
             } else value
         } else null
@@ -276,7 +288,7 @@ class CsvImportService @Inject constructor(
         val reorderPoint = if (!rawReorderPoint.isNullOrBlank()) {
             val value = rawReorderPoint.toBigDecimalOrNull()
             if (value == null || value < BigDecimal.ZERO) {
-                issues.add(CsvImportRowIssue(HEADER_REORDER_POINT, "Reorder point must be a non-negative number", CsvImportIssueSeverity.ERROR))
+                issues.add(CsvImportRowIssue(HEADER_REORDER_POINT, CsvImportIssueCode.INVALID_REORDER_POINT, CsvImportIssueSeverity.ERROR))
                 null
             } else value
         } else null
