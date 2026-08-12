@@ -50,6 +50,9 @@ interface IngredientDao {
     @Update
     suspend fun update(ingredient: IngredientEntity)
 
+    @Query("UPDATE ingredients SET defaultAreaId = :areaId, updatedAt = :updatedAt WHERE restaurantId = :restaurantId AND id IN (:ingredientIds) AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun assignDefaultArea(restaurantId: String, ingredientIds: List<String>, areaId: String, updatedAt: Long)
+
     @Upsert
     suspend fun upsert(ingredient: IngredientEntity)
 

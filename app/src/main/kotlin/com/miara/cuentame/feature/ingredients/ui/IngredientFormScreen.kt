@@ -58,6 +58,7 @@ import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import com.miara.cuentame.core.model.inventory.UnitDimension
 import com.miara.cuentame.core.model.inventory.UnitOfMeasure
+import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.feature.ingredients.model.EditableUnitOptionUiModel
 import com.miara.cuentame.feature.ingredients.model.IngredientFormUiState
 import com.miara.cuentame.feature.ingredients.viewmodel.IngredientFormEvent
@@ -74,6 +75,7 @@ fun IngredientFormRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val compatibleUnits by viewModel.compatibleUnits.collectAsStateWithLifecycle()
+    val areas by viewModel.areas.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -97,11 +99,13 @@ fun IngredientFormRoute(
         uiState = uiState,
         categories = categories,
         compatibleUnits = compatibleUnits,
+        areas = areas,
         snackbarHostState = snackbarHostState,
         onNameChanged = viewModel::onNameChanged,
         onParLevelChanged = viewModel::onParLevelChanged,
         onReorderPointChanged = viewModel::onReorderPointChanged,
         onCategorySelected = viewModel::onCategorySelected,
+        onDefaultAreaSelected = viewModel::onDefaultAreaSelected,
         onDimensionSelected = viewModel::onDimensionSelected,
         onBaseUnitSelected = viewModel::onBaseUnitSelected,
         onAddStandardOption = viewModel::onAddStandardOption,
@@ -121,11 +125,13 @@ fun IngredientFormScreen(
     uiState: IngredientFormUiState,
     categories: List<IngredientCategory>,
     compatibleUnits: List<UnitOfMeasure>,
+    areas: List<InventoryArea>,
     snackbarHostState: SnackbarHostState,
     onNameChanged: (String) -> Unit,
     onParLevelChanged: (String) -> Unit,
     onReorderPointChanged: (String) -> Unit,
     onCategorySelected: (IngredientCategoryId?) -> Unit,
+    onDefaultAreaSelected: (com.miara.cuentame.core.common.ids.InventoryAreaId?) -> Unit,
     onDimensionSelected: (UnitDimension) -> Unit,
     onBaseUnitSelected: (UnitOfMeasure) -> Unit,
     onAddStandardOption: (UnitOfMeasure) -> Unit,
@@ -189,6 +195,12 @@ fun IngredientFormScreen(
                     categories = categories,
                     selected = uiState.selectedCategoryId,
                     onSelected = onCategorySelected
+                )
+
+                DefaultAreaSelector(
+                    areas = areas,
+                    selected = uiState.selectedDefaultAreaId,
+                    onSelected = onDefaultAreaSelected
                 )
 
                 Text(stringResource(R.string.reorder_configuration), style = MaterialTheme.typography.titleMedium)
@@ -291,6 +303,34 @@ fun IngredientFormScreen(
                 showPackageDialog = false
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DefaultAreaSelector(
+    areas: List<InventoryArea>,
+    selected: com.miara.cuentame.core.common.ids.InventoryAreaId?,
+    onSelected: (com.miara.cuentame.core.common.ids.InventoryAreaId?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = areas.firstOrNull { it.id == selected }?.name ?: stringResource(R.string.ingredient_area_unassigned)
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.ingredient_default_area)) },
+            supportingText = { Text(stringResource(R.string.ingredient_default_area_help)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth().testTag("ingredient_default_area")
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.ingredient_area_unassigned)) }, onClick = { onSelected(null); expanded = false })
+            areas.forEach { area ->
+                DropdownMenuItem(text = { Text(area.name) }, onClick = { onSelected(area.id); expanded = false })
+            }
+        }
     }
 }
 

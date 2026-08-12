@@ -1115,4 +1115,21 @@
     <string name="supplier_sku">Supplier SKU: %1$s</string>
     <string name="export_csv">CSV</string>
     <string name="reorder_share">Share</string>
+    <string name="ingredient_default_area">Default inventory area</string>
+    <string name="ingredient_default_area_help">Controls where this ingredient appears automatically during a physical count.</string>
+    <string name="ingredient_area_unassigned">Not assigned</string>
+    <string name="setup_hub_title">Restaurant setup</string>
+    <string name="setup_core_ready">Core inventory ready</string>
+    <string name="setup_core_not_ready">Finish these steps before relying on inventory balances.</string>
+    <string name="setup_restaurant_ready">Restaurant created</string>
+    <string name="setup_areas">Active inventory areas</string>
+    <string name="setup_ingredients">Ingredients and count units</string>
+    <string name="setup_area_assignments">Ingredient area assignments</string>
+    <string name="setup_unassigned_count">%1$d ingredients need an inventory area.</string>
+    <string name="setup_assign_all">Assign all unassigned ingredients to this area</string>
+    <string name="setup_initial_count">Initial physical count completed</string>
+    <string name="action_fix">Fix</string>
+    <string name="count_empty_no_ingredients">No ingredients are available to count. Create or import ingredients first.</string>
+    <string name="count_empty_area_assignment">Ingredients exist, but none are assigned to this area. Assign their default inventory area before the initial count.</string>
+    <string name="import_default_area_help">Set default_area so ingredients appear automatically in the correct area during the initial physical count.</string>
 </resources>

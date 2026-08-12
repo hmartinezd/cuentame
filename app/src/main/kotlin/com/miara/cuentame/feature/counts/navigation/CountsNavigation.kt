@@ -49,7 +49,8 @@ fun NavGraphBuilder.countsGraph(navController: NavHostController) {
     }
     composable(route = Destination.STOCK_COUNT_AREA.route) {
         StockCountAreaRoute(
-            onBack = { navController.popBackStack() }
+            onBack = { navController.popBackStack() },
+            onConfigureIngredients = { navController.navigate(TopLevelDestination.HOME.route) }
         )
     }
     composable(route = Destination.STOCK_COUNT_DETAIL.route) { entry ->

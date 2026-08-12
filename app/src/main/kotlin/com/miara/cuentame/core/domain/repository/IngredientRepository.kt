@@ -3,6 +3,7 @@ package com.miara.cuentame.core.domain.repository
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.model.ingredient.Ingredient
@@ -16,7 +17,8 @@ data class UpdateIngredientCommand(
     val name: String,
     val categoryId: IngredientCategoryId?,
     val parLevelBase: BigDecimal? = null,
-    val reorderPointBase: BigDecimal? = null
+    val reorderPointBase: BigDecimal? = null,
+    val defaultAreaId: InventoryAreaId? = null
 )
 
 data class AddStandardUnitOptionCommand(
@@ -47,6 +49,9 @@ interface IngredientRepository {
     suspend fun getById(id: IngredientId): Ingredient?
     suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption?
     suspend fun updateIngredient(command: UpdateIngredientCommand)
+    suspend fun assignDefaultArea(ingredientIds: List<IngredientId>, areaId: InventoryAreaId) {
+        throw UnsupportedOperationException("Default-area assignment is not implemented")
+    }
     suspend fun archive(id: IngredientId, at: Instant)
 
     fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean = false): Flow<List<IngredientUnitOption>>

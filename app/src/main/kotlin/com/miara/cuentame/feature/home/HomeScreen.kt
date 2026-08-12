@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FiberNew
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +70,9 @@ fun HomeRoute(
     onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
+    onManageAreas: () -> Unit,
+    onManageIngredients: () -> Unit,
+    onImportIngredients: () -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
@@ -86,6 +91,10 @@ fun HomeRoute(
         onViewActivity = onViewActivity,
         onNewPurchase = onNewPurchase,
         onStartCount = onStartCount,
+        onManageAreas = onManageAreas,
+        onManageIngredients = onManageIngredients,
+        onImportIngredients = onImportIngredients,
+        onAssignUnassigned = viewModel::assignAllUnassignedIngredients,
         onViewReports = onViewReports,
         onViewPreparations = onViewPreparations,
         onViewMenuItems = onViewMenuItems,
@@ -105,6 +114,10 @@ fun HomeScreen(
     onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
+    onManageAreas: () -> Unit,
+    onManageIngredients: () -> Unit,
+    onImportIngredients: () -> Unit,
+    onAssignUnassigned: (com.miara.cuentame.core.common.ids.InventoryAreaId) -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
@@ -155,6 +168,10 @@ fun HomeScreen(
                     onViewActivity = onViewActivity,
                     onNewPurchase = onNewPurchase,
                     onStartCount = onStartCount,
+                    onManageAreas = onManageAreas,
+                    onManageIngredients = onManageIngredients,
+                    onImportIngredients = onImportIngredients,
+                    onAssignUnassigned = onAssignUnassigned,
                     onViewReports = onViewReports,
                     onViewPreparations = onViewPreparations,
                     onViewMenuItems = onViewMenuItems,
@@ -175,6 +192,10 @@ private fun DashboardContent(
     onViewActivity: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
+    onManageAreas: () -> Unit,
+    onManageIngredients: () -> Unit,
+    onImportIngredients: () -> Unit,
+    onAssignUnassigned: (com.miara.cuentame.core.common.ids.InventoryAreaId) -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
@@ -191,6 +212,10 @@ private fun DashboardContent(
     ) {
         item {
             DashboardHeader(state.restaurantName)
+        }
+
+        item {
+            SetupReadinessSection(state.setup, onManageAreas, onManageIngredients, onImportIngredients, onStartCount, onAssignUnassigned)
         }
         
         item {
@@ -269,6 +294,51 @@ private fun DashboardContent(
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SetupReadinessSection(
+    setup: SetupReadinessUiModel,
+    onManageAreas: () -> Unit,
+    onManageIngredients: () -> Unit,
+    onImportIngredients: () -> Unit,
+    onStartCount: () -> Unit,
+    onAssignUnassigned: (com.miara.cuentame.core.common.ids.InventoryAreaId) -> Unit
+) {
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var selectedArea by androidx.compose.runtime.remember(setup.areas) { androidx.compose.runtime.mutableStateOf(setup.areas.singleOrNull()) }
+    ElevatedCard(Modifier.fillMaxWidth().testTag("setup_readiness")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.setup_hub_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(if (setup.coreReady) R.string.setup_core_ready else R.string.setup_core_not_ready))
+            SetupRow(true, R.string.setup_restaurant_ready, null)
+            SetupRow(setup.areas.isNotEmpty(), R.string.setup_areas, onManageAreas)
+            SetupRow(setup.ingredientCount > 0 && setup.invalidUnitCount == 0, R.string.setup_ingredients, onManageIngredients)
+            if (setup.ingredientCount == 0) TextButton(onClick = onImportIngredients) { Text(stringResource(R.string.import_csv)) }
+            SetupRow(setup.unassignedIngredientIds.isEmpty(), R.string.setup_area_assignments, onManageIngredients)
+            if (setup.unassignedIngredientIds.isNotEmpty() && setup.areas.isNotEmpty()) {
+                Text(stringResource(R.string.setup_unassigned_count, setup.unassignedIngredientIds.size), color = MaterialTheme.colorScheme.error)
+                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                    OutlinedTextField(value = selectedArea?.name.orEmpty(), onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.ingredient_default_area)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        setup.areas.forEach { area -> DropdownMenuItem(text = { Text(area.name) }, onClick = { selectedArea = area; expanded = false }) }
+                    }
+                }
+                Button(onClick = { selectedArea?.id?.let(onAssignUnassigned) }, enabled = selectedArea != null, modifier = Modifier.fillMaxWidth().testTag("assign_all_unassigned")) { Text(stringResource(R.string.setup_assign_all)) }
+            }
+            SetupRow(setup.hasCompletedInitialCount, R.string.setup_initial_count, onStartCount)
+        }
+    }
+}
+
+@Composable
+private fun SetupRow(complete: Boolean, label: Int, action: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Icon(if (complete) Icons.Default.CheckCircle else Icons.Default.Error, null, tint = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+        Text(stringResource(label), Modifier.weight(1f).padding(horizontal = 8.dp))
+        if (!complete && action != null) TextButton(onClick = action) { Text(stringResource(R.string.action_fix)) }
+    }
+}
 
 @Composable
 private fun DashboardHeader(restaurantName: String) {

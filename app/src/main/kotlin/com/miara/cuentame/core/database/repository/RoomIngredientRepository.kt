@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.miara.cuentame.core.common.ids.IdGenerator
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.text.normalizeName
@@ -98,6 +99,13 @@ class RoomIngredientRepository @Inject constructor(
                 if (category.restaurantId != existing.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
             }
 
+            if (command.defaultAreaId != null) {
+                val area = database.inventoryAreaDao().getById(command.defaultAreaId.value)
+                    ?: throw ValidationError.RecordNotFound
+                if (!area.isActive || area.deletedAt != null) throw ValidationError.ArchivedReference
+                if (area.restaurantId != existing.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
+            }
+
             if (command.parLevelBase != null && command.parLevelBase < BigDecimal.ZERO) {
                 throw ValidationError.InvalidPurchaseQuantity
             }
@@ -112,10 +120,25 @@ class RoomIngredientRepository @Inject constructor(
                 name = command.name,
                 normalizedName = normalizedName,
                 categoryId = command.categoryId,
+                defaultAreaId = command.defaultAreaId,
                 parLevelBase = command.parLevelBase,
                 reorderPointBase = command.reorderPointBase,
                 updatedAt = timeProvider.now()
             ).toEntity())
+        }
+    }
+
+    override suspend fun assignDefaultArea(ingredientIds: List<IngredientId>, areaId: InventoryAreaId) {
+        if (ingredientIds.isEmpty()) return
+        database.withTransaction {
+            val area = database.inventoryAreaDao().getById(areaId.value)
+                ?: throw ValidationError.RecordNotFound
+            if (!area.isActive || area.deletedAt != null) throw ValidationError.ArchivedReference
+            val ingredients = ingredientDao.getByIds(ingredientIds.map { it.value })
+            if (ingredients.size != ingredientIds.size || ingredients.any { it.restaurantId != area.restaurantId }) {
+                throw ValidationError.IngredientOwnershipMismatch
+            }
+            ingredientDao.assignDefaultArea(area.restaurantId, ingredientIds.map { it.value }, areaId.value, timeProvider.now().toEpochMilli())
         }
     }
 

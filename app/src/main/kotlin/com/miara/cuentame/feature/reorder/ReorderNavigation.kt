@@ -7,6 +7,9 @@ import com.miara.cuentame.core.presentation.navigation.Destination
 
 fun NavGraphBuilder.reorderGraph(navController: NavHostController) {
     composable(Destination.REORDER_ASSISTANCE.route) {
-        ReorderRoute(onBack = { navController.popBackStack() })
+        ReorderRoute(
+            onBack = { navController.popBackStack() },
+            onConfigureIngredient = { id -> navController.navigate("inventory/${id.value}/edit") }
+        )
     }
 }

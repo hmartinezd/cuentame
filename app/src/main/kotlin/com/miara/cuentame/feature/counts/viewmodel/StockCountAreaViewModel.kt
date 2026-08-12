@@ -121,7 +121,9 @@ data class StockCountAreaUiState(
     val canReopen: Boolean = false,
     val countedItemCount: Int = 0,
     val totalCountableItemCount: Int = 0,
-    val isEditingOrder: Boolean = false
+    val isEditingOrder: Boolean = false,
+    val activeIngredientCount: Int = 0,
+    val unassignedIngredientCount: Int = 0
 )
 
 sealed interface StockCountAreaEvent {
@@ -163,6 +165,8 @@ class StockCountAreaViewModel @Inject constructor(
     private val _deletingIngredientId = MutableStateFlow<String?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
+    private val _activeIngredientCount = MutableStateFlow(0)
+    private val _unassignedIngredientCount = MutableStateFlow(0)
 
     private val _events = Channel<StockCountAreaEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -181,7 +185,9 @@ class StockCountAreaViewModel @Inject constructor(
         val hasLoadedOnce: Boolean,
         val itemFilter: StockCountItemFilter,
         val orderedIds: List<String>,
-        val isEditingOrder: Boolean
+        val isEditingOrder: Boolean,
+        val activeIngredientCount: Int,
+        val unassignedIngredientCount: Int
     )
 
     private val searchResultsFlow = _searchQuery.flatMapLatest { query ->
@@ -213,6 +219,8 @@ class StockCountAreaViewModel @Inject constructor(
             _itemFilter,
             _orderedIngredientIds,
             _isEditingOrder
+            ,_activeIngredientCount
+            ,_unassignedIngredientCount
         ) { args ->
             CombinedOtherStates(
                 completing = args[0] as Boolean,
@@ -225,6 +233,8 @@ class StockCountAreaViewModel @Inject constructor(
                 itemFilter = args[7] as StockCountItemFilter,
                 orderedIds = args[8] as List<String>,
                 isEditingOrder = args[9] as Boolean
+                ,activeIngredientCount = args[10] as Int
+                ,unassignedIngredientCount = args[11] as Int
             )
         }
     ) { details, activeRestaurant, entriesMap, query, others ->
@@ -271,7 +281,9 @@ class StockCountAreaViewModel @Inject constructor(
             canReopen = countStatus == StockCountStatus.DRAFT && areaStatus == CountAreaStatus.COMPLETED,
             countedItemCount = entriesMap.values.count { it.isCountedForProgress },
             totalCountableItemCount = entriesMap.size,
-            isEditingOrder = others.isEditingOrder
+            isEditingOrder = others.isEditingOrder,
+            activeIngredientCount = others.activeIngredientCount,
+            unassignedIngredientCount = others.unassignedIngredientCount
         )
     }.stateIn(
         scope = viewModelScope,
@@ -304,6 +316,9 @@ class StockCountAreaViewModel @Inject constructor(
             areaId = aid,
             effectiveAt = details.effectiveAt
         )
+        val activeIngredients = ingredientRepository.getIngredients(details.restaurantId, false)
+        _activeIngredientCount.value = activeIngredients.size
+        _unassignedIngredientCount.value = activeIngredients.count { it.defaultAreaId == null }
 
         _orderedIngredientIds.value = repository.getItemOrder(details.area.areaId).map { it.value }
         val entries = mutableMapOf<String, StockCountLineEntry>()

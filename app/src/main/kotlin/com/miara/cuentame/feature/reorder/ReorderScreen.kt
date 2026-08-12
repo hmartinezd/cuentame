@@ -23,14 +23,14 @@ import com.miara.cuentame.core.domain.service.ReorderConfigurationStatus
 private fun java.math.BigDecimal?.shown() = this?.stripTrailingZeros()?.toPlainString().orEmpty()
 
 @Composable
-fun ReorderRoute(onBack: () -> Unit, viewModel: ReorderViewModel = hiltViewModel()) {
+fun ReorderRoute(onBack: () -> Unit, onConfigureIngredient: (com.miara.cuentame.core.common.ids.IngredientId) -> Unit, viewModel: ReorderViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ReorderScreen(state, viewModel::setFilter, onBack)
+    ReorderScreen(state, viewModel::setFilter, onBack, onConfigureIngredient)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBack: () -> Unit) {
+fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBack: () -> Unit, onConfigureIngredient: (com.miara.cuentame.core.common.ids.IngredientId) -> Unit) {
     val context = LocalContext.current
     val noSupplier = stringResource(R.string.no_supplier_assigned)
     fun share(text: String, mime: String) {
@@ -64,7 +64,7 @@ fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBa
             else -> LazyColumn(Modifier.testTag("reorder_list")) {
                 state.visibleItems.groupBy { it.supplierName ?: noSupplier }.toSortedMap().forEach { (supplier, group) ->
                     item(key = "supplier:$supplier") { Text(supplier, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp)) }
-                    items(group, key = { it.ingredientId.value }) { item -> ReorderCard(item) }
+                    items(group, key = { it.ingredientId.value }) { item -> ReorderCard(item, onConfigureIngredient) }
                 }
             }
         }
@@ -72,7 +72,7 @@ fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBa
 }
 }
 
-@Composable private fun ReorderCard(item: ReorderItem) {
+@Composable private fun ReorderCard(item: ReorderItem, onConfigureIngredient: (com.miara.cuentame.core.common.ids.IngredientId) -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).testTag("reorder_item_${item.ingredientId.value}")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(item.ingredientName, style = MaterialTheme.typography.titleMedium)
@@ -88,6 +88,9 @@ fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBa
                     ReorderConfigurationStatus.READY -> null
                 }
                 warning?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+            }
+            if (item.configurationIssues.any { it == ReorderConfigurationStatus.MISSING_PAR || it == ReorderConfigurationStatus.MISSING_PURCHASE_UNIT }) {
+                TextButton(onClick = { onConfigureIngredient(item.ingredientId) }, modifier = Modifier.testTag("reorder_configure_${item.ingredientId.value}")) { Text(stringResource(R.string.action_fix)) }
             }
             item.supplierSku?.let { Text(stringResource(R.string.supplier_sku, it), style = MaterialTheme.typography.bodySmall) }
         }

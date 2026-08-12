@@ -167,6 +167,7 @@ fun EmptyState(onChooseFile: () -> Unit, onDownloadTemplate: () -> Unit, error: 
         Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
         Text(stringResource(R.string.import_csv_desc), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.import_default_area_help), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = onChooseFile) {
             Text(stringResource(R.string.choose_csv))

@@ -95,6 +95,7 @@ internal fun countRowAbsoluteIndex(
 @Composable
 fun StockCountAreaRoute(
     onBack: () -> Unit,
+    onConfigureIngredients: () -> Unit,
     viewModel: StockCountAreaViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -137,6 +138,7 @@ fun StockCountAreaRoute(
         onShowDeleteConfirm = { lineToDelete = it },
         snackbarHostState = snackbarHostState,
         onBack = viewModel::onBackRequested,
+        onConfigureIngredients = onConfigureIngredients,
         onSearchQueryChanged = viewModel::onSearchQueryChanged,
         onItemFilterChanged = viewModel::onItemFilterChanged,
         onToggleOrderEditing = viewModel::onToggleOrderEditing,
@@ -161,6 +163,7 @@ fun StockCountAreaScreen(
     onShowDeleteConfirm: (StockCountLineEntry?) -> Unit,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
+    onConfigureIngredients: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onItemFilterChanged: (StockCountItemFilter) -> Unit,
     onToggleOrderEditing: () -> Unit,
@@ -306,6 +309,16 @@ fun StockCountAreaScreen(
 
                         item {
                             Text(text = stringResource(R.string.count_by_area), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                        }
+
+                        if (uiState.lineEntries.isEmpty()) {
+                            item {
+                                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(stringResource(if (uiState.activeIngredientCount == 0) R.string.count_empty_no_ingredients else R.string.count_empty_area_assignment), style = MaterialTheme.typography.titleMedium)
+                                    if (uiState.unassignedIngredientCount > 0) Text(stringResource(R.string.setup_unassigned_count, uiState.unassignedIngredientCount), modifier = Modifier.padding(top = 8.dp))
+                                    Button(onClick = onConfigureIngredients, modifier = Modifier.padding(top = 12.dp).testTag("count_configure_ingredients")) { Text(stringResource(R.string.action_fix)) }
+                                }
+                            }
                         }
 
                         if (uiState.archivedWarnings.isNotEmpty()) {

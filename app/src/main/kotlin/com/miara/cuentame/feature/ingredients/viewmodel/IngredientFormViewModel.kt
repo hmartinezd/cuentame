@@ -13,6 +13,7 @@ import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.common.text.normalizeName
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
 import com.miara.cuentame.core.domain.repository.UnitRepository
 import com.miara.cuentame.core.domain.usecase.CreateIngredientUseCase
 import com.miara.cuentame.core.domain.usecase.GetIngredientDetailUseCase
@@ -66,7 +67,8 @@ class IngredientFormViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
     private val unitRepository: UnitRepository,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val inventoryAreaRepository: InventoryAreaRepository = EmptyIngredientAreaRepository
 ) : ViewModel() {
 
     private val ingredientId: String? = savedStateHandle["ingredientId"]
@@ -82,6 +84,9 @@ class IngredientFormViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     val categories = observeIngredientCategoriesUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val areas = inventoryAreaRepository.observeActiveAreas()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -113,6 +118,7 @@ class IngredientFormViewModel @Inject constructor(
                             parLevel = ingredient.parLevelBase?.stripTrailingZeros()?.toPlainString().orEmpty(),
                             reorderPoint = ingredient.reorderPointBase?.stripTrailingZeros()?.toPlainString().orEmpty(),
                             selectedCategoryId = ingredient.categoryId,
+                            selectedDefaultAreaId = ingredient.defaultAreaId,
                             selectedBaseUnitId = ingredient.baseUnitId,
                             selectedDimension = baseUnit?.dimension,
                             unitOptions = options.map { opt ->
@@ -144,6 +150,10 @@ class IngredientFormViewModel @Inject constructor(
 
     fun onCategorySelected(categoryId: IngredientCategoryId?) {
         _uiState.update { it.copy(selectedCategoryId = categoryId) }
+    }
+
+    fun onDefaultAreaSelected(areaId: com.miara.cuentame.core.common.ids.InventoryAreaId?) {
+        _uiState.update { it.copy(selectedDefaultAreaId = areaId) }
     }
 
     fun onDimensionSelected(dimension: UnitDimension) {
@@ -300,6 +310,7 @@ class IngredientFormViewModel @Inject constructor(
             normalizedName = "",
             categoryId = state.selectedCategoryId,
             baseUnitId = state.selectedBaseUnitId!!,
+            defaultAreaId = state.selectedDefaultAreaId,
             parLevelBase = state.parLevel.takeIf(String::isNotBlank)?.let(::BigDecimal),
             reorderPointBase = state.reorderPoint.takeIf(String::isNotBlank)?.let(::BigDecimal),
             isActive = true,
@@ -353,6 +364,7 @@ class IngredientFormViewModel @Inject constructor(
                 categoryId = state.selectedCategoryId
                 ,parLevelBase = state.parLevel.takeIf(String::isNotBlank)?.let(::BigDecimal)
                 ,reorderPointBase = state.reorderPoint.takeIf(String::isNotBlank)?.let(::BigDecimal)
+                ,defaultAreaId = state.selectedDefaultAreaId
             )
         )
     }
@@ -376,4 +388,13 @@ class IngredientFormViewModel @Inject constructor(
             baseSymbol = baseUnit.symbol
         )
     }
+}
+
+private object EmptyIngredientAreaRepository : InventoryAreaRepository {
+    override fun observeActiveAreas() = flowOf(emptyList<com.miara.cuentame.core.model.inventory.InventoryArea>())
+    override fun observeAllAreas() = observeActiveAreas()
+    override suspend fun getById(id: com.miara.cuentame.core.common.ids.InventoryAreaId) = null
+    override suspend fun save(area: com.miara.cuentame.core.model.inventory.InventoryArea) = Unit
+    override suspend fun archive(id: com.miara.cuentame.core.common.ids.InventoryAreaId, at: java.time.Instant) = Unit
+    override suspend fun reorder(ids: List<com.miara.cuentame.core.common.ids.InventoryAreaId>) = Unit
 }

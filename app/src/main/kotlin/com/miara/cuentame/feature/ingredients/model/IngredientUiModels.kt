@@ -2,6 +2,7 @@ package com.miara.cuentame.feature.ingredients.model
 
 import com.miara.cuentame.core.common.ids.IngredientCategoryId
 import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.model.inventory.UnitDimension
 
@@ -30,6 +31,7 @@ data class IngredientFormUiState(
     val parLevel: String = "",
     val reorderPoint: String = "",
     val selectedCategoryId: IngredientCategoryId? = null,
+    val selectedDefaultAreaId: InventoryAreaId? = null,
     val selectedDimension: UnitDimension? = null,
     val selectedBaseUnitId: UnitId? = null,
     val unitOptions: List<EditableUnitOptionUiModel> = emptyList(),

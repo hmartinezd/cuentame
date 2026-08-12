@@ -5,11 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.RestaurantId
 import com.miara.cuentame.core.domain.repository.DashboardRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.repository.IngredientRepository
+import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
+import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.model.dashboard.*
 import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
 import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.*
 import java.math.BigDecimal
 import javax.inject.Inject
@@ -25,6 +29,7 @@ sealed interface HomeScreenState {
         val selectedRange: DashboardDateRange,
         val loadedRange: DashboardDateRange,
         val dashboard: DashboardUiModel,
+        val setup: SetupReadinessUiModel = SetupReadinessUiModel(emptyList(), 0, 0, emptyList(), false),
         val isRefreshing: Boolean = false,
         val refreshError: Boolean = false
     ) : HomeScreenState
@@ -38,7 +43,9 @@ sealed interface HomeScreenState {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
-    private val dashboardRepository: DashboardRepository
+    private val dashboardRepository: DashboardRepository,
+    private val ingredientRepository: IngredientRepository = EmptyIngredientRepository,
+    private val inventoryAreaRepository: InventoryAreaRepository = EmptyAreaRepository
 ) : ViewModel() {
 
     private val _selectedRange = MutableStateFlow(DashboardDateRange.LAST_30_DAYS)
@@ -56,8 +63,11 @@ class HomeViewModel @Inject constructor(
         if (restaurant == null) {
             flowOf(HomeScreenState.SetupRequired)
         } else {
-            dashboardRepository.observeDashboard(restaurant.id, range)
-                .map { snapshot ->
+            combine(
+                dashboardRepository.observeDashboard(restaurant.id, range),
+                ingredientRepository.observeIngredients(restaurant.id, false),
+                inventoryAreaRepository.observeActiveAreas()
+            ) { snapshot, ingredients, areas ->
                     HomeScreenState.Ready(
                         restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
@@ -65,7 +75,14 @@ class HomeViewModel @Inject constructor(
                         localeTag = restaurant.localeTag,
                         selectedRange = range,
                         loadedRange = range,
-                        dashboard = mapToUiModel(snapshot)
+                        dashboard = mapToUiModel(snapshot),
+                        setup = SetupReadinessUiModel(
+                            areas = areas,
+                            ingredientCount = ingredients.size,
+                            invalidUnitCount = snapshot.activeIngredientsMissingOptionsCount,
+                            unassignedIngredientIds = ingredients.filter { it.defaultAreaId == null }.map { it.id },
+                            hasCompletedInitialCount = snapshot.completedCountCount > 0
+                        )
                     ) as HomeScreenState
                 }
                 .onStart {
@@ -97,6 +114,13 @@ class HomeViewModel @Inject constructor(
 
     fun onRetry() {
         _retryTrigger.value++
+    }
+
+    fun assignAllUnassignedIngredients(areaId: InventoryAreaId) {
+        val state = uiState.value as? HomeScreenState.Ready ?: return
+        viewModelScope.launch {
+            ingredientRepository.assignDefaultArea(state.setup.unassignedIngredientIds, areaId)
+        }
     }
 
     private fun mapToUiModel(snapshot: DashboardSnapshot): DashboardUiModel {
@@ -147,4 +171,32 @@ class HomeViewModel @Inject constructor(
             comparisonState = state
         )
     }
+}
+
+private object EmptyIngredientRepository : IngredientRepository {
+    override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = flowOf(emptyList<com.miara.cuentame.core.model.ingredient.Ingredient>())
+    override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = emptyList<com.miara.cuentame.core.model.ingredient.Ingredient>()
+    override fun observeIngredient(id: com.miara.cuentame.core.common.ids.IngredientId) = flowOf<com.miara.cuentame.core.model.ingredient.Ingredient?>(null)
+    override suspend fun getById(id: com.miara.cuentame.core.common.ids.IngredientId) = null
+    override suspend fun getUnitOption(id: com.miara.cuentame.core.common.ids.IngredientUnitOptionId) = null
+    override suspend fun updateIngredient(command: com.miara.cuentame.core.domain.repository.UpdateIngredientCommand) = Unit
+    override suspend fun archive(id: com.miara.cuentame.core.common.ids.IngredientId, at: java.time.Instant) = Unit
+    override fun observeUnitOptions(ingredientId: com.miara.cuentame.core.common.ids.IngredientId, includeArchived: Boolean) = flowOf(emptyList<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>())
+    override suspend fun getUnitOptions(ingredientId: com.miara.cuentame.core.common.ids.IngredientId, includeArchived: Boolean) = emptyList<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>()
+    override suspend fun addStandardUnitOption(command: com.miara.cuentame.core.domain.repository.AddStandardUnitOptionCommand) = Unit
+    override suspend fun addPackageUnitOption(command: com.miara.cuentame.core.domain.repository.AddPackageUnitOptionCommand) = Unit
+    override suspend fun updatePackageUnitOption(command: com.miara.cuentame.core.domain.repository.UpdatePackageUnitOptionCommand) = Unit
+    override suspend fun setDefaultCountOption(ingredientId: com.miara.cuentame.core.common.ids.IngredientId, optionId: com.miara.cuentame.core.common.ids.IngredientUnitOptionId) = Unit
+    override suspend fun setDefaultPurchaseOption(ingredientId: com.miara.cuentame.core.common.ids.IngredientId, optionId: com.miara.cuentame.core.common.ids.IngredientUnitOptionId) = Unit
+    override suspend fun archiveUnitOption(id: com.miara.cuentame.core.common.ids.IngredientUnitOptionId, at: java.time.Instant) = Unit
+    override suspend fun createIngredientWithBaseOption(ingredient: com.miara.cuentame.core.model.ingredient.Ingredient, baseOption: com.miara.cuentame.core.model.ingredient.IngredientUnitOption, additionalOptions: List<com.miara.cuentame.core.model.ingredient.IngredientUnitOption>) = Unit
+}
+
+private object EmptyAreaRepository : InventoryAreaRepository {
+    override fun observeActiveAreas() = flowOf(emptyList<com.miara.cuentame.core.model.inventory.InventoryArea>())
+    override fun observeAllAreas() = observeActiveAreas()
+    override suspend fun getById(id: InventoryAreaId) = null
+    override suspend fun save(area: com.miara.cuentame.core.model.inventory.InventoryArea) = Unit
+    override suspend fun archive(id: InventoryAreaId, at: java.time.Instant) = Unit
+    override suspend fun reorder(ids: List<InventoryAreaId>) = Unit
 }
