@@ -1,0 +1,31 @@
+package com.miara.cuentame.core.database.repository
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import app.cash.turbine.test
+import com.google.common.truth.Truth.assertThat
+import com.miara.cuentame.core.common.ids.*
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.entity.*
+import com.miara.cuentame.core.domain.repository.*
+import com.miara.cuentame.core.domain.service.MenuCostCalculator
+import com.miara.cuentame.core.model.ingredient.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
+import org.junit.*
+import org.junit.runner.RunWith
+import java.math.BigDecimal
+
+@RunWith(AndroidJUnit4::class)
+class RoomMenuRecipeRepositoryTest {
+ private lateinit var db:RestaurantInventoryDatabase;private lateinit var definitions:RoomMenuRecipeRepository;private lateinit var costs:RoomMenuCostRepository
+ private val restaurant=RestaurantId("r1")
+ @Before fun setup()=runBlocking{db=Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<Context>(),RestaurantInventoryDatabase::class.java).allowMainThreadQueries().build();db.restaurantDao().insert(RestaurantEntity("r1","R","USD","en-US",0,0,null));db.unitDao().insertSeedUnits(listOf(UnitEntity("u","Unit","u","COUNT",BigDecimal.ONE,true,0)));ingredient("i1","Beef",BigDecimal("2"));definitions=RoomMenuRecipeRepository(db,db.menuRecipeDao(),db.ingredientDao(),db.ingredientUnitOptionDao());val prep=object:PreparationCostRepository{override fun observeRecipeCost(recipeId:PreparationRecipeId)=flowOf(null);override fun observeRecipeCostSummaries(restaurantId:RestaurantId)=flowOf(emptyList<PreparationRecipeCostSummary>());override fun observeActivePreparationCostsByOutput(restaurantId:RestaurantId)=flowOf(emptyMap<IngredientId,PreparationRecipeCost>())};val prices=object:PriceIntelligenceRepository{override fun observeIngredientPriceHistory(ingredientId:IngredientId)=flow<IngredientPriceHistory>{error("unused")};override fun observeLargePriceIncreases()=flowOf(emptyList<PriceIncreaseAlert>());override fun observePriceComparisons(restaurantId:RestaurantId,ingredientIds:Set<IngredientId>)=flowOf(emptyMap<IngredientId,VendorPriceComparison>())};costs=RoomMenuCostRepository(db.menuRecipeDao(),db.ingredientDao(),db.ingredientUnitOptionDao(),db.ingredientCostProjectionDao(),db.unitDao(),db.restaurantDao(),prep,prices,MenuCostCalculator())}
+ @After fun close()=db.close()
+ @Test fun persistedBaseQuantityAndRawCostAreReactiveWithoutInventoryMutation()=runBlocking{val id=definitions.create(restaurant,"Burger",BigDecimal("10"),null);definitions.saveComponent(id,null,IngredientId("i1"),IngredientUnitOptionId("i1-opt"),BigDecimal("2"),0);costs.observeCost(id).test{var c=awaitItem()!!;assertThat(c.currentPlateCost!!.compareTo(BigDecimal("4"))).isEqualTo(0);db.ingredientUnitOptionDao().upsert(option("i1",BigDecimal("99")));db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1","i1","3",1));do{c=awaitItem()!!}while(c.currentPlateCost?.compareTo(BigDecimal("6"))!=0);assertThat(c.currentPlateCost!!.compareTo(BigDecimal("6"))).isEqualTo(0);cancelAndIgnoreRemainingEvents()};assertThat(db.backupDao().getAllInventoryMovements()).isEmpty()}
+ @Test(expected=MenuRecipeValidationException.OwnershipMismatch::class) fun rejectsCrossRestaurantIngredient()=runBlocking{db.restaurantDao().insert(RestaurantEntity("r2","Other","USD","en-US",0,0,null));db.ingredientDao().insert(IngredientEntity("other","r2","Other","other",null,"u",null,null,null,null,true,0,0,null));db.ingredientUnitOptionDao().insert(option("other",BigDecimal.ONE));val id=definitions.create(restaurant,"Burger",null,null);definitions.saveComponent(id,null,IngredientId("other"),IngredientUnitOptionId("other-opt"),BigDecimal.ONE,0);Unit}
+ private suspend fun ingredient(id:String,name:String,cost:BigDecimal){db.ingredientDao().insert(IngredientEntity(id,"r1",name,name.lowercase(),null,"u",null,null,null,null,true,0,0,null));db.ingredientUnitOptionDao().insert(option(id,BigDecimal("2")));db.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity("r1",id,cost.toPlainString(),0))}
+ private fun option(id:String,factor:BigDecimal)=IngredientUnitOptionEntity("$id-opt",id,"unit","u","u",factor,true,true,true,true,0,0,null)
+}

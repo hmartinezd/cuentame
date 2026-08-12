@@ -70,6 +70,7 @@ fun HomeRoute(
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
+    onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -87,6 +88,7 @@ fun HomeRoute(
         onStartCount = onStartCount,
         onViewReports = onViewReports,
         onViewPreparations = onViewPreparations,
+        onViewMenuItems = onViewMenuItems,
         onViewProduction = onViewProduction,
         modifier = modifier
     )
@@ -105,6 +107,7 @@ fun HomeScreen(
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
+    onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -154,6 +157,7 @@ fun HomeScreen(
                     onStartCount = onStartCount,
                     onViewReports = onViewReports,
                     onViewPreparations = onViewPreparations,
+                    onViewMenuItems = onViewMenuItems,
                     onViewProduction = onViewProduction
                 )
             }
@@ -173,6 +177,7 @@ private fun DashboardContent(
     onStartCount: () -> Unit,
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
+    onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
@@ -243,7 +248,7 @@ private fun DashboardContent(
         }
 
         item {
-            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewActivity, onViewPreparations, onViewProduction)
+            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewActivity, onViewPreparations, onViewMenuItems, onViewProduction)
         }
 
         item {
@@ -469,6 +474,7 @@ private fun QuickActionsSection(
     onViewWasteHistory: () -> Unit,
     onViewActivity: () -> Unit,
     onViewPreparations: () -> Unit,
+    onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -483,6 +489,10 @@ private fun QuickActionsSection(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.SoupKitchen, stringResource(R.string.preparation_recipes), onViewPreparations, Modifier.weight(1f).testTag("open_preparation_recipes_button"))
             QuickActionButton(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), onViewProduction, Modifier.weight(1f).testTag("open_production_batches_button"))
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), onViewMenuItems, Modifier.weight(1f).testTag("open_menu_items_button"))
+            Spacer(Modifier.weight(1f))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.History, stringResource(R.string.inventory_activity_title), onViewActivity, Modifier.weight(1f).testTag("open_inventory_activity_button"))

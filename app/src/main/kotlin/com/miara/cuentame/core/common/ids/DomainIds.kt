@@ -53,3 +53,9 @@ value class ProductionBatchId(val value: String)
 
 @JvmInline
 value class ProductionBatchComponentId(val value: String)
+
+@JvmInline
+value class MenuRecipeId(val value: String)
+
+@JvmInline
+value class MenuRecipeComponentId(val value: String)

@@ -62,7 +62,8 @@ data class PreparationRecipeCost(
     val components: List<PreparationComponentCost>,
     val priceImpact: PreparationPriceImpact,
     val lastProduction: HistoricalPreparationCost? = null,
-    val currencyCode: String = "USD"
+    val currencyCode: String = "USD",
+    val standardYieldQuantityBase: BigDecimal? = null
 )
 
 data class PreparationRecipeCostSummary(

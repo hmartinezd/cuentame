@@ -130,7 +130,8 @@ class PreparationCostCalculator @Inject constructor() {
                 if (validYield == null) add(PreparationYieldWarning.MISSING_OR_INVALID_STANDARD_YIELD)
                 if (validBaseYield == null) add(PreparationYieldWarning.MISSING_OR_INVALID_BASE_YIELD)
             }, components,
-            PreparationPriceImpact(impactValues.fold(BigDecimal.ZERO, BigDecimal::add), leafCounts.sumOf { it.first }, leafCounts.sumOf { it.second })
+            PreparationPriceImpact(impactValues.fold(BigDecimal.ZERO, BigDecimal::add), leafCounts.sumOf { it.first }, leafCounts.sumOf { it.second }),
+            standardYieldQuantityBase = validBaseYield
         )
     }
 

@@ -19,6 +19,7 @@ import com.miara.cuentame.feature.priceintelligence.navigation.priceIntelligence
 import com.miara.cuentame.feature.settings.navigation.settingsGraph
 import com.miara.cuentame.feature.suppliers.navigation.suppliersGraph
 import com.miara.cuentame.feature.waste.navigation.wasteGraph
+import com.miara.cuentame.feature.menu.navigation.menuGraph
 
 @Composable
 fun CuentameNavHost(
@@ -42,6 +43,7 @@ fun CuentameNavHost(
         priceIntelligenceGraph(navController)
         settingsGraph(navController, onBackClick)
         preparationsGraph(navController, onBackClick)
+        menuGraph(navController, onBackClick)
         productionGraph(navController, onBackClick)
         areasGraph(navController)
         categoriesGraph()

@@ -50,6 +50,14 @@ class RoomPreparationCostRepository @Inject constructor(
             }
         }
 
+    override fun observeActivePreparationCostsByOutput(restaurantId: RestaurantId): Flow<Map<IngredientId, PreparationRecipeCost>> =
+        graph(restaurantId.value).map { graph ->
+            graph.recipes.asSequence()
+                .filter { it.status == PreparationRecipeStatus.ACTIVE }
+                .mapNotNull { recipe -> calculator.calculate(recipe.id, graph.recipes, graph.ingredients)?.let { recipe.outputIngredientId to it } }
+                .toMap()
+        }
+
     private fun graph(restaurantId: String): Flow<Graph> {
         val structural = combine(
             recipeDao.observeAllRecipesForRestaurant(restaurantId),

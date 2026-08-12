@@ -18,6 +18,7 @@ fun NavGraphBuilder.homeGraph(navController: NavHostController) {
             onStartCount = { navController.navigate(Destination.STOCK_COUNT_START.route) },
             onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) },
             onViewPreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) },
+            onViewMenuItems = { navController.navigate(Destination.MENU_RECIPE_LIST.route) },
             onViewProduction = { navController.navigate(Destination.PRODUCTION_BATCH_LIST.route) }
         )
     }
