@@ -349,17 +349,17 @@
     <string name="draft_purchase">Borrador de compra</string>
 
     <!-- Stock Counts -->
-    <string name="action_start_count">Iniciar nuevo conteo</string>
+    <string name="action_start_count">Iniciar conteo</string>
     <string name="count_name_label">Nombre del conteo</string>
     <string name="count_name_placeholder">Ejemplo: Inventario mensual</string>
     <string name="count_default_name">Inventario — %1$s</string>
-    <string name="count_review_title">Revisión de Ajustes</string>
+    <string name="count_review_title">Revisar conteo</string>
     <string name="count_by_area">Conteo por área</string>
     <string name="reopen_area">Reabrir área</string>
     <string name="expected_quantity">Cantidad esperada</string>
     <string name="expected_quantity_format">Esperado: %1$s %2$s</string>
     <string name="counted_quantity">Cantidad contada</string>
-    <string name="adjustment">Ajuste</string>
+    <string name="adjustment">Variación</string>
     <string name="adjustment_format">Ajuste: %1$s %2$s</string>
     <string name="value_change_format">Cambio de valor: %1$s %2$s</string>
     <string name="opening_balance">Saldo inicial</string>
@@ -367,7 +367,7 @@
     <string name="missing_items">Artículos faltantes</string>
     <string name="complete_with_missing">Completar con artículos faltantes</string>
     <string name="complete_area">Completar área</string>
-    <string name="complete_count">Completar conteo</string>
+    <string name="complete_count">Publicar conteo</string>
     <string name="void_count">Anular conteo</string>
     <string name="saving">Guardando…</string>
     <string name="saved">Guardado</string>
@@ -386,6 +386,7 @@
     <string name="review_loading">Cargando revisión de ajustes…</string>
     <string name="review_error">Error al generar la revisión de ajustes</string>
     <string name="inventory_changed_warning">El inventario cambió mientras el conteo estaba abierto</string>
+    <string name="error_count_inventory_changed">El inventario cambió desde que se contó este artículo. Reabre el área y vuelve a ingresar la cantidad para actualizarla.</string>
     <string name="archived_nonzero_warning">Ingrediente archivado con saldo distinto de cero</string>
     <string name="complete_area_desc">Los ingredientes faltantes permanecerán sin cambios. Solo las líneas contadas explitamente afectan el inventario.</string>
     <string name="complete_count_desc">Se crearán ajustes de inventario. El conteo pasará a ser de solo lectura. Se pueden crear saldos iniciales para artículos sin historial previo en el área.</string>

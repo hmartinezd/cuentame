@@ -113,6 +113,7 @@ fun ValidationError.toUserMessageRes(): Int = when (this) {
     ValidationError.StockCountMovementAlreadyExists -> R.string.error_generic
     ValidationError.StockCountReversalAlreadyExists -> R.string.error_generic
     ValidationError.PendingCountSaves -> R.string.error_generic
+    ValidationError.StockCountInventoryChanged -> R.string.error_count_inventory_changed
 
     ValidationError.WasteEventNotFound -> R.string.error_waste_not_found
     ValidationError.WasteEventOwnershipMismatch -> R.string.error_waste_ownership

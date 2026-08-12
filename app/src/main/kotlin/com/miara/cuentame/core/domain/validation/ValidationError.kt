@@ -110,6 +110,7 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object StockCountMovementAlreadyExists : ValidationError("Stock count movement already exists")
     data object StockCountReversalAlreadyExists : ValidationError("Stock count reversal already exists")
     data object PendingCountSaves : ValidationError("Please wait for pending saves to finish")
+    data object StockCountInventoryChanged : ValidationError("Inventory changed since this item was counted")
 
     // Waste Tracking
     data object WasteEventNotFound : ValidationError("Waste event not found")
@@ -147,4 +148,3 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object InvalidMatchStatus : ValidationError("Line match status is invalid for the provided data.")
     data object InvoiceSourceLocked : ValidationError("Invoice source is locked because it has already been materialized to a draft.")
 }
-

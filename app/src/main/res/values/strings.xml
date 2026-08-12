@@ -358,17 +358,17 @@
     <string name="draft_purchase">Draft purchase</string>
 
     <!-- Stock Counts -->
-    <string name="action_start_count">Start New Count</string>
+    <string name="action_start_count">Start Count</string>
     <string name="count_name_label">Count name</string>
     <string name="count_name_placeholder">Example: Monthly Inventory</string>
     <string name="count_default_name">Inventory Count — %1$s</string>
-    <string name="count_review_title">Adjustment Review</string>
+    <string name="count_review_title">Review Count</string>
     <string name="count_by_area">Count by Area</string>
     <string name="reopen_area">Reopen Area</string>
     <string name="expected_quantity">Expected Quantity</string>
     <string name="expected_quantity_format">Expected: %1$s %2$s</string>
     <string name="counted_quantity">Counted Quantity</string>
-    <string name="adjustment">Adjustment</string>
+    <string name="adjustment">Variance</string>
     <string name="adjustment_format">Adjustment: %1$s %2$s</string>
     <string name="value_change_format">Value change: %1$s %2$s</string>
     <string name="opening_balance">Opening Balance</string>
@@ -376,7 +376,7 @@
     <string name="missing_items">Missing Items</string>
     <string name="complete_with_missing">Complete with missing items</string>
     <string name="complete_area">Complete Area</string>
-    <string name="complete_count">Complete Count</string>
+    <string name="complete_count">Post Count</string>
     <string name="void_count">Void Count</string>
     <string name="saving">Saving…</string>
     <string name="saved">Saved</string>
@@ -395,6 +395,7 @@
     <string name="review_loading">Loading adjustment review…</string>
     <string name="review_error">Failed to generate adjustment review</string>
     <string name="inventory_changed_warning">Inventory changed while count was open</string>
+    <string name="error_count_inventory_changed">Inventory changed since this item was counted. Reopen the area and re-enter the quantity to refresh it.</string>
     <string name="archived_nonzero_warning">Archived ingredient with nonzero balance</string>
     <string name="complete_area_desc">Missing ingredients will remain unchanged. Only explicitly counted lines affect inventory.</string>
     <string name="complete_count_desc">Inventory adjustments will be created. The count becomes read-only. Opening balances may be created for items without prior area history.</string>

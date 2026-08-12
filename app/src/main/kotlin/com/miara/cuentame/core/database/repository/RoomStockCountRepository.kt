@@ -183,6 +183,12 @@ class RoomStockCountRepository @Inject constructor(
             val activeRestaurant = requireActiveRestaurant()
             if (activeRestaurant.id != command.restaurantId.value) throw ValidationError.StockCountOwnershipMismatch
 
+            // A restaurant-wide physical count is resumable and exclusive. Returning the
+            // persisted draft makes repeated taps and process retries naturally idempotent.
+            countDao.getCountsByStatus(activeRestaurant.id, StockCountStatus.DRAFT.name)
+                .minByOrNull { it.createdAt }
+                ?.let { return@withTransaction StockCountId(it.id) }
+
             if (command.name.isBlank()) throw ValidationError.InvalidName
             
             if (command.effectiveAt > timeProvider.now()) throw ValidationError.InvalidCountEffectiveTime
@@ -281,6 +287,15 @@ class RoomStockCountRepository @Inject constructor(
 
             val qtyBase = command.quantityEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
             val now = timeProvider.now()
+            val inventoryAreaId = InventoryAreaId(areaEntity.areaId)
+            val snapshot = snapshotService.calculateAt(
+                restaurantId = RestaurantId(activeRestaurant.id),
+                ingredientId = command.ingredientId,
+                areaId = inventoryAreaId,
+                effectiveAt = now
+            )
+            val expectedQtyBase = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
+            val adjustmentQtyBase = qtyBase.subtract(expectedQtyBase ?: BigDecimal.ZERO)
 
             if (command.lineId == null) {
                 if (!ingredient.isActive || ingredient.deletedAt != null) throw ValidationError.ArchivedReference
@@ -300,6 +315,8 @@ class RoomStockCountRepository @Inject constructor(
                     ingredientUnitOptionId = command.ingredientUnitOptionId,
                     quantityEntered = command.quantityEntered,
                     quantityBase = qtyBase,
+                    expectedQuantityBaseSnapshot = expectedQtyBase,
+                    adjustmentQuantityBase = adjustmentQtyBase,
                     notes = command.notes?.trim()?.ifBlank { null },
                     createdAt = now,
                     updatedAt = now
@@ -337,8 +354,8 @@ class RoomStockCountRepository @Inject constructor(
                     ingredientUnitOptionId = command.ingredientUnitOptionId.value,
                     quantityEntered = command.quantityEntered.toPlainString(),
                     quantityBase = qtyBase.toPlainString(),
-                    expectedQuantityBaseSnapshot = null,
-                    adjustmentQuantityBase = null,
+                    expectedQuantityBaseSnapshot = expectedQtyBase?.toPlainString(),
+                    adjustmentQuantityBase = adjustmentQtyBase.toPlainString(),
                     notes = command.notes?.trim()?.ifBlank { null },
                     updatedAt = now.toEpochMilli()
                 )
@@ -466,8 +483,6 @@ class RoomStockCountRepository @Inject constructor(
             historyValidator.validateDraftHistory(count, movements)
 
             val now = timeProvider.now()
-            val effectiveAt = Instant.ofEpochMilli(count.effectiveAt)
-            
             val seenIngredientsInArea = mutableSetOf<Pair<String, String>>()
 
             val movementsToInsert = lines.map { lineEntity ->
@@ -486,17 +501,28 @@ class RoomStockCountRepository @Inject constructor(
 
                 val qtyEntered = parseHistoryDecimal(lineEntity.quantityEntered)
                 if (qtyEntered < BigDecimal.ZERO) throw ValidationError.InvalidCountQuantity
-                
-                val canonicalQtyBase = qtyEntered.multiply(option.factorToBase, MathContext.DECIMAL128)
+
+                // quantityBase is the immutable conversion captured when the operator saved
+                // the observation. Never reinterpret history using today's unit factor.
+                val canonicalQtyBase = parseHistoryDecimal(lineEntity.quantityBase)
+                if (canonicalQtyBase < BigDecimal.ZERO) throw ValidationError.InvalidCountQuantity
 
                 val snapshot = snapshotService.calculateAt(
                     restaurantId = RestaurantId(activeRestaurant.id),
                     ingredientId = IngredientId(lineEntity.ingredientId),
                     areaId = InventoryAreaId(areaEntity.areaId),
-                    effectiveAt = effectiveAt
+                    effectiveAt = now
                 )
 
-                val expectedQtyBase = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
+                val expectedQtyBase = lineEntity.expectedQuantityBaseSnapshot?.let(::parseHistoryDecimal)
+                val currentExpectedQtyBase = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
+                val inventoryDrifted = when {
+                    expectedQtyBase == null && currentExpectedQtyBase == null -> false
+                    expectedQtyBase == null || currentExpectedQtyBase == null -> true
+                    else -> expectedQtyBase.compareTo(currentExpectedQtyBase) != 0
+                }
+                if (inventoryDrifted) throw ValidationError.StockCountInventoryChanged
+
                 val adjustmentQtyBase = if (expectedQtyBase == null) canonicalQtyBase else canonicalQtyBase.subtract(expectedQtyBase)
 
                 val updatedLine = lineEntity.copy(
@@ -523,7 +549,7 @@ class RoomStockCountRepository @Inject constructor(
                     quantityBaseSigned = adjustmentQtyBase.toPlainString(),
                     unitCostBaseSnapshot = snapshot.ingredientAverageCostBase?.toPlainString(),
                     totalValueSnapshot = totalValueSnapshot,
-                    effectiveAt = count.effectiveAt,
+                    effectiveAt = now.toEpochMilli(),
                     sourceDocumentType = SourceDocumentType.STOCK_COUNT.name,
                     sourceDocumentId = count.id,
                     sourceLineId = lineEntity.id,

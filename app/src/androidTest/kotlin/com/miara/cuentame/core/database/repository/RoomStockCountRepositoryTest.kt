@@ -4,8 +4,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
+import com.miara.cuentame.core.domain.validation.ValidationError
+import com.miara.cuentame.core.model.inventory.InventoryMovementType
+import com.miara.cuentame.core.model.inventory.SourceDocumentType
 import com.miara.cuentame.core.model.inventory.StockCountStatus
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
@@ -17,6 +21,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertThrows
 import org.junit.runner.RunWith
 import java.math.BigDecimal
 import java.time.Instant
@@ -91,6 +96,101 @@ class RoomStockCountRepositoryTest {
         assertThat(allMovements).hasSize(2)
         val reversal = allMovements.find { it.movementType == "REVERSAL" }!!
         assertBigDecimalEquivalent(reversal.quantityBaseSigned, "-10")
+    }
+
+    @Test
+    fun start_whenDraftExists_resumesSameCount() = runBlocking {
+        val command = StartStockCountCommand(
+            restId,
+            "First count",
+            Instant.now(),
+            listOf(InventoryAreaId(TestSeeder.AREA_ID)),
+            null
+        )
+
+        val first = repository.start(command)
+        val resumed = repository.start(command.copy(name = "Ignored retry"))
+
+        assertThat(resumed).isEqualTo(first)
+        assertThat(database.stockCountDao().getCountsByStatus(restId.value, StockCountStatus.DRAFT.name)).hasSize(1)
+    }
+
+    @Test
+    fun savedBaseQuantity_survivesLaterUnitFactorEdit() = runBlocking {
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val countId = repository.start(StartStockCountCommand(restId, "Factor snapshot", Instant.now(), listOf(areaId), null))
+        val countAreaId = repository.observeCount(countId).first()!!.areas.single().area.id
+
+        repository.saveLine(
+            SaveStockCountLineCommand(
+                countId,
+                countAreaId,
+                null,
+                IngredientId(TestSeeder.ING_ID),
+                IngredientUnitOptionId(TestSeeder.OPTION_ID),
+                BigDecimal("8"),
+                null
+            )
+        )
+        val optionDao = database.ingredientUnitOptionDao()
+        val option = optionDao.getById(TestSeeder.OPTION_ID)!!
+        optionDao.update(option.copy(factorToBase = BigDecimal("2")))
+
+        repository.completeArea(countId, countAreaId)
+        repository.completeCount(countId)
+
+        val line = repository.observeCount(countId).first()!!.areas.single().lines.single()
+        assertThat(line.quantityBase.compareTo(BigDecimal("8"))).isEqualTo(0)
+        val movement = database.inventoryMovementDao()
+            .getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)
+            .single()
+        assertBigDecimalEquivalent(movement.quantityBaseSigned, "8")
+    }
+
+    @Test
+    fun posting_rejectsInventoryDriftUntilLineIsRecounted() = runBlocking {
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val countId = repository.start(StartStockCountCommand(restId, "Drift", Instant.now(), listOf(areaId), null))
+        val countAreaId = repository.observeCount(countId).first()!!.areas.single().area.id
+        repository.saveLine(
+            SaveStockCountLineCommand(
+                countId,
+                countAreaId,
+                null,
+                IngredientId(TestSeeder.ING_ID),
+                IngredientUnitOptionId(TestSeeder.OPTION_ID),
+                BigDecimal("7"),
+                null
+            )
+        )
+        repository.completeArea(countId, countAreaId)
+
+        val now = Instant.now().toEpochMilli()
+        database.inventoryMovementDao().insert(
+            InventoryMovementEntity(
+                id = "movement-after-count",
+                restaurantId = restId.value,
+                ingredientId = TestSeeder.ING_ID,
+                areaId = TestSeeder.AREA_ID,
+                movementType = InventoryMovementType.MANUAL_ADJUSTMENT.name,
+                quantityBaseSigned = "1",
+                unitCostBaseSnapshot = null,
+                totalValueSnapshot = null,
+                effectiveAt = now,
+                sourceDocumentType = SourceDocumentType.MANUAL.name,
+                sourceDocumentId = "manual-after-count",
+                sourceOperationId = "manual-after-count",
+                sourceLineId = null,
+                reversalOfMovementId = null,
+                createdAt = now
+            )
+        )
+
+        assertThrows(ValidationError.StockCountInventoryChanged::class.java) {
+            runBlocking { repository.completeCount(countId) }
+        }
+        assertThat(repository.observeCount(countId).first()!!.count.status).isEqualTo(StockCountStatus.DRAFT)
+        assertThat(database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)).isEmpty()
     }
 
     private fun assertBigDecimalEquivalent(actual: String, expected: String) {
