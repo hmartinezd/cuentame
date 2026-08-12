@@ -79,14 +79,16 @@ fun ReorderScreen(state: ReorderUiState, onFilter: (ReorderFilter) -> Unit, onBa
             Text(stringResource(R.string.reorder_current_par, item.currentBase.shown(), item.baseUnit, item.parBase.shown(), item.baseUnit))
             item.neededBase?.let { Text(stringResource(R.string.reorder_needed, it.shown(), item.baseUnit), style = MaterialTheme.typography.titleSmall) }
             item.purchaseUnits?.let { Text(stringResource(R.string.reorder_suggested, it.shown(), item.purchaseUnit.orEmpty(), item.purchaseCoverageBase.shown(), item.baseUnit)) }
-            val warning = when (item.status) {
-                ReorderConfigurationStatus.MISSING_PAR -> R.string.par_not_configured
-                ReorderConfigurationStatus.MISSING_PURCHASE_UNIT -> R.string.purchase_unit_not_configured
-                ReorderConfigurationStatus.MISSING_SUPPLIER -> R.string.no_supplier_assigned
-                ReorderConfigurationStatus.AMBIGUOUS_SUPPLIER -> R.string.ambiguous_supplier
-                ReorderConfigurationStatus.READY -> null
+            item.configurationIssues.sortedBy { it.ordinal }.forEach { issue ->
+                val warning = when (issue) {
+                    ReorderConfigurationStatus.MISSING_PAR -> R.string.par_not_configured
+                    ReorderConfigurationStatus.MISSING_PURCHASE_UNIT -> R.string.purchase_unit_not_configured
+                    ReorderConfigurationStatus.MISSING_SUPPLIER -> R.string.no_supplier_assigned
+                    ReorderConfigurationStatus.AMBIGUOUS_SUPPLIER -> R.string.ambiguous_supplier
+                    ReorderConfigurationStatus.READY -> null
+                }
+                warning?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             }
-            warning?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             item.supplierSku?.let { Text(stringResource(R.string.supplier_sku, it), style = MaterialTheme.typography.bodySmall) }
         }
     }

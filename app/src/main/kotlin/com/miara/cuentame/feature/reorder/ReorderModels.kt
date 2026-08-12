@@ -22,7 +22,9 @@ data class ReorderItem(
     val supplierItem: String?,
     val supplierSku: String?,
     val needsReorder: Boolean,
-    val status: ReorderConfigurationStatus
+    val status: ReorderConfigurationStatus,
+    val configurationIssues: Set<ReorderConfigurationStatus> =
+        if (status == ReorderConfigurationStatus.READY) emptySet() else setOf(status)
 )
 
 data class ReorderUiState(
@@ -34,6 +36,6 @@ data class ReorderUiState(
     val visibleItems: List<ReorderItem> get() = when (filter) {
         ReorderFilter.NEEDS_REORDER -> items.filter { it.needsReorder }
         ReorderFilter.ALL_CONFIGURED -> items.filter { it.parBase != null }
-        ReorderFilter.MISSING_SETUP -> items.filter { it.parBase == null || it.status != ReorderConfigurationStatus.READY }
+        ReorderFilter.MISSING_SETUP -> items.filter { it.configurationIssues.isNotEmpty() }
     }
 }

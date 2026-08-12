@@ -9,6 +9,7 @@ import com.miara.cuentame.core.database.repository.ActiveRestaurantProvider
 import com.miara.cuentame.core.domain.repository.SupplierRepository
 import com.miara.cuentame.core.domain.repository.UnitRepository
 import com.miara.cuentame.core.domain.service.ReorderCalculator
+import com.miara.cuentame.core.domain.service.ReorderConfigurationStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -62,10 +63,17 @@ class ReorderViewModel @Inject constructor(
                 val supplier = supplierIds.singleOrNull()?.let(supplierById::get)
                 val mapping = supplier?.let { s -> ingredientMappings.filter { it.supplierId == s.id.value }.maxWithOrNull(compareBy({ it.lastConfirmedAt }, { it.id })) }
                 val calculation = ReorderCalculator.calculate(current, ingredient.parLevelBase, ingredient.reorderPointBase, purchase?.factorToBase, supplier != null, ambiguous)
+                val configurationIssues = buildSet {
+                    if (ingredient.parLevelBase == null) add(ReorderConfigurationStatus.MISSING_PAR)
+                    if (purchase?.factorToBase?.let { it > BigDecimal.ZERO } != true) add(ReorderConfigurationStatus.MISSING_PURCHASE_UNIT)
+                    if (ambiguous) add(ReorderConfigurationStatus.AMBIGUOUS_SUPPLIER)
+                    else if (supplier == null) add(ReorderConfigurationStatus.MISSING_SUPPLIER)
+                }
                 ReorderItem(IngredientId(ingredient.id), ingredient.name, unitById[ingredient.baseUnitId]?.symbol ?: ingredient.baseUnitId,
                     current, ingredient.parLevelBase, ingredient.reorderPointBase, calculation.quantityNeededBase,
                     purchase?.displayName, purchase?.factorToBase, calculation.purchaseUnitsSuggested, calculation.suggestedPurchaseQuantityBase,
-                    supplier?.name, mapping?.sourceDescription, mapping?.sourceVendorCode, calculation.needsReorder, calculation.status)
+                    supplier?.name, mapping?.sourceDescription, mapping?.sourceVendorCode, calculation.needsReorder, calculation.status,
+                    configurationIssues)
             }.sortedWith(compareBy({ it.supplierName ?: "" }, { it.ingredientName }, { it.ingredientId.value }))
         }
     }

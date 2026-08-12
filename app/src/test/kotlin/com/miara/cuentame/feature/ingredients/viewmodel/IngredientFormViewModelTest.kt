@@ -155,6 +155,29 @@ class IngredientFormViewModelTest {
     }
 
     @Test
+    fun `reorder configuration validation follows canonical BigDecimal rules`() = runTest {
+        data class Case(val par: String, val point: String, val parInvalid: Boolean, val pointInvalid: Boolean)
+        val cases = listOf(
+            Case("-1", "", parInvalid = true, pointInvalid = false),
+            Case("", "-1", parInvalid = false, pointInvalid = true),
+            Case("10", "5", parInvalid = false, pointInvalid = false),
+            Case("10", "10", parInvalid = false, pointInvalid = false),
+            Case("10", "11", parInvalid = false, pointInvalid = true),
+            Case("", "", parInvalid = false, pointInvalid = false),
+            Case("10", "", parInvalid = false, pointInvalid = false)
+        )
+
+        cases.forEach { case ->
+            viewModel.onParLevelChanged(case.par)
+            viewModel.onReorderPointChanged(case.point)
+            viewModel.onSave()
+
+            assertThat(viewModel.uiState.value.fieldErrors.containsKey("par")).isEqualTo(case.parInvalid)
+            assertThat(viewModel.uiState.value.fieldErrors.containsKey("reorderPoint")).isEqualTo(case.pointInvalid)
+        }
+    }
+
+    @Test
     fun `dimension selection resets base unit`() = runTest {
         viewModel.onDimensionSelected(UnitDimension.MASS)
         val unit = UnitOfMeasure(UnitId("lb"), "Pound", "lb", UnitDimension.MASS, BigDecimal.ONE, true, 0)

@@ -29,4 +29,29 @@ class ReorderExportTest {
         assertThat(text).contains("NO SUPPLIER ASSIGNED")
         assertThat(text).contains("Basil")
     }
+
+    @Test fun csvExportsAllConfigurationIssuesInDeterministicOrder() {
+        val incomplete = item("Basil").copy(
+            configurationIssues = setOf(
+                ReorderConfigurationStatus.MISSING_SUPPLIER,
+                ReorderConfigurationStatus.MISSING_PURCHASE_UNIT
+            )
+        )
+
+        val row = ReorderExport.csv(listOf(incomplete)).lines()[1]
+
+        assertThat(row).contains("MISSING_PURCHASE_UNIT|MISSING_SUPPLIER")
+    }
+
+    @Test fun exportAlwaysUsesActionableScopeRegardlessOfVisibleFilter() {
+        val abovePar = item("Lemons", "Supplier", "case").copy(needsReorder = false)
+
+        val csv = ReorderExport.csv(listOf(item("Chicken", "Supplier", "case"), abovePar))
+        val shoppingList = ReorderExport.shoppingList(listOf(item("Chicken", "Supplier", "case"), abovePar), "Unassigned")
+
+        assertThat(csv).contains("Chicken")
+        assertThat(csv).doesNotContain("Lemons")
+        assertThat(shoppingList).contains("Chicken")
+        assertThat(shoppingList).doesNotContain("Lemons")
+    }
 }

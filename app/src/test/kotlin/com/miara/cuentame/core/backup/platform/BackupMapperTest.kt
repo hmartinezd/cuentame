@@ -76,12 +76,27 @@ class BackupMapperTest {
     fun `Audit all mappers for round-trip consistency`() {
         // We verify that multiple audited types preserve fields correctly through round trips.
         
-        // Ingredient with reorderPointBase
+        // Ingredient with exact user-configured par and reorder point.
         val ingDto = com.miara.cuentame.core.backup.model.IngredientBackupDto(
-            "i1", "r1", "Name", "name", "c1", "u1", "a1", "sku", "notes", "10.5", true, 0L, 0L, null
+            id = "i1",
+            restaurantId = "r1",
+            name = "Name",
+            normalizedName = "name",
+            categoryId = "c1",
+            baseUnitId = "u1",
+            defaultAreaId = "a1",
+            sku = "sku",
+            notes = "notes",
+            reorderPointBase = "8.125",
+            isActive = true,
+            createdAt = 0L,
+            updatedAt = 0L,
+            deletedAt = null,
+            parLevelBase = "23.75"
         )
         val ingEntity = BackupMapper.run { ingDto.toEntity() }
-        assertThat(ingEntity.reorderPointBase?.toPlainString()).isEqualTo("10.5")
+        assertThat(ingEntity.parLevelBase?.toPlainString()).isEqualTo("23.75")
+        assertThat(ingEntity.reorderPointBase?.toPlainString()).isEqualTo("8.125")
         assertThat(BackupMapper.run { ingEntity.toDto() }).isEqualTo(ingDto)
 
         // Unit with factorToCanonical
@@ -91,6 +106,22 @@ class BackupMapperTest {
         val unitEntity = BackupMapper.run { unitDto.toEntity() }
         assertThat(unitEntity.factorToCanonical.toPlainString()).isEqualTo("2.5")
         assertThat(BackupMapper.run { unitEntity.toDto() }).isEqualTo(unitDto)
+    }
+
+    @Test
+    fun `Ingredient mapping preserves null par and reorder point`() {
+        val dto = com.miara.cuentame.core.backup.model.IngredientBackupDto(
+            id = "i-null", restaurantId = "r1", name = "Salt", normalizedName = "salt",
+            categoryId = null, baseUnitId = "u1", defaultAreaId = null, sku = null, notes = null,
+            reorderPointBase = null, isActive = true, createdAt = 0L, updatedAt = 0L,
+            deletedAt = null, parLevelBase = null
+        )
+
+        val restored = BackupMapper.run { dto.toEntity() }
+
+        assertThat(restored.parLevelBase).isNull()
+        assertThat(restored.reorderPointBase).isNull()
+        assertThat(BackupMapper.run { restored.toDto() }).isEqualTo(dto)
     }
 
     @Test

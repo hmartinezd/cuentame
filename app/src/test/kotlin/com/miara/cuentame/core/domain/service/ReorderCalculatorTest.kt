@@ -3,6 +3,7 @@ package com.miara.cuentame.core.domain.service
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import java.math.BigDecimal
+import org.junit.Assert.assertThrows
 
 class ReorderCalculatorTest {
     private fun calc(current: String, par: String? = "20", point: String? = null, factor: String? = "5") =
@@ -17,6 +18,23 @@ class ReorderCalculatorTest {
     @Test fun negativeInventoryIsNotClamped() = assertDecimal(calc("-2", "10").quantityNeededBase, "12")
     @Test fun zeroInventoryNeedsPar() = assertDecimal(calc("0", "10").quantityNeededBase, "10")
     @Test fun missingParIsExplicit() = assertThat(calc("3", null).status).isEqualTo(ReorderConfigurationStatus.MISSING_PAR)
+    @Test fun negativeParIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) { calc("0", "-1") }
+    }
+    @Test fun negativeReorderPointIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) { calc("0", "10", "-1") }
+    }
+    @Test fun reorderPointBelowParIsAccepted() = assertThat(calc("0", "10", "5").needsReorder).isTrue()
+    @Test fun reorderPointEqualToParIsAccepted() = assertThat(calc("10", "10", "10").needsReorder).isTrue()
+    @Test fun reorderPointAboveParIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) { calc("0", "10", "11") }
+    }
+    @Test fun nullParAndPointAreAcceptedAsMissingSetup() {
+        val result = calc("0", null, null)
+        assertThat(result.status).isEqualTo(ReorderConfigurationStatus.MISSING_PAR)
+        assertThat(result.needsReorder).isFalse()
+    }
+    @Test fun parWithoutReorderPointIsAccepted() = assertThat(calc("0", "10", null).needsReorder).isTrue()
     @Test fun exactPackageDivision() = assertDecimal(calc("5", "20").purchaseUnitsSuggested, "3")
     @Test fun fractionalPackageDivisionRoundsUp() = assertDecimal(calc("7", "20").purchaseUnitsSuggested, "3")
     @Test fun smallNeedBuysOnePackage() = assertDecimal(calc("19", "20").purchaseUnitsSuggested, "1")

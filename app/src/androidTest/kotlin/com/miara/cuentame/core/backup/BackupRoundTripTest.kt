@@ -82,6 +82,14 @@ class BackupRoundTripTest {
         assertThat(restoredSnapshot.preparationRecipeComponents).hasSize(2)
         
         assertThat(restoredSnapshot).isEqualTo(snapshotDto)
+
+        val restoredConfiguredIngredient = database.ingredientDao().getById("ing-1")!!
+        assertThat(restoredConfiguredIngredient.parLevelBase?.compareTo(BigDecimal("23.75"))).isEqualTo(0)
+        assertThat(restoredConfiguredIngredient.reorderPointBase?.compareTo(BigDecimal("8.125"))).isEqualTo(0)
+
+        val restoredNullIngredient = database.ingredientDao().getById("ing-2")!!
+        assertThat(restoredNullIngredient.parLevelBase).isNull()
+        assertThat(restoredNullIngredient.reorderPointBase).isNull()
         
         // Verify specific fields
         val active = restoredSnapshot.preparationRecipes.find { it.status == PreparationRecipeStatus.ACTIVE.name }!!
@@ -98,7 +106,7 @@ class BackupRoundTripTest {
         
         val ing1 = "ing-1"
         val ing2 = "ing-2"
-        database.ingredientDao().insert(IngredientEntity(ing1, restId.value, "Output", "output", null, "u1", null, null, null, null, true, 100, 100, null))
+        database.ingredientDao().insert(IngredientEntity(ing1, restId.value, "Output", "output", null, "u1", null, null, null, BigDecimal("8.125"), true, 100, 100, null, BigDecimal("23.75")))
         database.ingredientDao().insert(IngredientEntity(ing2, restId.value, "Comp", "comp", null, "u1", null, null, null, null, true, 100, 100, null))
         
         val opt1 = "opt-1"
