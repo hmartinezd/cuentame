@@ -41,6 +41,7 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertStockCounts(any()) } just Runs
         coEvery { restoreDao.insertStockCountAreas(any()) } just Runs
         coEvery { restoreDao.insertStockCountLines(any()) } just Runs
+        coEvery { restoreDao.insertStockCountItemOrder(any()) } just Runs
         coEvery { restoreDao.insertWasteEvents(any()) } just Runs
         coEvery { restoreDao.insertInventoryMovements(any()) } just Runs
         coEvery { restoreDao.insertInventoryBalanceProjections(any()) } just Runs
@@ -92,6 +93,7 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertStockCounts(any())
             restoreDao.insertStockCountAreas(any())
             restoreDao.insertStockCountLines(any())
+            restoreDao.insertStockCountItemOrder(any())
             restoreDao.insertWasteEvents(any())
             restoreDao.insertInventoryMovements(any())
             restoreDao.insertInventoryBalanceProjections(any())

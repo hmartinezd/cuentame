@@ -47,6 +47,7 @@ object BackupFormatV1Contract {
         "stock_counts",
         "stock_count_areas",
         "stock_count_lines",
+        "stock_count_item_order",
         "waste_events",
         "inventory_movements",
         "inventory_balance_projections",
@@ -129,7 +130,7 @@ object BackupFormatV1Contract {
                 "supplier_item_mappings",
                 "purchase_invoice_line_matches"
             )
-            9, 10, 11 -> base + setOf(
+            9, 10 -> base + setOf(
                 "preparation_recipes",
                 "preparation_recipe_components",
                 "production_batches",
@@ -143,6 +144,7 @@ object BackupFormatV1Contract {
                 "purchase_invoice_draft_applications",
                 "purchase_invoice_line_origins"
             )
+            11 -> expectedTablesForSchema(10) + "stock_count_item_order"
             else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }
     }

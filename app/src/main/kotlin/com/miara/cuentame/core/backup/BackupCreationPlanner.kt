@@ -339,6 +339,9 @@ class BackupCreationPlanner @Inject constructor(
             tables["purchase_invoice_draft_applications"] = TableMetadata(dto.purchaseInvoiceDraftApplications.size, false)
             tables["purchase_invoice_line_origins"] = TableMetadata(dto.purchaseInvoiceLineOrigins.size, false)
         }
+        if (appVersionProvider.databaseSchemaVersion >= 11) {
+            tables["stock_count_item_order"] = TableMetadata(dto.stockCountItemOrder.size, false)
+        }
 
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }

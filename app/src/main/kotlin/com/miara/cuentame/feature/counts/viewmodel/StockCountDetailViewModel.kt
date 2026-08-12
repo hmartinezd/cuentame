@@ -51,11 +51,18 @@ data class ReviewWarning(
 )
 
 data class StockCountDriftItemUi(
+    val countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId,
     val lineId: com.miara.cuentame.core.common.ids.StockCountLineId,
     val ingredientName: String,
     val areaName: String?,
     val expectedWhenCounted: BigDecimal?,
     val currentInventory: BigDecimal?
+)
+
+data class StockCountAreaProgressUi(
+    val countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId,
+    val countedItemCount: Int,
+    val totalCountableItemCount: Int
 )
 
 sealed interface StockCountDetailScreenState {
@@ -80,7 +87,8 @@ data class StockCountDetailUiState(
     val driftItems: List<StockCountDriftItemUi> = emptyList(),
     val showReview: Boolean = false,
     val isReviewLoading: Boolean = false,
-    val error: Throwable? = null
+    val error: Throwable? = null,
+    val areaProgress: List<StockCountAreaProgressUi> = emptyList()
 )
 
 sealed interface StockCountDetailEvent {
@@ -113,6 +121,7 @@ class StockCountDetailViewModel @Inject constructor(
     private val _driftItems = MutableStateFlow<List<StockCountDriftItemUi>>(emptyList())
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
+    private val _areaProgress = MutableStateFlow<List<StockCountAreaProgressUi>>(emptyList())
 
     private val _events = Channel<StockCountDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -127,6 +136,7 @@ class StockCountDetailViewModel @Inject constructor(
                         _reviewLines.value = emptyList()
                         _missingWarnings.value = emptyList()
                         _archivedWarnings.value = emptyList()
+                        if (it != null) refreshProgress(it)
                     }
             }
         }
@@ -146,7 +156,8 @@ class StockCountDetailViewModel @Inject constructor(
         _archivedWarnings,
         _driftItems,
         _error,
-        _hasLoadedOnce
+        _hasLoadedOnce,
+        _areaProgress
     ) { args ->
         val details = args[0] as StockCountDetails?
         val activeRestaurant = args[1] as com.miara.cuentame.core.model.restaurant.Restaurant?
@@ -161,6 +172,7 @@ class StockCountDetailViewModel @Inject constructor(
         val driftItems = args[10] as List<StockCountDriftItemUi>
         val error = args[11] as Throwable?
         val hasLoadedOnce = args[12] as Boolean
+        val areaProgress = args[13] as List<StockCountAreaProgressUi>
 
         val screenState = when {
             countId == null || countIdStr.isNullOrBlank() -> StockCountDetailScreenState.InvalidRoute
@@ -184,13 +196,23 @@ class StockCountDetailViewModel @Inject constructor(
             driftItems = driftItems,
             showReview = showReview,
             isReviewLoading = isReviewLoading,
-            error = error
+            error = error,
+            areaProgress = areaProgress
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = StockCountDetailUiState()
     )
+
+    private suspend fun refreshProgress(details: StockCountDetails) {
+        _areaProgress.value = details.areas.map { area ->
+            val candidates = getMissingItemsUseCase(
+                area.restaurantId, details.count.id, area.area.areaId, area.effectiveAt
+            ).activeCandidates
+            StockCountAreaProgressUi(area.area.id, area.lines.size, candidates.size)
+        }
+    }
 
     fun onDelete() {
         val cid = countId ?: return
@@ -309,6 +331,7 @@ class StockCountDetailViewModel @Inject constructor(
                     val line = area.lines.find { it.ingredientId == item.ingredientId } ?: return@mapNotNull null
                     val ingredient = ingredientRepository.getById(item.ingredientId) ?: return@mapNotNull null
                     StockCountDriftItemUi(
+                        countAreaId = item.countAreaId,
                         lineId = line.id,
                         ingredientName = ingredient.name,
                         areaName = area.areaName,

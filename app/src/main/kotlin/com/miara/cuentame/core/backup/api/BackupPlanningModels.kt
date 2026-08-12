@@ -270,6 +270,7 @@ class BackupPlan private constructor(
                     stockCounts = Collections.unmodifiableList(snapshotDto.stockCounts.map { it.copy() }),
                     stockCountAreas = Collections.unmodifiableList(snapshotDto.stockCountAreas.map { it.copy() }),
                     stockCountLines = Collections.unmodifiableList(snapshotDto.stockCountLines.map { it.copy() }),
+                    stockCountItemOrder = Collections.unmodifiableList(snapshotDto.stockCountItemOrder.map { it.copy() }),
                     wasteEvents = Collections.unmodifiableList(snapshotDto.wasteEvents.map { it.copy() }),
                     inventoryMovements = Collections.unmodifiableList(snapshotDto.inventoryMovements.map { it.copy() }),
                     inventoryBalanceProjections = Collections.unmodifiableList(snapshotDto.inventoryBalanceProjections.map { it.copy() }),

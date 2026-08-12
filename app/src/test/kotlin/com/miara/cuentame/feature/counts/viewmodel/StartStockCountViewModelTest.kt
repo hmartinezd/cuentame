@@ -48,6 +48,8 @@ class StartStockCountViewModelTest {
         override fun observeCountArea(id: com.miara.cuentame.core.common.ids.StockCountAreaId) = flowOf(null)
         override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId) = emptySet<IngredientId>()
         override suspend fun getDraftAreaIds(restaurantId: RestaurantId) = emptySet<InventoryAreaId>()
+        override suspend fun getItemOrder(areaId: InventoryAreaId) = emptyList<IngredientId>()
+        override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {}
         override suspend fun start(command: com.miara.cuentame.core.domain.repository.StartStockCountCommand): StockCountId = StockCountId("c1")
         override suspend fun updateDraft(command: com.miara.cuentame.core.domain.repository.UpdateStockCountDraftCommand) {}
         override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand) = com.miara.cuentame.core.common.ids.StockCountLineId("l1")
@@ -56,6 +58,8 @@ class StartStockCountViewModelTest {
         override suspend fun reopenArea(countId: StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId) {}
         override suspend fun deleteDraft(countId: StockCountId) {}
         override suspend fun completeCount(countId: StockCountId) {}
+        override suspend fun findDrift(countId: StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountDriftItem>()
+        override suspend fun reconfirmLine(countId: StockCountId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) {}
         override suspend fun voidCount(countId: StockCountId) {}
     }
 

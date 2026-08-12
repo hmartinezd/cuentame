@@ -88,8 +88,8 @@ interface StockCountRepository {
     ): Set<IngredientId>
 
     suspend fun getDraftAreaIds(restaurantId: RestaurantId): Set<InventoryAreaId>
-    suspend fun getItemOrder(areaId: InventoryAreaId): List<IngredientId> = emptyList()
-    suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) = Unit
+    suspend fun getItemOrder(areaId: InventoryAreaId): List<IngredientId>
+    suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>)
 
     suspend fun start(command: StartStockCountCommand): StockCountId
     suspend fun updateDraft(command: UpdateStockCountDraftCommand)
@@ -99,7 +99,7 @@ interface StockCountRepository {
     suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId)
     suspend fun deleteDraft(countId: StockCountId)
     suspend fun completeCount(countId: StockCountId)
-    suspend fun findDrift(countId: StockCountId): List<StockCountDriftItem> = emptyList()
-    suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId) = Unit
+    suspend fun findDrift(countId: StockCountId): List<StockCountDriftItem>
+    suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId)
     suspend fun voidCount(countId: StockCountId)
 }

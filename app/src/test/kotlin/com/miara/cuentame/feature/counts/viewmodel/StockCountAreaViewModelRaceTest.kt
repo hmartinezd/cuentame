@@ -56,6 +56,8 @@ class StockCountAreaViewModelRaceTest {
         ))
         override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId) = emptySet<IngredientId>()
         override suspend fun getDraftAreaIds(restaurantId: RestaurantId) = emptySet<InventoryAreaId>()
+        override suspend fun getItemOrder(areaId: InventoryAreaId) = emptyList<IngredientId>()
+        override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {}
         override suspend fun start(command: StartStockCountCommand) = StockCountId("c1")
         override suspend fun updateDraft(command: UpdateStockCountDraftCommand) {}
         
@@ -77,6 +79,8 @@ class StockCountAreaViewModelRaceTest {
         override suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
         override suspend fun deleteDraft(countId: StockCountId) {}
         override suspend fun completeCount(countId: StockCountId) {}
+        override suspend fun findDrift(countId: StockCountId) = emptyList<StockCountDriftItem>()
+        override suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId) {}
         override suspend fun voidCount(countId: StockCountId) {}
     }
 

@@ -48,11 +48,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -76,6 +78,19 @@ import com.miara.cuentame.feature.counts.viewmodel.StockCountItemFilter
 import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import com.miara.cuentame.core.domain.service.hasLargeCountVariance
 import java.math.BigDecimal
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+
+internal fun countRowAbsoluteIndex(
+    rowIndex: Int,
+    searchResultCount: Int,
+    hasSearchSection: Boolean,
+    archivedWarningCount: Int
+): Int =
+    (if (hasSearchSection) 1 + searchResultCount else 0) +
+        1 +
+        (if (archivedWarningCount > 0) 1 + archivedWarningCount else 0) +
+        rowIndex
 
 @Composable
 fun StockCountAreaRoute(
@@ -87,6 +102,7 @@ fun StockCountAreaRoute(
     val context = LocalContext.current
     var lineToDelete by remember { mutableStateOf<StockCountLineEntry?>(null) }
     var focusTarget by remember { mutableStateOf<String?>(null) }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -100,6 +116,10 @@ fun StockCountAreaRoute(
                     snackbarHostState.showSnackbar(context.getString(event.error.toUserMessageRes()))
                 }
                 is StockCountAreaEvent.FocusQuantity -> focusTarget = event.ingredientId
+                StockCountAreaEvent.ImeDone -> {
+                    focusTarget = null
+                    focusManager.clearFocus()
+                }
             }
         }
     }
@@ -126,6 +146,7 @@ fun StockCountAreaRoute(
         onUnitChanged = viewModel::onUnitChanged,
         onImeAction = viewModel::onImeAction,
         focusTarget = focusTarget,
+        onFocusHandled = { focusTarget = null },
         onConfirmDelete = viewModel::onConfirmDelete,
         onCompleteArea = viewModel::onCompleteArea,
         onReopenArea = viewModel::onReopenArea
@@ -149,6 +170,7 @@ fun StockCountAreaScreen(
     onUnitChanged: (String, String) -> Unit,
     onImeAction: (String) -> Unit,
     focusTarget: String?,
+    onFocusHandled: () -> Unit,
     onConfirmDelete: (String) -> Unit,
     onCompleteArea: () -> Unit,
     onReopenArea: () -> Unit
@@ -159,12 +181,21 @@ fun StockCountAreaScreen(
 
     LaunchedEffect(focusTarget, uiState.lineEntries) {
         val target = focusTarget ?: return@LaunchedEffect
-        val index = uiState.lineEntries.indexOfFirst { it.ingredientId == target }
-        if (index >= 0) {
-            listState.animateScrollToItem(index)
-            kotlinx.coroutines.delay(50)
-            focusRequesters.getOrPut(target) { FocusRequester() }.requestFocus()
-        }
+        val rowIndex = uiState.lineEntries.indexOfFirst { it.ingredientId == target }
+        if (rowIndex < 0) return@LaunchedEffect
+        val absoluteIndex = countRowAbsoluteIndex(
+            rowIndex = rowIndex,
+            searchResultCount = uiState.searchResults.size,
+            hasSearchSection = uiState.searchQuery.length >= 2 && uiState.searchResults.isNotEmpty(),
+            archivedWarningCount = uiState.archivedWarnings.size
+        )
+        val rowKey = "count-row-$target"
+        listState.scrollToItem(absoluteIndex)
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == rowKey } }
+            .filter { it }
+            .first()
+        focusRequesters.getOrPut(target) { FocusRequester() }.requestFocus()
+        onFocusHandled()
     }
 
     Scaffold(
@@ -259,7 +290,7 @@ fun StockCountAreaScreen(
                             item {
                                 Text(text = stringResource(R.string.search_ingredients), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
                             }
-                            items(uiState.searchResults) { ingredient ->
+                            items(uiState.searchResults, key = { "search-${it.id.value}" }) { ingredient ->
                                 ListItem(
                                     headlineContent = { Text(ingredient.name) },
                                     trailingContent = {
@@ -286,7 +317,7 @@ fun StockCountAreaScreen(
                                     modifier = Modifier.padding(top = 16.dp)
                                 )
                             }
-                            items(uiState.archivedWarnings) { warning ->
+                            items(uiState.archivedWarnings, key = { "archived-${it.ingredientId}" }) { warning ->
                                 ListItem(
                                     headlineContent = { Text(warning.name, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
                                     supportingContent = {
@@ -300,7 +331,7 @@ fun StockCountAreaScreen(
                             }
                         }
 
-                        items(uiState.lineEntries, key = { it.ingredientId }) { entry ->
+                        items(uiState.lineEntries, key = { "count-row-${it.ingredientId}" }) { entry ->
                             StockCountLineItem(
                                 entry = entry,
                                 areaId = uiState.details?.area?.id?.value ?: "",

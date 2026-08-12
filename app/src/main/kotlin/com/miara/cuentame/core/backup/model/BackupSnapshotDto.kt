@@ -31,7 +31,17 @@ data class BackupSnapshotDto(
     val supplierItemMappings: List<SupplierItemMappingBackupDto> = emptyList(),
     val purchaseInvoiceLineMatches: List<PurchaseInvoiceLineMatchBackupDto> = emptyList(),
     val purchaseInvoiceDraftApplications: List<PurchaseInvoiceDraftApplicationBackupDto> = emptyList(),
-    val purchaseInvoiceLineOrigins: List<PurchaseInvoiceLineOriginBackupDto> = emptyList()
+    val purchaseInvoiceLineOrigins: List<PurchaseInvoiceLineOriginBackupDto> = emptyList(),
+    val stockCountItemOrder: List<StockCountItemOrderBackupDto> = emptyList()
+)
+
+@Serializable
+data class StockCountItemOrderBackupDto(
+    val restaurantId: String,
+    val areaId: String,
+    val ingredientId: String,
+    val sortOrder: Int,
+    val updatedAt: Long
 )
 
 @Serializable

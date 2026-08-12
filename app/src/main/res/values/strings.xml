@@ -408,6 +408,7 @@
     <string name="current_inventory_format">Current inventory: %1$s</string>
     <string name="inventory_changed_after_item">Inventory changed after this item was counted.</string>
     <string name="reconfirm_count">Reconfirm count</string>
+    <string name="reopen_and_recount">Reopen and recount</string>
     <string name="count_summary">Count summary</string>
     <string name="count_summary_totals">Counted: %1$d · Adjusted: %2$d · Increased: %3$d · Decreased: %4$d · Unchanged: %5$d · Opening balances: %6$d</string>
     <string name="edit_count_order">Edit count order</string>

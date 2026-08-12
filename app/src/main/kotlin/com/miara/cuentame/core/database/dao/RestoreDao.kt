@@ -10,6 +10,9 @@ import com.miara.cuentame.core.database.entity.*
 @Dao
 interface RestoreDao {
 
+    @Query("DELETE FROM stock_count_item_order")
+    suspend fun deleteAllStockCountItemOrder()
+
     @Query("DELETE FROM ingredient_cost_projection")
     suspend fun deleteAllIngredientCostProjections()
 
@@ -131,6 +134,9 @@ interface RestoreDao {
     suspend fun insertStockCountLines(entities: List<StockCountLineEntity>)
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertStockCountItemOrder(entities: List<StockCountItemOrderEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertWasteEvents(entities: List<WasteEventEntity>)
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -180,6 +186,7 @@ interface RestoreDao {
 
     @Transaction
     suspend fun clearAllInOrder() {
+        deleteAllStockCountItemOrder()
         deleteAllIngredientCostProjections()
         deleteAllInventoryBalanceProjections()
         deleteAllInventoryMovements()

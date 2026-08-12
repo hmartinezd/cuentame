@@ -199,6 +199,11 @@ object BackupManifestContractValidator {
             "inventory_balance_projections" to snapshot.inventoryBalanceProjections.size,
             "ingredient_cost_projections" to snapshot.ingredientCostProjections.size
         )
+        if (manifest.databaseSchemaVersion >= 11) {
+            actualCounts["stock_count_item_order"] = snapshot.stockCountItemOrder.size
+        } else if (snapshot.stockCountItemOrder.isNotEmpty()) {
+            return BackupRestoreFailure.ManifestMismatch
+        }
 
         if (manifest.databaseSchemaVersion >= 3) {
             actualCounts["preparation_recipes"] = snapshot.preparationRecipes.size

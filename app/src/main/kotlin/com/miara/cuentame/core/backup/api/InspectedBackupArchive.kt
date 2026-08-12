@@ -40,6 +40,7 @@ data class InspectedBackupArchive private constructor(
                     stockCounts = Collections.unmodifiableList(snapshot.stockCounts.toList()),
                     stockCountAreas = Collections.unmodifiableList(snapshot.stockCountAreas.toList()),
                     stockCountLines = Collections.unmodifiableList(snapshot.stockCountLines.toList()),
+                    stockCountItemOrder = Collections.unmodifiableList(snapshot.stockCountItemOrder.toList()),
                     wasteEvents = Collections.unmodifiableList(snapshot.wasteEvents.toList()),
                     inventoryMovements = Collections.unmodifiableList(snapshot.inventoryMovements.toList()),
                     inventoryBalanceProjections = Collections.unmodifiableList(snapshot.inventoryBalanceProjections.toList()),

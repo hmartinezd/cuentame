@@ -24,6 +24,7 @@ interface BackupDao {
             stockCounts = getStockCounts(restaurantId),
             stockCountAreas = getStockCountAreas(restaurantId),
             stockCountLines = getStockCountLines(restaurantId),
+            stockCountItemOrder = getStockCountItemOrder(restaurantId),
             wasteEvents = getWasteEvents(restaurantId),
             inventoryMovements = getInventoryMovements(restaurantId),
             inventoryBalanceProjections = getInventoryBalanceProjections(restaurantId),
@@ -48,6 +49,9 @@ interface BackupDao {
 
     @Query("SELECT * FROM inventory_areas WHERE restaurantId = :restaurantId ORDER BY id ASC")
     suspend fun getInventoryAreas(restaurantId: String): List<InventoryAreaEntity>
+
+    @Query("SELECT * FROM stock_count_item_order WHERE restaurantId = :restaurantId ORDER BY areaId, sortOrder, ingredientId")
+    suspend fun getStockCountItemOrder(restaurantId: String): List<StockCountItemOrderEntity>
 
     @Query("SELECT * FROM ingredient_categories WHERE restaurantId = :restaurantId ORDER BY id ASC")
     suspend fun getIngredientCategories(restaurantId: String): List<IngredientCategoryEntity>
@@ -212,6 +216,7 @@ interface BackupDao {
             stockCounts = getAllStockCounts(),
             stockCountAreas = getAllStockCountAreas(),
             stockCountLines = getAllStockCountLines(),
+            stockCountItemOrder = getAllStockCountItemOrder(),
             wasteEvents = getAllWasteEvents(),
             inventoryMovements = getAllInventoryMovements(),
             inventoryBalanceProjections = getAllInventoryBalanceProjections(),
@@ -263,6 +268,9 @@ interface BackupDao {
 
     @Query("SELECT * FROM stock_count_lines")
     suspend fun getAllStockCountLines(): List<StockCountLineEntity>
+
+    @Query("SELECT * FROM stock_count_item_order ORDER BY areaId, sortOrder, ingredientId")
+    suspend fun getAllStockCountItemOrder(): List<StockCountItemOrderEntity>
 
     @Query("SELECT * FROM waste_events")
     suspend fun getAllWasteEvents(): List<WasteEventEntity>

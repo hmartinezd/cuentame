@@ -119,6 +119,10 @@ fun StockCountDetailRoute(
         onToggleReview = viewModel::onToggleReview,
         onCompleteCount = viewModel::onComplete,
         onReconfirm = viewModel::onReconfirm,
+        onRecount = { areaId ->
+            viewModel.onToggleReview(false)
+            onAreaClick(areaId)
+        },
         onVoidCount = viewModel::onVoid,
         onDeleteDraft = viewModel::onDelete
     )
@@ -138,6 +142,7 @@ fun StockCountDetailScreen(
     onToggleReview: (Boolean) -> Unit,
     onCompleteCount: () -> Unit,
     onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit,
+    onRecount: (StockCountAreaId) -> Unit,
     onVoidCount: () -> Unit,
     onDeleteDraft: () -> Unit
 ) {
@@ -202,6 +207,14 @@ fun StockCountDetailScreen(
                         Column {
                             Text(text = count.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("count_detail_name"))
                             Text(text = dateFormatter.format(count.effectiveAt), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = stringResource(
+                                    R.string.count_progress_format,
+                                    uiState.areaProgress.sumOf { it.countedItemCount },
+                                    uiState.areaProgress.sumOf { it.totalCountableItemCount }
+                                ),
+                                modifier = Modifier.testTag("overall_count_progress")
+                            )
                         }
                         StatusChip(status = count.status)
                     }
@@ -215,6 +228,8 @@ fun StockCountDetailScreen(
                         items(details.areas) { areaDetail ->
                             CountAreaItem(
                                 areaDetail = areaDetail,
+                                countedItemCount = uiState.areaProgress.find { it.countAreaId == areaDetail.area.id }?.countedItemCount ?: areaDetail.lines.size,
+                                totalCountableItemCount = uiState.areaProgress.find { it.countAreaId == areaDetail.area.id }?.totalCountableItemCount ?: areaDetail.lines.size,
                                 onClick = { onAreaClick(areaDetail.area.id) }
                             )
                             HorizontalDivider()
@@ -287,7 +302,8 @@ fun StockCountDetailScreen(
             allowPosting = uiState.details?.count?.status == StockCountStatus.DRAFT,
             onDismiss = { if (!uiState.isCompleting) onToggleReview(false) },
             onConfirm = onCompleteCount,
-            onReconfirm = onReconfirm
+            onReconfirm = onReconfirm,
+            onRecount = onRecount
         )
     }
 }
@@ -305,7 +321,8 @@ fun AdjustmentReviewSheet(
     allowPosting: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
-    onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit
+    onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit,
+    onRecount: (StockCountAreaId) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -359,7 +376,12 @@ fun AdjustmentReviewSheet(
                                         Text(stringResource(R.string.inventory_changed_after_item))
                                     }
                                 },
-                                trailingContent = { TextButton(onClick = { onReconfirm(drift.lineId) }) { Text(stringResource(R.string.reconfirm_count)) } }
+                                trailingContent = {
+                                    Column {
+                                        TextButton(onClick = { onReconfirm(drift.lineId) }) { Text(stringResource(R.string.reconfirm_count)) }
+                                        TextButton(onClick = { onRecount(drift.countAreaId) }) { Text(stringResource(R.string.reopen_and_recount)) }
+                                    }
+                                }
                             )
                         }
                     }
@@ -496,13 +518,15 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
 @Composable
 fun CountAreaItem(
     areaDetail: StockCountAreaDetails,
+    countedItemCount: Int,
+    totalCountableItemCount: Int,
     onClick: () -> Unit
 ) {
     ListItem(
         modifier = Modifier.clickable(onClick = onClick).testTag("area_item_${areaDetail.area.id.value}"),
         headlineContent = { Text(areaDetail.areaName ?: stringResource(R.string.unknown_area), fontWeight = FontWeight.Bold) },
         supportingContent = {
-            Text(text = stringResource(R.string.items_counted, areaDetail.lines.size))
+            Text(text = stringResource(R.string.count_progress_format, countedItemCount, totalCountableItemCount))
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {

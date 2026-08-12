@@ -173,6 +173,7 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         restoreDao.insertStockCounts(snapshot.stockCounts.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertStockCountAreas(snapshot.stockCountAreas.map { BackupMapper.run { it.toEntity() } })
         restoreDao.insertStockCountLines(snapshot.stockCountLines.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertStockCountItemOrder(snapshot.stockCountItemOrder.map { BackupMapper.run { it.toEntity() } })
         
         val waste = snapshot.wasteEvents.map { dto ->
             val entity = BackupMapper.run { dto.toEntity() }

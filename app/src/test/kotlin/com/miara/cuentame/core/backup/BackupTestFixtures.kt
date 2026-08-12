@@ -314,6 +314,7 @@ object BackupTestFixtures {
                 "stock_counts" to TableMetadata(0, false),
                 "stock_count_areas" to TableMetadata(0, false),
                 "stock_count_lines" to TableMetadata(0, false),
+                "stock_count_item_order" to TableMetadata(0, false),
                 "waste_events" to TableMetadata(0, false),
                 "purchase_invoice_ocr_results" to TableMetadata(0, false),
                 "purchase_invoice_ocr_pages" to TableMetadata(0, false),

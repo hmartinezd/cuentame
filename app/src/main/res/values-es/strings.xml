@@ -399,6 +399,7 @@
     <string name="current_inventory_format">Inventario actual: %1$s</string>
     <string name="inventory_changed_after_item">El inventario cambió después de contar este artículo.</string>
     <string name="reconfirm_count">Reconfirmar conteo</string>
+    <string name="reopen_and_recount">Reabrir y volver a contar</string>
     <string name="count_summary">Resumen del conteo</string>
     <string name="count_summary_totals">Contados: %1$d · Ajustados: %2$d · Aumentados: %3$d · Disminuidos: %4$d · Sin cambios: %5$d · Saldos iniciales: %6$d</string>
     <string name="edit_count_order">Editar orden de conteo</string>

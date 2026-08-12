@@ -82,7 +82,11 @@ data class StockCountLineEntry(
 ) {
     val isSaved: Boolean = hasUserEdit && editRevision == savedRevision && error == null && !isSaving && !isDeleting
     val isPending: Boolean = hasUserEdit && (editRevision > savedRevision || isSaving)
-    val isCounted: Boolean = lineId != null || isSaved
+    val hasPersistedObservation: Boolean = lineId != null
+    val hasValidCurrentObservation: Boolean
+        get() = quantityText.isNotBlank() && DecimalParser.parse(quantityText)?.let { it >= BigDecimal.ZERO } == true
+    val isCountedForProgress: Boolean = hasValidCurrentObservation && (isPending || isSaved || hasPersistedObservation)
+    val isCounted: Boolean get() = isCountedForProgress
 }
 
 enum class StockCountItemFilter { ALL, UNCOUNTED, COUNTED }
@@ -122,6 +126,7 @@ sealed interface StockCountAreaEvent {
     data class LineDeleted(val ingredientId: String) : StockCountAreaEvent
     data class ShowError(val error: Throwable) : StockCountAreaEvent
     data class FocusQuantity(val ingredientId: String) : StockCountAreaEvent
+    data object ImeDone : StockCountAreaEvent
 }
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -249,8 +254,8 @@ class StockCountAreaViewModel @Inject constructor(
             lineEntries = sortedEntries.filter { entry ->
                 entry.ingredientName.contains(query, ignoreCase = true) && when (others.itemFilter) {
                     StockCountItemFilter.ALL -> true
-                    StockCountItemFilter.UNCOUNTED -> !entry.isCounted
-                    StockCountItemFilter.COUNTED -> entry.isCounted
+                    StockCountItemFilter.UNCOUNTED -> !entry.isCountedForProgress
+                    StockCountItemFilter.COUNTED -> entry.isCountedForProgress
                 }
             },
             searchResults = others.searchResults.filter { !entriesMap.containsKey(it.id.value) },
@@ -260,7 +265,7 @@ class StockCountAreaViewModel @Inject constructor(
             error = others.error,
             canEdit = countStatus == StockCountStatus.DRAFT && areaStatus != CountAreaStatus.COMPLETED,
             canReopen = countStatus == StockCountStatus.DRAFT && areaStatus == CountAreaStatus.COMPLETED,
-            countedItemCount = entriesMap.values.count { it.isCounted },
+            countedItemCount = entriesMap.values.count { it.isCountedForProgress },
             totalCountableItemCount = entriesMap.size,
             isEditingOrder = others.isEditingOrder
         )
@@ -390,7 +395,16 @@ class StockCountAreaViewModel @Inject constructor(
                 if (line != null) {
                     val coordinator = coordinators[id]
                     if (coordinator != null) coordinator.syncLineId(line.id.value)
-                    entry.copy(lineId = line.id.value)
+                    val persistedPreview = StockCountLinePreview(
+                        countedQuantityBase = line.quantityBase,
+                        expectedQuantityBase = line.expectedQuantityBaseSnapshot,
+                        provisionalAdjustmentBase = line.adjustmentQuantityBase ?: line.quantityBase.subtract(line.expectedQuantityBaseSnapshot ?: BigDecimal.ZERO),
+                        willCreateOpeningBalance = line.expectedQuantityBaseSnapshot == null,
+                        averageCostBase = null,
+                        estimatedValueChange = null
+                    )
+                    if (entry.isPending) entry.copy(lineId = line.id.value)
+                    else entry.copy(lineId = line.id.value, preview = persistedPreview)
                 } else entry
             }
         }
@@ -448,7 +462,9 @@ class StockCountAreaViewModel @Inject constructor(
             val completion = CompletableDeferred<Boolean>()
             getCoordinator(ingredientId).enqueueFlush(completion)
             if (completion.await()) {
-                visible.getOrNull(index + 1)?.let { _events.send(StockCountAreaEvent.FocusQuantity(it.ingredientId)) }
+                val next = visible.getOrNull(index + 1)
+                if (next != null) _events.send(StockCountAreaEvent.FocusQuantity(next.ingredientId))
+                else _events.send(StockCountAreaEvent.ImeDone)
             }
         }
     }
@@ -613,7 +629,7 @@ class StockCountAreaViewModel @Inject constructor(
                     restaurantId = details.restaurantId,
                     ingredientId = IngredientId(entry.ingredientId),
                     areaId = details.area.areaId,
-                    effectiveAt = details.effectiveAt,
+                    effectiveAt = timeProvider.now(),
                     quantityBase = parsed.multiply(entry.factorToBase, MathContext.DECIMAL128)
                 )
                 _lineEntries.update { entries ->

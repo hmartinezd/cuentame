@@ -43,7 +43,7 @@ class GetMissingCountItemsUseCase @Inject constructor(
             val isCounted = countedIngredientIds.contains(ingredient.id)
 
             if (ingredient.isActive && ingredient.deletedAt == null) {
-                val isSuggested = ingredient.defaultAreaId == areaId || hasBalance
+                val isSuggested = isStockCountCandidate(ingredient.defaultAreaId, areaId, balance)
                 if (isSuggested) {
                     activeCandidates.add(ingredient)
                     if (!isCounted) {
@@ -69,3 +69,9 @@ class GetMissingCountItemsUseCase @Inject constructor(
         )
     }
 }
+
+fun isStockCountCandidate(
+    defaultAreaId: InventoryAreaId?,
+    areaId: InventoryAreaId,
+    balance: BigDecimal
+): Boolean = defaultAreaId == areaId || balance.compareTo(BigDecimal.ZERO) != 0

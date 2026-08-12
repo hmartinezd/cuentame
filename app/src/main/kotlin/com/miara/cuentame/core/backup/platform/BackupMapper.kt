@@ -26,6 +26,8 @@ object BackupMapper {
                 stockCounts = snapshot.stockCounts.map { it.toDto() }.sortedBy { it.id },
                 stockCountAreas = snapshot.stockCountAreas.map { it.toDto() }.sortedBy { it.id },
                 stockCountLines = snapshot.stockCountLines.map { it.toDto() }.sortedBy { it.id },
+                stockCountItemOrder = snapshot.stockCountItemOrder.map { it.toDto() }
+                    .sortedWith(compareBy({ it.areaId }, { it.sortOrder }, { it.ingredientId })),
                 wasteEvents = snapshot.wasteEvents.map { it.toDto(attachmentIdMap) }.sortedBy { it.id },
                 inventoryMovements = snapshot.inventoryMovements.map { it.toDto() }.sortedBy { it.id },
                 inventoryBalanceProjections = snapshot.inventoryBalanceProjections.map { it.toDto() }
@@ -230,6 +232,10 @@ object BackupMapper {
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt
+    )
+
+    internal fun StockCountItemOrderEntity.toDto() = StockCountItemOrderBackupDto(
+        restaurantId, areaId, ingredientId, sortOrder, updatedAt
     )
     
     internal fun WasteEventEntity.toDto(attachmentIdMap: Map<String, String>) = WasteEventBackupDto(
@@ -604,6 +610,10 @@ object BackupMapper {
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt
+    )
+
+    fun StockCountItemOrderBackupDto.toEntity() = StockCountItemOrderEntity(
+        restaurantId, areaId, ingredientId, sortOrder, updatedAt
     )
     
     fun WasteEventBackupDto.toEntity() = WasteEventEntity(
