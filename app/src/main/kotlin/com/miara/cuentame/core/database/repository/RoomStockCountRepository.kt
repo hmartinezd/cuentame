@@ -296,7 +296,7 @@ class RoomStockCountRepository @Inject constructor(
         }
     }
 
-    override suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLineId {
+    override suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLine {
         return database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             val count = countDao.getCountById(command.countId.value) ?: throw ValidationError.StockCountNotFound
@@ -362,7 +362,7 @@ class RoomStockCountRepository @Inject constructor(
                     if (affected != 1) throw ValidationError.StockCountAreaNotFound
                 }
 
-                newLineId
+                line
             } else {
                 val existingLine = countDao.getLineById(command.lineId.value) ?: throw ValidationError.StockCountLineNotFound
                 if (existingLine.stockCountAreaId != command.countAreaId.value) throw ValidationError.StockCountLineOwnershipMismatch
@@ -392,7 +392,7 @@ class RoomStockCountRepository @Inject constructor(
                 )
                 val affected = countDao.updateCountLine(updatedLine)
                 if (affected != 1) throw ValidationError.StockCountLineNotFound
-                command.lineId
+                updatedLine.toDomain()
             }
         }
     }

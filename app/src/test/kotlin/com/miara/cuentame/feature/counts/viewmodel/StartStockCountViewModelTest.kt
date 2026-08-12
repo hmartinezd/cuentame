@@ -52,7 +52,13 @@ class StartStockCountViewModelTest {
         override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {}
         override suspend fun start(command: com.miara.cuentame.core.domain.repository.StartStockCountCommand): StockCountId = StockCountId("c1")
         override suspend fun updateDraft(command: com.miara.cuentame.core.domain.repository.UpdateStockCountDraftCommand) {}
-        override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand) = com.miara.cuentame.core.common.ids.StockCountLineId("l1")
+        override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand) =
+            com.miara.cuentame.core.model.count.StockCountLine(
+                com.miara.cuentame.core.common.ids.StockCountLineId("l1"), command.countAreaId,
+                command.ingredientId, command.ingredientUnitOptionId, command.quantityEntered,
+                command.quantityEntered, java.math.BigDecimal.ZERO, command.quantityEntered,
+                command.notes, timeProvider.now(), timeProvider.now()
+            )
         override suspend fun deleteLine(countId: StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) {}
         override suspend fun completeArea(countId: StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId) {}
         override suspend fun reopenArea(countId: StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId) {}

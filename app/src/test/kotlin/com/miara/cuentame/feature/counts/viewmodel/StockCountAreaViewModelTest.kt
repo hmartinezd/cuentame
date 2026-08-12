@@ -41,6 +41,8 @@ class StockCountAreaViewModelTest {
     private val now = Instant.parse("2024-01-01T12:00:00Z")
 
     private val detailsFlow = MutableStateFlow<StockCountAreaDetails?>(null)
+    private var liveExpected = BigDecimal("20")
+    private var savedExpected = BigDecimal("25")
     
     private val fakeRepo = object : StockCountRepository {
         override fun observeCounts(filter: StockCountFilter) = flowOf(emptyList<StockCountSummary>())
@@ -52,7 +54,11 @@ class StockCountAreaViewModelTest {
         override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {}
         override suspend fun start(command: StartStockCountCommand) = countId
         override suspend fun updateDraft(command: UpdateStockCountDraftCommand) {}
-        override suspend fun saveLine(command: SaveStockCountLineCommand) = StockCountLineId("l1")
+        override suspend fun saveLine(command: SaveStockCountLineCommand) = StockCountLine(
+            StockCountLineId("l1"), command.countAreaId, command.ingredientId,
+            command.ingredientUnitOptionId, command.quantityEntered, command.quantityEntered,
+            savedExpected, command.quantityEntered.subtract(savedExpected), command.notes, now, now
+        )
         override suspend fun deleteLine(countId: StockCountId, countAreaId: StockCountAreaId, lineId: StockCountLineId) {}
         override suspend fun completeArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
         override suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
@@ -106,6 +112,21 @@ class StockCountAreaViewModelTest {
         override fun now(): Instant = now
     }
 
+    private val fakeSnapshotService = object : InventorySnapshotService {
+        override suspend fun calculateAt(
+            restaurantId: RestaurantId,
+            ingredientId: IngredientId,
+            areaId: InventoryAreaId,
+            effectiveAt: Instant
+        ) = InventorySnapshot(true, liveExpected, null)
+
+        override suspend fun calculateAreaBalancesAt(
+            restaurantId: RestaurantId,
+            areaId: InventoryAreaId,
+            effectiveAt: Instant
+        ) = mapOf(ingId to liveExpected)
+    }
+
     private lateinit var viewModel: StockCountAreaViewModel
 
     @Before
@@ -122,13 +143,6 @@ class StockCountAreaViewModelTest {
             lines = emptyList()
         )
 
-        val fakeSnapshotService = object : InventorySnapshotService {
-            override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = 
-                InventorySnapshot(false, BigDecimal.ZERO, null)
-            override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = 
-                emptyMap<IngredientId, BigDecimal>()
-        }
-
         viewModel = StockCountAreaViewModel(
             SavedStateHandle(mapOf("countId" to countId.value, "countAreaId" to countAreaId.value)),
             fakeRepo,
@@ -144,6 +158,87 @@ class StockCountAreaViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    private fun persistedLine(expected: String = "5", quantity: String = "8") = StockCountLine(
+        id = StockCountLineId("l1"),
+        stockCountAreaId = countAreaId,
+        ingredientId = ingId,
+        ingredientUnitOptionId = IngredientUnitOptionId("o1"),
+        quantityEntered = BigDecimal(quantity),
+        quantityBase = BigDecimal(quantity),
+        expectedQuantityBaseSnapshot = BigDecimal(expected),
+        adjustmentQuantityBase = BigDecimal(quantity).subtract(BigDecimal(expected)),
+        createdAt = now,
+        updatedAt = now
+    )
+
+    @Test
+    fun `persisted row in editable area keeps stored snapshot until edited`() = runTest {
+        detailsFlow.value = detailsFlow.value!!.copy(lines = listOf(persistedLine()))
+
+        viewModel.uiState.test {
+            var entry = awaitItem().lineEntries.firstOrNull()
+            while (entry == null) entry = awaitItem().lineEntries.firstOrNull()
+            assertThat(entry.preview?.expectedQuantityBase).isEqualTo(BigDecimal("5"))
+            assertThat(entry.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("3"))
+
+            viewModel.onQuantityChanged(ingId.value, "9")
+            runCurrent()
+            entry = expectMostRecentItem().lineEntries.single()
+            assertThat(entry.preview?.expectedQuantityBase).isEqualTo(BigDecimal("20"))
+            assertThat(entry.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("-11"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `authoritative save result replaces editing preview`() = runTest {
+        detailsFlow.value = detailsFlow.value!!.copy(lines = listOf(persistedLine()))
+
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) state = awaitItem()
+            viewModel.onQuantityChanged(ingId.value, "9")
+            runCurrent()
+            assertThat(expectMostRecentItem().lineEntries.single().preview?.expectedQuantityBase)
+                .isEqualTo(BigDecimal("20"))
+
+            advanceTimeBy(600)
+            runCurrent()
+            val saved = expectMostRecentItem().lineEntries.single()
+            assertThat(saved.isSaved).isTrue()
+            assertThat(saved.preview?.expectedQuantityBase).isEqualTo(BigDecimal("25"))
+            assertThat(saved.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("-16"))
+
+            detailsFlow.value = detailsFlow.value!!.copy(lines = listOf(persistedLine()))
+            runCurrent()
+            val afterStaleFlow = viewModel.uiState.value.lineEntries.single()
+            assertThat(afterStaleFlow.preview?.expectedQuantityBase).isEqualTo(BigDecimal("25"))
+            assertThat(afterStaleFlow.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("-16"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `reopening area does not replace persisted preview with live inventory`() = runTest {
+        detailsFlow.value = detailsFlow.value!!.copy(
+            area = detailsFlow.value!!.area.copy(status = CountAreaStatus.COMPLETED),
+            lines = listOf(persistedLine())
+        )
+
+        viewModel.uiState.test {
+            var state = awaitItem()
+            while (state.lineEntries.isEmpty()) state = awaitItem()
+            detailsFlow.value = detailsFlow.value!!.copy(
+                area = detailsFlow.value!!.area.copy(status = CountAreaStatus.IN_PROGRESS)
+            )
+            runCurrent()
+            val reopened = expectMostRecentItem().lineEntries.single()
+            assertThat(reopened.preview?.expectedQuantityBase).isEqualTo(BigDecimal("5"))
+            assertThat(reopened.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("3"))
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

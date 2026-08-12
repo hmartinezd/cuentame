@@ -93,7 +93,7 @@ interface StockCountRepository {
 
     suspend fun start(command: StartStockCountCommand): StockCountId
     suspend fun updateDraft(command: UpdateStockCountDraftCommand)
-    suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLineId
+    suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLine
     suspend fun deleteLine(countId: StockCountId, countAreaId: StockCountAreaId, lineId: StockCountLineId)
     suspend fun completeArea(countId: StockCountId, countAreaId: StockCountAreaId)
     suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId)

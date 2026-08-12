@@ -37,7 +37,16 @@ class StockCountAreaViewModelRaceTest {
     private val now = Instant.parse("2024-01-01T12:00:00Z")
 
     private class ControllableStockCountRepository : StockCountRepository {
-        val saveLineDeferreds = mutableListOf<CompletableDeferred<StockCountLineId>>()
+        val detailsFlow = MutableStateFlow(StockCountAreaDetails(
+            area = StockCountArea(StockCountAreaId("ca1"), StockCountId("c1"), InventoryAreaId("a1"), CountAreaStatus.NOT_STARTED, null, null, 0),
+            areaName = "Area 1",
+            restaurantId = RestaurantId("r1"),
+            countId = StockCountId("c1"),
+            countStatus = StockCountStatus.DRAFT,
+            effectiveAt = Instant.parse("2024-01-01T12:00:00Z"),
+            lines = emptyList()
+        ))
+        val saveLineDeferreds = mutableListOf<CompletableDeferred<StockCountLine>>()
         val deleteLineDeferreds = mutableListOf<CompletableDeferred<Unit>>()
         
         val savedCommands = mutableListOf<SaveStockCountLineCommand>()
@@ -45,15 +54,7 @@ class StockCountAreaViewModelRaceTest {
 
         override fun observeCounts(filter: StockCountFilter) = flowOf(emptyList<StockCountSummary>())
         override fun observeCount(id: StockCountId) = flowOf(null)
-        override fun observeCountArea(id: StockCountAreaId) = flowOf(StockCountAreaDetails(
-            area = StockCountArea(id, StockCountId("c1"), InventoryAreaId("a1"), CountAreaStatus.NOT_STARTED, null, null, 0),
-            areaName = "Area 1",
-            restaurantId = RestaurantId("r1"),
-            countId = StockCountId("c1"),
-            countStatus = StockCountStatus.DRAFT,
-            effectiveAt = Instant.now(),
-            lines = emptyList()
-        ))
+        override fun observeCountArea(id: StockCountAreaId) = detailsFlow
         override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId) = emptySet<IngredientId>()
         override suspend fun getDraftAreaIds(restaurantId: RestaurantId) = emptySet<InventoryAreaId>()
         override suspend fun getItemOrder(areaId: InventoryAreaId) = emptyList<IngredientId>()
@@ -61,9 +62,9 @@ class StockCountAreaViewModelRaceTest {
         override suspend fun start(command: StartStockCountCommand) = StockCountId("c1")
         override suspend fun updateDraft(command: UpdateStockCountDraftCommand) {}
         
-        override suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLineId {
+        override suspend fun saveLine(command: SaveStockCountLineCommand): StockCountLine {
             savedCommands.add(command)
-            val deferred = CompletableDeferred<StockCountLineId>()
+            val deferred = CompletableDeferred<StockCountLine>()
             saveLineDeferreds.add(deferred)
             return deferred.await()
         }
@@ -86,6 +87,17 @@ class StockCountAreaViewModelRaceTest {
 
     private lateinit var repository: ControllableStockCountRepository
     private lateinit var viewModel: StockCountAreaViewModel
+
+    private fun savedLine(index: Int, id: String = "l1", expected: String = "0"):
+        StockCountLine {
+        val command = repository.savedCommands[index]
+        val expectedValue = BigDecimal(expected)
+        return StockCountLine(
+            StockCountLineId(id), command.countAreaId, command.ingredientId,
+            command.ingredientUnitOptionId, command.quantityEntered, command.quantityEntered,
+            expectedValue, command.quantityEntered.subtract(expectedValue), command.notes, now, now
+        )
+    }
 
     @Before
     fun setup() {
@@ -130,7 +142,7 @@ class StockCountAreaViewModelRaceTest {
 
         val fakeSnapshotService = object : InventorySnapshotService {
             override suspend fun calculateAt(restaurantId: RestaurantId, ingredientId: IngredientId, areaId: InventoryAreaId, effectiveAt: Instant) = 
-                InventorySnapshot(false, BigDecimal.ZERO, null)
+                InventorySnapshot(true, BigDecimal("20"), null)
             override suspend fun calculateAreaBalancesAt(restaurantId: RestaurantId, areaId: InventoryAreaId, effectiveAt: Instant) = 
                 emptyMap<IngredientId, BigDecimal>()
         }
@@ -172,7 +184,7 @@ class StockCountAreaViewModelRaceTest {
         
         // 3. Complete CREATE
         val generatedId = StockCountLineId("generated-l1")
-        repository.saveLineDeferreds[0].complete(generatedId)
+        repository.saveLineDeferreds[0].complete(savedLine(0, generatedId.value))
         runCurrent()
         
         // 4. Verify DELETE was called with the generated ID
@@ -210,12 +222,12 @@ class StockCountAreaViewModelRaceTest {
         runCurrent()
         
         // 4. Save A completes
-        repository.saveLineDeferreds[0].complete(StockCountLineId("l1"))
+        repository.saveLineDeferreds[0].complete(savedLine(0))
         runCurrent()
         
         // 5. Save B should start and then complete
         assertThat(repository.savedCommands).hasSize(2)
-        repository.saveLineDeferreds[1].complete(StockCountLineId("l1"))
+        repository.saveLineDeferreds[1].complete(savedLine(1))
         runCurrent()
         
         // 6. Delete should start and then complete
@@ -251,12 +263,79 @@ class StockCountAreaViewModelRaceTest {
         runCurrent()
         
         // Complete CREATE
-        repository.saveLineDeferreds[0].complete(StockCountLineId("l1"))
+        repository.saveLineDeferreds[0].complete(savedLine(0))
         runCurrent()
         
         flushJob.join()
         
         // Verify only one save call happened (no new Save enqueued because revision matched)
         assertThat(repository.savedCommands).hasSize(1)
+    }
+
+    @Test
+    fun `older save updates persisted baseline without overwriting newer edit`() = runTest {
+        val stateCollection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+
+        viewModel.onQuantityChanged(ingId.value, "8")
+        advanceTimeBy(600)
+        runCurrent()
+        assertThat(repository.savedCommands).hasSize(1)
+
+        viewModel.onQuantityChanged(ingId.value, "9")
+        runCurrent()
+        repository.saveLineDeferreds[0].complete(savedLine(0, expected = "25"))
+        runCurrent()
+
+        var current = viewModel.uiState.value.lineEntries.single()
+        assertThat(current.quantityText).isEqualTo("9")
+        assertThat(current.isPending).isTrue()
+        assertThat(current.persistedPreview?.expectedQuantityBase).isEqualTo(BigDecimal("25"))
+        assertThat(current.preview?.expectedQuantityBase).isEqualTo(BigDecimal("20"))
+
+        advanceTimeBy(600)
+        runCurrent()
+        assertThat(repository.savedCommands).hasSize(2)
+        repository.saveLineDeferreds[1].complete(savedLine(1, expected = "30"))
+        runCurrent()
+
+        current = viewModel.uiState.value.lineEntries.single()
+        assertThat(current.quantityText).isEqualTo("9")
+        assertThat(current.isSaved).isTrue()
+        assertThat(current.preview?.expectedQuantityBase).isEqualTo(BigDecimal("30"))
+        assertThat(current.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("-21"))
+        stateCollection.cancel()
+    }
+
+    @Test
+    fun `Room emission before save continuation converges on authoritative persisted preview`() = runTest {
+        val stateCollection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        val ingredient = Ingredient(ingId, restId, "Chicken", "chicken", null, UnitId("lb"), areaId, null, null, null, true, now, now, null)
+        viewModel.onAddIngredient(ingredient)
+        runCurrent()
+        viewModel.onQuantityChanged(ingId.value, "9")
+        advanceTimeBy(600)
+        runCurrent()
+
+        val persisted = savedLine(0, expected = "25").copy(updatedAt = now.plusSeconds(1))
+        repository.detailsFlow.value = repository.detailsFlow.value.copy(lines = listOf(persisted))
+        runCurrent()
+        assertThat(viewModel.uiState.value.lineEntries.single().isPending).isTrue()
+        assertThat(viewModel.uiState.value.lineEntries.single().persistedPreview?.expectedQuantityBase)
+            .isEqualTo(BigDecimal("25"))
+
+        repository.saveLineDeferreds[0].complete(persisted)
+        runCurrent()
+        val stable = viewModel.uiState.value.lineEntries.single()
+        assertThat(stable.isSaved).isTrue()
+        assertThat(stable.preview?.expectedQuantityBase).isEqualTo(BigDecimal("25"))
+        assertThat(stable.preview?.provisionalAdjustmentBase).isEqualTo(BigDecimal("-16"))
+        stateCollection.cancel()
     }
 }

@@ -534,22 +534,22 @@ fun StockCountLineItem(
             )
         }
         
-        if (entry.preview != null) {
+        if (preview != null) {
             val unitLabel = if (entry.baseUnitName.isNullOrBlank()) stringResource(R.string.unknown_unit) else entry.baseUnitName
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (entry.preview.willCreateOpeningBalance) 
-                        stringResource(R.string.opening_balance) 
-                    else 
-                        stringResource(R.string.expected_quantity_format, entry.preview.expectedQuantityBase?.toPlainString() ?: "0", unitLabel),
+                    text = if (preview.willCreateOpeningBalance)
+                        stringResource(R.string.opening_balance)
+                    else
+                        stringResource(R.string.expected_quantity_format, preview.expectedQuantityBase?.toPlainString() ?: "0", unitLabel),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.testTag("historical_expected_${areaId}_${entry.ingredientId}")
                 )
                 
-                val adjustment = entry.preview.provisionalAdjustmentBase
+                val adjustment = preview.provisionalAdjustmentBase
                 val color = when {
                     adjustment > BigDecimal.ZERO -> MaterialTheme.colorScheme.primary
                     adjustment < BigDecimal.ZERO -> MaterialTheme.colorScheme.error

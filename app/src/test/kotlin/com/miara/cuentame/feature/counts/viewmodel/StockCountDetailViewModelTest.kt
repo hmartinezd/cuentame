@@ -13,6 +13,7 @@ import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -45,7 +46,11 @@ class StockCountDetailViewModelTest {
         override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {}
         override suspend fun start(command: StartStockCountCommand) = countId
         override suspend fun updateDraft(command: UpdateStockCountDraftCommand) {}
-        override suspend fun saveLine(command: SaveStockCountLineCommand) = StockCountLineId("l1")
+        override suspend fun saveLine(command: SaveStockCountLineCommand) = StockCountLine(
+            StockCountLineId("l1"), command.countAreaId, command.ingredientId,
+            command.ingredientUnitOptionId, command.quantityEntered, command.quantityEntered,
+            BigDecimal.ZERO, command.quantityEntered, command.notes, now, now
+        )
         override suspend fun deleteLine(countId: StockCountId, countAreaId: StockCountAreaId, lineId: StockCountLineId) {}
         override suspend fun completeArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
         override suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId) {}
@@ -60,12 +65,21 @@ class StockCountDetailViewModelTest {
         override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = flowOf(emptyList<Ingredient>())
         override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean) = emptyList<Ingredient>()
         override fun observeIngredient(id: IngredientId) = flowOf(null)
-        override suspend fun getById(id: IngredientId): Ingredient? = null
-        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = null
+        override suspend fun getById(id: IngredientId): Ingredient? = Ingredient(
+            id, restId, "Beef", "beef", null, UnitId("lb"), null,
+            null, null, null, true, now, now, null
+        )
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? =
+            getUnitOptions(IngredientId("i1"), true).find { it.id == id }
         override suspend fun updateIngredient(command: UpdateIngredientCommand) {}
         override suspend fun archive(id: IngredientId, at: Instant) {}
         override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = flowOf(emptyList<IngredientUnitOption>())
-        override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = emptyList<IngredientUnitOption>()
+        override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean) = listOf(
+            IngredientUnitOption(
+                IngredientUnitOptionId("o1"), ingredientId, "Pound", "lb", UnitId("lb"),
+                BigDecimal.ONE, true, true, true, true, now, now, null
+            )
+        )
         override suspend fun addStandardUnitOption(command: AddStandardUnitOptionCommand) {}
         override suspend fun addPackageUnitOption(command: AddPackageUnitOptionCommand) {}
         override suspend fun updatePackageUnitOption(command: UpdatePackageUnitOptionCommand) {}
@@ -113,6 +127,36 @@ class StockCountDetailViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `review uses the same persisted snapshot as stable area row`() = runTest {
+        val countAreaId = StockCountAreaId("ca1")
+        val line = StockCountLine(
+            StockCountLineId("l1"), countAreaId, IngredientId("i1"),
+            IngredientUnitOptionId("o1"), BigDecimal("9"), BigDecimal("9"),
+            BigDecimal("25"), BigDecimal("-16"), null, now, now
+        )
+        detailsFlow.value = detailsFlow.value!!.copy(
+            areas = listOf(
+                StockCountAreaDetails(
+                    StockCountArea(countAreaId, countId, InventoryAreaId("a1"), CountAreaStatus.IN_PROGRESS, now, null, 0),
+                    "Walk-in", restId, countId, StockCountStatus.DRAFT, now, listOf(line)
+                )
+            )
+        )
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+        runCurrent()
+        viewModel.onToggleReview(true)
+        runCurrent()
+
+        val review = viewModel.uiState.value.reviewLines.single()
+        assertThat(review.quantityBase).isEqualTo(line.quantityBase)
+        assertThat(review.preview.expectedQuantityBase).isEqualTo(line.expectedQuantityBaseSnapshot)
+        assertThat(review.preview.provisionalAdjustmentBase).isEqualTo(line.adjustmentQuantityBase)
+        collection.cancel()
     }
 
     @Test

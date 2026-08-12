@@ -71,7 +71,9 @@ data class StockCountLineEntry(
     val baseUnitName: String?,
     val quantityText: String = "",
     val lineId: String? = null,
-    val preview: StockCountLinePreview? = null,
+    val persistedPreview: StockCountLinePreview? = null,
+    val persistedUpdatedAt: java.time.Instant? = null,
+    val editingPreview: StockCountLinePreview? = null,
     val hasUserEdit: Boolean = false,
     val editRevision: Long = 0,
     val savedRevision: Long = -1,
@@ -87,6 +89,8 @@ data class StockCountLineEntry(
         get() = quantityText.isNotBlank() && DecimalParser.parse(quantityText)?.let { it >= BigDecimal.ZERO } == true
     val isCountedForProgress: Boolean = hasValidCurrentObservation && (isPending || isSaved || hasPersistedObservation)
     val isCounted: Boolean get() = isCountedForProgress
+    val preview: StockCountLinePreview?
+        get() = if (isPending) editingPreview else persistedPreview
 }
 
 enum class StockCountItemFilter { ALL, UNCOUNTED, COUNTED }
@@ -326,14 +330,16 @@ class StockCountAreaViewModel @Inject constructor(
                 editRevision = 0,
                 savedRevision = 0,
                 unitOptions = mapToUnitUi(options, line.ingredientUnitOptionId, isEditable),
-                preview = if (!isEditable) StockCountLinePreview(
+                persistedPreview = StockCountLinePreview(
                     countedQuantityBase = line.quantityBase,
                     expectedQuantityBase = line.expectedQuantityBaseSnapshot,
-                    provisionalAdjustmentBase = line.adjustmentQuantityBase ?: BigDecimal.ZERO,
+                    provisionalAdjustmentBase = line.adjustmentQuantityBase
+                        ?: line.quantityBase.subtract(line.expectedQuantityBaseSnapshot ?: BigDecimal.ZERO),
                     willCreateOpeningBalance = line.expectedQuantityBaseSnapshot == null,
                     averageCostBase = null,
                     estimatedValueChange = null
-                ) else null
+                ),
+                persistedUpdatedAt = line.updatedAt
             )
             getCoordinator(line.ingredientId.value, line.id.value)
         }
@@ -365,9 +371,6 @@ class StockCountAreaViewModel @Inject constructor(
         _lineEntries.value = entries
         _archivedWarnings.value = candidateResult.archivedBalanceWarnings
         _missingActiveCandidates.value = candidateResult.missingActiveCandidates
-        if (isEditable) {
-            entries.values.forEach { updatePreview(it) }
-        }
     }
 
     private fun mapToUnitUi(
@@ -403,8 +406,15 @@ class StockCountAreaViewModel @Inject constructor(
                         averageCostBase = null,
                         estimatedValueChange = null
                     )
-                    if (entry.isPending) entry.copy(lineId = line.id.value)
-                    else entry.copy(lineId = line.id.value, preview = persistedPreview)
+                    if (entry.persistedUpdatedAt == null || line.updatedAt > entry.persistedUpdatedAt) {
+                        entry.copy(
+                            lineId = line.id.value,
+                            persistedPreview = persistedPreview,
+                            persistedUpdatedAt = line.updatedAt
+                        )
+                    } else {
+                        entry.copy(lineId = line.id.value)
+                    }
                 } else entry
             }
         }
@@ -614,7 +624,7 @@ class StockCountAreaViewModel @Inject constructor(
             _lineEntries.update { entries ->
                 val current = entries[entry.ingredientId]
                 if (current != null && current.editRevision == entry.editRevision) {
-                    entries + (entry.ingredientId to current.copy(preview = null))
+                    entries + (entry.ingredientId to current.copy(editingPreview = null))
                 } else entries
             }
             return
@@ -635,7 +645,7 @@ class StockCountAreaViewModel @Inject constructor(
                 _lineEntries.update { entries ->
                     val current = entries[entry.ingredientId]
                     if (current != null && current.editRevision == revision) {
-                        entries + (entry.ingredientId to current.copy(preview = preview))
+                        entries + (entry.ingredientId to current.copy(editingPreview = preview))
                     } else entries
                 }
             } catch (e: Exception) {
@@ -812,7 +822,9 @@ class StockCountAreaViewModel @Inject constructor(
                         hasUserEdit = false,
                         savedRevision = -1,
                         isSaving = false,
-                        preview = null,
+                        persistedPreview = null,
+                        persistedUpdatedAt = null,
+                        editingPreview = null,
                         error = null
                     ))
                 }
@@ -848,7 +860,7 @@ class StockCountAreaViewModel @Inject constructor(
                 val cid = countId ?: return
                 val aid = countAreaId ?: return
                 
-                val savedId = repository.saveLine(
+                val savedLine = repository.saveLine(
                     SaveStockCountLineCommand(
                         countId = cid,
                         countAreaId = aid,
@@ -859,7 +871,8 @@ class StockCountAreaViewModel @Inject constructor(
                         notes = null
                     )
                 )
-                lineId = savedId.value
+                lineId = savedLine.id.value
+                val authoritativePreview = savedLine.toPersistedPreview()
                 
                 _lineEntries.update { entries ->
                     val current = entries[ingredientId]
@@ -870,10 +883,18 @@ class StockCountAreaViewModel @Inject constructor(
                             isSaving = false,
                             savedRevision = revision,
                             lineId = lineId,
+                            persistedPreview = authoritativePreview,
+                            persistedUpdatedAt = savedLine.updatedAt,
+                            editingPreview = null,
                             error = null
                         )
                     } else {
-                        current.copy(isSaving = false, lineId = lineId)
+                        current.copy(
+                            isSaving = false,
+                            lineId = lineId,
+                            persistedPreview = authoritativePreview,
+                            persistedUpdatedAt = savedLine.updatedAt
+                        )
                     }
                     entries + (ingredientId to updated)
                 }
@@ -940,4 +961,14 @@ class StockCountAreaViewModel @Inject constructor(
             completion.complete(success)
         }
     }
+
+    private fun com.miara.cuentame.core.model.count.StockCountLine.toPersistedPreview() = StockCountLinePreview(
+        countedQuantityBase = quantityBase,
+        expectedQuantityBase = expectedQuantityBaseSnapshot,
+        provisionalAdjustmentBase = adjustmentQuantityBase
+            ?: quantityBase.subtract(expectedQuantityBaseSnapshot ?: BigDecimal.ZERO),
+        willCreateOpeningBalance = expectedQuantityBaseSnapshot == null,
+        averageCostBase = null,
+        estimatedValueChange = null
+    )
 }
