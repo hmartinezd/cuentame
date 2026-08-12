@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SupplierItemMappingDao {
 
+    @Query("SELECT * FROM supplier_item_mappings WHERE restaurantId = :restaurantId ORDER BY supplierId, ingredientId, id")
+    fun observeAllMappings(restaurantId: String): Flow<List<SupplierItemMappingEntity>>
+
     @Query("SELECT * FROM supplier_item_mappings WHERE restaurantId = :restaurantId AND supplierId = :supplierId AND keyType = :keyType AND normalizedKey = :normalizedKey")
     suspend fun getMapping(
         restaurantId: String,

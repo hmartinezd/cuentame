@@ -99,6 +99,8 @@ fun IngredientFormRoute(
         compatibleUnits = compatibleUnits,
         snackbarHostState = snackbarHostState,
         onNameChanged = viewModel::onNameChanged,
+        onParLevelChanged = viewModel::onParLevelChanged,
+        onReorderPointChanged = viewModel::onReorderPointChanged,
         onCategorySelected = viewModel::onCategorySelected,
         onDimensionSelected = viewModel::onDimensionSelected,
         onBaseUnitSelected = viewModel::onBaseUnitSelected,
@@ -121,6 +123,8 @@ fun IngredientFormScreen(
     compatibleUnits: List<UnitOfMeasure>,
     snackbarHostState: SnackbarHostState,
     onNameChanged: (String) -> Unit,
+    onParLevelChanged: (String) -> Unit,
+    onReorderPointChanged: (String) -> Unit,
     onCategorySelected: (IngredientCategoryId?) -> Unit,
     onDimensionSelected: (UnitDimension) -> Unit,
     onBaseUnitSelected: (UnitOfMeasure) -> Unit,
@@ -185,6 +189,26 @@ fun IngredientFormScreen(
                     categories = categories,
                     selected = uiState.selectedCategoryId,
                     onSelected = onCategorySelected
+                )
+
+                Text(stringResource(R.string.reorder_configuration), style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(
+                    value = uiState.parLevel,
+                    onValueChange = onParLevelChanged,
+                    label = { Text(stringResource(R.string.par_level)) },
+                    modifier = Modifier.fillMaxWidth().testTag("par_level_input"),
+                    isError = uiState.fieldErrors.containsKey("par"),
+                    supportingText = uiState.fieldErrors["par"]?.let { { Text(stringResource(it)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = uiState.reorderPoint,
+                    onValueChange = onReorderPointChanged,
+                    label = { Text(stringResource(R.string.reorder_point_optional)) },
+                    modifier = Modifier.fillMaxWidth().testTag("reorder_point_input"),
+                    isError = uiState.fieldErrors.containsKey("reorderPoint"),
+                    supportingText = uiState.fieldErrors["reorderPoint"]?.let { { Text(stringResource(it)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
                 )
 
                 if (!uiState.isEditMode) {

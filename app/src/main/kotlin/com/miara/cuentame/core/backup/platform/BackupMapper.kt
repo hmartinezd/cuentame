@@ -132,7 +132,8 @@ object BackupMapper {
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        deletedAt = deletedAt
+        deletedAt = deletedAt,
+        parLevelBase = parLevelBase?.toNormalizedString()
     )
 
     internal fun IngredientUnitOptionEntity.toDto() = IngredientUnitOptionBackupDto(
@@ -524,7 +525,8 @@ object BackupMapper {
         isActive = isActive,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        deletedAt = deletedAt
+        deletedAt = deletedAt,
+        parLevelBase = parLevelBase?.let { java.math.BigDecimal(it) }
     )
 
     fun IngredientUnitOptionBackupDto.toEntity() = IngredientUnitOptionEntity(

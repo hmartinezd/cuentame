@@ -57,5 +57,6 @@ data class IngredientEntity(
     val isActive: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
-    val deletedAt: Long?
+    val deletedAt: Long?,
+    val parLevelBase: BigDecimal? = null
 )

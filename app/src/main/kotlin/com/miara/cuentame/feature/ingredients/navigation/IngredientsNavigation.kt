@@ -19,6 +19,7 @@ fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
             onAddIngredient = { navController.navigate(Destination.INGREDIENT_CREATE.route) },
             onImportCsv = { navController.navigate(Destination.INGREDIENT_IMPORT.route) },
             onManagePreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) }
+            ,onReorder = { navController.navigate(Destination.REORDER_ASSISTANCE.route) }
         )
     }
     composable(route = Destination.INGREDIENT_IMPORT.route) {

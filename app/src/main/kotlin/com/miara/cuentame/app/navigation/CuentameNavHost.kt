@@ -20,6 +20,7 @@ import com.miara.cuentame.feature.settings.navigation.settingsGraph
 import com.miara.cuentame.feature.suppliers.navigation.suppliersGraph
 import com.miara.cuentame.feature.waste.navigation.wasteGraph
 import com.miara.cuentame.feature.menu.navigation.menuGraph
+import com.miara.cuentame.feature.reorder.reorderGraph
 
 @Composable
 fun CuentameNavHost(
@@ -36,6 +37,7 @@ fun CuentameNavHost(
         homeGraph(navController)
         activityGraph(navController)
         ingredientsGraph(navController)
+        reorderGraph(navController)
         countsGraph(navController)
         purchasesGraph(navController)
         wasteGraph(navController)

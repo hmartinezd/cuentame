@@ -1095,4 +1095,25 @@
     <string name="menu_error_unit_inactive">Esta unidad ya no está disponible. Elige otra unidad.</string>
     <string name="menu_error_ownership">No se pudo actualizar este plato. Actualiza e inténtalo de nuevo.</string>
     <string name="menu_error_save_failed">No se pudieron guardar los cambios. Inténtalo de nuevo.</string>
+    <string name="reorder_assistance">Ayuda para reabastecer</string>
+    <string name="reorder_assistance_desc">Consulta qué comprar, los paquetes y proveedores</string>
+    <string name="reorder_configuration">Configuración de reabastecimiento</string>
+    <string name="par_level">Nivel par (unidad base)</string>
+    <string name="reorder_point_optional">Punto de reorden (opcional)</string>
+    <string name="reorder_nonnegative_error">Ingresa cero o una cantidad positiva.</string>
+    <string name="reorder_point_above_par_error">El punto de reorden no puede superar el par.</string>
+    <string name="needs_reorder">Por reabastecer</string>
+    <string name="all_configured">Configurados</string>
+    <string name="missing_setup">Falta configurar</string>
+    <string name="nothing_to_reorder">No hay nada que reabastecer.</string>
+    <string name="no_supplier_assigned">Sin proveedor asignado</string>
+    <string name="par_not_configured">Par no configurado</string>
+    <string name="purchase_unit_not_configured">Unidad de compra no configurada</string>
+    <string name="ambiguous_supplier">Hay varios proveedores vinculados; elige uno actualizando las vinculaciones.</string>
+    <string name="reorder_current_par">Actual: %1$s %2$s · Par: %3$s %4$s</string>
+    <string name="reorder_needed">Necesario: %1$s %2$s</string>
+    <string name="reorder_suggested">Sugerido: %1$s %2$s · Cubre %3$s %4$s</string>
+    <string name="supplier_sku">SKU del proveedor: %1$s</string>
+    <string name="export_csv">CSV</string>
+    <string name="reorder_share">Compartir</string>
 </resources>

@@ -23,7 +23,8 @@ fun IngredientEntity.toDomain(): Ingredient = Ingredient(
     isActive = isActive,
     createdAt = Instant.ofEpochMilli(createdAt),
     updatedAt = Instant.ofEpochMilli(updatedAt),
-    deletedAt = deletedAt?.let { Instant.ofEpochMilli(it) }
+    deletedAt = deletedAt?.let { Instant.ofEpochMilli(it) },
+    parLevelBase = parLevelBase
 )
 
 fun Ingredient.toEntity(): IngredientEntity = IngredientEntity(
@@ -40,5 +41,6 @@ fun Ingredient.toEntity(): IngredientEntity = IngredientEntity(
     isActive = isActive,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli(),
-    deletedAt = deletedAt?.toEpochMilli()
+    deletedAt = deletedAt?.toEpochMilli(),
+    parLevelBase = parLevelBase
 )

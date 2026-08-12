@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SoupKitchen
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -63,6 +64,7 @@ fun IngredientListRoute(
     onImportCsv: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
     onManagePreparations: () -> Unit,
+    onReorder: () -> Unit = {},
     viewModel: IngredientListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -75,7 +77,8 @@ fun IngredientListRoute(
         onAddIngredient = onAddIngredient,
         onImportCsv = onImportCsv,
         onIngredientClick = onIngredientClick,
-        onManagePreparations = onManagePreparations
+        onManagePreparations = onManagePreparations,
+        onReorder = onReorder
     )
 }
 
@@ -89,7 +92,8 @@ fun IngredientListScreen(
     onAddIngredient: () -> Unit,
     onImportCsv: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
-    onManagePreparations: () -> Unit
+    onManagePreparations: () -> Unit,
+    onReorder: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier.testTag("ingredient_list_screen"),
@@ -117,6 +121,13 @@ fun IngredientListScreen(
                 onShowArchivedToggle = onShowArchivedToggled,
                 onImportCsv = onImportCsv
             )
+
+            ElevatedCard(
+                onClick = onReorder,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("reorder_assistance_entry")
+            ) {
+                ListItem(headlineContent = { Text(stringResource(R.string.reorder_assistance)) }, supportingContent = { Text(stringResource(R.string.reorder_assistance_desc)) }, trailingContent = { Icon(Icons.Default.ShoppingCart, null) })
+            }
 
             ElevatedCard(
                 onClick = onManagePreparations,

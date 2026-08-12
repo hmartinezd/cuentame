@@ -98,10 +98,22 @@ class RoomIngredientRepository @Inject constructor(
                 if (category.restaurantId != existing.restaurantId.value) throw ValidationError.IngredientOwnershipMismatch
             }
 
+            if (command.parLevelBase != null && command.parLevelBase < BigDecimal.ZERO) {
+                throw ValidationError.InvalidPurchaseQuantity
+            }
+            if (command.reorderPointBase != null && command.reorderPointBase < BigDecimal.ZERO) {
+                throw ValidationError.InvalidPurchaseQuantity
+            }
+            if (command.parLevelBase != null && command.reorderPointBase != null &&
+                command.reorderPointBase > command.parLevelBase
+            ) throw ValidationError.InvalidPurchaseQuantity
+
             ingredientDao.update(existing.copy(
                 name = command.name,
                 normalizedName = normalizedName,
                 categoryId = command.categoryId,
+                parLevelBase = command.parLevelBase,
+                reorderPointBase = command.reorderPointBase,
                 updatedAt = timeProvider.now()
             ).toEntity())
         }
@@ -411,5 +423,10 @@ class RoomIngredientRepository @Inject constructor(
         val duplicate = ingredientDao.findByNormalizedName(ingredient.restaurantId.value, normalized)
         if (duplicate != null && duplicate.id != ingredient.id.value) throw ValidationError.DuplicateActiveName
         if (!ingredient.isActive || ingredient.deletedAt != null) throw ValidationError.ArchivedReference
+        if (ingredient.parLevelBase != null && ingredient.parLevelBase < BigDecimal.ZERO) throw ValidationError.InvalidPurchaseQuantity
+        if (ingredient.reorderPointBase != null && ingredient.reorderPointBase < BigDecimal.ZERO) throw ValidationError.InvalidPurchaseQuantity
+        if (ingredient.parLevelBase != null && ingredient.reorderPointBase != null && ingredient.reorderPointBase > ingredient.parLevelBase) {
+            throw ValidationError.InvalidPurchaseQuantity
+        }
     }
 }

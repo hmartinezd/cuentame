@@ -393,14 +393,25 @@ object BackupSnapshotIntegrityValidator {
             }
         }
 
-        // Ingredients — optional reorderPointBase
+        // Ingredients — canonical reorder configuration
         for (ing in dto.ingredients) {
+            var par: BigDecimal? = null
+            if (ing.parLevelBase != null) {
+                when (val r = parseDecimal(ing.parLevelBase, "Invalid numeric format in ingredients.parLevelBase")) {
+                    is BigDecimalResult.Err -> return err(r.code, r.msg)
+                    is BigDecimalResult.Ok -> {
+                        if (r.value < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "ingredients.parLevelBase must be >= 0")
+                        par = r.value
+                    }
+                }
+            }
             if (ing.reorderPointBase != null) {
                 val r = parseDecimal(ing.reorderPointBase, "Invalid numeric format in ingredients.reorderPointBase")
                 when (r) {
                     is BigDecimalResult.Err -> return err(r.code, r.msg)
                     is BigDecimalResult.Ok -> {
                         if (r.value < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "ingredients.reorderPointBase must be >= 0")
+                        if (par != null && r.value > par) return err(INVALID_NUMERIC_RANGE, "ingredients.reorderPointBase must be <= parLevelBase")
                     }
                 }
             }

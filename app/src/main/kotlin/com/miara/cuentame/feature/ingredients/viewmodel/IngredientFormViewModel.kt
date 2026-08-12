@@ -110,6 +110,8 @@ class IngredientFormViewModel @Inject constructor(
                             isLoading = false,
                             ingredientId = ingredient.id,
                             name = ingredient.name,
+                            parLevel = ingredient.parLevelBase?.stripTrailingZeros()?.toPlainString().orEmpty(),
+                            reorderPoint = ingredient.reorderPointBase?.stripTrailingZeros()?.toPlainString().orEmpty(),
                             selectedCategoryId = ingredient.categoryId,
                             selectedBaseUnitId = ingredient.baseUnitId,
                             selectedDimension = baseUnit?.dimension,
@@ -136,6 +138,9 @@ class IngredientFormViewModel @Inject constructor(
     fun onNameChanged(name: String) {
         _uiState.update { it.copy(name = name, fieldErrors = it.fieldErrors - "name") }
     }
+
+    fun onParLevelChanged(value: String) = _uiState.update { it.copy(parLevel = value, fieldErrors = it.fieldErrors - "par") }
+    fun onReorderPointChanged(value: String) = _uiState.update { it.copy(reorderPoint = value, fieldErrors = it.fieldErrors - "reorderPoint") }
 
     fun onCategorySelected(categoryId: IngredientCategoryId?) {
         _uiState.update { it.copy(selectedCategoryId = categoryId) }
@@ -232,6 +237,11 @@ class IngredientFormViewModel @Inject constructor(
         
         val errors = mutableMapOf<String, Int>()
         if (state.name.isBlank()) errors["name"] = R.string.error_name_empty
+        val par = state.parLevel.takeIf(String::isNotBlank)?.toBigDecimalOrNull()
+        val point = state.reorderPoint.takeIf(String::isNotBlank)?.toBigDecimalOrNull()
+        if (state.parLevel.isNotBlank() && (par == null || par < BigDecimal.ZERO)) errors["par"] = R.string.reorder_nonnegative_error
+        if (state.reorderPoint.isNotBlank() && (point == null || point < BigDecimal.ZERO)) errors["reorderPoint"] = R.string.reorder_nonnegative_error
+        if (par != null && point != null && point > par) errors["reorderPoint"] = R.string.reorder_point_above_par_error
         
         if (state.ingredientId == null) {
             if (state.selectedDimension == null) errors["dimension"] = R.string.error_generic // Should specify
@@ -290,6 +300,8 @@ class IngredientFormViewModel @Inject constructor(
             normalizedName = "",
             categoryId = state.selectedCategoryId,
             baseUnitId = state.selectedBaseUnitId!!,
+            parLevelBase = state.parLevel.takeIf(String::isNotBlank)?.let(::BigDecimal),
+            reorderPointBase = state.reorderPoint.takeIf(String::isNotBlank)?.let(::BigDecimal),
             isActive = true,
             createdAt = now,
             updatedAt = now
@@ -339,6 +351,8 @@ class IngredientFormViewModel @Inject constructor(
                 ingredientId = ingredientId,
                 name = state.name,
                 categoryId = state.selectedCategoryId
+                ,parLevelBase = state.parLevel.takeIf(String::isNotBlank)?.let(::BigDecimal)
+                ,reorderPointBase = state.reorderPoint.takeIf(String::isNotBlank)?.let(::BigDecimal)
             )
         )
     }

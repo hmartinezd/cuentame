@@ -14,7 +14,9 @@ import java.time.Instant
 data class UpdateIngredientCommand(
     val ingredientId: IngredientId,
     val name: String,
-    val categoryId: IngredientCategoryId?
+    val categoryId: IngredientCategoryId?,
+    val parLevelBase: BigDecimal? = null,
+    val reorderPointBase: BigDecimal? = null
 )
 
 data class AddStandardUnitOptionCommand(

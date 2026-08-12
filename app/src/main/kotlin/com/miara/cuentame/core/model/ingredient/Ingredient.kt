@@ -22,5 +22,6 @@ data class Ingredient(
     val isActive: Boolean,
     val createdAt: Instant,
     val updatedAt: Instant,
-    val deletedAt: Instant? = null
+    val deletedAt: Instant? = null,
+    val parLevelBase: BigDecimal? = null
 )

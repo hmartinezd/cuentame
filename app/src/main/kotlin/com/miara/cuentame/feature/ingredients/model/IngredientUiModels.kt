@@ -27,6 +27,8 @@ data class IngredientFormUiState(
     val isSubmitting: Boolean = false,
     val ingredientId: IngredientId? = null, // null for create
     val name: String = "",
+    val parLevel: String = "",
+    val reorderPoint: String = "",
     val selectedCategoryId: IngredientCategoryId? = null,
     val selectedDimension: UnitDimension? = null,
     val selectedBaseUnitId: UnitId? = null,

@@ -7,7 +7,7 @@ object BackupFormatV1Contract {
     const val BACKUP_FORMAT_VERSION = 1
     val DATABASE_SCHEMA_VERSION = DatabaseSchema.VERSION
 
-    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -144,7 +144,7 @@ object BackupFormatV1Contract {
                 "purchase_invoice_draft_applications",
                 "purchase_invoice_line_origins"
             )
-            11 -> expectedTablesForSchema(10) + "stock_count_item_order"
+            11, 12 -> expectedTablesForSchema(10) + "stock_count_item_order"
             else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }
     }

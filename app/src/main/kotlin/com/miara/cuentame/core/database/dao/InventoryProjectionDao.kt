@@ -30,6 +30,9 @@ interface InventoryProjectionDao {
     @Query("SELECT * FROM inventory_balance_projection")
     fun observeAllBalances(): Flow<List<InventoryBalanceProjectionEntity>>
 
+    @Query("SELECT * FROM inventory_balance_projection WHERE restaurantId = :restaurantId")
+    fun observeBalancesForRestaurant(restaurantId: String): Flow<List<InventoryBalanceProjectionEntity>>
+
     @Query("SELECT * FROM inventory_balance_projection WHERE ingredientId = :ingredientId")
     fun observeBalancesForIngredient(ingredientId: String): Flow<List<InventoryBalanceProjectionEntity>>
 

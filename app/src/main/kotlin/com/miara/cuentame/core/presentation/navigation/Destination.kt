@@ -32,6 +32,7 @@ enum class Destination(val route: String) {
     
     INGREDIENT_CREATE("inventory/create?prefillName={prefillName}"),
     INGREDIENT_IMPORT("inventory/import"),
+    REORDER_ASSISTANCE("inventory/reorder"),
     INGREDIENT_DETAIL("inventory/{ingredientId}"),
     INGREDIENT_PRICE_HISTORY("inventory/{ingredientId}/prices"),
     INGREDIENT_EDIT("inventory/{ingredientId}/edit"),

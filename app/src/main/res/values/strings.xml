@@ -1094,4 +1094,25 @@
     <string name="menu_error_unit_inactive">This unit is no longer available. Choose another unit.</string>
     <string name="menu_error_ownership">This menu item could not be updated. Refresh and try again.</string>
     <string name="menu_error_save_failed">Could not save changes. Try again.</string>
+    <string name="reorder_assistance">Reorder assistance</string>
+    <string name="reorder_assistance_desc">See what to buy, package quantities, and suppliers</string>
+    <string name="reorder_configuration">Reorder configuration</string>
+    <string name="par_level">Par level (base unit)</string>
+    <string name="reorder_point_optional">Reorder point (optional)</string>
+    <string name="reorder_nonnegative_error">Enter zero or a positive quantity.</string>
+    <string name="reorder_point_above_par_error">Reorder point cannot exceed par.</string>
+    <string name="needs_reorder">Needs reorder</string>
+    <string name="all_configured">Configured</string>
+    <string name="missing_setup">Missing setup</string>
+    <string name="nothing_to_reorder">Nothing needs reordering.</string>
+    <string name="no_supplier_assigned">No supplier assigned</string>
+    <string name="par_not_configured">Par not configured</string>
+    <string name="purchase_unit_not_configured">Purchase unit not configured</string>
+    <string name="ambiguous_supplier">Multiple suppliers are mapped; choose one by updating mappings.</string>
+    <string name="reorder_current_par">Current: %1$s %2$s · Par: %3$s %4$s</string>
+    <string name="reorder_needed">Needed: %1$s %2$s</string>
+    <string name="reorder_suggested">Suggested: %1$s %2$s · Covers %3$s %4$s</string>
+    <string name="supplier_sku">Supplier SKU: %1$s</string>
+    <string name="export_csv">CSV</string>
+    <string name="reorder_share">Share</string>
 </resources>
