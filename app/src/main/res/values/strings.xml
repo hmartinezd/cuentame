@@ -1063,4 +1063,16 @@
     <string name="menu_remove_component">Remove component</string>
     <string name="menu_choose_ingredient">Choose ingredient</string>
     <string name="menu_quantity">Quantity</string>
+    <string name="menu_choose_unit">Choose unit</string>
+    <string name="menu_error_name_required">Menu item name is required.</string>
+    <string name="menu_error_price_malformed">Enter a valid selling price or leave it blank.</string>
+    <string name="menu_error_price_negative">Selling price cannot be negative.</string>
+    <string name="menu_error_duplicate_name">A menu item with this name already exists.</string>
+    <string name="menu_error_duplicate_component">This ingredient is already part of this menu item.</string>
+    <string name="menu_error_invalid_quantity">Quantity must be greater than zero.</string>
+    <string name="menu_error_unit_required">Choose a unit.</string>
+    <string name="menu_error_unit_mismatch">Selected unit is not valid for this ingredient.</string>
+    <string name="menu_error_unit_inactive">This unit is no longer available. Choose another unit.</string>
+    <string name="menu_error_ownership">This menu item could not be updated. Refresh and try again.</string>
+    <string name="menu_error_save_failed">Could not save changes. Try again.</string>
 </resources>

@@ -1064,4 +1064,16 @@
     <string name="menu_remove_component">Quitar componente</string>
     <string name="menu_choose_ingredient">Elegir ingrediente</string>
     <string name="menu_quantity">Cantidad</string>
+    <string name="menu_choose_unit">Elegir unidad</string>
+    <string name="menu_error_name_required">El nombre del plato es obligatorio.</string>
+    <string name="menu_error_price_malformed">Ingresa un precio de venta válido o déjalo en blanco.</string>
+    <string name="menu_error_price_negative">El precio de venta no puede ser negativo.</string>
+    <string name="menu_error_duplicate_name">Ya existe un plato del menú con este nombre.</string>
+    <string name="menu_error_duplicate_component">Este ingrediente ya forma parte de este plato.</string>
+    <string name="menu_error_invalid_quantity">La cantidad debe ser mayor que cero.</string>
+    <string name="menu_error_unit_required">Elige una unidad.</string>
+    <string name="menu_error_unit_mismatch">La unidad seleccionada no es válida para este ingrediente.</string>
+    <string name="menu_error_unit_inactive">Esta unidad ya no está disponible. Elige otra unidad.</string>
+    <string name="menu_error_ownership">No se pudo actualizar este plato. Actualiza e inténtalo de nuevo.</string>
+    <string name="menu_error_save_failed">No se pudieron guardar los cambios. Inténtalo de nuevo.</string>
 </resources>

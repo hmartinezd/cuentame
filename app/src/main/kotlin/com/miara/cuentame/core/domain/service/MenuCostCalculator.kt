@@ -49,7 +49,9 @@ class MenuCostCalculator @Inject constructor() {
 
     private fun prepared(c: MenuCostComponentInput, i: MenuCostIngredientInput?, p: PreparationRecipeCost): MenuRecipeComponentCost {
         val yield = p.standardYieldQuantityBase?.takeIf { it > BigDecimal.ZERO }
-        val impact = yield?.let { p.priceImpact.knownSubtotal.multiply(c.quantityBase.divide(it, MathContext.DECIMAL128)) }
+        val impact = if (yield != null && p.priceImpact.coveredLeafCount > 0) {
+            p.priceImpact.knownSubtotal.multiply(c.quantityBase.divide(yield, MathContext.DECIMAL128), MathContext.DECIMAL128)
+        } else null
         val reason = when {
             p.components.any { it.missingReason == PreparationCostMissingReason.RECIPE_DEPENDENCY_CYCLE } -> MenuRecipeCostMissingReason.PREPARATION_DEPENDENCY_CYCLE
             p.status == PreparationCostStatus.PARTIALLY_COSTED -> MenuRecipeCostMissingReason.ACTIVE_PREPARATION_PARTIAL

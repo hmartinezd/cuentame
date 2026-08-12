@@ -32,10 +32,14 @@ class RoomMenuRecipeRepository @Inject constructor(private val db: RestaurantInv
     override suspend fun saveComponent(recipeId: MenuRecipeId, componentId: MenuRecipeComponentId?, ingredientId: IngredientId, optionId: IngredientUnitOptionId, quantityEntered: BigDecimal, sortOrder: Int): MenuRecipeComponentId = db.withTransaction {
         if(quantityEntered<=BigDecimal.ZERO) throw MenuRecipeValidationException.InvalidQuantity()
         val recipe=dao.getRecipe(recipeId.value) ?: throw MenuRecipeValidationException.OwnershipMismatch()
-        val ingredient=ingredientDao.getById(ingredientId.value); val option=optionDao.getById(optionId.value)
-        if(ingredient?.restaurantId!=recipe.restaurantId || option?.ingredientId!=ingredientId.value || !option.isActive || option.deletedAt!=null) throw MenuRecipeValidationException.OwnershipMismatch()
+        val ingredient=ingredientDao.getById(ingredientId.value)
+        if(ingredient?.restaurantId!=recipe.restaurantId) throw MenuRecipeValidationException.OwnershipMismatch()
+        val option=optionDao.getById(optionId.value) ?: throw MenuRecipeValidationException.UnitOptionMismatch()
+        if(option.ingredientId!=ingredientId.value) throw MenuRecipeValidationException.UnitOptionMismatch()
+        if(!option.isActive || option.deletedAt!=null) throw MenuRecipeValidationException.InactiveUnitOption()
         val id=componentId ?: MenuRecipeComponentId(UUID.randomUUID().toString()); val old=componentId?.let { dao.getComponent(it.value) }
         if(old!=null && old.menuRecipeId!=recipeId.value) throw MenuRecipeValidationException.OwnershipMismatch()
+        if(dao.componentCount(recipeId.value,ingredientId.value,id.value)>0) throw MenuRecipeValidationException.DuplicateComponent()
         val now=System.currentTimeMillis(); dao.upsertComponent(MenuRecipeComponentEntity(id.value,recipeId.value,ingredientId.value,optionId.value,quantityEntered,
             quantityEntered.multiply(option.factorToBase),sortOrder,old?.createdAt?:now,now)); id
     }

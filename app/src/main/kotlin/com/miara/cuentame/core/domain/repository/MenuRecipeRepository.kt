@@ -9,7 +9,10 @@ sealed class MenuRecipeValidationException(message: String) : IllegalArgumentExc
     class InvalidName : MenuRecipeValidationException("Menu item name is required")
     class InvalidSellingPrice : MenuRecipeValidationException("Selling price cannot be negative")
     class DuplicateName : MenuRecipeValidationException("An active menu item already uses this name")
+    class DuplicateComponent : MenuRecipeValidationException("This ingredient is already part of this menu item")
     class InvalidQuantity : MenuRecipeValidationException("Quantity must be greater than zero")
+    class UnitOptionMismatch : MenuRecipeValidationException("Selected unit does not belong to this ingredient")
+    class InactiveUnitOption : MenuRecipeValidationException("Selected unit is no longer active")
     class OwnershipMismatch : MenuRecipeValidationException("Menu item, ingredient, and unit option must belong together")
 }
 interface MenuRecipeRepository {

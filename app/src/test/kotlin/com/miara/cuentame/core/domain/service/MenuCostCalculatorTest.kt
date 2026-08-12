@@ -42,4 +42,21 @@ class MenuCostCalculatorTest {
         val result=calculator.calculate(recipe,null,listOf(component("1","prepared","1")),mapOf(ingredient("prepared",CurrentIngredientCost.Available(BigDecimal("99")))),mapOf(IngredientId("prepared") to prep),"USD")
         assertNull(result.currentPlateCost); assertEquals(MenuRecipeCostMissingReason.ACTIVE_PREPARATION_PARTIAL,result.components.single().missingReason)
     }
+    private fun preparedImpact(known:String,covered:Int,total:Int,yield:BigDecimal?=BigDecimal.TEN)=PreparationRecipeCost(PreparationRecipeId("prep"),PreparationCostStatus.FULLY_COSTED,1,1,0,BigDecimal.TEN,BigDecimal.TEN,yield,"u",null,BigDecimal.ONE,"u",emptySet(),emptyList(),PreparationPriceImpact(BigDecimal(known),covered,total),standardYieldQuantityBase=yield)
+    @Test fun `prepared impact with no covered leaves is unknown not zero`() {
+        val result=calculator.calculate(recipe,null,listOf(component("1","p","5")),mapOf(ingredient("p",CurrentIngredientCost.Available(BigDecimal.ONE))),mapOf(IngredientId("p") to preparedImpact("0",0,3)),"USD")
+        val c=result.components.single();assertNull(c.vendorPriceImpact);assertEquals(0,c.impactCoveredLeafCount);assertEquals(3,c.impactTotalLeafCount);assertFalse(result.priceImpact.isComplete)
+    }
+    @Test fun `covered prepared zero impact remains known zero`() {
+        val result=calculator.calculate(recipe,null,listOf(component("1","p","5")),mapOf(ingredient("p",CurrentIngredientCost.Available(BigDecimal.ONE))),mapOf(IngredientId("p") to preparedImpact("0",3,3)),"USD")
+        assertEquals(0,result.components.single().vendorPriceImpact!!.compareTo(BigDecimal.ZERO));assertTrue(result.priceImpact.isComplete)
+    }
+    @Test fun `partial prepared impact scales known subtotal and preserves coverage`() {
+        val result=calculator.calculate(recipe,null,listOf(component("1","p","5")),mapOf(ingredient("p",CurrentIngredientCost.Available(BigDecimal.ONE))),mapOf(IngredientId("p") to preparedImpact("6",2,3)),"USD")
+        val c=result.components.single();assertEquals(0,c.vendorPriceImpact!!.compareTo(BigDecimal("3")));assertEquals(2,c.impactCoveredLeafCount);assertEquals(3,c.impactTotalLeafCount);assertFalse(result.priceImpact.isComplete)
+    }
+    @Test fun `invalid prepared base yield makes impact unknown`() {
+        val result=calculator.calculate(recipe,null,listOf(component("1","p","5")),mapOf(ingredient("p",CurrentIngredientCost.Available(BigDecimal.ONE))),mapOf(IngredientId("p") to preparedImpact("6",3,3,BigDecimal.ZERO)),"USD")
+        assertNull(result.components.single().vendorPriceImpact);assertFalse(result.priceImpact.isComplete)
+    }
 }
