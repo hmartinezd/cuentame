@@ -40,6 +40,7 @@ class StockCountDetailViewModelTest {
         override fun observeCounts(filter: StockCountFilter) = flowOf(emptyList<StockCountSummary>())
         override fun observeCount(id: StockCountId) = detailsFlow
         override fun observeCountArea(id: StockCountAreaId) = flowOf(null)
+        override fun observeHasCompletedCount(restaurantId: RestaurantId) = flowOf(false)
         override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId) = emptySet<IngredientId>()
         override suspend fun getDraftAreaIds(restaurantId: RestaurantId) = emptySet<InventoryAreaId>()
         override suspend fun getItemOrder(areaId: InventoryAreaId) = emptyList<IngredientId>()

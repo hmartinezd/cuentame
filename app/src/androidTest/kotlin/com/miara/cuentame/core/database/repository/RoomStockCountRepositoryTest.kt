@@ -227,6 +227,47 @@ class RoomStockCountRepositoryTest {
         assertThat(repository.getItemOrder(areaId)).isEmpty()
     }
 
+    @Test
+    fun observeHasCompletedCount_correctlyIdentifiesStatusAndIsolation() = runBlocking {
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val secondRestId = RestaurantId("second-rest")
+        
+        // 1. Initially false
+        assertThat(repository.observeHasCompletedCount(restId).first()).isFalse()
+
+        // 2. Draft count -> Still false
+        val draftId = repository.start(StartStockCountCommand(restId, "Draft", Instant.now(), listOf(areaId), null))
+        assertThat(repository.observeHasCompletedCount(restId).first()).isFalse()
+
+        // 3. Completed count -> True
+        val details = repository.observeCount(draftId).first()!!
+        val countAreaId = details.areas.first().area.id
+        repository.saveLine(SaveStockCountLineCommand(draftId, countAreaId, null, IngredientId(TestSeeder.ING_ID), IngredientUnitOptionId(TestSeeder.OPTION_ID), BigDecimal("10"), null))
+        repository.completeArea(draftId, countAreaId)
+        repository.completeCount(draftId)
+        assertThat(repository.observeHasCompletedCount(restId).first()).isTrue()
+
+        // 4. Voided count only? 
+        // If we void the ONLY completed count, it should ideally still be false for "initial count completed" 
+        // if we define it as "has at least one COMPLETED count". 
+        // The requirement said: "A COMPLETED stock count is sufficient. DRAFT and VOIDED counts do not qualify."
+        repository.voidCount(draftId)
+        assertThat(repository.observeHasCompletedCount(restId).first()).isFalse()
+
+        // 5. Old completed count -> True
+        // Re-start and complete another one.
+        val secondCountId = repository.start(StartStockCountCommand(restId, "Second", Instant.now(), listOf(areaId), null))
+        val secondDetails = repository.observeCount(secondCountId).first()!!
+        val secondCountAreaId = secondDetails.areas.first().area.id
+        repository.saveLine(SaveStockCountLineCommand(secondCountId, secondCountAreaId, null, IngredientId(TestSeeder.ING_ID), IngredientUnitOptionId(TestSeeder.OPTION_ID), BigDecimal("20"), null))
+        repository.completeArea(secondCountId, secondCountAreaId)
+        repository.completeCount(secondCountId)
+        assertThat(repository.observeHasCompletedCount(restId).first()).isTrue()
+
+        // 6. Isolation -> Second restaurant still false
+        assertThat(repository.observeHasCompletedCount(secondRestId).first()).isFalse()
+    }
+
     private fun assertBigDecimalEquivalent(actual: String, expected: String) {
         assertThat(BigDecimal(actual).compareTo(BigDecimal(expected))).isEqualTo(0)
     }

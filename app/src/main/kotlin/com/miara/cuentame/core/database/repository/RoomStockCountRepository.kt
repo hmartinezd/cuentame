@@ -182,6 +182,10 @@ class RoomStockCountRepository @Inject constructor(
         }
     }
 
+    override fun observeHasCompletedCount(restaurantId: RestaurantId): Flow<Boolean> {
+        return countDao.observeHasCompletedCount(restaurantId.value)
+    }
+
     override suspend fun getCountedIngredientIds(countId: StockCountId, areaId: InventoryAreaId): Set<IngredientId> {
         val areas = countDao.getAreasForCount(countId.value)
         val countArea = areas.find { it.areaId == areaId.value } ?: return emptySet()

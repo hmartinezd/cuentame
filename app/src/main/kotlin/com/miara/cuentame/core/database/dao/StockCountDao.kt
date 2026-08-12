@@ -129,6 +129,15 @@ interface StockCountDao {
     @Query("SELECT * FROM stock_counts WHERE id = :id")
     fun observeCountById(id: String): Flow<StockCountEntity?>
 
+    @Query("""
+        SELECT EXISTS(
+            SELECT 1 FROM stock_counts
+            WHERE restaurantId = :restaurantId
+            AND status = 'COMPLETED'
+        )
+    """)
+    fun observeHasCompletedCount(restaurantId: String): Flow<Boolean>
+
     @Query("SELECT * FROM stock_count_areas WHERE stockCountId = :countId ORDER BY sortOrder ASC")
     suspend fun getAreasForCount(countId: String): List<StockCountAreaEntity>
 

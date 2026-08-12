@@ -81,6 +81,7 @@ interface StockCountRepository {
     fun observeCounts(filter: StockCountFilter): Flow<List<StockCountSummary>>
     fun observeCount(id: StockCountId): Flow<StockCountDetails?>
     fun observeCountArea(id: StockCountAreaId): Flow<StockCountAreaDetails?>
+    fun observeHasCompletedCount(restaurantId: RestaurantId): Flow<Boolean>
     
     suspend fun getCountedIngredientIds(
         countId: StockCountId,

@@ -3,9 +3,17 @@ package com.miara.cuentame.feature.home
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.ids.IngredientId
+import com.miara.cuentame.core.common.ids.InventoryAreaId
+import com.miara.cuentame.core.common.ids.UnitId
 import com.miara.cuentame.core.domain.repository.DashboardRepository
+import com.miara.cuentame.core.domain.repository.IngredientRepository
+import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.model.dashboard.*
+import com.miara.cuentame.core.model.ingredient.Ingredient
+import com.miara.cuentame.core.model.inventory.InventoryArea
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
 import io.mockk.every
@@ -27,6 +35,9 @@ class HomeViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val dashboardRepository = mockk<DashboardRepository>()
+    private val ingredientRepository = mockk<IngredientRepository>()
+    private val inventoryAreaRepository = mockk<InventoryAreaRepository>()
+    private val stockCountRepository = mockk<StockCountRepository>()
     
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
     private val restaurantId = RestaurantId("rest-1")
@@ -36,6 +47,9 @@ class HomeViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { restaurantRepository.observeRestaurant() } returns restaurantFlow
+        every { ingredientRepository.observeIngredients(any(), any()) } returns flowOf(emptyList())
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(emptyList())
+        every { stockCountRepository.observeHasCompletedCount(any()) } returns flowOf(false)
     }
 
     @After
@@ -46,7 +60,13 @@ class HomeViewModelTest {
     @Test
     fun `initial state sequence`() = runTest {
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(createEmptySnapshot())
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             assertThat(awaitItem()).isEqualTo(HomeScreenState.Loading)
             
@@ -74,7 +94,13 @@ class HomeViewModelTest {
             throw RuntimeException("Fail")
         }
 
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -96,7 +122,13 @@ class HomeViewModelTest {
             else flowOf(createEmptySnapshot())
         }
 
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -118,7 +150,13 @@ class HomeViewModelTest {
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(
             createEmptySnapshot().copy(inventory = InventoryValuationSummary(BigDecimal.ZERO, 0, 0, 0))
         )
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             var item = awaitItem()
             while (item !is HomeScreenState.Ready) item = awaitItem()
@@ -148,7 +186,13 @@ class HomeViewModelTest {
         )
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
         
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             var item = awaitItem()
             while (item !is HomeScreenState.Ready) item = awaitItem()
@@ -166,7 +210,13 @@ class HomeViewModelTest {
         )
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(snapshot)
         
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             var item = awaitItem()
             while (item !is HomeScreenState.Ready) item = awaitItem()
@@ -180,7 +230,13 @@ class HomeViewModelTest {
         val flow1 = MutableSharedFlow<DashboardSnapshot>(replay = 1)
         every { dashboardRepository.observeDashboard(RestaurantId("rest-1"), any()) } returns flow1
         
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -214,7 +270,13 @@ class HomeViewModelTest {
         every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_30_DAYS) } returns flow30
         every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_7_DAYS) } returns flow7
 
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -251,7 +313,13 @@ class HomeViewModelTest {
         every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_7_DAYS) } returns flow7
         every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_90_DAYS) } returns flow90
 
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -283,7 +351,13 @@ class HomeViewModelTest {
         restaurantFlow.value = restaurant
         every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(createEmptySnapshot())
         
-        val viewModel = HomeViewModel(restaurantRepository, dashboardRepository)
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -298,6 +372,108 @@ class HomeViewModelTest {
             verify(exactly = 1) { dashboardRepository.observeDashboard(any(), any()) }
         }
     }
+
+    @Test
+    fun `dashboard range selection must NOT affect setup readiness`() = runTest {
+        restaurantFlow.value = restaurant
+        
+        // Given: setup dependencies indicate readiness
+        every { stockCountRepository.observeHasCompletedCount(restaurantId) } returns flowOf(true)
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(createArea("area-1")))
+        every { ingredientRepository.observeIngredients(restaurantId, false) } returns flowOf(listOf(createIngredient("ing-1", "area-1")))
+        
+        // Snapshot 30 has 1 count
+        val snapshot30 = createEmptySnapshot().copy(completedCountCount = 1)
+        // Snapshot 7 has 0 counts
+        val snapshot7 = createEmptySnapshot().copy(completedCountCount = 0)
+        
+        every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_30_DAYS) } returns flowOf(snapshot30)
+        every { dashboardRepository.observeDashboard(restaurantId, DashboardDateRange.LAST_7_DAYS) } returns flowOf(snapshot7)
+
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
+        
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            
+            // Should be ready on 30-day view
+            assertThat(item.setup.hasCompletedInitialCount).isTrue()
+            assertThat(item.setup.coreReady).isTrue()
+            
+            // Switch to 7-day view (where snapshot.completedCountCount is 0)
+            viewModel.onRangeSelected(DashboardDateRange.LAST_7_DAYS)
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            var nextItem = awaitItem()
+            while (nextItem is HomeScreenState.Ready && nextItem.isRefreshing) nextItem = awaitItem()
+            val ready7 = nextItem as HomeScreenState.Ready
+            
+            // Still ready because hasCompletedInitialCount comes from StockCountRepository
+            assertThat(ready7.setup.hasCompletedInitialCount).isTrue()
+            assertThat(ready7.setup.coreReady).isTrue()
+            
+            // But dashboard metric should reflect snapshot
+            assertThat(ready7.dashboard.completedCountCount).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun `ingredient with archived default area is considered unassigned`() = runTest {
+        restaurantFlow.value = restaurant
+        
+        val activeArea = createArea("active-area")
+        val ingredientWithArchivedArea = createIngredient("ing-1", "archived-area")
+        
+        every { stockCountRepository.observeHasCompletedCount(restaurantId) } returns flowOf(true)
+        every { inventoryAreaRepository.observeActiveAreas() } returns flowOf(listOf(activeArea))
+        every { ingredientRepository.observeIngredients(restaurantId, false) } returns flowOf(listOf(ingredientWithArchivedArea))
+        every { dashboardRepository.observeDashboard(any(), any()) } returns flowOf(createEmptySnapshot())
+
+        val viewModel = HomeViewModel(
+            restaurantRepository,
+            dashboardRepository,
+            ingredientRepository,
+            inventoryAreaRepository,
+            stockCountRepository
+        )
+        
+        viewModel.uiState.test {
+            var item = awaitItem()
+            while (item !is HomeScreenState.Ready) item = awaitItem()
+            
+            assertThat(item.setup.unassignedIngredientIds).containsExactly(IngredientId("ing-1"))
+            assertThat(item.setup.coreReady).isFalse()
+        }
+    }
+
+    private fun createArea(id: String) = InventoryArea(
+        id = InventoryAreaId(id),
+        restaurantId = restaurantId,
+        name = "Area $id",
+        normalizedName = "area $id",
+        sortOrder = 0,
+        isActive = true,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH
+    )
+
+    private fun createIngredient(id: String, areaId: String?) = Ingredient(
+        id = IngredientId(id),
+        restaurantId = restaurantId,
+        name = "Ingredient $id",
+        normalizedName = "ingredient $id",
+        baseUnitId = UnitId("kg"),
+        defaultAreaId = areaId?.let(::InventoryAreaId),
+        isActive = true,
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH
+    )
 
     private fun createEmptySnapshot() = DashboardSnapshot(
         inventory = InventoryValuationSummary(BigDecimal.ZERO, 0, 0, 0),

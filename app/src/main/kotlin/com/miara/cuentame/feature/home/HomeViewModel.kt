@@ -7,6 +7,7 @@ import com.miara.cuentame.core.domain.repository.DashboardRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.InventoryAreaRepository
+import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.model.dashboard.*
 import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
@@ -45,7 +46,8 @@ class HomeViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
     private val dashboardRepository: DashboardRepository,
     private val ingredientRepository: IngredientRepository = EmptyIngredientRepository,
-    private val inventoryAreaRepository: InventoryAreaRepository = EmptyAreaRepository
+    private val inventoryAreaRepository: InventoryAreaRepository = EmptyAreaRepository,
+    private val stockCountRepository: StockCountRepository = EmptyStockCountRepository
 ) : ViewModel() {
 
     private val _selectedRange = MutableStateFlow(DashboardDateRange.LAST_30_DAYS)
@@ -66,8 +68,10 @@ class HomeViewModel @Inject constructor(
             combine(
                 dashboardRepository.observeDashboard(restaurant.id, range),
                 ingredientRepository.observeIngredients(restaurant.id, false),
-                inventoryAreaRepository.observeActiveAreas()
-            ) { snapshot, ingredients, areas ->
+                inventoryAreaRepository.observeActiveAreas(),
+                stockCountRepository.observeHasCompletedCount(restaurant.id)
+            ) { snapshot, ingredients, areas, hasCompletedCount ->
+                    val activeAreaIds = areas.map { it.id }.toSet()
                     HomeScreenState.Ready(
                         restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
@@ -80,8 +84,10 @@ class HomeViewModel @Inject constructor(
                             areas = areas,
                             ingredientCount = ingredients.size,
                             invalidUnitCount = snapshot.activeIngredientsMissingOptionsCount,
-                            unassignedIngredientIds = ingredients.filter { it.defaultAreaId == null }.map { it.id },
-                            hasCompletedInitialCount = snapshot.completedCountCount > 0
+                            unassignedIngredientIds = ingredients
+                                .filter { it.defaultAreaId == null || it.defaultAreaId !in activeAreaIds }
+                                .map { it.id },
+                            hasCompletedInitialCount = hasCompletedCount
                         )
                     ) as HomeScreenState
                 }
@@ -199,4 +205,26 @@ private object EmptyAreaRepository : InventoryAreaRepository {
     override suspend fun save(area: com.miara.cuentame.core.model.inventory.InventoryArea) = Unit
     override suspend fun archive(id: InventoryAreaId, at: java.time.Instant) = Unit
     override suspend fun reorder(ids: List<InventoryAreaId>) = Unit
+}
+
+private object EmptyStockCountRepository : StockCountRepository {
+    override fun observeCounts(filter: com.miara.cuentame.core.domain.repository.StockCountFilter) = flowOf(emptyList<com.miara.cuentame.core.domain.repository.StockCountSummary>())
+    override fun observeCount(id: com.miara.cuentame.core.common.ids.StockCountId) = flowOf<com.miara.cuentame.core.domain.repository.StockCountDetails?>(null)
+    override fun observeCountArea(id: com.miara.cuentame.core.common.ids.StockCountAreaId) = flowOf<com.miara.cuentame.core.domain.repository.StockCountAreaDetails?>(null)
+    override fun observeHasCompletedCount(restaurantId: RestaurantId) = flowOf(false)
+    override suspend fun getCountedIngredientIds(countId: com.miara.cuentame.core.common.ids.StockCountId, areaId: InventoryAreaId) = emptySet<com.miara.cuentame.core.common.ids.IngredientId>()
+    override suspend fun getDraftAreaIds(restaurantId: RestaurantId) = emptySet<InventoryAreaId>()
+    override suspend fun getItemOrder(areaId: InventoryAreaId) = emptyList<com.miara.cuentame.core.common.ids.IngredientId>()
+    override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<com.miara.cuentame.core.common.ids.IngredientId>) = Unit
+    override suspend fun start(command: com.miara.cuentame.core.domain.repository.StartStockCountCommand) = com.miara.cuentame.core.common.ids.StockCountId("")
+    override suspend fun updateDraft(command: com.miara.cuentame.core.domain.repository.UpdateStockCountDraftCommand) = Unit
+    override suspend fun saveLine(command: com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand): com.miara.cuentame.core.model.count.StockCountLine = throw UnsupportedOperationException()
+    override suspend fun deleteLine(countId: com.miara.cuentame.core.common.ids.StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) = Unit
+    override suspend fun completeArea(countId: com.miara.cuentame.core.common.ids.StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId) = Unit
+    override suspend fun reopenArea(countId: com.miara.cuentame.core.common.ids.StockCountId, countAreaId: com.miara.cuentame.core.common.ids.StockCountAreaId) = Unit
+    override suspend fun deleteDraft(countId: com.miara.cuentame.core.common.ids.StockCountId) = Unit
+    override suspend fun completeCount(countId: com.miara.cuentame.core.common.ids.StockCountId) = Unit
+    override suspend fun findDrift(countId: com.miara.cuentame.core.common.ids.StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountDriftItem>()
+    override suspend fun reconfirmLine(countId: com.miara.cuentame.core.common.ids.StockCountId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) = Unit
+    override suspend fun voidCount(countId: com.miara.cuentame.core.common.ids.StockCountId) = Unit
 }
