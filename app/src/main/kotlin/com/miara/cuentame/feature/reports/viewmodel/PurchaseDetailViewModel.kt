@@ -8,9 +8,11 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.service.ReportingPeriodCalculator
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import com.miara.cuentame.core.model.dashboard.PurchaseDetailReport
+import com.miara.cuentame.feature.reports.export.PurchaseCsvExport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,6 +32,11 @@ class PurchaseDetailViewModel @Inject constructor(
     val selectedRange: StateFlow<DashboardDateRange> = _selectedRange.asStateFlow()
 
     private val _retryTrigger = MutableStateFlow(0)
+
+    private val _exportTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val exportFlow: Flow<String> = _exportTrigger.asSharedFlow()
+
+    private var isExporting = false
 
     val uiState: StateFlow<DetailReportScreenState<PurchaseDetailReport>> = combine(
         restaurantRepository.observeRestaurant(),
@@ -83,5 +90,22 @@ class PurchaseDetailViewModel @Inject constructor(
 
     fun onRetry() {
         _retryTrigger.value++
+    }
+
+    fun onExportRequested() {
+        val state = uiState.value
+        if (state is DetailReportScreenState.Ready && !isExporting) {
+            isExporting = true
+            viewModelScope.launch {
+                try {
+                    val period = periodCalculator.calculatePeriods(state.selectedRange!!).current
+                    val rows = detailedReportsRepository.observePurchaseExportRows(state.restaurantId, period).first()
+                    val csv = PurchaseCsvExport.generate(rows)
+                    _exportTrigger.emit(csv)
+                } finally {
+                    isExporting = false
+                }
+            }
+        }
     }
 }

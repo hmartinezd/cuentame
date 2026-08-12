@@ -5,11 +5,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -19,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.common.util.ShareHelper
 import com.miara.cuentame.core.designsystem.util.Formatters
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import com.miara.cuentame.core.model.dashboard.PurchaseDetailItem
@@ -45,12 +49,21 @@ fun PurchaseDetailRoute(
     viewModel: PurchaseDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val exportTitle = stringResource(R.string.export_purchases)
+
+    LaunchedEffect(Unit) {
+        viewModel.exportFlow.collect { csv ->
+            ShareHelper.shareCsv(context, "purchase_export.csv", csv, exportTitle)
+        }
+    }
 
     PurchaseDetailScreen(
         uiState = uiState,
         onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
+        onExport = viewModel::onExportRequested,
         modifier = modifier
     )
 }
@@ -62,6 +75,7 @@ fun PurchaseDetailScreen(
     onBack: () -> Unit,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -72,6 +86,13 @@ fun PurchaseDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag("reports_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    if (uiState is DetailReportScreenState.Ready) {
+                        IconButton(onClick = onExport, modifier = Modifier.testTag("purchase_export_button")) {
+                            Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_csv))
+                        }
                     }
                 }
             )

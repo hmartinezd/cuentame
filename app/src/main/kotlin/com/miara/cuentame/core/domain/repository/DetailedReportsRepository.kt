@@ -21,4 +21,23 @@ interface DetailedReportsRepository {
         restaurantId: RestaurantId,
         period: ReportingPeriod
     ): Flow<WasteDetailReport>
+
+    fun observePurchaseExportRows(
+        restaurantId: RestaurantId,
+        period: ReportingPeriod
+    ): Flow<List<PurchaseExportRow>>
 }
+
+data class PurchaseExportRow(
+    val purchaseDate: Long,
+    val supplierName: String?,
+    val invoiceNumber: String?,
+    val ingredientName: String,
+    val quantityEntered: String,
+    val purchaseUnitLabel: String?,
+    val quantityBase: String,
+    val baseUnitSymbol: String,
+    val unitCostBase: String,
+    val lineTotal: String,
+    val status: String
+)

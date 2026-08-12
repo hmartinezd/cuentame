@@ -103,4 +103,15 @@ interface StockCountRepository {
     suspend fun findDrift(countId: StockCountId): List<StockCountDriftItem>
     suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId)
     suspend fun voidCount(countId: StockCountId)
+    suspend fun getExportRows(countId: StockCountId): List<StockCountExportRow>
 }
+
+data class StockCountExportRow(
+    val areaName: String?,
+    val ingredientName: String,
+    val baseUnitSymbol: String,
+    val expectedQuantityBase: String?,
+    val countedQuantityBase: String,
+    val adjustmentQuantityBase: String?,
+    val notes: String?
+)

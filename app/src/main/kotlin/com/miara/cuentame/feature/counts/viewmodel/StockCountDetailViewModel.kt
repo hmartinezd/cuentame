@@ -14,11 +14,15 @@ import com.miara.cuentame.core.domain.usecase.PreviewStockCountLineUseCase
 import com.miara.cuentame.core.domain.usecase.StockCountLinePreview
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.StockCountStatus
+import com.miara.cuentame.feature.counts.export.StockCountCsvExport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -125,6 +129,11 @@ class StockCountDetailViewModel @Inject constructor(
 
     private val _events = Channel<StockCountDetailEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    private val _exportTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val exportFlow: SharedFlow<String> = _exportTrigger.asSharedFlow()
+
+    private var isExporting = false
 
     init {
         if (countId != null) {
@@ -403,6 +412,23 @@ class StockCountDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 _isVoiding.value = false
                 _error.value = e
+            }
+        }
+    }
+
+    fun onExportRequested() {
+        val details = uiState.value.details ?: return
+        if (isExporting) return
+        isExporting = true
+        viewModelScope.launch {
+            try {
+                val rows = repository.getExportRows(details.count.id)
+                val csv = StockCountCsvExport.generate(details.count, rows)
+                _exportTrigger.emit(csv)
+            } catch (e: Exception) {
+                _error.value = e
+            } finally {
+                isExporting = false
             }
         }
     }

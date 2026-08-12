@@ -13,6 +13,7 @@ import com.miara.cuentame.core.database.entity.StockCountItemOrderEntity
 import com.miara.cuentame.core.database.model.CompletedCountLineRow
 import com.miara.cuentame.core.database.model.CompletedCountSummaryRow
 import com.miara.cuentame.core.database.model.RecentCountActivityRow
+import com.miara.cuentame.core.domain.repository.StockCountExportRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -25,6 +26,7 @@ interface StockCountDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItemOrder(items: List<StockCountItemOrderEntity>)
+
     @Query("""
         SELECT 
             id as stockCountId,
@@ -174,6 +176,25 @@ interface StockCountDao {
         )
     """)
     suspend fun isAreaInAnyDraftCount(areaId: String): Boolean
+
+    @Query("""
+        SELECT 
+            ia.name as areaName,
+            i.name as ingredientName,
+            u.symbol as baseUnitSymbol,
+            scl.expectedQuantityBaseSnapshot as expectedQuantityBase,
+            scl.quantityBase as countedQuantityBase,
+            scl.adjustmentQuantityBase as adjustmentQuantityBase,
+            scl.notes
+        FROM stock_count_lines scl
+        JOIN stock_count_areas sca ON scl.stockCountAreaId = sca.id
+        JOIN inventory_areas ia ON sca.areaId = ia.id
+        JOIN ingredients i ON scl.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
+        WHERE sca.stockCountId = :countId
+        ORDER BY ia.name ASC, i.name ASC
+    """)
+    suspend fun getExportRows(countId: String): List<StockCountExportRow>
 
     @Transaction
     suspend fun deleteDraftWithGraph(countId: String) {

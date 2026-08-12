@@ -1118,6 +1118,10 @@
     <string name="ingredient_default_area">Default inventory area</string>
     <string name="ingredient_default_area_help">Controls where this ingredient appears automatically during a physical count.</string>
     <string name="ingredient_area_unassigned">Not assigned</string>
+    <string name="export_inventory">Export Inventory</string>
+    <string name="export_purchases">Export Purchases</string>
+    <string name="export_waste">Export Waste</string>
+    <string name="export_count">Export Physical Count</string>
     <string name="setup_hub_title">Restaurant setup</string>
     <string name="setup_core_ready">Core inventory ready</string>
     <string name="setup_core_not_ready">Finish these steps before relying on inventory balances.</string>

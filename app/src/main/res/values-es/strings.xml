@@ -1119,6 +1119,10 @@
     <string name="ingredient_default_area">Área de inventario predeterminada</string>
     <string name="ingredient_default_area_help">Controla dónde aparece automáticamente este ingrediente durante un conteo físico.</string>
     <string name="ingredient_area_unassigned">Sin asignar</string>
+    <string name="export_inventory">Exportar Inventario</string>
+    <string name="export_purchases">Exportar Compras</string>
+    <string name="export_waste">Exportar Desperdicio</string>
+    <string name="export_count">Exportar Conteo Físico</string>
     <string name="setup_hub_title">Configuración del restaurante</string>
     <string name="setup_core_ready">Inventario principal listo</string>
     <string name="setup_core_not_ready">Completa estos pasos antes de confiar en los saldos de inventario.</string>

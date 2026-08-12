@@ -52,6 +52,9 @@ object AppRoutes {
 
     fun reportPriceIncreases(): String = "reports/price-increases"
 
+    fun reportInventoryDetail(filter: String? = null): String =
+        "reports/inventory" + (filter?.let { "?filter=${encoder.encode(it)}" } ?: "")
+
     fun purchaseDocument(id: PurchaseReceiptId): String =
         "purchases/${encoder.encode(id.value)}/document"
 

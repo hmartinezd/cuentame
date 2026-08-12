@@ -227,4 +227,5 @@ private object EmptyStockCountRepository : StockCountRepository {
     override suspend fun findDrift(countId: com.miara.cuentame.core.common.ids.StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountDriftItem>()
     override suspend fun reconfirmLine(countId: com.miara.cuentame.core.common.ids.StockCountId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) = Unit
     override suspend fun voidCount(countId: com.miara.cuentame.core.common.ids.StockCountId) = Unit
+    override suspend fun getExportRows(countId: com.miara.cuentame.core.common.ids.StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountExportRow>()
 }

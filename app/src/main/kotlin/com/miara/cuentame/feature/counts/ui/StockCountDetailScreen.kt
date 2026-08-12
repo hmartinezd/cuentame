@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.common.ids.StockCountAreaId
+import com.miara.cuentame.core.common.util.ShareHelper
 import com.miara.cuentame.core.domain.repository.StockCountAreaDetails
 import com.miara.cuentame.core.presentation.validation.toUserMessageRes
 import com.miara.cuentame.core.presentation.ui.AreaStatusChip
@@ -82,6 +84,13 @@ fun StockCountDetailRoute(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showVoidConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val exportTitle = stringResource(R.string.export_count)
+
+    LaunchedEffect(Unit) {
+        viewModel.exportFlow.collect { csv ->
+            ShareHelper.shareCsv(context, "count_export.csv", csv, exportTitle)
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -124,7 +133,8 @@ fun StockCountDetailRoute(
             onAreaClick(areaId)
         },
         onVoidCount = viewModel::onVoid,
-        onDeleteDraft = viewModel::onDelete
+        onDeleteDraft = viewModel::onDelete,
+        onExport = viewModel::onExportRequested
     )
 }
 
@@ -144,7 +154,8 @@ fun StockCountDetailScreen(
     onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit,
     onRecount: (StockCountAreaId) -> Unit,
     onVoidCount: () -> Unit,
-    onDeleteDraft: () -> Unit
+    onDeleteDraft: () -> Unit,
+    onExport: () -> Unit
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm").withZone(ZoneId.systemDefault()) }
 
@@ -159,9 +170,17 @@ fun StockCountDetailScreen(
                     }
                 },
                 actions = {
-                    if (uiState.screenState == StockCountDetailScreenState.Ready && uiState.details?.count?.status == StockCountStatus.DRAFT) {
-                        IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting, modifier = Modifier.testTag("delete_draft_button")) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
+                    if (uiState.screenState == StockCountDetailScreenState.Ready && uiState.details != null) {
+                        if (uiState.details.count.status == StockCountStatus.COMPLETED || uiState.details.count.status == StockCountStatus.VOIDED) {
+                            IconButton(onClick = onExport, modifier = Modifier.testTag("count_export_button")) {
+                                Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_csv))
+                            }
+                        }
+                        
+                        if (uiState.details.count.status == StockCountStatus.DRAFT) {
+                            IconButton(onClick = { onShowDeleteConfirm(true) }, enabled = !uiState.isDeleting, modifier = Modifier.testTag("delete_draft_button")) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_draft))
+                            }
                         }
                     }
                 }

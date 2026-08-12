@@ -37,7 +37,7 @@ enum class Destination(val route: String) {
     INGREDIENT_PRICE_HISTORY("inventory/{ingredientId}/prices"),
     INGREDIENT_EDIT("inventory/{ingredientId}/edit"),
     
-    REPORT_INVENTORY_DETAIL("reports/inventory"),
+    REPORT_INVENTORY_DETAIL("reports/inventory?filter={filter}"),
     REPORT_PURCHASE_DETAIL("reports/purchases?range={range}"),
     REPORT_WASTE_DETAIL("reports/waste?range={range}"),
     REPORT_PRICE_INCREASES("reports/price-increases"),

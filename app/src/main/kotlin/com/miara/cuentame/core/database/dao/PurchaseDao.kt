@@ -12,6 +12,7 @@ import com.miara.cuentame.core.database.entity.PurchaseReceiptEntity
 import com.miara.cuentame.core.database.model.PurchaseSpendRow
 import com.miara.cuentame.core.database.model.RecentPurchaseActivityRow
 import com.miara.cuentame.core.database.model.VendorPriceObservationRow
+import com.miara.cuentame.core.domain.repository.PurchaseExportRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -67,6 +68,37 @@ interface PurchaseDao {
         startInclusive: Long,
         endExclusive: Long
     ): Flow<List<PurchaseSpendRow>>
+
+    @Query("""
+        SELECT 
+            pr.purchaseDate,
+            s.name as supplierName,
+            pr.invoiceNumber,
+            i.name as ingredientName,
+            pl.quantityEntered,
+            iuo.displayName as purchaseUnitLabel,
+            pl.quantityBase,
+            u.symbol as baseUnitSymbol,
+            pl.unitCostBase,
+            pl.lineTotal,
+            pr.status
+        FROM purchase_receipts pr
+        JOIN purchase_lines pl ON pr.id = pl.purchaseReceiptId
+        JOIN ingredients i ON pl.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
+        LEFT JOIN suppliers s ON pr.supplierId = s.id
+        LEFT JOIN ingredient_unit_options iuo ON pl.ingredientUnitOptionId = iuo.id
+        WHERE pr.restaurantId = :restaurantId
+        AND pr.status = 'POSTED'
+        AND pr.purchaseDate >= :startInclusive
+        AND pr.purchaseDate < :endExclusive
+        ORDER BY pr.purchaseDate DESC, pr.id ASC, pl.createdAt ASC
+    """)
+    fun observePurchaseExportRows(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<PurchaseExportRow>>
 
     @Query("""
         SELECT 

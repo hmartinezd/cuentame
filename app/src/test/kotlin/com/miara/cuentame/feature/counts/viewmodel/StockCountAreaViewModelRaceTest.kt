@@ -84,6 +84,7 @@ class StockCountAreaViewModelRaceTest {
         override suspend fun findDrift(countId: StockCountId) = emptyList<StockCountDriftItem>()
         override suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId) {}
         override suspend fun voidCount(countId: StockCountId) {}
+        override suspend fun getExportRows(countId: StockCountId) = emptyList<StockCountExportRow>()
     }
 
     private lateinit var repository: ControllableStockCountRepository

@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.reports.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -14,9 +15,12 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class InventoryDetailViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val restaurantRepository: RestaurantRepository,
     private val detailedReportsRepository: DetailedReportsRepository
 ) : ViewModel() {
+
+    private val filterValue: String? = savedStateHandle.get<String>("filter")
 
     private val _retryTrigger = MutableStateFlow(0)
 
@@ -31,12 +35,23 @@ class InventoryDetailViewModel @Inject constructor(
         } else {
             detailedReportsRepository.observeInventoryDetails(restaurant.id)
                 .map { report ->
+                    val filteredRows = when (filterValue) {
+                        "negative" -> report.rows.filter { it.negativeAreaBalanceCount > 0 }
+                        "missing_cost" -> report.rows.filter { it.isMissingCost }
+                        else -> report.rows
+                    }
+                    val filteredReport = if (filteredRows.size != report.rows.size) {
+                        report.copy(rows = filteredRows)
+                    } else {
+                        report
+                    }
+
                     DetailReportScreenState.Ready(
                         restaurantId = restaurant.id,
                         restaurantName = restaurant.name,
                         currencyCode = restaurant.currencyCode,
                         localeTag = restaurant.localeTag,
-                        report = report
+                        report = filteredReport
                     ) as DetailReportScreenState<InventoryDetailReport>
                 }
                 .onStart {

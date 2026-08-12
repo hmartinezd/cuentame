@@ -10,6 +10,7 @@ import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
 import com.miara.cuentame.core.database.util.ReportDecimalParser
 import com.miara.cuentame.core.domain.repository.DetailedReportsRepository
+import com.miara.cuentame.core.domain.repository.PurchaseExportRow
 import com.miara.cuentame.core.domain.service.ReportingPeriod
 import com.miara.cuentame.core.model.dashboard.*
 import com.miara.cuentame.core.model.inventory.WasteReason
@@ -143,6 +144,17 @@ class RoomDetailedReportsRepository @Inject constructor(
                 recordCount = items.size
             )
         }
+    }
+
+    override fun observePurchaseExportRows(
+        restaurantId: RestaurantId,
+        period: ReportingPeriod
+    ): Flow<List<PurchaseExportRow>> {
+        return purchaseDao.observePurchaseExportRows(
+            restaurantId.value,
+            period.startInclusive.toEpochMilli(),
+            period.endExclusive.toEpochMilli()
+        )
     }
 
     private inline fun <T> Iterable<T>.sumOf(selector: (T) -> BigDecimal): BigDecimal {

@@ -27,6 +27,7 @@ import com.miara.cuentame.core.domain.repository.SaveStockCountLineCommand
 import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.StockCountAreaDetails
 import com.miara.cuentame.core.domain.repository.StockCountDetails
+import com.miara.cuentame.core.domain.repository.StockCountExportRow
 import com.miara.cuentame.core.domain.repository.StockCountFilter
 import com.miara.cuentame.core.domain.repository.StockCountDriftItem
 import com.miara.cuentame.core.domain.repository.StockCountRepository
@@ -736,5 +737,9 @@ class RoomStockCountRepository @Inject constructor(
             ))
             if (affected != 1) throw ValidationError.StockCountNotFound
         }
+    }
+
+    override suspend fun getExportRows(countId: StockCountId): List<StockCountExportRow> {
+        return countDao.getExportRows(countId.value)
     }
 }

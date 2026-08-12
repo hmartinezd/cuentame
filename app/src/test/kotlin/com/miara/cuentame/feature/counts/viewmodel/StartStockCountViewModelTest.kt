@@ -68,6 +68,7 @@ class StartStockCountViewModelTest {
         override suspend fun findDrift(countId: StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountDriftItem>()
         override suspend fun reconfirmLine(countId: StockCountId, lineId: com.miara.cuentame.core.common.ids.StockCountLineId) {}
         override suspend fun voidCount(countId: StockCountId) {}
+        override suspend fun getExportRows(countId: StockCountId) = emptyList<com.miara.cuentame.core.domain.repository.StockCountExportRow>()
     }
 
     private val timeProvider = object : TimeProvider {

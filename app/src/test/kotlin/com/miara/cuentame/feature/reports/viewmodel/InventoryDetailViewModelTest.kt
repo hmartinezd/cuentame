@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.reports.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.ids.RestaurantId
@@ -25,6 +26,7 @@ class InventoryDetailViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val detailedReportsRepository = mockk<DetailedReportsRepository>()
+    private val savedStateHandle = SavedStateHandle()
     
     private val restaurantFlow = MutableStateFlow<Restaurant?>(null)
     private val restaurantId = RestaurantId("rest-1")
@@ -43,7 +45,7 @@ class InventoryDetailViewModelTest {
 
     @Test
     fun `initial state is Loading then SetupRequired when no restaurant`() = runTest {
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        val viewModel = InventoryDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository)
         viewModel.uiState.test {
             assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
             testDispatcher.scheduler.advanceUntilIdle()
@@ -57,7 +59,7 @@ class InventoryDetailViewModelTest {
         val flow1 = MutableSharedFlow<InventoryDetailReport>()
         every { detailedReportsRepository.observeInventoryDetails(restaurantId) } returns flow1
 
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        val viewModel = InventoryDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository)
         viewModel.uiState.test {
             assertThat(awaitItem()).isEqualTo(DetailReportScreenState.Loading)
             testDispatcher.scheduler.advanceUntilIdle()
@@ -89,7 +91,7 @@ class InventoryDetailViewModelTest {
         val flow1 = MutableSharedFlow<InventoryDetailReport>(replay = 1)
         every { detailedReportsRepository.observeInventoryDetails(RestaurantId("rest-1")) } returns flow1
         
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        val viewModel = InventoryDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository)
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()
@@ -124,7 +126,7 @@ class InventoryDetailViewModelTest {
         // Initial success
         every { detailedReportsRepository.observeInventoryDetails(restaurantId) } returns flow1
 
-        val viewModel = InventoryDetailViewModel(restaurantRepository, detailedReportsRepository)
+        val viewModel = InventoryDetailViewModel(savedStateHandle, restaurantRepository, detailedReportsRepository)
         viewModel.uiState.test {
             awaitItem() // Loading
             testDispatcher.scheduler.advanceUntilIdle()

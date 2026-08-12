@@ -1,6 +1,7 @@
 package com.miara.cuentame.feature.reports.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,9 +41,10 @@ import com.miara.cuentame.core.presentation.ui.RefreshIndicator
 
 @Composable
 fun ReportsRoute(
-    onNavigateToInventory: () -> Unit,
+    onNavigateToInventory: (String?) -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit,
+    onNavigateToIngredients: () -> Unit,
     onNavigateToPriceIncreases: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ReportsViewModel = hiltViewModel()
@@ -55,6 +57,7 @@ fun ReportsRoute(
         onNavigateToInventory = onNavigateToInventory,
         onNavigateToPurchases = onNavigateToPurchases,
         onNavigateToWaste = onNavigateToWaste,
+        onNavigateToIngredients = onNavigateToIngredients,
         onNavigateToPriceIncreases = onNavigateToPriceIncreases,
         onRetry = viewModel::onRetry,
         modifier = modifier
@@ -65,9 +68,10 @@ fun ReportsRoute(
 fun ReportsScreen(
     uiState: ReportsScreenState,
     onRangeSelected: (DashboardDateRange) -> Unit,
-    onNavigateToInventory: () -> Unit,
+    onNavigateToInventory: (String?) -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
     onNavigateToWaste: (DashboardDateRange) -> Unit,
+    onNavigateToIngredients: () -> Unit,
     onNavigateToPriceIncreases: () -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
@@ -113,8 +117,9 @@ fun ReportsScreen(
                     onRetry = onRetry,
                     onNavigateToInventory = onNavigateToInventory,
                     onNavigateToPurchases = onNavigateToPurchases,
-                    onNavigateToWaste = onNavigateToWaste
-                    ,onNavigateToPriceIncreases = onNavigateToPriceIncreases
+                    onNavigateToWaste = onNavigateToWaste,
+                    onNavigateToIngredients = onNavigateToIngredients,
+                    onNavigateToPriceIncreases = onNavigateToPriceIncreases
                 )
             }
         }
@@ -126,10 +131,11 @@ private fun ReportsContent(
     state: ReportsScreenState.Ready,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
-    onNavigateToInventory: () -> Unit,
+    onNavigateToInventory: (String?) -> Unit,
     onNavigateToPurchases: (DashboardDateRange) -> Unit,
-    onNavigateToWaste: (DashboardDateRange) -> Unit
-    ,onNavigateToPriceIncreases: () -> Unit = {}
+    onNavigateToWaste: (DashboardDateRange) -> Unit,
+    onNavigateToIngredients: () -> Unit,
+    onNavigateToPriceIncreases: () -> Unit = {}
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -199,7 +205,7 @@ private fun ReportsContent(
                 inventory = state.report.inventory,
                 currencyCode = state.currencyCode,
                 locale = restaurantLocale,
-                onViewDetails = onNavigateToInventory
+                onViewDetails = { onNavigateToInventory(null) }
             )
         }
 
@@ -236,7 +242,12 @@ private fun ReportsContent(
         }
 
         item {
-            AlertsSection(state.report.alerts)
+            AlertsSection(
+                alerts = state.report.alerts,
+                onNegativeBalanceClick = { onNavigateToInventory("negative") },
+                onMissingCostClick = { onNavigateToInventory("missing_cost") },
+                onMissingOptionsClick = onNavigateToIngredients
+            )
         }
 
         item {
@@ -431,7 +442,12 @@ private fun ComparisonSection(
 }
 
 @Composable
-private fun AlertsSection(alerts: ReportsAlertsUiModel) {
+private fun AlertsSection(
+    alerts: ReportsAlertsUiModel,
+    onNegativeBalanceClick: () -> Unit,
+    onMissingCostClick: () -> Unit,
+    onMissingOptionsClick: () -> Unit
+) {
     val semanticsDesc = stringResource(
         R.string.reports_alerts_semantics,
         alerts.negativeBalanceCount,
@@ -451,9 +467,27 @@ private fun AlertsSection(alerts: ReportsAlertsUiModel) {
             Text(stringResource(R.string.reports_operational_alerts), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
             
-            AlertRow(stringResource(R.string.negative_balances_label), alerts.negativeBalanceCount, isError = true, "reports_negative_balances")
-            AlertRow(stringResource(R.string.missing_costs_label), alerts.missingCostCount, isError = false, "reports_missing_costs")
-            AlertRow(stringResource(R.string.missing_unit_options_label), alerts.missingOptionsCount, isError = false, "reports_missing_unit_options")
+            AlertRow(
+                stringResource(R.string.negative_balances_label),
+                alerts.negativeBalanceCount,
+                isError = true,
+                testTag = "reports_negative_balances",
+                onClick = onNegativeBalanceClick
+            )
+            AlertRow(
+                stringResource(R.string.missing_costs_label),
+                alerts.missingCostCount,
+                isError = false,
+                testTag = "reports_missing_costs",
+                onClick = onMissingCostClick
+            )
+            AlertRow(
+                stringResource(R.string.missing_unit_options_label),
+                alerts.missingOptionsCount,
+                isError = false,
+                testTag = "reports_missing_unit_options",
+                onClick = onMissingOptionsClick
+            )
         }
     }
 }
@@ -560,10 +594,11 @@ private fun MetricRow(label: String, value: String, testTag: String? = null) {
 }
 
 @Composable
-private fun AlertRow(label: String, count: Int, isError: Boolean, testTag: String? = null) {
+private fun AlertRow(label: String, count: Int, isError: Boolean, testTag: String? = null, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 4.dp)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,

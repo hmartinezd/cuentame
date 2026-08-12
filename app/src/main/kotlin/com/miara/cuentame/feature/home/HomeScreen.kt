@@ -1,6 +1,7 @@
 package com.miara.cuentame.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,9 @@ fun HomeRoute(
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit,
+    onViewInventoryDetail: (String?) -> Unit,
+    onViewPurchaseDetail: (DashboardDateRange) -> Unit,
+    onViewReorder: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -99,6 +103,9 @@ fun HomeRoute(
         onViewPreparations = onViewPreparations,
         onViewMenuItems = onViewMenuItems,
         onViewProduction = onViewProduction,
+        onViewInventoryDetail = onViewInventoryDetail,
+        onViewPurchaseDetail = onViewPurchaseDetail,
+        onViewReorder = onViewReorder,
         modifier = modifier
     )
 }
@@ -122,6 +129,9 @@ fun HomeScreen(
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
     onViewProduction: () -> Unit,
+    onViewInventoryDetail: (String?) -> Unit,
+    onViewPurchaseDetail: (DashboardDateRange) -> Unit,
+    onViewReorder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -175,7 +185,10 @@ fun HomeScreen(
                     onViewReports = onViewReports,
                     onViewPreparations = onViewPreparations,
                     onViewMenuItems = onViewMenuItems,
-                    onViewProduction = onViewProduction
+                    onViewProduction = onViewProduction,
+                    onViewInventoryDetail = onViewInventoryDetail,
+                    onViewPurchaseDetail = onViewPurchaseDetail,
+                    onViewReorder = onViewReorder
                 )
             }
         }
@@ -199,7 +212,10 @@ private fun DashboardContent(
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
-    onViewProduction: () -> Unit
+    onViewProduction: () -> Unit,
+    onViewInventoryDetail: (String?) -> Unit,
+    onViewPurchaseDetail: (DashboardDateRange) -> Unit,
+    onViewReorder: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -269,15 +285,38 @@ private fun DashboardContent(
         }
 
         item {
-            KpiSection(state, restaurantLocale)
+            KpiSection(
+                state = state,
+                locale = restaurantLocale,
+                onInventoryClick = { onViewInventoryDetail(null) },
+                onNegativeBalanceClick = { onViewInventoryDetail("negative") },
+                onPurchaseClick = { onViewPurchaseDetail(state.loadedRange) },
+                onWasteClick = onViewWaste
+            )
         }
 
         item {
-            QuickActionsSection(onLogWaste, onNewPurchase, onStartCount, onViewReports, onViewWaste, onViewActivity, onViewPreparations, onViewMenuItems, onViewProduction)
+            QuickActionsSection(
+                onLogWaste = onLogWaste,
+                onNewPurchase = onNewPurchase,
+                onStartCount = onStartCount,
+                onViewReports = onViewReports,
+                onViewWasteHistory = onViewWaste,
+                onViewActivity = onViewActivity,
+                onViewPreparations = onViewPreparations,
+                onViewMenuItems = onViewMenuItems,
+                onViewProduction = onViewProduction,
+                onViewReorder = onViewReorder
+            )
         }
 
         item {
-            DataCompletenessSection(state, restaurantLocale)
+            DataCompletenessSection(
+                state = state,
+                locale = restaurantLocale,
+                onMissingCostClick = { onViewInventoryDetail("missing_cost") },
+                onMissingOptionsClick = onManageIngredients
+            )
         }
 
         item {
@@ -406,17 +445,26 @@ private fun RangeSelector(
 }
 
 @Composable
-private fun KpiSection(state: HomeScreenState.Ready, locale: Locale) {
+private fun KpiSection(
+    state: HomeScreenState.Ready,
+    locale: Locale,
+    onInventoryClick: () -> Unit,
+    onNegativeBalanceClick: () -> Unit,
+    onPurchaseClick: () -> Unit,
+    onWasteClick: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             KpiCard(
                 title = stringResource(R.string.inventory_value_label),
                 value = Formatters.formatCurrency(state.dashboard.inventoryValue, state.currencyCode, locale),
+                onClick = onInventoryClick,
                 modifier = Modifier.weight(1f).testTag("dashboard_inventory_value")
             )
             KpiCard(
                 title = stringResource(R.string.negative_balances_label),
                 value = state.dashboard.negativeBalanceCount.toString(),
+                onClick = onNegativeBalanceClick,
                 modifier = Modifier.weight(1f).testTag("dashboard_negative_balance_count"),
                 valueColor = if (state.dashboard.negativeBalanceCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
@@ -427,6 +475,7 @@ private fun KpiSection(state: HomeScreenState.Ready, locale: Locale) {
             value = Formatters.formatCurrency(state.dashboard.purchaseSpend.value, state.currencyCode, locale),
             comparison = state.dashboard.purchaseSpend,
             locale = locale,
+            onClick = onPurchaseClick,
             modifier = Modifier.fillMaxWidth().testTag("dashboard_purchase_spend")
         )
 
@@ -435,6 +484,7 @@ private fun KpiSection(state: HomeScreenState.Ready, locale: Locale) {
             value = Formatters.formatCurrency(state.dashboard.wasteValue.value, state.currencyCode, locale),
             comparison = state.dashboard.wasteValue,
             locale = locale,
+            onClick = onWasteClick,
             modifier = Modifier.fillMaxWidth().testTag("dashboard_waste_value")
         )
     }
@@ -444,6 +494,7 @@ private fun KpiSection(state: HomeScreenState.Ready, locale: Locale) {
 private fun KpiCard(
     title: String,
     value: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     comparison: DashboardMetricUiModel? = null,
     locale: Locale = Locale.getDefault(),
@@ -467,6 +518,7 @@ private fun KpiCard(
     } else ""
 
     Card(
+        onClick = onClick,
         modifier = modifier.semantics(mergeDescendants = true) {
             contentDescription = "$title: $value. $trendDescription"
         }
@@ -545,7 +597,8 @@ private fun QuickActionsSection(
     onViewActivity: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
-    onViewProduction: () -> Unit
+    onViewProduction: () -> Unit,
+    onViewReorder: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -562,7 +615,7 @@ private fun QuickActionsSection(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), onViewMenuItems, Modifier.weight(1f).testTag("open_menu_items_button"))
-            Spacer(Modifier.weight(1f))
+            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), onViewReorder, Modifier.weight(1f).testTag("reorder_assistance_button"))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.History, stringResource(R.string.inventory_activity_title), onViewActivity, Modifier.weight(1f).testTag("open_inventory_activity_button"))
@@ -593,7 +646,12 @@ private fun QuickActionButton(
 }
 
 @Composable
-private fun DataCompletenessSection(state: HomeScreenState.Ready, locale: Locale) {
+private fun DataCompletenessSection(
+    state: HomeScreenState.Ready,
+    locale: Locale,
+    onMissingCostClick: () -> Unit,
+    onMissingOptionsClick: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth().testTag("dashboard_data_completeness")) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.data_completeness_label), style = MaterialTheme.typography.titleMedium)
@@ -607,17 +665,26 @@ private fun DataCompletenessSection(state: HomeScreenState.Ready, locale: Locale
             }
 
             DataQualityRow(stringResource(R.string.valuation_coverage_label), "$coverageRatio ($coveragePercentage)")
-            DataQualityRow(stringResource(R.string.missing_costs_label), state.dashboard.missingCostCount.toString())
-            DataQualityRow(stringResource(R.string.missing_unit_options_label), state.dashboard.missingOptionsCount.toString())
+            DataQualityRow(
+                stringResource(R.string.missing_costs_label),
+                state.dashboard.missingCostCount.toString(),
+                onClick = onMissingCostClick
+            )
+            DataQualityRow(
+                stringResource(R.string.missing_unit_options_label),
+                state.dashboard.missingOptionsCount.toString(),
+                onClick = onMissingOptionsClick
+            )
         }
     }
 }
 
 @Composable
-private fun DataQualityRow(label: String, value: String) {
+private fun DataQualityRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 4.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "$label: $value"
