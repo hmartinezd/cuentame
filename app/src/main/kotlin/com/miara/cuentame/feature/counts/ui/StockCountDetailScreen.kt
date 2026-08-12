@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -63,8 +64,10 @@ import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailScreenState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailUiState
 import com.miara.cuentame.feature.counts.viewmodel.StockCountDetailViewModel
 import com.miara.cuentame.feature.counts.viewmodel.StockCountReviewLine
+import com.miara.cuentame.feature.counts.viewmodel.StockCountDriftItemUi
 import com.miara.cuentame.core.presentation.ui.ArchiveConfirmDialog
 import java.math.BigDecimal
+import com.miara.cuentame.core.domain.service.hasLargeCountVariance
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -115,6 +118,7 @@ fun StockCountDetailRoute(
         onAreaClick = onAreaClick,
         onToggleReview = viewModel::onToggleReview,
         onCompleteCount = viewModel::onComplete,
+        onReconfirm = viewModel::onReconfirm,
         onVoidCount = viewModel::onVoid,
         onDeleteDraft = viewModel::onDelete
     )
@@ -133,6 +137,7 @@ fun StockCountDetailScreen(
     onAreaClick: (StockCountAreaId) -> Unit,
     onToggleReview: (Boolean) -> Unit,
     onCompleteCount: () -> Unit,
+    onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit,
     onVoidCount: () -> Unit,
     onDeleteDraft: () -> Unit
 ) {
@@ -227,6 +232,12 @@ fun StockCountDetailScreen(
                         }
                     } else if (count.status == StockCountStatus.COMPLETED) {
                         Button(
+                            onClick = { onToggleReview(true) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("count_summary_button")
+                        ) {
+                            Text(stringResource(R.string.count_summary))
+                        }
+                        Button(
                             onClick = { onShowVoidConfirm(true) },
                             modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("void_count_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -269,11 +280,14 @@ fun StockCountDetailScreen(
             lines = uiState.reviewLines,
             missingWarnings = uiState.missingWarnings,
             archivedWarnings = uiState.archivedWarnings,
+            driftItems = uiState.driftItems,
             currencyCode = uiState.currencyCode,
             isCompleting = uiState.isCompleting,
             isLoading = uiState.isReviewLoading,
+            allowPosting = uiState.details?.count?.status == StockCountStatus.DRAFT,
             onDismiss = { if (!uiState.isCompleting) onToggleReview(false) },
-            onConfirm = onCompleteCount
+            onConfirm = onCompleteCount,
+            onReconfirm = onReconfirm
         )
     }
 }
@@ -284,11 +298,14 @@ fun AdjustmentReviewSheet(
     lines: List<StockCountReviewLine>,
     missingWarnings: List<ReviewWarning>,
     archivedWarnings: List<ReviewWarning>,
+    driftItems: List<StockCountDriftItemUi>,
     currencyCode: String,
     isCompleting: Boolean,
     isLoading: Boolean,
+    allowPosting: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    onReconfirm: (com.miara.cuentame.core.common.ids.StockCountLineId) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -319,7 +336,33 @@ fun AdjustmentReviewSheet(
                     }
                 }
             } else {
+                val increased = lines.count { it.preview.provisionalAdjustmentBase > BigDecimal.ZERO }
+                val decreased = lines.count { it.preview.provisionalAdjustmentBase < BigDecimal.ZERO }
+                val unchanged = lines.count { it.preview.provisionalAdjustmentBase.compareTo(BigDecimal.ZERO) == 0 }
+                val opening = lines.count { it.preview.willCreateOpeningBalance }
+                Text(
+                    text = stringResource(R.string.count_summary_totals, lines.size, increased + decreased, increased, decreased, unchanged, opening),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
                 LazyColumn(modifier = Modifier.weight(1f)) {
+                    if (driftItems.isNotEmpty()) {
+                        item { Text(stringResource(R.string.inventory_changed_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleMedium) }
+                        items(driftItems) { drift ->
+                            ListItem(
+                                headlineContent = { Text(drift.ingredientName, fontWeight = FontWeight.Bold) },
+                                supportingContent = {
+                                    Column {
+                                        Text(drift.areaName ?: stringResource(R.string.unknown_area))
+                                        Text(stringResource(R.string.expected_when_counted_format, drift.expectedWhenCounted?.toPlainString() ?: "—"))
+                                        Text(stringResource(R.string.current_inventory_format, drift.currentInventory?.toPlainString() ?: "—"))
+                                        Text(stringResource(R.string.inventory_changed_after_item))
+                                    }
+                                },
+                                trailingContent = { TextButton(onClick = { onReconfirm(drift.lineId) }) { Text(stringResource(R.string.reconfirm_count)) } }
+                            )
+                        }
+                    }
                     if (missingWarnings.isNotEmpty()) {
                         item {
                             Text(
@@ -365,15 +408,17 @@ fun AdjustmentReviewSheet(
                 }
             }
 
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("confirm_completion_button"),
-                enabled = !isCompleting && lines.isNotEmpty()
-            ) {
-                if (isCompleting) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+            if (allowPosting) {
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("confirm_completion_button"),
+                    enabled = !isCompleting && lines.isNotEmpty() && driftItems.isEmpty()
+                ) {
+                    if (isCompleting) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                    }
+                    Text(stringResource(R.string.complete_count))
                 }
-                Text(stringResource(R.string.complete_count))
             }
         }
     }
@@ -436,6 +481,13 @@ fun ReviewLineItem(line: StockCountReviewLine, currencyCode: String) {
                 text = stringResource(R.string.value_change_format, line.preview.estimatedValueChange.toPlainString(), currencyCode),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (line.preview.estimatedValueChange > BigDecimal.ZERO) MaterialTheme.colorScheme.primary else if (line.preview.estimatedValueChange < BigDecimal.ZERO) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+            )
+        }
+        if (hasLargeCountVariance(line.preview.expectedQuantityBase, line.preview.countedQuantityBase)) {
+            Text(
+                text = stringResource(R.string.count_large_variance_message),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error
             )
         }
     }

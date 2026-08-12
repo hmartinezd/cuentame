@@ -19,6 +19,7 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
 import com.miara.cuentame.core.database.dao.StockCountDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
+import com.miara.cuentame.core.database.entity.StockCountItemOrderEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.database.mapper.toDomain
 import com.miara.cuentame.core.database.mapper.toEntity
@@ -27,6 +28,7 @@ import com.miara.cuentame.core.domain.repository.StartStockCountCommand
 import com.miara.cuentame.core.domain.repository.StockCountAreaDetails
 import com.miara.cuentame.core.domain.repository.StockCountDetails
 import com.miara.cuentame.core.domain.repository.StockCountFilter
+import com.miara.cuentame.core.domain.repository.StockCountDriftItem
 import com.miara.cuentame.core.domain.repository.StockCountRepository
 import com.miara.cuentame.core.domain.repository.StockCountSummary
 import com.miara.cuentame.core.domain.repository.UpdateStockCountDraftCommand
@@ -86,14 +88,27 @@ class RoomStockCountRepository @Inject constructor(
             query = filter.query?.trim()?.ifBlank { null }
         ).flatMapLatest { counts ->
             val summaryFlows = counts.map { entity ->
-                countDao.observeAreasForCount(entity.id).map { areas ->
-                    val completedCount = areas.count { it.status == CountAreaStatus.COMPLETED.name }
-                    val progress = if (areas.isEmpty()) 0f else completedCount.toFloat() / areas.size
-                    StockCountSummary(
-                        count = entity.toDomain(),
-                        areaCount = areas.size,
-                        progress = progress
-                    )
+                countDao.observeAreasForCount(entity.id).flatMapLatest { areas ->
+                    val lineFlows = areas.map { countDao.observeLinesForArea(it.id) }
+                    val linesFlow = if (lineFlows.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList())
+                    else combine(lineFlows) { rows -> rows.flatMap { it } }
+                    combine(linesFlow, ingredientDao.observeActiveIngredients(entity.restaurantId)) { lines, ingredients ->
+                        val selectedAreaIds = areas.map { it.areaId }.toSet()
+                        val countableIds = ingredients
+                            .filter { it.defaultAreaId in selectedAreaIds }
+                            .map { it.id }
+                            .toMutableSet()
+                            .apply { addAll(lines.map { it.ingredientId }) }
+                        val counted = lines.map { it.ingredientId }.distinct().size
+                        val total = countableIds.size
+                        StockCountSummary(
+                            count = entity.toDomain(),
+                            areaCount = areas.size,
+                            progress = if (total == 0) 0f else counted.toFloat() / total,
+                            countedItemCount = counted,
+                            totalCountableItemCount = total
+                        )
+                    }
                 }
             }
             if (summaryFlows.isEmpty()) {
@@ -178,6 +193,31 @@ class RoomStockCountRepository @Inject constructor(
         return areaIds
     }
 
+    override suspend fun getItemOrder(areaId: InventoryAreaId): List<IngredientId> {
+        val active = requireActiveRestaurant()
+        val area = areaDao.getById(areaId.value) ?: throw ValidationError.InvalidCountArea
+        if (area.restaurantId != active.id) throw ValidationError.StockCountAreaOwnershipMismatch
+        return countDao.getItemOrder(areaId.value).map { IngredientId(it.ingredientId) }
+    }
+
+    override suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) {
+        database.withTransaction {
+            val active = requireActiveRestaurant()
+            val area = areaDao.getById(areaId.value) ?: throw ValidationError.InvalidCountArea
+            if (area.restaurantId != active.id) throw ValidationError.StockCountAreaOwnershipMismatch
+            if (ingredientIds.distinct().size != ingredientIds.size) throw ValidationError.InvalidCountIngredient
+            ingredientIds.forEach { id ->
+                val ingredient = ingredientDao.getById(id.value) ?: throw ValidationError.IngredientNotFound
+                if (ingredient.restaurantId != active.id) throw ValidationError.IngredientOwnershipMismatch
+            }
+            val now = timeProvider.now().toEpochMilli()
+            countDao.deleteItemOrder(areaId.value)
+            countDao.insertItemOrder(ingredientIds.mapIndexed { index, id ->
+                StockCountItemOrderEntity(active.id, areaId.value, id.value, index, now)
+            })
+        }
+    }
+
     override suspend fun start(command: StartStockCountCommand): StockCountId {
         return database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
@@ -191,8 +231,6 @@ class RoomStockCountRepository @Inject constructor(
 
             if (command.name.isBlank()) throw ValidationError.InvalidName
             
-            if (command.effectiveAt > timeProvider.now()) throw ValidationError.InvalidCountEffectiveTime
-
             if (command.areaIds.isEmpty()) throw ValidationError.StockCountHasNoAreas
             if (command.areaIds.distinct().size != command.areaIds.size) throw ValidationError.InvalidCountArea
 
@@ -211,7 +249,7 @@ class RoomStockCountRepository @Inject constructor(
                 restaurantId = command.restaurantId,
                 name = command.name.trim(),
                 startedAt = now,
-                effectiveAt = command.effectiveAt,
+                effectiveAt = now,
                 status = StockCountStatus.DRAFT,
                 notes = command.notes?.trim()?.ifBlank { null },
                 createdAt = now,
@@ -243,20 +281,8 @@ class RoomStockCountRepository @Inject constructor(
             if (existing.status != StockCountStatus.DRAFT.name) throw ValidationError.StockCountNotDraft
 
             if (command.name.isBlank()) throw ValidationError.InvalidName
-            if (command.effectiveAt > timeProvider.now()) throw ValidationError.InvalidCountEffectiveTime
-
-            if (existing.effectiveAt != command.effectiveAt.toEpochMilli()) {
-                val areas = countDao.getAreasForCount(command.countId.value)
-                val anyStarted = areas.any { it.status != CountAreaStatus.NOT_STARTED.name }
-                val lines = countDao.getAllLinesForCount(command.countId.value)
-                if (anyStarted || lines.isNotEmpty()) {
-                     throw ValidationError.InvalidCountEffectiveTime 
-                }
-            }
-
             val updated = existing.copy(
                 name = command.name.trim(),
-                effectiveAt = command.effectiveAt.toEpochMilli(),
                 notes = command.notes?.trim()?.ifBlank { null },
                 updatedAt = timeProvider.now().toEpochMilli()
             )
@@ -485,6 +511,7 @@ class RoomStockCountRepository @Inject constructor(
             val now = timeProvider.now()
             val seenIngredientsInArea = mutableSetOf<Pair<String, String>>()
 
+            val driftItems = mutableListOf<StockCountDriftItem>()
             val movementsToInsert = lines.map { lineEntity ->
                 val areaEntity = areas.find { it.id == lineEntity.stockCountAreaId } ?: throw ValidationError.StockCountLineOwnershipMismatch
                 
@@ -521,7 +548,15 @@ class RoomStockCountRepository @Inject constructor(
                     expectedQtyBase == null || currentExpectedQtyBase == null -> true
                     else -> expectedQtyBase.compareTo(currentExpectedQtyBase) != 0
                 }
-                if (inventoryDrifted) throw ValidationError.StockCountInventoryChanged
+                if (inventoryDrifted) {
+                    driftItems += StockCountDriftItem(
+                        countAreaId = StockCountAreaId(areaEntity.id),
+                        inventoryAreaId = InventoryAreaId(areaEntity.areaId),
+                        ingredientId = IngredientId(lineEntity.ingredientId),
+                        expectedQuantityBaseSnapshot = expectedQtyBase,
+                        currentExpectedQuantityBase = currentExpectedQtyBase
+                    )
+                }
 
                 val adjustmentQtyBase = if (expectedQtyBase == null) canonicalQtyBase else canonicalQtyBase.subtract(expectedQtyBase)
 
@@ -559,6 +594,8 @@ class RoomStockCountRepository @Inject constructor(
                 )
             }
 
+            if (driftItems.isNotEmpty()) throw ValidationError.StockCountInventoryChanged(driftItems)
+
             movementDao.insertAll(movementsToInsert)
 
             val affectedIngredients = lines.map { it.ingredientId }.distinct()
@@ -572,6 +609,56 @@ class RoomStockCountRepository @Inject constructor(
                 updatedAt = now.toEpochMilli()
             ))
             if (affected != 1) throw ValidationError.StockCountNotFound
+        }
+    }
+
+    override suspend fun findDrift(countId: StockCountId): List<StockCountDriftItem> {
+        val activeRestaurant = requireActiveRestaurant()
+        val count = countDao.getCountById(countId.value) ?: throw ValidationError.StockCountNotFound
+        if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
+        if (count.status != StockCountStatus.DRAFT.name) return emptyList()
+        val areas = countDao.getAreasForCount(count.id).associateBy { it.id }
+        val now = timeProvider.now()
+        return countDao.getAllLinesForCount(count.id).mapNotNull { line ->
+            val area = areas[line.stockCountAreaId] ?: throw ValidationError.StockCountLineOwnershipMismatch
+            val saved = line.expectedQuantityBaseSnapshot?.let(::parseHistoryDecimal)
+            val snapshot = snapshotService.calculateAt(
+                RestaurantId(activeRestaurant.id), IngredientId(line.ingredientId), InventoryAreaId(area.areaId), now
+            )
+            val current = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
+            val changed = when {
+                saved == null && current == null -> false
+                saved == null || current == null -> true
+                else -> saved.compareTo(current) != 0
+            }
+            if (!changed) null else StockCountDriftItem(
+                StockCountAreaId(area.id), InventoryAreaId(area.areaId), IngredientId(line.ingredientId), saved, current
+            )
+        }
+    }
+
+    override suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId) {
+        database.withTransaction {
+            val activeRestaurant = requireActiveRestaurant()
+            val count = countDao.getCountById(countId.value) ?: throw ValidationError.StockCountNotFound
+            if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
+            if (count.status != StockCountStatus.DRAFT.name) throw ValidationError.StockCountNotDraft
+            val line = countDao.getLineById(lineId.value) ?: throw ValidationError.StockCountLineNotFound
+            val area = countDao.getAreaById(line.stockCountAreaId) ?: throw ValidationError.StockCountAreaNotFound
+            if (area.stockCountId != count.id) throw ValidationError.StockCountLineOwnershipMismatch
+            val ingredient = ingredientDao.getById(line.ingredientId) ?: throw ValidationError.IngredientNotFound
+            if (ingredient.restaurantId != activeRestaurant.id) throw ValidationError.IngredientOwnershipMismatch
+            val snapshot = snapshotService.calculateAt(
+                RestaurantId(activeRestaurant.id), IngredientId(line.ingredientId), InventoryAreaId(area.areaId), timeProvider.now()
+            )
+            val expected = if (snapshot.hasEffectiveHistory) snapshot.areaQuantityBase else null
+            val counted = parseHistoryDecimal(line.quantityBase)
+            val adjustment = counted.subtract(expected ?: BigDecimal.ZERO)
+            countDao.updateCountLine(line.copy(
+                expectedQuantityBaseSnapshot = expected?.toPlainString(),
+                adjustmentQuantityBase = adjustment.toPlainString(),
+                updatedAt = timeProvider.now().toEpochMilli()
+            ))
         }
     }
 

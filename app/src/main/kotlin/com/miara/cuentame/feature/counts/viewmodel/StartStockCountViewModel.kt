@@ -129,7 +129,7 @@ class StartStockCountViewModel @Inject constructor(
                     StartStockCountCommand(
                         restaurantId = restaurant.id,
                         name = state.name.trim(),
-                        effectiveAt = state.effectiveAt,
+                        effectiveAt = timeProvider.now(),
                         areaIds = state.selectedAreaIds,
                         notes = state.notes.ifBlank { null }
                     )

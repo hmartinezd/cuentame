@@ -70,7 +70,10 @@ fun StockCountListRoute(
     StockCountListScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
-        onStartCount = onStartCount,
+        onStartCount = {
+            val draft = uiState.counts.firstOrNull { it.count.status == StockCountStatus.DRAFT }
+            if (draft != null) onCountClick(draft.count.id, draft.count.status) else onStartCount()
+        },
         onCountClick = onCountClick
     )
 }
@@ -133,6 +136,7 @@ fun StockCountSummaryItem(
             Column {
                 Text(dateFormatter.format(summary.count.effectiveAt))
                 if (summary.count.status == StockCountStatus.DRAFT) {
+                    Text(stringResource(R.string.resume_count), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -143,7 +147,7 @@ fun StockCountSummaryItem(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "${(summary.progress * 100).toInt()}%",
+                            text = stringResource(R.string.count_progress_format, summary.countedItemCount, summary.totalCountableItemCount),
                             style = MaterialTheme.typography.labelSmall
                         )
                     }

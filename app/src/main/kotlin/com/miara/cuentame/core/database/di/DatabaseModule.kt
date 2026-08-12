@@ -61,6 +61,9 @@ object DatabaseModule {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10
         )
+        // Pre-release schema policy: version 11 introduces count-order configuration.
+        // Development databases are intentionally recreated; no unpublished-data migration.
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)

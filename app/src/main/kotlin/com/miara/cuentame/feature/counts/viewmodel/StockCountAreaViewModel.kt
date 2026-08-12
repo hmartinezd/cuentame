@@ -82,7 +82,10 @@ data class StockCountLineEntry(
 ) {
     val isSaved: Boolean = hasUserEdit && editRevision == savedRevision && error == null && !isSaving && !isDeleting
     val isPending: Boolean = hasUserEdit && (editRevision > savedRevision || isSaving)
+    val isCounted: Boolean = lineId != null || isSaved
 }
+
+enum class StockCountItemFilter { ALL, UNCOUNTED, COUNTED }
 
 sealed interface StockCountAreaScreenState {
     data object Loading : StockCountAreaScreenState
@@ -98,6 +101,7 @@ data class StockCountAreaUiState(
     val isCompleting: Boolean = false,
     val hasPendingSaves: Boolean = false,
     val searchQuery: String = "",
+    val itemFilter: StockCountItemFilter = StockCountItemFilter.ALL,
     val details: StockCountAreaDetails? = null,
     val lineEntries: List<StockCountLineEntry> = emptyList(),
     val searchResults: List<Ingredient> = emptyList(),
@@ -106,7 +110,10 @@ data class StockCountAreaUiState(
     val deletingIngredientId: String? = null,
     val error: Throwable? = null,
     val canEdit: Boolean = false,
-    val canReopen: Boolean = false
+    val canReopen: Boolean = false,
+    val countedItemCount: Int = 0,
+    val totalCountableItemCount: Int = 0,
+    val isEditingOrder: Boolean = false
 )
 
 sealed interface StockCountAreaEvent {
@@ -114,6 +121,7 @@ sealed interface StockCountAreaEvent {
     data object NavigateBack : StockCountAreaEvent
     data class LineDeleted(val ingredientId: String) : StockCountAreaEvent
     data class ShowError(val error: Throwable) : StockCountAreaEvent
+    data class FocusQuantity(val ingredientId: String) : StockCountAreaEvent
 }
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -136,6 +144,9 @@ class StockCountAreaViewModel @Inject constructor(
     private val countAreaId = if (!countAreaIdStr.isNullOrBlank()) StockCountAreaId(countAreaIdStr) else null
 
     private val _searchQuery = MutableStateFlow("")
+    private val _itemFilter = MutableStateFlow(StockCountItemFilter.ALL)
+    private val _orderedIngredientIds = MutableStateFlow<List<String>>(emptyList())
+    private val _isEditingOrder = MutableStateFlow(false)
     private val _lineEntries = MutableStateFlow<Map<String, StockCountLineEntry>>(emptyMap())
     private val _archivedWarnings = MutableStateFlow<List<ArchivedCountCandidate>>(emptyList())
     private val _missingActiveCandidates = MutableStateFlow<List<Ingredient>>(emptyList())
@@ -158,7 +169,10 @@ class StockCountAreaViewModel @Inject constructor(
         val searchResults: List<Ingredient>,
         val archivedWarnings: List<ArchivedCountCandidate>,
         val missingCandidates: List<Ingredient>,
-        val hasLoadedOnce: Boolean
+        val hasLoadedOnce: Boolean,
+        val itemFilter: StockCountItemFilter,
+        val orderedIds: List<String>,
+        val isEditingOrder: Boolean
     )
 
     private val searchResultsFlow = _searchQuery.flatMapLatest { query ->
@@ -186,7 +200,10 @@ class StockCountAreaViewModel @Inject constructor(
             searchResultsFlow,
             _archivedWarnings,
             _missingActiveCandidates,
-            _hasLoadedOnce
+            _hasLoadedOnce,
+            _itemFilter,
+            _orderedIngredientIds,
+            _isEditingOrder
         ) { args ->
             CombinedOtherStates(
                 completing = args[0] as Boolean,
@@ -195,7 +212,10 @@ class StockCountAreaViewModel @Inject constructor(
                 searchResults = args[3] as List<Ingredient>,
                 archivedWarnings = args[4] as List<ArchivedCountCandidate>,
                 missingCandidates = args[5] as List<Ingredient>,
-                hasLoadedOnce = args[6] as Boolean
+                hasLoadedOnce = args[6] as Boolean,
+                itemFilter = args[7] as StockCountItemFilter,
+                orderedIds = args[8] as List<String>,
+                isEditingOrder = args[9] as Boolean
             )
         }
     ) { details, activeRestaurant, entriesMap, query, others ->
@@ -210,7 +230,12 @@ class StockCountAreaViewModel @Inject constructor(
             else -> StockCountAreaScreenState.Ready
         }
 
-        val sortedEntries = entriesMap.values.sortedBy { it.ingredientName }
+        val orderIndex = others.orderedIds.withIndex().associate { it.value to it.index }
+        val sortedEntries = entriesMap.values.sortedWith(
+            compareBy<StockCountLineEntry> { orderIndex[it.ingredientId] ?: Int.MAX_VALUE }
+                .thenBy { it.ingredientName.lowercase() }
+                .thenBy { it.ingredientId }
+        )
         val countStatus = details?.countStatus ?: StockCountStatus.DRAFT
         val areaStatus = details?.area?.status ?: CountAreaStatus.NOT_STARTED
 
@@ -219,15 +244,25 @@ class StockCountAreaViewModel @Inject constructor(
             isCompleting = others.completing,
             hasPendingSaves = entriesMap.values.any { it.isPending },
             searchQuery = query,
+            itemFilter = others.itemFilter,
             details = details,
-            lineEntries = sortedEntries.filter { it.ingredientName.contains(query, ignoreCase = true) },
+            lineEntries = sortedEntries.filter { entry ->
+                entry.ingredientName.contains(query, ignoreCase = true) && when (others.itemFilter) {
+                    StockCountItemFilter.ALL -> true
+                    StockCountItemFilter.UNCOUNTED -> !entry.isCounted
+                    StockCountItemFilter.COUNTED -> entry.isCounted
+                }
+            },
             searchResults = others.searchResults.filter { !entriesMap.containsKey(it.id.value) },
             archivedWarnings = others.archivedWarnings,
             missingCount = others.archivedWarnings.size + others.missingCandidates.size,
             deletingIngredientId = others.deletingId,
             error = others.error,
             canEdit = countStatus == StockCountStatus.DRAFT && areaStatus != CountAreaStatus.COMPLETED,
-            canReopen = countStatus == StockCountStatus.DRAFT && areaStatus == CountAreaStatus.COMPLETED
+            canReopen = countStatus == StockCountStatus.DRAFT && areaStatus == CountAreaStatus.COMPLETED,
+            countedItemCount = entriesMap.values.count { it.isCounted },
+            totalCountableItemCount = entriesMap.size,
+            isEditingOrder = others.isEditingOrder
         )
     }.stateIn(
         scope = viewModelScope,
@@ -261,6 +296,7 @@ class StockCountAreaViewModel @Inject constructor(
             effectiveAt = details.effectiveAt
         )
 
+        _orderedIngredientIds.value = repository.getItemOrder(details.area.areaId).map { it.value }
         val entries = mutableMapOf<String, StockCountLineEntry>()
         val isEditable = details.countStatus == StockCountStatus.DRAFT && details.area.status != CountAreaStatus.COMPLETED
 
@@ -364,6 +400,59 @@ class StockCountAreaViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
+    fun onItemFilterChanged(filter: StockCountItemFilter) {
+        _itemFilter.value = filter
+    }
+
+    fun onToggleOrderEditing() {
+        val entering = !_isEditingOrder.value
+        if (entering) {
+            _searchQuery.value = ""
+            _itemFilter.value = StockCountItemFilter.ALL
+        }
+        _isEditingOrder.value = entering
+    }
+
+    fun onMoveItem(ingredientId: String, direction: Int) {
+        val base = uiState.value.lineEntries.map { it.ingredientId }.toMutableList()
+        val from = base.indexOf(ingredientId)
+        val to = (from + direction).coerceIn(0, base.lastIndex)
+        if (from < 0 || from == to) return
+        base.add(to, base.removeAt(from))
+        _orderedIngredientIds.value = base
+        val areaId = uiState.value.details?.area?.areaId ?: return
+        viewModelScope.launch {
+            try {
+                repository.saveItemOrder(areaId, base.map(::IngredientId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = e
+            }
+        }
+    }
+
+    fun onImeAction(ingredientId: String) {
+        val visible = uiState.value.lineEntries
+        val index = visible.indexOfFirst { it.ingredientId == ingredientId }
+        if (index < 0) return
+        val entry = visible[index]
+        val parsed = DecimalParser.parse(entry.quantityText)
+        if (parsed == null || parsed < BigDecimal.ZERO) {
+            val error = if (parsed != null) ValidationError.InvalidCountQuantity else ValidationError.InvalidDecimal
+            _lineEntries.update { it + (ingredientId to entry.copy(error = error)) }
+            return
+        }
+        viewModelScope.launch {
+            debounceJobs[ingredientId]?.cancel()
+            val completion = CompletableDeferred<Boolean>()
+            getCoordinator(ingredientId).enqueueFlush(completion)
+            if (completion.await()) {
+                visible.getOrNull(index + 1)?.let { _events.send(StockCountAreaEvent.FocusQuantity(it.ingredientId)) }
+            }
+        }
+    }
+
     fun onAddIngredient(ingredient: Ingredient) {
         if (_lineEntries.value.containsKey(ingredient.id.value)) return
 
@@ -403,6 +492,12 @@ class StockCountAreaViewModel @Inject constructor(
             error = null
         )
         _lineEntries.update { it + (ingredientId to updatedEntry) }
+
+        if (quantity.isBlank() && entry.lineId != null) {
+            debounceJobs[ingredientId]?.cancel()
+            getCoordinator(ingredientId, entry.lineId).enqueueClear()
+            return
+        }
 
         updatePreview(updatedEntry)
 
@@ -622,6 +717,7 @@ class StockCountAreaViewModel @Inject constructor(
 
     private sealed interface LineOperation {
         data class Save(val revision: Long) : LineOperation
+        data object Clear : LineOperation
         data class Delete(val completion: CompletableDeferred<Unit>) : LineOperation
         data class Flush(val completion: CompletableDeferred<Boolean>) : LineOperation
     }
@@ -668,6 +764,10 @@ class StockCountAreaViewModel @Inject constructor(
             channel.trySend(LineOperation.Delete(completion))
         }
 
+        fun enqueueClear() {
+            channel.trySend(LineOperation.Clear)
+        }
+
         fun enqueueFlush(completion: CompletableDeferred<Boolean>) {
             channel.trySend(LineOperation.Flush(completion))
         }
@@ -675,8 +775,39 @@ class StockCountAreaViewModel @Inject constructor(
         private suspend fun process(op: LineOperation) {
             when (op) {
                 is LineOperation.Save -> handleSave(op.revision)
+                LineOperation.Clear -> handleClear()
                 is LineOperation.Delete -> handleDelete(op.completion)
                 is LineOperation.Flush -> handleFlush(op.completion)
+            }
+        }
+
+
+        private suspend fun handleClear() {
+            val existingId = lineId ?: return
+            val cid = countId ?: return
+            val aid = countAreaId ?: return
+            try {
+                repository.deleteLine(cid, aid, StockCountLineId(existingId))
+                lineId = null
+                _lineEntries.update { entries ->
+                    val current = entries[ingredientId] ?: return@update entries
+                    entries + (ingredientId to current.copy(
+                        lineId = null,
+                        hasUserEdit = false,
+                        savedRevision = -1,
+                        isSaving = false,
+                        preview = null,
+                        error = null
+                    ))
+                }
+                updateMissingCountState()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _lineEntries.update { entries ->
+                    val current = entries[ingredientId] ?: return@update entries
+                    entries + (ingredientId to current.copy(error = e, isSaving = false))
+                }
             }
         }
 

@@ -6,5 +6,5 @@ package com.miara.cuentame.core.common.database
  * to ensure backup manifests and Room migrations cannot drift silently.
  */
 object DatabaseSchema {
-    const val VERSION = 10
+    const val VERSION = 11
 }

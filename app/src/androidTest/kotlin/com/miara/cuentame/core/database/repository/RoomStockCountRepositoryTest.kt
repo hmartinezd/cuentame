@@ -191,6 +191,40 @@ class RoomStockCountRepositoryTest {
         }
         assertThat(repository.observeCount(countId).first()!!.count.status).isEqualTo(StockCountStatus.DRAFT)
         assertThat(database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value)).isEmpty()
+
+        val lineBefore = repository.observeCount(countId).first()!!.areas.single().lines.single()
+        repository.reconfirmLine(countId, lineBefore.id)
+        val lineAfter = repository.observeCount(countId).first()!!.areas.single().lines.single()
+        assertThat(lineAfter.quantityEntered).isEqualTo(lineBefore.quantityEntered)
+        assertThat(lineAfter.quantityBase).isEqualTo(lineBefore.quantityBase)
+        assertThat(lineAfter.expectedQuantityBaseSnapshot?.compareTo(BigDecimal.ONE)).isEqualTo(0)
+        assertThat(lineAfter.adjustmentQuantityBase?.compareTo(BigDecimal("6"))).isEqualTo(0)
+
+        repository.completeCount(countId)
+        assertThat(repository.observeCount(countId).first()!!.count.status).isEqualTo(StockCountStatus.COMPLETED)
+    }
+
+    @Test
+    fun start_usesLiveTimeInsteadOfRequestedHistoricalTime() = runBlocking {
+        val before = Instant.now().minusSeconds(1)
+        val countId = repository.start(
+            StartStockCountCommand(restId, "Live", Instant.parse("2000-01-01T00:00:00Z"), listOf(InventoryAreaId(TestSeeder.AREA_ID)), null)
+        )
+        val count = repository.observeCount(countId).first()!!.count
+        assertThat(count.effectiveAt).isAtLeast(before)
+        assertThat(count.effectiveAt).isEqualTo(count.startedAt)
+    }
+
+    @Test
+    fun shelfOrder_persistsAndCanBeReordered() = runBlocking {
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val ingredientId = IngredientId(TestSeeder.ING_ID)
+
+        repository.saveItemOrder(areaId, listOf(ingredientId))
+        assertThat(repository.getItemOrder(areaId)).containsExactly(ingredientId).inOrder()
+
+        repository.saveItemOrder(areaId, emptyList())
+        assertThat(repository.getItemOrder(areaId)).isEmpty()
     }
 
     private fun assertBigDecimalEquivalent(actual: String, expected: String) {

@@ -110,7 +110,9 @@ sealed class ValidationError(override val message: String) : Exception(message) 
     data object StockCountMovementAlreadyExists : ValidationError("Stock count movement already exists")
     data object StockCountReversalAlreadyExists : ValidationError("Stock count reversal already exists")
     data object PendingCountSaves : ValidationError("Please wait for pending saves to finish")
-    data object StockCountInventoryChanged : ValidationError("Inventory changed since this item was counted")
+    data class StockCountInventoryChanged(
+        val items: List<com.miara.cuentame.core.domain.repository.StockCountDriftItem>
+    ) : ValidationError("Inventory changed since this item was counted")
 
     // Waste Tracking
     data object WasteEventNotFound : ValidationError("Waste event not found")

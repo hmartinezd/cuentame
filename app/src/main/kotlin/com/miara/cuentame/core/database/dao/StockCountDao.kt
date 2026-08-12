@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.miara.cuentame.core.database.entity.StockCountAreaEntity
 import com.miara.cuentame.core.database.entity.StockCountEntity
 import com.miara.cuentame.core.database.entity.StockCountLineEntity
+import com.miara.cuentame.core.database.entity.StockCountItemOrderEntity
 import com.miara.cuentame.core.database.model.CompletedCountLineRow
 import com.miara.cuentame.core.database.model.CompletedCountSummaryRow
 import com.miara.cuentame.core.database.model.RecentCountActivityRow
@@ -16,6 +17,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StockCountDao {
+    @Query("SELECT * FROM stock_count_item_order WHERE areaId = :areaId ORDER BY sortOrder, ingredientId")
+    suspend fun getItemOrder(areaId: String): List<StockCountItemOrderEntity>
+
+    @Query("DELETE FROM stock_count_item_order WHERE areaId = :areaId")
+    suspend fun deleteItemOrder(areaId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemOrder(items: List<StockCountItemOrderEntity>)
     @Query("""
         SELECT 
             id as stockCountId,

@@ -50,6 +50,14 @@ data class ReviewWarning(
     val isArchived: Boolean
 )
 
+data class StockCountDriftItemUi(
+    val lineId: com.miara.cuentame.core.common.ids.StockCountLineId,
+    val ingredientName: String,
+    val areaName: String?,
+    val expectedWhenCounted: BigDecimal?,
+    val currentInventory: BigDecimal?
+)
+
 sealed interface StockCountDetailScreenState {
     data object Loading : StockCountDetailScreenState
     data object Ready : StockCountDetailScreenState
@@ -69,6 +77,7 @@ data class StockCountDetailUiState(
     val reviewLines: List<StockCountReviewLine> = emptyList(),
     val missingWarnings: List<ReviewWarning> = emptyList(),
     val archivedWarnings: List<ReviewWarning> = emptyList(),
+    val driftItems: List<StockCountDriftItemUi> = emptyList(),
     val showReview: Boolean = false,
     val isReviewLoading: Boolean = false,
     val error: Throwable? = null
@@ -101,6 +110,7 @@ class StockCountDetailViewModel @Inject constructor(
     private val _reviewLines = MutableStateFlow<List<StockCountReviewLine>>(emptyList())
     private val _missingWarnings = MutableStateFlow<List<ReviewWarning>>(emptyList())
     private val _archivedWarnings = MutableStateFlow<List<ReviewWarning>>(emptyList())
+    private val _driftItems = MutableStateFlow<List<StockCountDriftItemUi>>(emptyList())
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _hasLoadedOnce = MutableStateFlow(false)
 
@@ -134,6 +144,7 @@ class StockCountDetailViewModel @Inject constructor(
         _reviewLines,
         _missingWarnings,
         _archivedWarnings,
+        _driftItems,
         _error,
         _hasLoadedOnce
     ) { args ->
@@ -147,8 +158,9 @@ class StockCountDetailViewModel @Inject constructor(
         val reviewLines = args[7] as List<StockCountReviewLine>
         val missingWarnings = args[8] as List<ReviewWarning>
         val archivedWarnings = args[9] as List<ReviewWarning>
-        val error = args[10] as Throwable?
-        val hasLoadedOnce = args[11] as Boolean
+        val driftItems = args[10] as List<StockCountDriftItemUi>
+        val error = args[11] as Throwable?
+        val hasLoadedOnce = args[12] as Boolean
 
         val screenState = when {
             countId == null || countIdStr.isNullOrBlank() -> StockCountDetailScreenState.InvalidRoute
@@ -169,6 +181,7 @@ class StockCountDetailViewModel @Inject constructor(
             reviewLines = reviewLines,
             missingWarnings = missingWarnings,
             archivedWarnings = archivedWarnings,
+            driftItems = driftItems,
             showReview = showReview,
             isReviewLoading = isReviewLoading,
             error = error
@@ -190,6 +203,8 @@ class StockCountDetailViewModel @Inject constructor(
                 repository.deleteDraft(cid)
                 _events.send(StockCountDetailEvent.Deleted)
                 _isDeleting.value = false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _isDeleting.update { false }
                 _error.value = e
@@ -258,12 +273,16 @@ class StockCountDetailViewModel @Inject constructor(
                         val option = options.find { it.id == line.ingredientUnitOptionId } ?: throw ValidationError.UnitOptionNotFound
                         val baseUnit = options.find { it.isBase } ?: throw ValidationError.UnitOptionNotFound
                         
-                        val preview = previewUseCase(
-                            restaurantId = areaDetail.restaurantId,
-                            ingredientId = line.ingredientId,
-                            areaId = areaDetail.area.areaId,
-                            effectiveAt = areaDetail.effectiveAt,
-                            quantityBase = line.quantityBase
+                        val expected = line.expectedQuantityBaseSnapshot
+                        val adjustment = line.adjustmentQuantityBase
+                            ?: line.quantityBase.subtract(expected ?: BigDecimal.ZERO)
+                        val preview = StockCountLinePreview(
+                            countedQuantityBase = line.quantityBase,
+                            expectedQuantityBase = expected,
+                            provisionalAdjustmentBase = adjustment,
+                            willCreateOpeningBalance = expected == null,
+                            averageCostBase = null,
+                            estimatedValueChange = null
                         )
 
                         lines.add(
@@ -284,7 +303,22 @@ class StockCountDetailViewModel @Inject constructor(
                 _reviewLines.value = lines
                 _missingWarnings.value = missingW
                 _archivedWarnings.value = archivedW
+                val drift = repository.findDrift(details.count.id)
+                _driftItems.value = drift.mapNotNull { item ->
+                    val area = details.areas.find { it.area.id == item.countAreaId } ?: return@mapNotNull null
+                    val line = area.lines.find { it.ingredientId == item.ingredientId } ?: return@mapNotNull null
+                    val ingredient = ingredientRepository.getById(item.ingredientId) ?: return@mapNotNull null
+                    StockCountDriftItemUi(
+                        lineId = line.id,
+                        ingredientName = ingredient.name,
+                        areaName = area.areaName,
+                        expectedWhenCounted = item.expectedQuantityBaseSnapshot,
+                        currentInventory = item.currentExpectedQuantityBase
+                    )
+                }
                 _isReviewLoading.value = false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _isReviewLoading.value = false
                 _error.value = e
@@ -305,8 +339,28 @@ class StockCountDetailViewModel @Inject constructor(
                 _events.send(StockCountDetailEvent.Completed)
                 _isCompleting.value = false
                 _showReview.value = false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _isCompleting.value = false
+                if (e is ValidationError.StockCountInventoryChanged) {
+                    generateReviewData()
+                } else {
+                    _error.value = e
+                }
+            }
+        }
+    }
+
+    fun onReconfirm(lineId: com.miara.cuentame.core.common.ids.StockCountLineId) {
+        val cid = countId ?: return
+        viewModelScope.launch {
+            try {
+                repository.reconfirmLine(cid, lineId)
+                generateReviewData()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _error.value = e
             }
         }

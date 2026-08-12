@@ -43,7 +43,17 @@ data class SaveStockCountLineCommand(
 data class StockCountSummary(
     val count: StockCount,
     val areaCount: Int,
-    val progress: Float
+    val progress: Float,
+    val countedItemCount: Int = 0,
+    val totalCountableItemCount: Int = 0
+)
+
+data class StockCountDriftItem(
+    val countAreaId: StockCountAreaId,
+    val inventoryAreaId: InventoryAreaId,
+    val ingredientId: IngredientId,
+    val expectedQuantityBaseSnapshot: BigDecimal?,
+    val currentExpectedQuantityBase: BigDecimal?
 )
 
 data class StockCountDetails(
@@ -78,6 +88,8 @@ interface StockCountRepository {
     ): Set<IngredientId>
 
     suspend fun getDraftAreaIds(restaurantId: RestaurantId): Set<InventoryAreaId>
+    suspend fun getItemOrder(areaId: InventoryAreaId): List<IngredientId> = emptyList()
+    suspend fun saveItemOrder(areaId: InventoryAreaId, ingredientIds: List<IngredientId>) = Unit
 
     suspend fun start(command: StartStockCountCommand): StockCountId
     suspend fun updateDraft(command: UpdateStockCountDraftCommand)
@@ -87,5 +99,7 @@ interface StockCountRepository {
     suspend fun reopenArea(countId: StockCountId, countAreaId: StockCountAreaId)
     suspend fun deleteDraft(countId: StockCountId)
     suspend fun completeCount(countId: StockCountId)
+    suspend fun findDrift(countId: StockCountId): List<StockCountDriftItem> = emptyList()
+    suspend fun reconfirmLine(countId: StockCountId, lineId: StockCountLineId) = Unit
     suspend fun voidCount(countId: StockCountId)
 }

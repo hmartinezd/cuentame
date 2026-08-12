@@ -23,6 +23,7 @@ import com.miara.cuentame.core.common.database.DatabaseSchema
         StockCountEntity::class,
         StockCountAreaEntity::class,
         StockCountLineEntity::class,
+        StockCountItemOrderEntity::class,
         WasteEventEntity::class,
         InventoryMovementEntity::class,
         InventoryBalanceProjectionEntity::class,

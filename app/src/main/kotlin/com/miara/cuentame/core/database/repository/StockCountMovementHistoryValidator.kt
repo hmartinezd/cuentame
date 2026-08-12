@@ -141,7 +141,7 @@ class StockCountMovementHistoryValidator {
             throw ValidationError.MalformedStockCountMovementHistory
         }
         
-        if (movement.effectiveAt != count.effectiveAt) throw ValidationError.MalformedStockCountMovementHistory
+        if (movement.effectiveAt != count.completedAt) throw ValidationError.MalformedStockCountMovementHistory
         if (movement.createdAt != count.completedAt) throw ValidationError.MalformedStockCountMovementHistory
         
         // Opening balance checks

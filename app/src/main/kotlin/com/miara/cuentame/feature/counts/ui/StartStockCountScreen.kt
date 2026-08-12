@@ -1,6 +1,5 @@
 package com.miara.cuentame.feature.counts.ui
 
-import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,13 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,9 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,9 +50,7 @@ import com.miara.cuentame.feature.counts.viewmodel.StartStockCountEvent
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountUiState
 import com.miara.cuentame.feature.counts.viewmodel.StartStockCountViewModel
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -99,7 +90,6 @@ fun StartStockCountRoute(
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onNameChanged = viewModel::onNameChanged,
-        onDateChanged = viewModel::onDateChanged,
         onAreaToggle = viewModel::onAreaToggle,
         onNotesChanged = viewModel::onNotesChanged,
         onStartCount = viewModel::onStart
@@ -113,17 +103,10 @@ fun StartStockCountScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onNameChanged: (String) -> Unit,
-    onDateChanged: (Instant) -> Unit,
     onAreaToggle: (InventoryAreaId) -> Unit,
     onNotesChanged: (String) -> Unit,
     onStartCount: () -> Unit
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("MMM dd, yyyy").withZone(ZoneId.systemDefault()) }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()) }
-
     Scaffold(
         modifier = Modifier.testTag("stock_count_start_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -160,43 +143,11 @@ fun StartStockCountScreen(
                     enabled = !uiState.isStarting
                 )
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = dateFormatter.format(uiState.effectiveAt),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.purchase_date)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !uiState.isStarting,
-                            trailingIcon = {
-                                Icon(Icons.Default.DateRange, contentDescription = null)
-                            }
-                        )
-                        Box(modifier = Modifier.matchParentSize().clickable(enabled = !uiState.isStarting) { showDatePicker = true })
-                    }
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = timeFormatter.format(uiState.effectiveAt),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.field_time)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !uiState.isStarting,
-                            trailingIcon = {
-                                Icon(Icons.Default.AccessTime, contentDescription = null)
-                            }
-                        )
-                        Box(modifier = Modifier.matchParentSize().clickable(enabled = !uiState.isStarting) {
-                            val dt = LocalDateTime.ofInstant(uiState.effectiveAt, ZoneId.systemDefault())
-                            TimePickerDialog(context, { _, hour, minute ->
-                                val newDt = dt.withHour(hour).withMinute(minute)
-                                onDateChanged(newDt.atZone(ZoneId.systemDefault()).toInstant())
-                            }, dt.hour, dt.minute, true).show()
-                        })
-                    }
-                }
+                Text(
+                    text = stringResource(R.string.count_live_observation),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Text(text = stringResource(R.string.onboarding_areas_title), style = MaterialTheme.typography.titleMedium)
                 
@@ -258,26 +209,4 @@ fun StartStockCountScreen(
         }
     }
 
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = uiState.effectiveAt.toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val selectedDate = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                        val currentDt = LocalDateTime.ofInstant(uiState.effectiveAt, ZoneId.systemDefault())
-                        val newDt = LocalDateTime.of(selectedDate, currentDt.toLocalTime())
-                        onDateChanged(newDt.atZone(ZoneId.systemDefault()).toInstant())
-                    }
-                    showDatePicker = false
-                }) { Text(stringResource(android.R.string.ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(android.R.string.cancel)) }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
 }
