@@ -2,24 +2,25 @@ package com.miara.cuentame.feature.reports.export
 
 import com.miara.cuentame.core.domain.repository.PurchaseExportRow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PurchaseCsvExportTest {
 
     @Test
-    fun `generate should include all columns`() {
+    fun `generate should include all columns and clarify base unit context`() {
         val rows = listOf(
             PurchaseExportRow(
                 purchaseDate = 1723482246000L, // 2024-08-12T17:04:06Z
-                supplierName = "Supplier A",
+                supplierName = "Supplier, Inc.",
                 invoiceNumber = "INV-001",
                 ingredientName = "Tomato",
-                quantityEntered = "10",
+                quantityEntered = "2",
                 purchaseUnitLabel = "Case",
-                quantityBase = "50",
-                baseUnitSymbol = "kg",
-                unitCostBase = "2.5",
-                lineTotal = "125.0",
+                quantityBase = "48",
+                baseUnitSymbol = "each",
+                unitCostBase = "0.35",
+                lineTotal = "16.8",
                 status = "POSTED"
             )
         )
@@ -27,14 +28,16 @@ class PurchaseCsvExportTest {
         val csv = PurchaseCsvExport.generate(rows)
         val lines = csv.lines()
 
-        assertEquals("purchase_date,supplier,document_number,ingredient,quantity,unit,quantity_base,unit_cost,line_total,status", lines[0])
-        assertTrue(lines[1].contains("Supplier A"))
-        assertTrue(lines[1].contains("INV-001"))
-        assertTrue(lines[1].contains("Tomato"))
-        assertTrue(lines[1].contains("POSTED"))
-    }
-
-    private fun assertTrue(condition: Boolean) {
-        org.junit.Assert.assertTrue(condition)
+        val header = "purchase_date,supplier,document_number,ingredient,quantity,unit,quantity_base,base_unit,unit_cost_base,line_total,status"
+        assertEquals(header, lines[0])
+        
+        val row = lines[1]
+        assertTrue(row.contains("\"Supplier, Inc.\""))
+        assertTrue(row.contains("Case"))
+        assertTrue(row.contains("48"))
+        assertTrue(row.contains("each"))
+        assertTrue(row.contains("0.35"))
+        assertTrue(row.contains("16.8"))
+        assertTrue(row.contains("POSTED"))
     }
 }

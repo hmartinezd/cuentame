@@ -102,6 +102,8 @@ class PurchaseDetailViewModel @Inject constructor(
                     val rows = detailedReportsRepository.observePurchaseExportRows(state.restaurantId, period).first()
                     val csv = PurchaseCsvExport.generate(rows)
                     _exportTrigger.emit(csv)
+                } catch (e: Exception) {
+                    // Fail silently or handle if project has a standard way for transient errors
                 } finally {
                     isExporting = false
                 }

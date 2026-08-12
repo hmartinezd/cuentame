@@ -740,6 +740,15 @@ class RoomStockCountRepository @Inject constructor(
     }
 
     override suspend fun getExportRows(countId: StockCountId): List<StockCountExportRow> {
+        val activeRestaurant = requireActiveRestaurant()
+        val count = countDao.getCountById(countId.value) ?: throw ValidationError.StockCountNotFound
+        if (count.restaurantId != activeRestaurant.id) throw ValidationError.StockCountOwnershipMismatch
+        
+        // Only COMPLETED or VOIDED counts can be exported as auditable documents
+        if (count.status != StockCountStatus.COMPLETED.name && count.status != StockCountStatus.VOIDED.name) {
+            throw ValidationError.RecordNotFound
+        }
+
         return countDao.getExportRows(countId.value)
     }
 }

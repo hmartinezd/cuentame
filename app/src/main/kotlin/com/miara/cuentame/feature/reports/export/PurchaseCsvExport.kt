@@ -7,7 +7,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 object PurchaseCsvExport {
-    private val dateFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault())
+    private val dateFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(java.time.ZoneOffset.UTC)
 
     fun generate(rows: List<PurchaseExportRow>): String = buildString {
         appendLine(CsvWriter.writeRow(listOf(
@@ -18,7 +18,8 @@ object PurchaseCsvExport {
             "quantity",
             "unit",
             "quantity_base",
-            "unit_cost",
+            "base_unit",
+            "unit_cost_base",
             "line_total",
             "status"
         )))
@@ -31,6 +32,7 @@ object PurchaseCsvExport {
                 row.quantityEntered,
                 row.purchaseUnitLabel.orEmpty(),
                 row.quantityBase,
+                row.baseUnitSymbol,
                 row.unitCostBase,
                 row.lineTotal,
                 row.status

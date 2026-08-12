@@ -268,6 +268,52 @@ class RoomStockCountRepositoryTest {
         assertThat(repository.observeHasCompletedCount(secondRestId).first()).isFalse()
     }
 
+    @Test
+    fun getExportRows_ownershipAndStatusGuards() = runBlocking {
+        val areaId = InventoryAreaId(TestSeeder.AREA_ID)
+        val ingId = IngredientId(TestSeeder.ING_ID)
+        val optId = IngredientUnitOptionId(TestSeeder.OPTION_ID)
+
+        // 1. Create a count for Restaurant A
+        val countId = repository.start(StartStockCountCommand(restId, "C1", Instant.now(), listOf(areaId), null))
+        val countAreaId = repository.observeCount(countId).first()!!.areas.first().area.id
+        repository.saveLine(SaveStockCountLineCommand(countId, countAreaId, null, ingId, optId, BigDecimal("10"), null))
+        repository.completeArea(countId, countAreaId)
+
+        // 2. Programmatic export for DRAFT should fail
+        assertThrows(ValidationError.RecordNotFound::class.java) {
+            runBlocking { repository.getExportRows(countId) }
+        }
+
+        // 3. Complete the count
+        repository.completeCount(countId)
+
+        // 4. Export for COMPLETED should succeed
+        val rows = repository.getExportRows(countId)
+        assertThat(rows).isNotEmpty()
+        assertThat(rows.first().ingredientName).isEqualTo("Beef")
+
+        // 5. Switch active restaurant to Restaurant B by replacing the restaurant record
+        val secondRestId = RestaurantId("rest-b")
+        database.restaurantDao().softDelete(restId.value, System.currentTimeMillis())
+        database.restaurantDao().insert(
+            com.miara.cuentame.core.database.entity.RestaurantEntity(
+                id = secondRestId.value,
+                name = "Rest B",
+                currencyCode = "USD",
+                localeTag = "en-US",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+                deletedAt = null
+            )
+        )
+
+        // 6. Export for Restaurant A's count under Restaurant B should fail
+        assertThrows(ValidationError.StockCountOwnershipMismatch::class.java) {
+            runBlocking { repository.getExportRows(countId) }
+        }
+    }
+
     private fun assertBigDecimalEquivalent(actual: String, expected: String) {
         assertThat(BigDecimal(actual).compareTo(BigDecimal(expected))).isEqualTo(0)
     }
