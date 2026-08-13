@@ -116,4 +116,71 @@ class StockCountCsvExportTest {
         assertTrue(rowLine.contains("\"Kitchen, Main\""))
         assertTrue(rowLine.contains("\"Tomato \"\"Roma\"\"\""))
     }
+
+    @Test(expected = com.miara.cuentame.core.domain.validation.ValidationError.MalformedStockCountMovementHistory::class)
+    fun `TEST A - generate should throw MalformedStockCountMovementHistory when counted is malformed`() {
+        val count = createTestCount()
+        val rows = listOf(
+            StockCountExportRow("A", "I", "u", "10", "not-a-number", null, null)
+        )
+        StockCountCsvExport.generate(count, rows)
+    }
+
+    @Test(expected = com.miara.cuentame.core.domain.validation.ValidationError.MalformedStockCountMovementHistory::class)
+    fun `TEST B - generate should throw MalformedStockCountMovementHistory when expected is malformed`() {
+        val count = createTestCount()
+        val rows = listOf(
+            StockCountExportRow("A", "I", "u", "broken", "5", null, null)
+        )
+        StockCountCsvExport.generate(count, rows)
+    }
+
+    @Test(expected = com.miara.cuentame.core.domain.validation.ValidationError.MalformedStockCountMovementHistory::class)
+    fun `TEST C - generate should throw MalformedStockCountMovementHistory when adjustment is malformed`() {
+        val count = createTestCount()
+        val rows = listOf(
+            StockCountExportRow("A", "I", "u", "10", "5", "broken", null)
+        )
+        StockCountCsvExport.generate(count, rows)
+    }
+
+    @Test
+    fun `TEST D - generate should handle legitimate null expected and adjustment`() {
+        val count = createTestCount()
+        val rows = listOf(
+            StockCountExportRow("A", "I", "u", null, "5", "5", null)
+        )
+        val csv = StockCountCsvExport.generate(count, rows)
+        val row = csv.lines()[1].split(",")
+        assertEquals("", row[8])  // expected
+        assertEquals("5", row[9]) // counted
+        assertEquals("", row[10]) // variance
+        assertEquals("5", row[11]) // adjustment
+    }
+
+    @Test
+    fun `TEST E - generate should handle real zero`() {
+        val count = createTestCount()
+        val rows = listOf(
+            StockCountExportRow("A", "I", "u", "5", "0", "-5", null)
+        )
+        val csv = StockCountCsvExport.generate(count, rows)
+        val row = csv.lines()[1].split(",")
+        assertEquals("5", row[8])  // expected
+        assertEquals("0", row[9])  // counted
+        assertEquals("-5", row[10]) // variance
+        assertEquals("-5", row[11]) // adjustment
+    }
+
+    private fun createTestCount() = StockCount(
+        id = StockCountId("c1"),
+        restaurantId = RestaurantId("r1"),
+        name = "Test Count",
+        startedAt = t1,
+        effectiveAt = t1,
+        completedAt = t2,
+        status = StockCountStatus.COMPLETED,
+        createdAt = t1,
+        updatedAt = t2
+    )
 }

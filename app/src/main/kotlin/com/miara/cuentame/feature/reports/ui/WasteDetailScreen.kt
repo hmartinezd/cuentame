@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -50,12 +51,33 @@ fun WasteDetailRoute(
     viewModel: WasteDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val exportTitle = stringResource(R.string.export_waste)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val exportErrorMessage = stringResource(R.string.export_failed)
+
+    LaunchedEffect(Unit) {
+        viewModel.exportFlow.collect { csv ->
+            ShareHelper.shareCsv(context, "waste_export.csv", csv, exportTitle)
+                .onFailure {
+                    snackbarHostState.showSnackbar(exportErrorMessage)
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.exportError.collect {
+            snackbarHostState.showSnackbar(exportErrorMessage)
+        }
+    }
 
     WasteDetailScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
+        onExport = viewModel::onExportRequested,
         modifier = modifier
     )
 }
@@ -64,16 +86,16 @@ fun WasteDetailRoute(
 @Composable
 fun WasteDetailScreen(
     uiState: DetailReportScreenState<WasteDetailReport>,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val exportTitle = stringResource(R.string.export_waste)
-
     Scaffold(
         modifier = modifier.fillMaxSize().testTag("waste_report_screen"),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.waste_detail_title)) },
@@ -85,11 +107,8 @@ fun WasteDetailScreen(
                 actions = {
                     if (uiState is DetailReportScreenState.Ready) {
                         IconButton(
-                            onClick = {
-                                val csv = WasteCsvExport.generate(uiState.report)
-                                ShareHelper.shareCsv(context, "waste_export.csv", csv, exportTitle)
-                            },
-                            modifier = Modifier.testTag("waste_export_button")
+                            onClick = onExport,
+                            modifier = Modifier.testTag("waste_report_button")
                         ) {
                             Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_csv))
                         }

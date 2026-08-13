@@ -245,4 +245,40 @@ class PurchaseDetailViewModelTest {
             assertThat(ready2.restaurantId).isEqualTo(RestaurantId("rest-2"))
         }
     }
+
+    @Test
+    fun `export failure emits error and resets isExporting`() = runTest {
+        restaurantFlow.value = restaurant
+        val report = PurchaseDetailReport(emptyList(), period30, BigDecimal.ZERO, 0)
+        every { detailedReportsRepository.observePurchaseDetails(restaurantId, period30) } returns flowOf(report)
+        every { detailedReportsRepository.observePurchaseExportRows(restaurantId, period30) } returns flow {
+            throw RuntimeException("Export Fail")
+        }
+
+        val viewModel = PurchaseDetailViewModel(SavedStateHandle(), restaurantRepository, detailedReportsRepository, periodCalculator)
+        
+        // Wait for ready state
+        viewModel.uiState.test {
+            awaitItem() // Loading
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem() // Ready
+        }
+
+        viewModel.exportError.test {
+            viewModel.onExportRequested()
+            testDispatcher.scheduler.advanceUntilIdle()
+            
+            val error = awaitItem()
+            assertThat(error).isInstanceOf(RuntimeException::class.java)
+            assertThat(error.message).isEqualTo("Export Fail")
+        }
+
+        // Verify we can try again (isExporting was reset)
+        every { detailedReportsRepository.observePurchaseExportRows(restaurantId, period30) } returns flowOf(emptyList())
+        viewModel.exportFlow.test {
+            viewModel.onExportRequested()
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem()
+        }
+    }
 }

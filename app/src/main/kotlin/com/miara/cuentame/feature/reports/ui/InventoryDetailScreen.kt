@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -46,11 +47,32 @@ fun InventoryDetailRoute(
     viewModel: InventoryDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val exportTitle = stringResource(R.string.export_inventory)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val exportErrorMessage = stringResource(R.string.export_failed)
+
+    LaunchedEffect(Unit) {
+        viewModel.exportFlow.collect { csv ->
+            ShareHelper.shareCsv(context, "inventory_export.csv", csv, exportTitle)
+                .onFailure {
+                    snackbarHostState.showSnackbar(exportErrorMessage)
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.exportError.collect {
+            snackbarHostState.showSnackbar(exportErrorMessage)
+        }
+    }
 
     InventoryDetailScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onRetry = viewModel::onRetry,
+        onExport = viewModel::onExportRequested,
         modifier = modifier
     )
 }
@@ -59,15 +81,15 @@ fun InventoryDetailRoute(
 @Composable
 fun InventoryDetailScreen(
     uiState: DetailReportScreenState<InventoryDetailReport>,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val exportTitle = stringResource(R.string.export_inventory)
-
     Scaffold(
         modifier = modifier.fillMaxSize().testTag("inventory_report_screen"),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inventory_detail_title)) },
@@ -79,10 +101,7 @@ fun InventoryDetailScreen(
                 actions = {
                     if (uiState is DetailReportScreenState.Ready) {
                         IconButton(
-                            onClick = {
-                                val csv = InventoryCsvExport.generate(uiState.report)
-                                ShareHelper.shareCsv(context, "inventory_export.csv", csv, exportTitle)
-                            },
+                            onClick = onExport,
                             modifier = Modifier.testTag("inventory_export_button")
                         ) {
                             Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_csv))

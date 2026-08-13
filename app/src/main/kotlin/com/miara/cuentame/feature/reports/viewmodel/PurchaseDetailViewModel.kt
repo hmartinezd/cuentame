@@ -36,6 +36,9 @@ class PurchaseDetailViewModel @Inject constructor(
     private val _exportTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val exportFlow: Flow<String> = _exportTrigger.asSharedFlow()
 
+    private val _exportError = MutableSharedFlow<Throwable>(extraBufferCapacity = 1)
+    val exportError: Flow<Throwable> = _exportError.asSharedFlow()
+
     private var isExporting = false
 
     val uiState: StateFlow<DetailReportScreenState<PurchaseDetailReport>> = combine(
@@ -102,8 +105,10 @@ class PurchaseDetailViewModel @Inject constructor(
                     val rows = detailedReportsRepository.observePurchaseExportRows(state.restaurantId, period).first()
                     val csv = PurchaseCsvExport.generate(rows)
                     _exportTrigger.emit(csv)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    // Fail silently or handle if project has a standard way for transient errors
+                    _exportError.emit(e)
                 } finally {
                     isExporting = false
                 }

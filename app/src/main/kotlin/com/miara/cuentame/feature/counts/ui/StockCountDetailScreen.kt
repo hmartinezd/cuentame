@@ -89,6 +89,9 @@ fun StockCountDetailRoute(
     LaunchedEffect(Unit) {
         viewModel.exportFlow.collect { csv ->
             ShareHelper.shareCsv(context, "count_export.csv", csv, exportTitle)
+                .onFailure {
+                    snackbarHostState.showSnackbar(context.getString(R.string.export_failed))
+                }
         }
     }
 

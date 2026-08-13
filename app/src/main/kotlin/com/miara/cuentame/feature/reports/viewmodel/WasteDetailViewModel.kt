@@ -8,9 +8,11 @@ import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.domain.service.ReportingPeriodCalculator
 import com.miara.cuentame.core.model.dashboard.DashboardDateRange
 import com.miara.cuentame.core.model.dashboard.WasteDetailReport
+import com.miara.cuentame.feature.reports.export.WasteCsvExport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,6 +32,14 @@ class WasteDetailViewModel @Inject constructor(
     val selectedRange: StateFlow<DashboardDateRange> = _selectedRange.asStateFlow()
 
     private val _retryTrigger = MutableStateFlow(0)
+
+    private val _exportTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val exportFlow: Flow<String> = _exportTrigger.asSharedFlow()
+
+    private val _exportError = MutableSharedFlow<Throwable>(extraBufferCapacity = 1)
+    val exportError: Flow<Throwable> = _exportError.asSharedFlow()
+
+    private var isExporting = false
 
     val uiState: StateFlow<DetailReportScreenState<WasteDetailReport>> = combine(
         restaurantRepository.observeRestaurant(),
@@ -83,5 +93,24 @@ class WasteDetailViewModel @Inject constructor(
 
     fun onRetry() {
         _retryTrigger.value++
+    }
+
+    fun onExportRequested() {
+        val state = uiState.value
+        if (state is DetailReportScreenState.Ready && !isExporting) {
+            isExporting = true
+            viewModelScope.launch {
+                try {
+                    val csv = WasteCsvExport.generate(state.report)
+                    _exportTrigger.emit(csv)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _exportError.emit(e)
+                } finally {
+                    isExporting = false
+                }
+            }
+        }
     }
 }

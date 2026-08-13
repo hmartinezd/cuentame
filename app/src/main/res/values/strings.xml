@@ -1133,6 +1133,7 @@
     <string name="setup_assign_all">Assign all unassigned ingredients to this area</string>
     <string name="setup_initial_count">Initial physical count completed</string>
     <string name="action_fix">Fix</string>
+    <string name="export_failed">Could not export CSV. Please try again.</string>
     <string name="count_empty_no_ingredients">No ingredients are available to count. Create or import ingredients first.</string>
     <string name="count_empty_area_assignment">Ingredients exist, but none are assigned to this area. Assign their default inventory area before the initial count.</string>
     <string name="import_default_area_help">Set default_area so ingredients appear automatically in the correct area during the initial physical count.</string>

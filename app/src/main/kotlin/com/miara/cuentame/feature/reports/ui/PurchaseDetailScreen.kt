@@ -51,15 +51,27 @@ fun PurchaseDetailRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val exportTitle = stringResource(R.string.export_purchases)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val exportErrorMessage = stringResource(R.string.export_failed)
 
     LaunchedEffect(Unit) {
         viewModel.exportFlow.collect { csv ->
             ShareHelper.shareCsv(context, "purchase_export.csv", csv, exportTitle)
+                .onFailure {
+                    snackbarHostState.showSnackbar(exportErrorMessage)
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.exportError.collect {
+            snackbarHostState.showSnackbar(exportErrorMessage)
         }
     }
 
     PurchaseDetailScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onRetry = viewModel::onRetry,
@@ -72,6 +84,7 @@ fun PurchaseDetailRoute(
 @Composable
 fun PurchaseDetailScreen(
     uiState: DetailReportScreenState<PurchaseDetailReport>,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onRangeSelected: (DashboardDateRange) -> Unit,
     onRetry: () -> Unit,
@@ -80,6 +93,7 @@ fun PurchaseDetailScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize().testTag("purchase_report_screen"),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.purchase_detail_title)) },

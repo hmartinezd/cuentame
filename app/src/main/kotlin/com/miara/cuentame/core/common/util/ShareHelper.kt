@@ -6,7 +6,7 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 object ShareHelper {
-    fun shareCsv(context: Context, filename: String, content: String, title: String) {
+    fun shareCsv(context: Context, filename: String, content: String, title: String): Result<Unit> = runCatching {
         val cacheDir = File(context.cacheDir, "exports")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()

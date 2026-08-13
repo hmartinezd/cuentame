@@ -28,8 +28,9 @@ object StockCountCsvExport {
         )))
 
         rows.forEach { row ->
-            val expected = row.expectedQuantityBase?.let { try { BigDecimal(it) } catch (e: Exception) { null } }
-            val counted = try { BigDecimal(row.countedQuantityBase) } catch (e: Exception) { BigDecimal.ZERO }
+            val expected = parseOptionalHistoricalDecimal(row.expectedQuantityBase)
+            val counted = parseRequiredHistoricalDecimal(row.countedQuantityBase)
+            val adjustment = parseOptionalHistoricalDecimal(row.adjustmentQuantityBase)
             
             val variance = expected?.let { counted.subtract(it) }
 
@@ -45,9 +46,26 @@ object StockCountCsvExport {
                 CsvWriter.formatNumber(expected),
                 CsvWriter.formatNumber(counted),
                 CsvWriter.formatNumber(variance),
-                row.adjustmentQuantityBase?.let { try { BigDecimal(it) } catch (e: Exception) { null } }.let { CsvWriter.formatNumber(it) },
+                CsvWriter.formatNumber(adjustment),
                 row.notes.orEmpty()
             )))
+        }
+    }
+
+    private fun parseRequiredHistoricalDecimal(value: String): BigDecimal {
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedStockCountMovementHistory
+        }
+    }
+
+    private fun parseOptionalHistoricalDecimal(value: String?): BigDecimal? {
+        if (value == null) return null
+        return try {
+            BigDecimal(value)
+        } catch (e: Exception) {
+            throw com.miara.cuentame.core.domain.validation.ValidationError.MalformedStockCountMovementHistory
         }
     }
 }

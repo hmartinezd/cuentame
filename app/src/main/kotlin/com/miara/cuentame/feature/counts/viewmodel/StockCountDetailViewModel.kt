@@ -425,6 +425,8 @@ class StockCountDetailViewModel @Inject constructor(
                 val rows = repository.getExportRows(details.count.id)
                 val csv = StockCountCsvExport.generate(details.count, rows)
                 _exportTrigger.emit(csv)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = e
             } finally {
