@@ -34,6 +34,7 @@ class BackupViewModelTest {
     private val timeProvider = mockk<TimeProvider>()
     private val preferencesRepository = mockk<AppPreferencesRepository>()
     private val diagnosticExporter = mockk<PilotDiagnosticExporter>()
+    private val autoBackupScheduler = mockk<com.miara.cuentame.core.backup.internal.AutoBackupScheduler>(relaxed = true)
 
     @Before
     fun setup() {
@@ -47,6 +48,7 @@ class BackupViewModelTest {
             restaurantRepository,
             preferencesRepository,
             diagnosticExporter,
+            autoBackupScheduler,
             timeProvider,
             savedStateHandle
         )

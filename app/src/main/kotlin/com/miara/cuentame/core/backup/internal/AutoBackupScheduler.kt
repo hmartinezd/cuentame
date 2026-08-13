@@ -29,6 +29,10 @@ class AutoBackupScheduler @Inject constructor(
         )
     }
 
+    fun cancelDailyBackup() {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+    }
+
     companion object {
         private const val WORK_NAME = "cuentame_auto_backup"
     }

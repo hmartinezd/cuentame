@@ -16,6 +16,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.time.Instant
+import com.miara.cuentame.core.preferences.model.AppPreferences
 
 class AutoBackupRepositoryTest {
 
@@ -35,6 +36,7 @@ class AutoBackupRepositoryTest {
         filesDir = tempFolder.newFolder("files")
         every { context.filesDir } returns filesDir
         every { timeProvider.now() } returns Instant.parse("2026-08-12T21:30:00Z")
+        every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
         
         repository = AutoBackupRepository(
             context = context,

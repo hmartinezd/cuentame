@@ -5,6 +5,8 @@ import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.DeviceInfoProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
@@ -43,11 +45,13 @@ data class DeviceInfo(
 @Serializable
 data class DatabaseInfo(
     val schemaVersion: Int,
-    val integrityOk: Boolean
+    val integrityOk: Boolean,
+    val foreignKeysOk: Boolean
 )
 
 @Serializable
 data class BackupStatusInfo(
+    val backupFormatVersion: Int,
     val lastAutoBackupSuccess: String?,
     val lastAutoBackupAttempt: String?,
     val lastAutoBackupResult: String?
@@ -57,6 +61,7 @@ data class BackupStatusInfo(
 class PilotDiagnosticExporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val backupDao: BackupDao,
+    private val database: RestaurantInventoryDatabase,
     private val appVersionProvider: AppVersionProvider,
     private val deviceInfoProvider: DeviceInfoProvider,
     private val preferencesRepository: AppPreferencesRepository,
@@ -66,6 +71,13 @@ class PilotDiagnosticExporter @Inject constructor(
     suspend fun generateReport(): String {
         val prefs = preferencesRepository.observePreferences().first()
         val snapshot = backupDao.createGlobalSnapshot()
+        val sqlite = database.openHelper.readableDatabase
+        val integrityOk = sqlite.query("PRAGMA quick_check").use { cursor ->
+            cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)
+        }
+        val foreignKeysOk = sqlite.query("PRAGMA foreign_key_check").use { cursor ->
+            !cursor.moveToFirst()
+        }
         
         val report = PilotDiagnosticReport(
             diagnosticFormatVersion = 1,
@@ -82,9 +94,11 @@ class PilotDiagnosticExporter @Inject constructor(
             ),
             database = DatabaseInfo(
                 schemaVersion = appVersionProvider.databaseSchemaVersion,
-                integrityOk = true
+                integrityOk = integrityOk,
+                foreignKeysOk = foreignKeysOk
             ),
             backup = BackupStatusInfo(
+                backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
                 lastAutoBackupSuccess = prefs.lastAutoBackupSuccessTimestamp?.let { DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.ofEpochMilli(it)) },
                 lastAutoBackupAttempt = prefs.lastAutoBackupAttemptTimestamp?.let { DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.ofEpochMilli(it)) },
                 lastAutoBackupResult = prefs.lastAutoBackupResult

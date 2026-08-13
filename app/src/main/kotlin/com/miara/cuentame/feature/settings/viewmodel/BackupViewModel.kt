@@ -12,6 +12,7 @@ import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.core.diagnostic.PilotDiagnosticExporter
+import com.miara.cuentame.core.backup.internal.AutoBackupScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -60,6 +61,7 @@ class BackupViewModel @Inject constructor(
     private val restaurantRepository: RestaurantRepository,
     private val preferencesRepository: AppPreferencesRepository,
     private val diagnosticExporter: PilotDiagnosticExporter,
+    private val autoBackupScheduler: AutoBackupScheduler,
     private val timeProvider: TimeProvider,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -351,6 +353,7 @@ class BackupViewModel @Inject constructor(
     fun onToggleAutoBackup(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setAutoBackupEnabled(enabled)
+            if (enabled) autoBackupScheduler.scheduleDailyBackup() else autoBackupScheduler.cancelDailyBackup()
         }
     }
 

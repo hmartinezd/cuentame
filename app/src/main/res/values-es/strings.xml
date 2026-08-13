@@ -1135,6 +1135,7 @@
     <string name="setup_initial_count">Conteo físico inicial completado</string>
     <string name="action_fix">Corregir</string>
     <string name="export_failed">No se pudo exportar el CSV. Inténtalo de nuevo.</string>
+    <string name="diagnostic_share_failed">No se pudo compartir el informe de diagnóstico. Inténtalo de nuevo.</string>
     <string name="count_empty_no_ingredients">No hay ingredientes disponibles para contar. Primero crea o importa ingredientes.</string>
     <string name="count_empty_area_assignment">Hay ingredientes, pero ninguno está asignado a esta área. Asigna su área de inventario predeterminada antes del conteo inicial.</string>
     <string name="import_default_area_help">Define default_area para que los ingredientes aparezcan automáticamente en el área correcta durante el conteo físico inicial.</string>

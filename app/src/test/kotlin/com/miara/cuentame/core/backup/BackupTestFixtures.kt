@@ -289,7 +289,7 @@ object BackupTestFixtures {
         val snapshotWithAttachment = snapshot.copy(purchaseReceipts = sabotagedReceipts)
 
         val manifest = BackupManifest(
-            backupFormatVersion = 2,
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
             createdAtUtc = "2026-08-02T12:00:00Z",
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",

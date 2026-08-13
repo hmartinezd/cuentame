@@ -103,12 +103,9 @@ class BackupManifestContractValidatorTest {
     }
 
     @Test
-    fun `supported format versions succeed`() {
-        val v1 = createValidBaseManifest().copy(backupFormatVersion = 1)
-        assertThat(BackupManifestContractValidator.validateManifestStructure(v1, createStructuralValidChecksums(), createStructuralValidSizes())).isNull()
-
-        val v2 = createValidBaseManifest().copy(backupFormatVersion = 2)
-        assertThat(BackupManifestContractValidator.validateManifestStructure(v2, createStructuralValidChecksums(), createStructuralValidSizes())).isNull()
+    fun `current format version succeeds`() {
+        val current = createValidBaseManifest().copy(backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
+        assertThat(BackupManifestContractValidator.validateManifestStructure(current, createStructuralValidChecksums(), createStructuralValidSizes())).isNull()
     }
 
     @Test
@@ -250,7 +247,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `invalid attachment metadata fails`() {
         val att = createValidAttachment(attachmentId = "short")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -260,7 +257,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `invalid attachment ID fails`() {
         val att = createValidAttachment(attachmentId = "invalid!")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -271,7 +268,7 @@ class BackupManifestContractValidatorTest {
     fun `duplicate attachment ID fails`() {
         val att1 = createValidAttachment(attachmentId = "0123456789abcdef")
         val att2 = createValidAttachment(attachmentId = "0123456789abcdef", archivePath = "attachments/other.jpg")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att1, att2))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att1, att2))
         val checksums = createStructuralValidChecksums(mapOf(
             att1.archivePath to att1.checksumSha256,
             att2.archivePath to att2.checksumSha256
@@ -287,7 +284,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `invalid canonical attachment path fails`() {
         val att = createValidAttachment(archivePath = "outside/file.jpg")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -298,7 +295,7 @@ class BackupManifestContractValidatorTest {
     fun `duplicate attachment path fails`() {
         val att1 = createValidAttachment(attachmentId = "0123456789abcdef")
         val att2 = createValidAttachment(attachmentId = "fedcba9876543210", archivePath = att1.archivePath)
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att1, att2))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att1, att2))
         val checksums = createStructuralValidChecksums(mapOf(att1.archivePath to att1.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att1.archivePath to att1.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -308,7 +305,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `invalid attachment display name fails`() {
         val att = createValidAttachment(displayName = "")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -318,7 +315,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `negative attachment size fails`() {
         val att = createValidAttachment(sizeBytes = -1)
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to 100L))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -328,7 +325,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `invalid attachment checksum fails`() {
         val att = createValidAttachment(checksumSha256 = "short")
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -338,7 +335,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `empty attachment reference list fails`() {
         val att = createValidAttachment(referencedBy = emptyList())
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -349,7 +346,7 @@ class BackupManifestContractValidatorTest {
     fun `duplicate attachment reference fails`() {
         val ref = BackupAttachmentReference("WASTE_EVENT", "w1")
         val att = createValidAttachment(referencedBy = listOf(ref, ref))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -359,7 +356,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `blank attachment reference record ID fails`() {
         val att = createValidAttachment(referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -369,7 +366,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `unsupported attachment reference type fails`() {
         val att = createValidAttachment(referencedBy = listOf(BackupAttachmentReference("UNKNOWN", "id1")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         val failure = BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)
@@ -379,7 +376,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `manifest to zip attachment bijection exact match succeeds`() {
         val att = createValidAttachment()
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         
@@ -389,7 +386,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `manifest to zip attachment bijection enforced`() {
         val att = createValidAttachment()
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         
         // 1. Missing from ZIP
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, createStructuralValidChecksums(), createStructuralValidSizes())).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -403,14 +400,14 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `manifest attachment missing from ZIP fails`() {
         val att = createValidAttachment()
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums()
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, createStructuralValidSizes())).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
 
     @Test
     fun `ZIP attachment absent from manifest fails`() {
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2)
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         val checksums = createStructuralValidChecksums(mapOf("attachments/0123456789abcdef/file.jpg" to "a".repeat(64)))
         val sizes = createStructuralValidSizes(mapOf("attachments/0123456789abcdef/file.jpg" to 100L))
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -418,7 +415,7 @@ class BackupManifestContractValidatorTest {
 
     @Test
     fun `extra file in ZIP fails`() {
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2)
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         val checksums = createStructuralValidChecksums(mapOf("attachments/extra/file.jpg" to "b".repeat(64)))
         val sizes = createStructuralValidSizes(mapOf("attachments/extra/file.jpg" to 100L))
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, sizes)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -427,7 +424,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `extra entry in manifest fails`() {
         val att = createValidAttachment()
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums()
         assertThat(BackupManifestContractValidator.validateManifestStructure(manifest, checksums, createStructuralValidSizes())).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
@@ -451,7 +448,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `attachment size mismatch fails`() {
         val att = createValidAttachment(sizeBytes = 100)
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to 200L))
         
@@ -461,7 +458,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `physical attachment size mismatch fails`() {
         val att = createValidAttachment(sizeBytes = 100)
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to att.checksumSha256))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to 200L))
         
@@ -471,7 +468,7 @@ class BackupManifestContractValidatorTest {
     @Test
     fun `physical attachment checksum mismatch fails`() {
         val att = createValidAttachment(checksumSha256 = "a".repeat(64))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val checksums = createStructuralValidChecksums(mapOf(att.archivePath to "b".repeat(64)))
         val sizes = createStructuralValidSizes(mapOf(att.archivePath to att.sizeBytes))
         
@@ -482,14 +479,14 @@ class BackupManifestContractValidatorTest {
     fun `bi-directional attachment relationship validation`() {
         val attId = "0123456789abcdef"
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         
         // 1. Snapshot missing attachment reference
         val snapshotMissing = createValidEmptySnapshot()
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotMissing)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
         
         // 2. Snapshot has attachment but manifest missing it
-        val manifestEmpty = createValidBaseManifest().copy(backupFormatVersion = 2)
+        val manifestEmpty = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         val snapshotExtra = createValidEmptySnapshot().copy(wasteEvents = listOf(createWasteEvent("w1", attId)))
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifestEmpty, snapshotExtra)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
@@ -500,7 +497,7 @@ class BackupManifestContractValidatorTest {
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1")))
         
         val manifest = createValidBaseManifest().copy(
-            backupFormatVersion = 2,
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
             attachments = listOf(att),
             tableMetadata = createValidBaseManifest().tableMetadata.toMutableMap().apply {
                 put("restaurants", TableMetadata(1, false))
@@ -515,7 +512,7 @@ class BackupManifestContractValidatorTest {
 
     @Test
     fun `snapshot attachment missing from manifest fails`() {
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2)
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         val snapshot = createValidEmptySnapshot().copy(
             wasteEvents = listOf(createWasteEvent("w1", "0123456789abcdef"))
         )
@@ -526,7 +523,7 @@ class BackupManifestContractValidatorTest {
     fun `manifest reference missing from snapshot fails`() {
         val attId = "0123456789abcdef"
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "missing")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val snapshot = createValidEmptySnapshot()
         
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -536,7 +533,7 @@ class BackupManifestContractValidatorTest {
     fun `snapshot missing referenced record fails`() {
         val attId = "0123456789abcdef"
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "missing")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val snapshot = createValidEmptySnapshot()
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
     }
@@ -546,7 +543,7 @@ class BackupManifestContractValidatorTest {
         val attIdA = "000000000000000a"
         val attIdB = "000000000000000b"
         val att = createValidAttachment(attachmentId = attIdA, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         
         val snapshot = createValidEmptySnapshot().copy(
             wasteEvents = listOf(createWasteEvent("w1", attIdB))
@@ -559,7 +556,7 @@ class BackupManifestContractValidatorTest {
     fun `missing purchase record reference fails`() {
         val attId = "0123456789abcdef"
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("PURCHASE_RECEIPT", "p1")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val snapshot = createValidEmptySnapshot() // missing p1
         
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -569,7 +566,7 @@ class BackupManifestContractValidatorTest {
     fun `missing waste record reference fails`() {
         val attId = "0123456789abcdef"
         val att = createValidAttachment(attachmentId = attId, referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1")))
-        val manifest = createValidBaseManifest().copy(backupFormatVersion = 2, attachments = listOf(att))
+        val manifest = createValidBaseManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = listOf(att))
         val snapshot = createValidEmptySnapshot() // missing w1
         
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshot)).isEqualTo(BackupRestoreFailure.ManifestMismatch)
@@ -586,7 +583,7 @@ class BackupManifestContractValidatorTest {
             )
         )
         val manifest = createValidBaseManifest().copy(
-            backupFormatVersion = 2,
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
             attachments = listOf(att),
             tableMetadata = createValidBaseManifest().tableMetadata.toMutableMap().apply {
                 put("restaurants", TableMetadata(1, false))

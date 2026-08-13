@@ -4,7 +4,6 @@ import com.miara.cuentame.core.backup.AttachmentFilenameSanitizer
 import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.api.AttachmentReferenceKey
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
-import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupRestoreFailure
@@ -22,11 +21,7 @@ object BackupManifestContractValidator {
         calculatedSizes: Map<String, Long>
     ): BackupRestoreFailure? {
         // 1. Version and Format check
-        val supportedVersions = setOf(
-            BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
-            BackupFormatV2Contract.BACKUP_FORMAT_VERSION
-        )
-        if (manifest.backupFormatVersion !in supportedVersions) {
+        if (manifest.backupFormatVersion != BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
             return BackupRestoreFailure.UnsupportedFormatVersion
         }
         if (manifest.databaseSchemaVersion !in BackupFormatV1Contract.SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS) {
@@ -74,12 +69,6 @@ object BackupManifestContractValidator {
         val seenAttachmentIds = mutableSetOf<String>()
         val seenArchivePaths = mutableSetOf<String>()
         val seenRecordReferences = mutableSetOf<String>()
-
-        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            if (manifest.attachments.isNotEmpty()) {
-                return BackupRestoreFailure.ManifestMismatch
-            }
-        }
 
         for (att in manifest.attachments) {
             try {
@@ -163,12 +152,6 @@ object BackupManifestContractValidator {
             return BackupRestoreFailure.UnexpectedEntry
         }
         
-        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            if (zipPayloadPaths.isNotEmpty()) {
-                return BackupRestoreFailure.ManifestMismatch
-            }
-        }
-
         if (zipPayloadPaths != seenArchivePaths) {
             return BackupRestoreFailure.ManifestMismatch
         }
@@ -293,12 +276,6 @@ object BackupManifestContractValidator {
         for (att in manifest.attachments) {
             for (ref in att.referencedBy) {
                 manifestRefs.add(AttachmentReferenceKey(att.attachmentId, ref.recordType, ref.recordId))
-            }
-        }
-
-        if (manifest.backupFormatVersion == BackupFormatV1Contract.BACKUP_FORMAT_VERSION) {
-            if (snapshotRefs.isNotEmpty() || manifestRefs.isNotEmpty()) {
-                return BackupRestoreFailure.ManifestMismatch
             }
         }
 

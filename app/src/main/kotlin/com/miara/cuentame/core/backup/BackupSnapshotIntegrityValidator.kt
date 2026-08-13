@@ -65,10 +65,8 @@ object BackupSnapshotIntegrityValidator {
 
             return Result.success(Unit)
         } catch (e: BackupSnapshotIntegrityException) {
-            android.util.Log.e("IntegrityValidator", "Validation failed: ${e.code} - ${e.message}")
             return Result.failure(e)
         } catch (e: Exception) {
-            android.util.Log.e("IntegrityValidator", "Unexpected validation error", e)
             return Result.failure(e)
         }
     }
@@ -1877,12 +1875,10 @@ object BackupSnapshotIntegrityValidator {
         val parsedLineKeys = dto.purchaseInvoiceParsedLines.map { it.parseResultId to it.lineIndex }.toSet()
 
         if (dto.purchaseInvoiceLineMatches.isNotEmpty() && dto.purchaseInvoiceParsedLines.isEmpty()) {
-             android.util.Log.e("IntegrityValidator", "Staged matches exist but no parsed lines found in DTO. Match count: ${dto.purchaseInvoiceLineMatches.size}")
         }
 
         for (match in dto.purchaseInvoiceLineMatches) {
             if (match.parseResultId to match.lineIndex !in parsedLineKeys) {
-                android.util.Log.e("IntegrityValidator", "Match for result ${match.parseResultId} index ${match.lineIndex} not found in parsedLineKeys. Keys in DTO: $parsedLineKeys")
                 return err(RELATIONSHIP_MISMATCH, "Staged match references non-existent parsed line")
             }
 

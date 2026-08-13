@@ -125,7 +125,9 @@ fun SettingsRoute(
                         content = event.content,
                         mimeType = "application/json",
                         title = context.getString(R.string.export_diagnostics_title)
-                    )
+                    ).onFailure {
+                        snackbarHostState.showSnackbar(context.getString(R.string.diagnostic_share_failed))
+                    }
                 }
             }
         }

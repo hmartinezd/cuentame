@@ -2,7 +2,6 @@ package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
-import com.miara.cuentame.core.backup.api.BackupFormatV2Contract
 import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.domain.usecase.locale.AppLocaleReconciler
@@ -40,9 +39,9 @@ class BackupCreationPlanner @Inject constructor(
                 return failure(BackupPlanningFailure.UnsupportedDatabaseSchema)
             }
 
-            // 0.1 Attachment check (V2 Policy: Support attachments)
+            // 0.1 Attachments are part of the current backup contract.
             val snapshotDto = snapshotResult.dto
-            val backupFormatVersion = BackupFormatV2Contract.BACKUP_FORMAT_VERSION
+            val backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION
 
             // 1. Reconcile locale
             val reconciliation = localeReconciler.reconcile()
@@ -233,9 +232,7 @@ class BackupCreationPlanner @Inject constructor(
             // 10. Snapshot integrity (moved from step 8)
             BackupSnapshotIntegrityValidator.validate(snapshotDto, finalManifest).getOrElse { e ->
                 if (e is com.miara.cuentame.core.backup.BackupSnapshotIntegrityException) {
-                    android.util.Log.e("BackupCreationPlanner", "Integrity validation failed: ${e.code} - ${e.message}")
                 } else {
-                    android.util.Log.e("BackupCreationPlanner", "Integrity validation failed with unexpected error", e)
                 }
                 return failure(BackupPlanningFailure.InvalidSnapshot)
             }

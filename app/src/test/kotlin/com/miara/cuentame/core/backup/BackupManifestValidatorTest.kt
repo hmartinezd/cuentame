@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
+
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.model.backup.*
 import org.junit.Test
@@ -48,12 +50,9 @@ class BackupManifestValidatorTest {
     }
 
     @Test
-    fun `supports format versions 1 and 2`() {
-        val v1 = createValidManifest().copy(backupFormatVersion = 1)
-        assertThat(BackupManifestValidator.validate(v1)).isInstanceOf(BackupValidationResult.Valid::class.java)
-
-        val v2 = createValidManifest().copy(backupFormatVersion = 2)
-        assertThat(BackupManifestValidator.validate(v2)).isInstanceOf(BackupValidationResult.Valid::class.java)
+    fun `supports the current format version`() {
+        val current = createValidManifest().copy(backupFormatVersion = BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
+        assertThat(BackupManifestValidator.validate(current)).isInstanceOf(BackupValidationResult.Valid::class.java)
     }
 
     @Test
@@ -78,7 +77,7 @@ class BackupManifestValidatorTest {
                 referencedBy = listOf(BackupAttachmentReference("WASTE_EVENT", "w1"))
             )
         }
-        val manifest = createValidManifest().copy(backupFormatVersion = 2, attachments = manyAttachments)
+        val manifest = createValidManifest().copy(backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, attachments = manyAttachments)
         val result = BackupManifestValidator.validate(manifest) as BackupValidationResult.Invalid
         assertThat(result.code).isEqualTo(BackupValidationCode.LIMIT_EXCEEDED)
     }

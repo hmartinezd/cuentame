@@ -59,7 +59,7 @@ class BackupCreationPlannerTest {
         BackupTestFixtures.createPopulatedSchema4Snapshot()
 
     @Test
-    fun `successful deterministic plan uses V2`() = runTest {
+    fun `successful deterministic plan uses current format`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -70,7 +70,7 @@ class BackupCreationPlannerTest {
 
         assertThat(result).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (result as BackupPlanningResult.Success).plan
-        assertThat(plan.manifest.backupFormatVersion).isEqualTo(2)
+        assertThat(plan.manifest.backupFormatVersion).isEqualTo(BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         assertThat(plan.manifest.localeTag).isEqualTo("en-US")
     }
 
@@ -94,7 +94,7 @@ class BackupCreationPlannerTest {
     }
 
     @Test
-    fun `backup planning supports purchase attachment in V2`() = runTest {
+    fun `backup planning supports purchase attachment in current format`() = runTest {
         coEvery { localeReconciler.reconcile() } returns LocaleReconciliationResult.InSync
         preferencesSource.result = com.miara.cuentame.core.model.backup.BackupPreferencesDto("SYSTEM", true, "en-US")
         
@@ -115,7 +115,7 @@ class BackupCreationPlannerTest {
         
         assertThat(result).isInstanceOf(BackupPlanningResult.Success::class.java)
         val plan = (result as BackupPlanningResult.Success).plan
-        assertThat(plan.manifest.backupFormatVersion).isEqualTo(2)
+        assertThat(plan.manifest.backupFormatVersion).isEqualTo(BackupFormatV1Contract.BACKUP_FORMAT_VERSION)
         assertThat(plan.attachments).hasSize(1)
         assertThat(plan.attachments[0].attachmentId).isEqualTo(attId)
     }

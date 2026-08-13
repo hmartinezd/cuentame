@@ -635,7 +635,7 @@ class DefaultBackupArchiveReaderTest {
         val tables = BackupFormatV1Contract.expectedTablesForSchema(2)
             .associateWith { com.miara.cuentame.core.model.backup.TableMetadata(if (it == "restaurants") 1 else 0, it in BackupFormatV1Contract.DERIVED_TABLES) }
         return com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 2,
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
             createdAtUtc = "2026-01-01T12:00:00Z",
             applicationId = "com.miara.cuentame",
             appVersionName = "1.0",

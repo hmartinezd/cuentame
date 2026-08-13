@@ -139,7 +139,7 @@ class BackupRoundTripCorrectnessTest {
         }
 
         val manifest = BackupManifest(
-            backupFormatVersion = 2,
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION,
             createdAtUtc = "2026-08-10T00:00:00Z",
             applicationId = context.packageName,
             appVersionName = "1.0",

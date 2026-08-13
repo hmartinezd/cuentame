@@ -5,6 +5,8 @@ import com.miara.cuentame.core.common.AppVersionProvider
 import com.miara.cuentame.core.common.DeviceInfoProvider
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.BackupDao
+import com.miara.cuentame.core.database.RestaurantInventoryDatabase
+import android.database.Cursor
 import com.miara.cuentame.core.database.backup.BackupSnapshot
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.preferences.model.AppPreferences
@@ -24,6 +26,7 @@ import java.time.Instant
 class PilotDiagnosticExporterTest {
 
     private val backupDao = mockk<BackupDao>()
+    private val database = mockk<RestaurantInventoryDatabase>()
     private val appVersionProvider = mockk<AppVersionProvider>()
     private val deviceInfoProvider = mockk<DeviceInfoProvider>()
     private val preferencesRepository = mockk<AppPreferencesRepository>()
@@ -37,6 +40,7 @@ class PilotDiagnosticExporterTest {
         exporter = PilotDiagnosticExporter(
             context = mockk(),
             backupDao = backupDao,
+            database = database,
             appVersionProvider = appVersionProvider,
             deviceInfoProvider = deviceInfoProvider,
             preferencesRepository = preferencesRepository,
@@ -53,6 +57,10 @@ class PilotDiagnosticExporterTest {
         every { appVersionProvider.applicationId } returns "com.miara.test"
         every { appVersionProvider.databaseSchemaVersion } returns 12
         every { timeProvider.now() } returns Instant.parse("2026-08-12T22:00:00Z")
+        val sqlite = mockk<androidx.sqlite.db.SupportSQLiteDatabase>()
+        every { database.openHelper.readableDatabase } returns sqlite
+        every { sqlite.query("PRAGMA quick_check") } returns cursorWith(first = true, value = "ok")
+        every { sqlite.query("PRAGMA foreign_key_check") } returns cursorWith(first = false)
         
         coEvery { preferencesRepository.observePreferences() } returns flowOf(
             AppPreferences.DEFAULT.copy(
@@ -117,4 +125,10 @@ class PilotDiagnosticExporterTest {
 
     // Helper to avoid type mismatch in BackupSnapshot constructor if I misread the order/types
     private fun emptyUnitOrigins() = emptyList<com.miara.cuentame.core.database.entity.PurchaseInvoiceDraftApplicationEntity>()
+
+    private fun cursorWith(first: Boolean, value: String = "") = mockk<Cursor>().also {
+        every { it.moveToFirst() } returns first
+        every { it.getString(0) } returns value
+        every { it.close() } returns Unit
+    }
 }

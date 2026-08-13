@@ -204,7 +204,7 @@ class BackupProductionIntegrationTest {
         
         val tables = createTableMetadata(snapshotDto, DatabaseSchema.VERSION)
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
-            backupFormatVersion = 2, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
+            backupFormatVersion = com.miara.cuentame.core.backup.api.BackupFormatV1Contract.BACKUP_FORMAT_VERSION, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
             appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = DatabaseSchema.VERSION,
             restaurantId = "r1", restaurantName = "Original", localeTag = "en-US", currencyCode = "USD",
             tableMetadata = tables, attachments = emptyList(), includedSections = listOf("data", "preferences", "attachments"),
