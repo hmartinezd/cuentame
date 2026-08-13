@@ -105,7 +105,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         // Query through real DAO to confirm migrated database opens without schema errors
@@ -187,7 +188,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         assertThat(roomDb.ingredientDao().getActiveIngredients("rest-1")).hasSize(1)
@@ -230,7 +232,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         assertThat(roomDb.productionBatchDao().getById("non-existent")).isNull()
@@ -289,7 +292,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         val pr = roomDb.purchaseDao().getReceiptById("pr-1")
@@ -338,7 +342,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         assertThat(roomDb.purchaseOcrDao().getOcrResultForReceiptSync("non-existent")).isNull()
@@ -385,7 +390,8 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         assertThat(roomDb.purchaseParseDao().getParseResultForReceipt("non-existent")).isNull()

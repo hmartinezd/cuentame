@@ -88,7 +88,9 @@ class HomeUiTest {
             composeTestRule.onNodeWithTag("dashboard_negative_balance_count", useUnmergedTree = true).assert(hasContentDescription("0", substring = true))
             
             // Assert empty states
+            composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("dashboard_top_waste_empty"))
             composeTestRule.onNodeWithTag("dashboard_top_waste_empty").assertExists()
+            composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("dashboard_recent_activity_empty"))
             composeTestRule.onNodeWithTag("dashboard_recent_activity_empty").assertExists()
             
             composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("view_reports_button"))
@@ -134,9 +136,6 @@ class HomeUiTest {
                 composeTestRule.onAllNodes(hasTestTag("dashboard_restaurant_name")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodes(hasTestTag("view_reports_button"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
             composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("view_reports_button"))
             composeTestRule.onNodeWithTag("view_reports_button", useUnmergedTree = true).performClick()
             
@@ -145,7 +144,7 @@ class HomeUiTest {
             }
             composeTestRule.onNodeWithTag("reports_screen", useUnmergedTree = true).assertIsDisplayed()
             
-            composeTestRule.onNodeWithTag("reports_back_button").performClick()
+            androidx.test.espresso.Espresso.pressBack()
             
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()

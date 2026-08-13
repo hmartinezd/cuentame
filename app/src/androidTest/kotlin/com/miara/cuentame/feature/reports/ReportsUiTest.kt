@@ -288,10 +288,8 @@ class ReportsUiTest {
     fun reports_navigation_homeToReports_andBack() {
         seedReadyState()
         ActivityScenario.launch<MainActivity>(MainActivity::class.java).use {
-            composeTestRule.waitUntil(30_000) {
-                composeTestRule.onAllNodes(hasTestTag("view_reports_button")).fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("view_reports_button"))
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true)
+                .performScrollToNode(hasTestTag("view_reports_button"))
             composeTestRule.onNodeWithTag("view_reports_button").performClick()
             
             composeTestRule.waitUntil(30_000) {

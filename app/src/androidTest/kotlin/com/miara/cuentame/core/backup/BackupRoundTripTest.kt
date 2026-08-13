@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.common.database.DatabaseSchema
+
 import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -55,7 +57,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun schema12BackupRoundTrip_preservesAllRecipeData() = runBlocking {
+    fun currentSchemaBackupRoundTrip_preservesAllRecipeData() = runBlocking {
         // 1. Seed database with recipes
         seedDatabaseWithRecipes()
 
@@ -63,7 +65,7 @@ class BackupRoundTripTest {
         val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val snapshotResult = snapshotSource.loadSnapshot(restId.value)
         
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(12)
+        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(DatabaseSchema.VERSION)
         
         val planResult = planner.createPlan(restaurant, snapshotResult)
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)

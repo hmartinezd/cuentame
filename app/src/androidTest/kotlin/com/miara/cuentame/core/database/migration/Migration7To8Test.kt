@@ -94,7 +94,8 @@ class Migration7To8Test {
             RestaurantInventoryDatabase.MIGRATION_8_9,
             RestaurantInventoryDatabase.MIGRATION_9_10,
             RestaurantInventoryDatabase.MIGRATION_10_11,
-            RestaurantInventoryDatabase.MIGRATION_11_12
+            RestaurantInventoryDatabase.MIGRATION_11_12,
+            RestaurantInventoryDatabase.MIGRATION_12_13
         ).build()
 
         val mapping = roomDb.supplierItemMappingDao().getMapping("rest-1", "sup-1", com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType.VENDOR_CODE, "001234")

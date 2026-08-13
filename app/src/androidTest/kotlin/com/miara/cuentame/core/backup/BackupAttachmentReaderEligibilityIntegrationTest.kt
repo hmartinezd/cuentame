@@ -35,16 +35,14 @@ class BackupAttachmentReaderEligibilityIntegrationTest {
     }
 
     @Test
-    fun attachmentBearingV1Archive_isRejectedEarlyByManifestMismatch() = runBlocking {
+    fun attachmentBearingV1Archive_isAcceptedByCurrentContract() = runBlocking {
         val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(jsonCodecs)
         val docUri = BackupDocumentUri("content://test/attachment.zip")
         
-        // 1. Reader layer catches it via validateManifestStructure
         val readerResult = archiveReader.inspect(ByteArrayInputStream(fixture.archiveBytes), docUri)
-        assertThat(readerResult).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
-        
-        val failure = readerResult as BackupArchiveInspectionResult.Failure
-        assertThat(failure.reason).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+        assertThat(readerResult).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = readerResult as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
+        assertThat(ready.archive.attachmentSummaries).hasSize(1)
     }
 }
-

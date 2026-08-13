@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.backup
 
+import com.miara.cuentame.core.common.database.DatabaseSchema
+
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -72,7 +74,7 @@ class MatchingBackupRestoreTest {
         val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val snapshotResult = snapshotSource.loadSnapshot(restId.value)
         
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(12)
+        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(DatabaseSchema.VERSION)
         
         val planResult = planner.createPlan(restaurant, snapshotResult)
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)

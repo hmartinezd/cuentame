@@ -445,14 +445,16 @@ class BackupProductionIntegrationTest {
     }
 
     @Test
-    fun v1_with_manifest_attachment_is_rejected() = runBlocking {
-        val fixture = BackupTestFixtures.createInvalidV1WithAttachmentArchiveFixture(codecs)
-        val backupUri = "content://backup/invalid-v1.zip"
+    fun v1_with_manifest_attachment_is_accepted() = runBlocking {
+        val fixture = BackupTestFixtures.createValidAttachmentArchiveFixture(codecs)
+        val backupUri = "content://backup/valid-v1-attachment.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
-        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
-        assertThat((inspection as BackupArchiveInspectionResult.Failure).reason).isEqualTo(BackupRestoreFailure.ManifestMismatch)
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
+        val ready = inspection as BackupArchiveInspectionResult.Ready
+        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
+        assertThat(coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}).isEqualTo(BackupRestoreApplyResult.Success)
     }
 
     @Test
@@ -551,19 +553,15 @@ class BackupProductionIntegrationTest {
     }
 
     @Test
-    fun v2_attachment_backup_is_accepted() = runBlocking {
+    fun unsupportedV2_attachment_backup_is_rejected() = runBlocking {
         val fixture = BackupTestFixtures.createValidV2AttachmentArchiveFixture(codecs)
         val backupUri = "content://backup/valid-v2.zip"
         documentStore.openForWrite(BackupDocumentUri(backupUri)).use { it.write(fixture.archiveBytes) }
 
         val inspection = coordinator.inspect(BackupDocumentUri(backupUri))
-        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Ready::class.java)
-        
-        val ready = inspection as BackupArchiveInspectionResult.Ready
-        assertThat(ready.eligibility).isEqualTo(BackupRestoreEligibility.Eligible)
-        
-        val result = coordinator.apply(BackupDocumentUri(backupUri), ready.archive.fingerprint) {}
-        assertThat(result).isEqualTo(BackupRestoreApplyResult.Success)
+        assertThat(inspection).isInstanceOf(BackupArchiveInspectionResult.Failure::class.java)
+        assertThat((inspection as BackupArchiveInspectionResult.Failure).reason)
+            .isEqualTo(BackupRestoreFailure.UnsupportedFormatVersion)
     }
 
     @Test
