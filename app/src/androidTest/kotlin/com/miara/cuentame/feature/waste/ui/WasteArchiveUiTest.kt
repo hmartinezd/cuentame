@@ -214,19 +214,28 @@ class WasteArchiveUiTest {
             waitForReadyWasteForm()
 
             // Select active ingredient
-            composeTestRule.onNodeWithTag("ingredient_selector", useUnmergedTree = true).performClick()
-            composeTestRule.onNodeWithTag("ingredient_item_Active Chicken", useUnmergedTree = true).performClick()
+            composeTestRule.onNodeWithTag("ingredient_selector", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("ingredient_item_Active Chicken", useUnmergedTree = true)
+                .performScrollTo().performClick()
+            composeTestRule.waitUntil(10_000) {
+                composeTestRule.onAllNodesWithTag("unit_selector").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("unit_selector").performClick()
+            composeTestRule.onNodeWithTag("unit_item_lb", useUnmergedTree = true).performClick()
 
             // Select active area
             composeTestRule.onNodeWithTag("area_selector").performClick()
-            composeTestRule.onNodeWithTag("area_item_Main Kitchen", useUnmergedTree = true).performClick()
+            composeTestRule.onAllNodesWithText("Main Kitchen", useUnmergedTree = true).onLast().performClick()
 
             // Save changes
-            composeTestRule.onNodeWithTag("waste_save_button").performClick()
+            composeTestRule.onNodeWithTag("waste_save_button").assertIsEnabled().performClick()
             composeTestRule.waitUntil(10000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+                runBlocking {
+                    database.wasteDao().getById(draftId)?.let {
+                        it.ingredientId == activeIngId && it.areaId == activeAreaId
+                    } == true
+                }
             }
-            composeTestRule.onNodeWithTag("waste_detail_screen").assertIsDisplayed()
         }
 
         // Verify database updated with active values

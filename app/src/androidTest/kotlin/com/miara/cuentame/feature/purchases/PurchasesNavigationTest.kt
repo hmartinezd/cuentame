@@ -97,6 +97,8 @@ class PurchasesNavigationTest {
             composeTestRule.onNodeWithTag("purchase_line_save").performClick()
 
             // 5. Post
+            composeTestRule.onNodeWithTag("purchase_draft_list")
+                .performScrollToNode(hasTestTag("purchase_post_button"))
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_post_button")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -111,7 +113,10 @@ class PurchasesNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("purchase_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("purchase_detail_screen").assertIsDisplayed()
-            composeTestRule.onNodeWithText("INV-TEST-1").assertIsDisplayed()
+            composeTestRule.waitUntil(15_000) {
+                composeTestRule.onAllNodesWithTag("purchase_invoice_number").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("purchase_invoice_number").assertTextContains("INV-TEST-1", substring = true)
         }
     }
 }

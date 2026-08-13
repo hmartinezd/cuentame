@@ -151,7 +151,7 @@ fun ProductionBatchDraftScreen(
                 
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                     LazyColumn(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).testTag("production_batch_draft_list"),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {

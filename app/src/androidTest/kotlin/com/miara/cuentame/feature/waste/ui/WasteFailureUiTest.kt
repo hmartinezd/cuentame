@@ -295,7 +295,7 @@ class WasteFailureUiTest {
             ).performClick()
 
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("waste_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
             runBlocking {

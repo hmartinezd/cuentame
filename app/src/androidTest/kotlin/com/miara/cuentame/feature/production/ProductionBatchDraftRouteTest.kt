@@ -138,7 +138,7 @@ class ProductionBatchDraftRouteTest {
 
     private fun navigateToDraft() {
         composeTestRule.waitUntil(15000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("home_dashboard_list").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("open_production_batches_button"))
         composeTestRule.onNodeWithTag("open_production_batches_button").performClick()

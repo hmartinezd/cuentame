@@ -149,8 +149,10 @@ class ProductionBatchUiTest {
             composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
             composeTestRule.onNodeWithTag("production_output_area_selector").performClick()
             composeTestRule.onAllNodesWithText("Kitchen").onLast().performClick()
+            composeTestRule.onNodeWithTag("production_output_unit_selector").performClick()
+            composeTestRule.onAllNodesWithText("Unit").onLast().performClick()
             
-            composeTestRule.onNodeWithTag("production_batch_create").performClick()
+            composeTestRule.onNodeWithTag("production_batch_create").performScrollTo().performClick()
             waitForTag("production_batch_draft_screen")
 
             // 3. Verify Draft state (Strengthened Draft assertions)
@@ -189,7 +191,9 @@ class ProductionBatchUiTest {
             assertEquals(0, initialMovements.size)
 
             // 4. Open Component and Set Area
-            composeTestRule.onNodeWithTag("production_component_item_${comp.id}").performClick()
+            composeTestRule.onNodeWithTag("production_batch_draft_list")
+                .performScrollToNode(hasTestTag("production_component_item_${comp.id}"))
+            composeTestRule.onNodeWithText("Raw Beef").performScrollTo().performClick()
             waitForTag("production_batch_component_screen")
             
             composeTestRule.onNodeWithTag("production_component_area_selector").performClick()
@@ -207,8 +211,16 @@ class ProductionBatchUiTest {
             val expectedTotalCostText = Formatters.formatCurrency(calculatedPreview.totalComponentCost!!, "USD", Locale.getDefault())
             val expectedUnitCostText = context.getString(R.string.production_currency_per_base, Formatters.formatCurrency(calculatedPreview.outputUnitCostBase!!, "USD", Locale.getDefault()))
             
-            composeTestRule.onNodeWithTag("production_preview_total_cost").assertTextContains(expectedTotalCostText)
-            composeTestRule.onNodeWithTag("production_preview_output_unit_cost").assertTextContains(expectedUnitCostText)
+            composeTestRule.onNode(
+                hasText(expectedTotalCostText, substring = true) and
+                    hasAnyAncestor(hasTestTag("production_preview_total_cost")),
+                useUnmergedTree = true
+            ).assertExists()
+            composeTestRule.onNode(
+                hasText(expectedUnitCostText, substring = true) and
+                    hasAnyAncestor(hasTestTag("production_preview_output_unit_cost")),
+                useUnmergedTree = true
+            ).assertExists()
             
             composeTestRule.onNodeWithTag("production_batch_post").performClick()
             composeTestRule.onNodeWithTag("production_post_confirmation").performClick()

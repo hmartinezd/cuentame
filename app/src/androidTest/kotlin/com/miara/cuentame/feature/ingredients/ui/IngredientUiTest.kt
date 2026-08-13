@@ -130,18 +130,18 @@ class IngredientUiTest {
             composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
-            // 3. Verify Detail
-            composeTestRule.waitForTag("ingredient_detail_screen")
-            composeTestRule.waitUntil(10_000) {
-                composeTestRule.onAllNodes(hasText("Chicken Breast") and hasAnyAncestor(hasTestTag("ingredient_detail_screen")))
-                    .fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("ingredient_status").assertTextContains(context.getString(R.string.active))
-            
             // Verify units persisted
             val ingredients = runBlocking { database.ingredientDao().getActiveIngredients("rest_ing_test") }
             val ingIdString = ingredients.first().id
             val options = runBlocking { database.ingredientUnitOptionDao().getActiveOptions(ingIdString) }
+
+            // List-origin creation returns to the list; open the created item to verify it.
+            composeTestRule.waitUntil(15_000) {
+                composeTestRule.onAllNodesWithTag("ingredient_item_$ingIdString").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("ingredient_item_$ingIdString").performClick()
+            composeTestRule.waitForTag("ingredient_detail_screen")
+            composeTestRule.onNodeWithTag("ingredient_status").assertTextContains(context.getString(R.string.active))
             
             // Base unit is Pound, symbol lb -> displayName is lb
             val lbOpt = options.find { it.displayName == "lb" }

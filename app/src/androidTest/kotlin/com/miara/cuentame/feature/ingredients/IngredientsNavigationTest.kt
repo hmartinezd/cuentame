@@ -78,15 +78,15 @@ class IngredientsNavigationTest {
             composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().assertIsEnabled()
             composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
             
-            // Verify navigation to detail
+            // List-origin creation returns to the list; open the created item to verify it.
             composeTestRule.waitUntil(30000) {
-                composeTestRule.onAllNodes(hasTestTag("ingredient_detail_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasText("New Ingredient")).fetchSemanticsNodes().isNotEmpty()
             }
-            
+            composeTestRule.onNodeWithText("New Ingredient").performClick()
             composeTestRule.onNodeWithTag("ingredient_detail_screen").assertIsDisplayed()
             composeTestRule.onNodeWithText("New Ingredient").assertIsDisplayed()
             
-            // Verify form is gone (back goes to list)
+            // Back returns to the list.
             composeTestRule.onNodeWithContentDescription("Back").performClick()
             composeTestRule.onNodeWithTag("ingredient_list_screen").assertIsDisplayed()
         }

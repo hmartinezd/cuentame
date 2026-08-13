@@ -145,6 +145,8 @@ class PurchaseFailureUiTest {
             composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
             
             // 3. Trigger Post
+            composeTestRule.onNodeWithTag("purchase_draft_list")
+                .performScrollToNode(hasTestTag("purchase_post_button"))
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_post_button")).fetchSemanticsNodes().isNotEmpty()
             }

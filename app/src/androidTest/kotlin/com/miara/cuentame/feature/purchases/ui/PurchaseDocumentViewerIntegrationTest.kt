@@ -180,6 +180,7 @@ class PurchaseDocumentViewerIntegrationTest {
 
             // Scroll to find last page
             composeTestRule.onNodeWithTag("purchase_document_pdf_list").performScrollToIndex(2)
+            composeTestRule.onNodeWithTag("purchase_document_pdf_list").performTouchInput { swipeUp() }
             
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_document_pdf_page_2")).fetchSemanticsNodes().isNotEmpty()

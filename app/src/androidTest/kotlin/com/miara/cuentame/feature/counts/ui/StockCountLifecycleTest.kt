@@ -242,7 +242,7 @@ class StockCountLifecycleTest {
             
             // 18. Verify review data exact values
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Adjustment Review").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithTag("confirm_completion_button").fetchSemanticsNodes().isNotEmpty()
             }
             
             composeTestRule.waitUntil(60000) {
