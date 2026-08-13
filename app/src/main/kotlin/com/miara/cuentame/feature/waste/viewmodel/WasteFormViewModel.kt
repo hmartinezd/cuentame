@@ -128,6 +128,17 @@ private data class WastePreviewRequest(
     val effectiveAt: Instant
 )
 
+private data class WasteEditSnapshot(
+    val ingredientId: IngredientId?,
+    val areaId: InventoryAreaId?,
+    val unitOptionId: IngredientUnitOptionId?,
+    val quantityText: String,
+    val reason: WasteReason?,
+    val effectiveAt: Instant,
+    val notes: String,
+    val attachmentUri: String?
+)
+
 sealed interface WasteFormEvent {
     data class Success(val wasteEventId: WasteEventId) : WasteFormEvent
 }
@@ -511,21 +522,30 @@ class WasteFormViewModel @Inject constructor(
     }
 
     fun onSave() {
-        val state = uiState.value
-        if (!state.canSave) return
+        if (_isSaving.value) return
 
-        val restId = state.restaurantId ?: return
-        val ingId = state.selectedIngredientId ?: return
-        val areaId = state.selectedAreaId ?: return
-        val unitId = state.selectedUnitOptionId ?: return
-        val reason = state.selectedReason ?: return
-        val qty = DecimalParser.parse(state.quantityText) ?: return
+        val snapshot = WasteEditSnapshot(
+            ingredientId = _selectedIngredientId.value,
+            areaId = _selectedAreaId.value,
+            unitOptionId = _selectedUnitOptionId.value,
+            quantityText = _quantityText.value,
+            reason = _selectedReason.value,
+            effectiveAt = _effectiveAt.value,
+            notes = _notes.value,
+            attachmentUri = _attachmentUri.value
+        )
+        val ingId = snapshot.ingredientId ?: return
+        val areaId = snapshot.areaId ?: return
+        val unitId = snapshot.unitOptionId ?: return
+        val reason = snapshot.reason ?: return
+        val qty = DecimalParser.parse(snapshot.quantityText)?.takeIf { it > BigDecimal.ZERO } ?: return
         
         _isSaving.value = true
         _error.value = null
         
         viewModelScope.launch {
             try {
+                val restId = restaurantRepository.getRestaurant()?.id ?: return@launch
                 val finalId = if (wasteEventId == null) {
                     createWasteDraftUseCase(
                         CreateWasteDraftCommand(
@@ -535,9 +555,9 @@ class WasteFormViewModel @Inject constructor(
                             ingredientUnitOptionId = unitId,
                             quantityEntered = qty,
                             reason = reason,
-                            effectiveAt = state.effectiveAt,
-                            notes = state.notes.ifBlank { null },
-                            attachmentUri = state.attachmentUri
+                            effectiveAt = snapshot.effectiveAt,
+                            notes = snapshot.notes.ifBlank { null },
+                            attachmentUri = snapshot.attachmentUri
                         )
                     )
                 } else {
@@ -549,14 +569,16 @@ class WasteFormViewModel @Inject constructor(
                             ingredientUnitOptionId = unitId,
                             quantityEntered = qty,
                             reason = reason,
-                            effectiveAt = state.effectiveAt,
-                            notes = state.notes.ifBlank { null },
-                            attachmentUri = state.attachmentUri
+                            effectiveAt = snapshot.effectiveAt,
+                            notes = snapshot.notes.ifBlank { null },
+                            attachmentUri = snapshot.attachmentUri
                         )
                     )
                     wasteEventId
                 }
                 _events.emit(WasteFormEvent.Success(finalId))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = e
             } finally {

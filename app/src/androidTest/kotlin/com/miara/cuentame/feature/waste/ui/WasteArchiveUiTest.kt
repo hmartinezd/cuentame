@@ -228,7 +228,7 @@ class WasteArchiveUiTest {
             composeTestRule.onAllNodesWithText("Main Kitchen", useUnmergedTree = true).onLast().performClick()
 
             // Save changes
-            composeTestRule.onNodeWithTag("waste_save_button").assertIsEnabled().performClick()
+            composeTestRule.onNodeWithTag("waste_save_button").performScrollTo().assertIsEnabled().performClick()
             composeTestRule.waitUntil(10000) {
                 runBlocking {
                     database.wasteDao().getById(draftId)?.let {
