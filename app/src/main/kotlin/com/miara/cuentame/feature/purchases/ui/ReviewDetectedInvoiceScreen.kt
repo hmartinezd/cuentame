@@ -401,6 +401,16 @@ fun SupplierSelectionHeader(
 }
 
 @Composable
+private fun matchReasonLabel(method: String?): String? = when (method) {
+    "ConfirmedSupplierSku" -> stringResource(R.string.ocr_match_reason_supplier_sku)
+    "ConfirmedSupplierDescriptionPackage" -> stringResource(R.string.ocr_match_reason_supplier_description_package)
+    "ExactIngredientName" -> stringResource(R.string.ocr_match_reason_exact_name)
+    "SimilarDescription", "DescriptionAndPackageMatch" -> stringResource(R.string.ocr_match_reason_similar_description)
+    null -> null
+    else -> null
+}
+
+@Composable
 fun MatchSummaryHeader(summary: MatchSummary) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -1109,6 +1119,10 @@ fun ParsedInvoiceLineItem(
                                 else -> MaterialTheme.colorScheme.error
                             }
                         )
+                        matchReasonLabel(match?.matchMethod)?.let { reason ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = reason, style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
                 

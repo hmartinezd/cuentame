@@ -31,6 +31,8 @@ import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceRes
 import com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrFailure
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
+import com.miara.cuentame.core.model.purchase.DuplicateInvoicePostingException
 import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.core.model.supplier.Supplier
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,7 +72,8 @@ data class PurchaseDraftUiState(
     val details: PurchaseDetails? = null,
     val suppliers: List<Supplier> = emptyList(),
     val error: Throwable? = null,
-    val scannerError: PurchaseInvoiceScannerFailure? = null
+    val scannerError: PurchaseInvoiceScannerFailure? = null,
+    val postingDuplicate: DuplicateInvoiceCandidate? = null
 )
 
 sealed interface InvoiceCaptureState {
@@ -130,6 +133,7 @@ class PurchaseDraftViewModel @Inject constructor(
     private val _deletingLineId = MutableStateFlow<PurchaseLineId?>(null)
     private val _error = MutableStateFlow<Throwable?>(null)
     private val _scannerError = MutableStateFlow<PurchaseInvoiceScannerFailure?>(null)
+    private val _postingDuplicate = MutableStateFlow<DuplicateInvoiceCandidate?>(null)
     private val operationMutex = Mutex()
 
     init {
@@ -227,7 +231,8 @@ class PurchaseDraftViewModel @Inject constructor(
         _isRemovingDocument,
         _deletingLineId,
         _error,
-        _scannerError
+        _scannerError,
+        _postingDuplicate
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val details = args[0] as PurchaseDetails?
@@ -246,6 +251,7 @@ class PurchaseDraftViewModel @Inject constructor(
         val deletingLineId = args[12] as PurchaseLineId?
         val error = args[13] as Throwable?
         val scannerError = args[14] as PurchaseInvoiceScannerFailure?
+        val postingDuplicate = args[15] as DuplicateInvoiceCandidate?
 
         PurchaseDraftUiState(
             isLoading = receiptId != null && details == null,
@@ -264,7 +270,8 @@ class PurchaseDraftViewModel @Inject constructor(
             details = details,
             suppliers = suppliers,
             error = error,
-            scannerError = scannerError
+            scannerError = scannerError,
+            postingDuplicate = postingDuplicate
         )
     }.stateIn(
         scope = viewModelScope,
@@ -452,6 +459,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     _error.value = null
                     postPurchaseUseCase(currentReceiptId)
                     _events.send(PurchaseDraftEvent.Posted)
+                } catch (e: DuplicateInvoicePostingException) {
+                    _postingDuplicate.value = e.candidate
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -460,6 +469,30 @@ class PurchaseDraftViewModel @Inject constructor(
             }
         }
     }
+
+    fun onContinuePostingDuplicate() {
+        val candidate = _postingDuplicate.value ?: return
+        viewModelScope.launch {
+            if (!canStartMutation()) return@launch
+            operationMutex.withLock {
+                try {
+                    _isPosting.value = true
+                    repository.acceptDuplicateForPosting(candidate)
+                    postPurchaseUseCase(candidate.currentReceiptId)
+                    _postingDuplicate.value = null
+                    _events.send(PurchaseDraftEvent.Posted)
+                } catch (e: DuplicateInvoicePostingException) {
+                    _postingDuplicate.value = e.candidate
+                } catch (e: Exception) {
+                    _error.value = e
+                } finally {
+                    _isPosting.value = false
+                }
+            }
+        }
+    }
+
+    fun clearPostingDuplicate() { _postingDuplicate.value = null }
 
     fun onDeleteDraft() {
         val currentReceiptId = receiptId ?: return

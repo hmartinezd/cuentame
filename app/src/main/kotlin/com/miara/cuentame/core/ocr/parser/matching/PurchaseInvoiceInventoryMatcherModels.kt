@@ -27,7 +27,8 @@ data class InventoryMatchCandidate(
 )
 
 enum class MatchReason {
-    KnownSupplierItem,
+    ConfirmedSupplierSku,
+    ConfirmedSupplierDescriptionPackage,
     ExactIngredientName,
     SimilarDescription,
     PackageCompatibility,

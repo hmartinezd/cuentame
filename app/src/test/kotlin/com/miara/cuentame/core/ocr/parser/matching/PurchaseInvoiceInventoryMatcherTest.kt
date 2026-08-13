@@ -28,7 +28,7 @@ class PurchaseInvoiceInventoryMatcherTest {
         
         assertNotNull(result.knownMapping)
         assertEquals("ing-1", result.knownMapping?.ingredientId)
-        assertEquals(MatchReason.KnownSupplierItem, result.knownMapping?.reason)
+        assertEquals(MatchReason.ConfirmedSupplierSku, result.knownMapping?.reason)
     }
 
     @Test

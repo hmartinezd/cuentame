@@ -10,6 +10,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.miara.cuentame.core.ocr.api.OcrBlockEvidence
 import com.miara.cuentame.core.ocr.api.OcrElementEvidence
 import com.miara.cuentame.core.ocr.api.OcrLineEvidence
+import com.miara.cuentame.core.ocr.api.OcrEngineDescriptor
 import com.miara.cuentame.core.ocr.api.OcrPageEvidence
 import com.miara.cuentame.core.ocr.api.OcrPoint
 import com.miara.cuentame.core.ocr.api.OcrRect
@@ -18,6 +19,8 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 class MlKitPurchaseInvoiceOcrEngine @Inject constructor() : PurchaseInvoiceOcrEngine {
+
+    override val descriptor = OcrEngineDescriptor("ML_KIT_TEXT_RECOGNITION_V2_LATIN")
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 

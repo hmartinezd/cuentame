@@ -28,6 +28,9 @@ import com.miara.cuentame.core.domain.usecase.purchase.RemovePurchaseDocumentUse
 import com.miara.cuentame.core.domain.usecase.purchase.AnalyzePurchaseInvoiceDocumentUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
+import com.miara.cuentame.core.model.purchase.DuplicateInvoicePostingException
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceType
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.model.restaurant.Restaurant
@@ -44,6 +47,8 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import io.mockk.coEvery
+import io.mockk.coVerify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -108,6 +113,39 @@ class PurchaseDraftViewModelTest {
         viewModel.events.test {
             viewModel.onPost()
             assertThat(awaitItem()).isEqualTo(PurchaseDraftEvent.Posted)
+        }
+    }
+
+    @Test
+    fun `late posting duplicate enters review and explicit override retries normal post`() = runTest {
+        val receiptId = PurchaseReceiptId("p1")
+        detailsFlow.value = PurchaseDetails(
+            PurchaseReceipt(receiptId, RestaurantId("r1"), SupplierId("s1"), "INV-1", Instant.now(), DocumentStatus.DRAFT, null, null, null, Instant.now(), Instant.now()),
+            null,
+            emptyList()
+        )
+        val candidate = DuplicateInvoiceCandidate(
+            DuplicateInvoiceType.SAME_SUPPLIER_INVOICE_NUMBER,
+            PurchaseReceiptId("existing"),
+            receiptId,
+            SupplierId("s1"),
+            "INV1"
+        )
+        coEvery { fakePurchaseRepository.post(receiptId) } throws DuplicateInvoicePostingException(candidate) andThen Unit
+        val viewModel = createViewModel("p1")
+
+        viewModel.uiState.test {
+            awaitItem()
+            viewModel.onPost()
+            runCurrent()
+            assertThat(viewModel.uiState.value.postingDuplicate).isEqualTo(candidate)
+
+            viewModel.onContinuePostingDuplicate()
+            runCurrent()
+            assertThat(viewModel.uiState.value.postingDuplicate).isNull()
+            coVerify(exactly = 1) { fakePurchaseRepository.acceptDuplicateForPosting(candidate) }
+            coVerify(exactly = 2) { fakePurchaseRepository.post(receiptId) }
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

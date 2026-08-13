@@ -12,6 +12,9 @@ import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceType
+import com.miara.cuentame.core.database.repository.matchesOverride
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -88,6 +91,23 @@ class MatchingBackupRestoreTest {
         
         assertThat(restoredSnapshot.supplierItemMappings[0].normalizedKey).isEqualTo("001234")
         assertThat(restoredSnapshot.purchaseInvoiceLineMatches[0].status).isEqualTo(InvoiceLineMatchStatus.CONFIRMED.name)
+        val restoredOverride = database.purchaseInvoiceMaterializationDao().getApplicationForReceipt("pr-1")!!
+        val accepted = DuplicateInvoiceCandidate(
+            DuplicateInvoiceType.SAME_SUPPLIER_INVOICE_NUMBER,
+            PurchaseReceiptId("pr-existing"), PurchaseReceiptId("pr-1"), SupplierId("sup-1"), "INV100"
+        )
+        assertThat(accepted.matchesOverride(
+            restoredOverride.duplicateOverrideType,
+            restoredOverride.duplicateExistingReceiptId,
+            restoredOverride.duplicateNormalizedInvoiceNumber,
+            restoredOverride.duplicateSourceSha256
+        )).isTrue()
+        assertThat(accepted.copy(normalizedInvoiceNumber = "INV101").matchesOverride(
+            restoredOverride.duplicateOverrideType,
+            restoredOverride.duplicateExistingReceiptId,
+            restoredOverride.duplicateNormalizedInvoiceNumber,
+            restoredOverride.duplicateSourceSha256
+        )).isFalse()
         
         assertThat(restoredSnapshot).isEqualTo(snapshotDto)
     }
@@ -119,6 +139,7 @@ class MatchingBackupRestoreTest {
         database.supplierDao().insert(SupplierEntity(sup1, restId.value, "SYSCO", "sysco", null, null, null, true, 100, 100, null))
 
         database.purchaseDao().insertReceipt(PurchaseReceiptEntity(pr1, restId.value, sup1, null, 1000L, "DRAFT", null, relativePath, attachmentDisplayName, 100L, 200L, null, null))
+        database.purchaseDao().insertReceipt(PurchaseReceiptEntity("pr-existing", restId.value, sup1, "INV-100", 900L, "POSTED", null, null, null, 90L, 90L, 90L, null))
         
         val ocr1 = "ocr-1"
         database.purchaseOcrDao().insertOcrResult(PurchaseInvoiceOcrResultEntity(ocr1, pr1, testAttachmentChecksum, "application/pdf", "MLKIT", 1, 1, "Full Text", 1000L))
@@ -133,6 +154,14 @@ class MatchingBackupRestoreTest {
         database.purchaseParseDao().insertParsedLines(listOf(
             PurchaseInvoiceParsedLineEntity(parse1, 0, "{}", null, false)
         ))
+
+        database.purchaseInvoiceMaterializationDao().upsertApplication(
+            PurchaseInvoiceDraftApplicationEntity(
+                "app-1", pr1, parse1, testAttachmentChecksum, "fingerprint", 1100L,
+                DuplicateInvoiceType.SAME_SUPPLIER_INVOICE_NUMBER.name,
+                "pr-existing", "INV100", null, 1200L
+            )
+        )
 
         val map1 = "map-1"
         database.supplierItemMappingDao().insertMapping(SupplierItemMappingEntity(map1, restId.value, sup1, SupplierItemMappingKeyType.VENDOR_CODE, "001234", "001234", "Desc", "Pkg", ing1, opt1, area1, 100L, 100L, 100L))

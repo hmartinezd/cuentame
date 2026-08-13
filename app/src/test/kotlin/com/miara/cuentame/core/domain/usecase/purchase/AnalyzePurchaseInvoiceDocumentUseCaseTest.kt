@@ -27,6 +27,8 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.time.Instant
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
+import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 
 class AnalyzePurchaseInvoiceDocumentUseCaseTest {
 
@@ -74,7 +76,13 @@ class AnalyzePurchaseInvoiceDocumentUseCaseTest {
         val results = useCase(receiptId).toList()
 
         assertThat(results).contains(AnalyzePurchaseInvoiceResult.Success)
-        coVerify { repository.saveOcrResult(any(), any(), "path/to/doc.pdf", any()) }
+        val savedResult = slot<PurchaseInvoiceOcrResult>()
+        val savedPages = slot<List<PurchaseInvoiceOcrPage>>()
+        coVerify { repository.saveOcrResult(capture(savedResult), capture(savedPages), "path/to/doc.pdf", any()) }
+        assertThat(savedResult.captured.engine).isEqualTo("TEST_OCR_ENGINE_V99")
+        assertThat(savedPages.captured).hasSize(1)
+        assertThat(savedPages.captured.single().evidence.text).isEqualTo("Fake OCR Text")
+        coVerify { parseUseCase.execute(receiptId) }
     }
 
     @Test

@@ -42,7 +42,6 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
     private companion object {
         const val OCR_PDF_RENDER_MAX_WIDTH_PX = 2048
         const val EVIDENCE_SCHEMA_VERSION = 1
-        const val ENGINE_ID = "ML_KIT_TEXT_RECOGNITION_V2_LATIN"
         const val MAX_PAGES = 20
     }
 
@@ -154,7 +153,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
                 purchaseReceiptId = receiptId,
                 sourceDocumentSha256 = sha256,
                 sourceMimeType = storedDoc.mimeType,
-                engine = ENGINE_ID,
+                engine = ocrEngine.descriptor.id,
                 evidenceSchemaVersion = EVIDENCE_SCHEMA_VERSION,
                 pageCount = pagesEvidence.size,
                 fullText = pagesEvidence.joinToString("\n\n") { it.text },

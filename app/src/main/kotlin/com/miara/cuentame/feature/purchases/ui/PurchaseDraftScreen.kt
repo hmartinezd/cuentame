@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -166,6 +167,8 @@ fun PurchaseDraftRoute(
         onEditLine = { lineId -> purchaseId?.let { onEditLine(it, lineId) } },
         onDeleteLine = viewModel::onDeleteLine,
         onPost = viewModel::onPost,
+        onContinuePostingDuplicate = viewModel::onContinuePostingDuplicate,
+        onDismissPostingDuplicate = viewModel::clearPostingDuplicate,
         onDeleteDraft = viewModel::onDeleteDraft,
         onResetLastDeletedLineId = { lastDeletedLineId = null }
     )
@@ -192,6 +195,8 @@ fun PurchaseDraftScreen(
     onEditLine: (PurchaseLineId) -> Unit,
     onDeleteLine: (PurchaseLineId) -> Unit,
     onPost: () -> Unit,
+    onContinuePostingDuplicate: () -> Unit = {},
+    onDismissPostingDuplicate: () -> Unit = {},
     onDeleteDraft: () -> Unit,
     onResetLastDeletedLineId: () -> Unit
 ) {
@@ -374,6 +379,36 @@ fun PurchaseDraftScreen(
             onDismiss = { if (!uiState.isPosting) showPostConfirm = false },
             onConfirm = {
                 onPost()
+            }
+        )
+    }
+
+    uiState.postingDuplicate?.let { duplicate ->
+        AlertDialog(
+            onDismissRequest = onDismissPostingDuplicate,
+            title = { Text(stringResource(R.string.purchase_duplicate_posting_title)) },
+            text = {
+                Column {
+                    Text(
+                        when (duplicate.type) {
+                            com.miara.cuentame.core.model.purchase.DuplicateInvoiceType.SAME_DOCUMENT ->
+                                stringResource(R.string.ocr_duplicate_same_document)
+                            com.miara.cuentame.core.model.purchase.DuplicateInvoiceType.SAME_SUPPLIER_INVOICE_NUMBER ->
+                                stringResource(R.string.ocr_duplicate_same_supplier_number, duplicate.normalizedInvoiceNumber.orEmpty())
+                        }
+                    )
+                    Text(stringResource(R.string.purchase_duplicate_conflicting_receipt, duplicate.existingReceiptId.value))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onContinuePostingDuplicate, enabled = !uiState.isPosting) {
+                    Text(stringResource(R.string.ocr_duplicate_continue))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissPostingDuplicate, enabled = !uiState.isPosting) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }

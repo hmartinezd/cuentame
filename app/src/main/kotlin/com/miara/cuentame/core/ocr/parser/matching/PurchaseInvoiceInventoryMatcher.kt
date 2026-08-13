@@ -23,7 +23,7 @@ object PurchaseInvoiceInventoryMatcher {
             }
             if (mapping != null) {
                 return InventoryMatchResult(
-                    knownMapping = mapping.toCandidate(MatchReason.KnownSupplierItem, 1.0f),
+                    knownMapping = mapping.toCandidate(MatchReason.ConfirmedSupplierSku, 1.0f),
                     candidates = emptyList()
                 )
             }
@@ -39,7 +39,7 @@ object PurchaseInvoiceInventoryMatcher {
             }
             if (mapping != null) {
                 return InventoryMatchResult(
-                    knownMapping = mapping.toCandidate(MatchReason.KnownSupplierItem, 1.0f),
+                    knownMapping = mapping.toCandidate(MatchReason.ConfirmedSupplierDescriptionPackage, 1.0f),
                     candidates = emptyList()
                 )
             }

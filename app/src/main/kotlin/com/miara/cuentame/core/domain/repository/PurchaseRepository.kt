@@ -11,6 +11,7 @@ import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.SourceMutationResult
 import com.miara.cuentame.core.model.purchase.PurchaseLine
 import com.miara.cuentame.core.model.purchase.PurchaseReceipt
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.materialization.PurchaseInvoiceDraftProposal
 import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
@@ -112,6 +113,8 @@ interface PurchaseRepository {
     suspend fun post(
         id: PurchaseReceiptId
     )
+
+    suspend fun acceptDuplicateForPosting(candidate: DuplicateInvoiceCandidate)
 
     suspend fun void(
         id: PurchaseReceiptId

@@ -2,10 +2,13 @@ package com.miara.cuentame.core.ocr
 
 import android.graphics.Bitmap
 import com.miara.cuentame.core.ocr.api.OcrPageEvidence
+import com.miara.cuentame.core.ocr.api.OcrEngineDescriptor
 import com.miara.cuentame.core.ocr.api.PurchaseInvoiceOcrEngine
 import kotlinx.coroutines.delay
 
 class FakePurchaseInvoiceOcrEngine : PurchaseInvoiceOcrEngine {
+
+    override val descriptor = OcrEngineDescriptor("TEST_OCR_ENGINE_V99")
 
     var recognizedCalls = 0
     var delayMs: Long = 0

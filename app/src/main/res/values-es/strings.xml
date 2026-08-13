@@ -818,13 +818,17 @@
     <string name="ocr_matching_not_detected_symbol">—</string>
     <string name="ocr_matching_low_confidence">Baja confianza</string>
     <string name="ocr_matching_medium_confidence">Confianza media</string>
+    <string name="ocr_match_reason_supplier_sku">SKU confirmado del proveedor</string>
+    <string name="ocr_match_reason_supplier_description_package">Descripción/paquete confirmado del proveedor</string>
+    <string name="ocr_match_reason_exact_name">Nombre exacto del ingrediente</string>
+    <string name="ocr_match_reason_similar_description">Descripción similar</string>
     <string name="ocr_matching_edited">Editado</string>
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deshacer selección</string>
     <string name="ocr_materialization_apply_to_draft">Aplicar a Borrador de Compra</string>
     <string name="ocr_materialization_lines_ready">%1$d líneas listas para aplicar</string>
     <string name="ocr_materialization_unresolved_lines_warning">Algunas líneas no coinciden. Estas no se añadirán al borrador.</string>
-    <string name="ocr_materialization_success">Factura aplicada al borrador con éxito.</string>
+    <string name="ocr_materialization_success">La factura se aplicó al borrador. Vuelve para revisarla o usa Agregar línea si el OCR omitió algún artículo.</string>
     <string name="ocr_materialization_success_title">Éxito</string>
     <string name="ocr_materialization_error_already_posted">Esta compra ya ha sido publicada y no se puede modificar.</string>
     <string name="ocr_materialization_error_conflict">Una línea fue editada manualmente en el borrador. La aplicación no sobrescribirá sus cambios.</string>
@@ -1155,4 +1159,6 @@
     <string name="ocr_duplicate_continue">Continuar de todos modos</string>
     <string name="ocr_duplicate_same_document">Este documento es idéntico a uno adjunto a otra compra. Si continúas, quedará registrado para auditoría.</string>
     <string name="ocr_duplicate_same_supplier_number">Este proveedor ya tiene la factura %1$s en otra compra. Si continúas, quedará registrado para auditoría.</string>
+    <string name="purchase_duplicate_posting_title">Factura duplicada bloqueada</string>
+    <string name="purchase_duplicate_conflicting_receipt">Compra en conflicto: %1$s</string>
 </resources>

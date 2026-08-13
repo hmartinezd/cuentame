@@ -50,6 +50,7 @@ import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
 import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
 import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.PurchaseLine
@@ -349,6 +350,27 @@ class RoomPurchaseRepository @Inject constructor(
         database.withTransaction {
             val activeRestaurant = requireActiveRestaurant()
             postingCoordinator.post(id, activeRestaurant)
+        }
+    }
+
+    override suspend fun acceptDuplicateForPosting(candidate: DuplicateInvoiceCandidate) {
+        database.withTransaction {
+            val activeRestaurant = requireActiveRestaurant()
+            val receipt = referenceValidator.validateReceiptOwnership(candidate.currentReceiptId, activeRestaurant)
+            val sourceSha = ocrDao.getOcrResultForReceiptSync(receipt.id)?.sourceDocumentSha256
+            val authoritative = duplicateInvoiceDetector.find(
+                activeRestaurant.id, receipt.id, receipt.supplierId, receipt.invoiceNumber, sourceSha
+            )
+            require(authoritative == candidate) { "Duplicate condition changed; review it again" }
+            val application = materializationDao.getApplicationForReceipt(receipt.id)
+                ?: error("Duplicate override requires an invoice draft application")
+            materializationDao.upsertApplication(application.copy(
+                duplicateOverrideType = candidate.type.name,
+                duplicateExistingReceiptId = candidate.existingReceiptId.value,
+                duplicateNormalizedInvoiceNumber = candidate.normalizedInvoiceNumber,
+                duplicateSourceSha256 = candidate.sourceSha256,
+                duplicateOverriddenAt = timeProvider.now().toEpochMilli()
+            ))
         }
     }
 

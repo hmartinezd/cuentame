@@ -825,13 +825,17 @@
     <string name="ocr_matching_not_detected_symbol">—</string>
     <string name="ocr_matching_low_confidence">Low confidence</string>
     <string name="ocr_matching_medium_confidence">Medium confidence</string>
+    <string name="ocr_match_reason_supplier_sku">Confirmed supplier SKU</string>
+    <string name="ocr_match_reason_supplier_description_package">Confirmed supplier description/package</string>
+    <string name="ocr_match_reason_exact_name">Exact ingredient name</string>
+    <string name="ocr_match_reason_similar_description">Similar description</string>
     <string name="ocr_matching_edited">Edited</string>
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deselect</string>
     <string name="ocr_materialization_apply_to_draft">Apply to Purchase Draft</string>
     <string name="ocr_materialization_lines_ready">%1$d lines ready to apply</string>
     <string name="ocr_materialization_unresolved_lines_warning">Some lines are not matched. These will not be added to the draft.</string>
-    <string name="ocr_materialization_success">Invoice applied to draft successfully.</string>
+    <string name="ocr_materialization_success">Invoice applied to the draft. Return to the draft to review it or use Add line for anything OCR missed.</string>
     <string name="ocr_materialization_success_title">Success</string>
     <string name="ocr_materialization_error_already_posted">This purchase is already posted and cannot be modified.</string>
     <string name="ocr_materialization_error_conflict">A line was manually edited in the draft. Applying will not overwrite your changes.</string>
@@ -854,6 +858,8 @@
     <string name="ocr_duplicate_continue">Continue anyway</string>
     <string name="ocr_duplicate_same_document">This document is identical to one attached to another purchase receipt. Continuing will be recorded for audit.</string>
     <string name="ocr_duplicate_same_supplier_number">This supplier already has invoice %1$s on another purchase receipt. Continuing will be recorded for audit.</string>
+    <string name="purchase_duplicate_posting_title">Duplicate invoice blocked</string>
+    <string name="purchase_duplicate_conflicting_receipt">Conflicting receipt: %1$s</string>
     <string name="ocr_header_correction_dialog_title">Correct Header Field</string>
     <string name="ocr_line_correction_dialog_title">Correct Invoice Line</string>
     <string name="ocr_matching_unknown_product">Unknown Product</string>
