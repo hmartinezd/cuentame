@@ -30,13 +30,18 @@ class InventoryMovementValidator {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 
-        // Validate movement type (Resilient parsing)
-        if (movement.movementType.isBlank()) {
+        // Validate movement type (Strict enum validation)
+        try {
+            InventoryMovementType.valueOf(movement.movementType)
+        } catch (e: Exception) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 
-        // Validate source document type (Resilient parsing)
-        if (movement.sourceDocumentType.isBlank()) {
+        // Validate source document type (Strict enum validation)
+        try {
+            val type = SourceDocumentType.valueOf(movement.sourceDocumentType)
+            if (type == SourceDocumentType.UNKNOWN) throw Exception()
+        } catch (e: Exception) {
             throw ValidationError.MalformedInventoryMovementHistory
         }
 

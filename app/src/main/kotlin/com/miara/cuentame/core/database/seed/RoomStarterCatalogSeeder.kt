@@ -24,6 +24,7 @@ class RoomStarterCatalogSeeder @Inject constructor(
         catalog: StarterCatalogDefinition
     ): StarterCatalogSeedResult {
         return try {
+            android.util.Log.i("CRITICAL_SEED", "Starting seed for restaurant $restaurantId")
             database.withTransaction {
                 var categoriesInserted = 0
                 var categoriesReused = 0
@@ -149,6 +150,7 @@ class RoomStarterCatalogSeeder @Inject constructor(
                     }
                 }
 
+                android.util.Log.i("CRITICAL_SEED", "Seed completed: $ingredientsInserted ingredients")
                 StarterCatalogSeedResult.Success(
                     categoriesInserted = categoriesInserted,
                     categoriesReused = categoriesReused,
@@ -158,6 +160,7 @@ class RoomStarterCatalogSeeder @Inject constructor(
                 )
             }
         } catch (e: Exception) {
+            android.util.Log.e("CRITICAL_SEED", "Seeding failed", e)
             StarterCatalogSeedResult.Failure(StarterCatalogSeedFailure.DatabaseError(e))
         }
     }

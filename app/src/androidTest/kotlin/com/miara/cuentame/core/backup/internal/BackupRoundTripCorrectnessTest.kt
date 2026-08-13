@@ -106,8 +106,40 @@ class BackupRoundTripCorrectnessTest {
         // 3. Clear and Restore
         testStateManager.resetAll()
         
+        val dummySha = (snapshot.purchaseInvoiceOcrResults.firstOrNull()?.sourceDocumentSha256) ?: "sha"
+        
+        // Build manifest with attachments if they exist in snapshot
+        val checksumProvider = com.miara.cuentame.core.backup.Sha256ChecksumProvider()
+        val attachmentMapping = snapshot.purchaseReceipts.filter { it.attachmentId != null }.associate { receipt ->
+            val displayName = receipt.attachmentDisplayName ?: "file.pdf"
+            val relativePath = "attachments/purchases/${receipt.id}/$displayName"
+            receipt.attachmentId!! to checksumProvider.computeAttachmentId(relativePath)
+        }
+
+        val updatedReceipts = snapshot.purchaseReceipts.map { receipt ->
+            receipt.copy(attachmentId = receipt.attachmentId?.let { attachmentMapping[it] ?: it })
+        }
+        val updatedSnapshot = snapshot.copy(purchaseReceipts = updatedReceipts)
+
+        val attachments = updatedSnapshot.purchaseReceipts.filter { it.attachmentId != null }.map { receipt ->
+            val ocr = updatedSnapshot.purchaseInvoiceOcrResults.find { it.purchaseReceiptId == receipt.id }
+            val sha = ocr?.sourceDocumentSha256 ?: dummySha
+            val attachmentId = receipt.attachmentId!!
+            val displayName = receipt.attachmentDisplayName ?: "file.pdf"
+
+            com.miara.cuentame.core.model.backup.BackupAttachmentMetadata(
+                attachmentId = attachmentId,
+                archivePath = "attachments/$attachmentId/$displayName",
+                displayName = displayName,
+                mimeType = "application/pdf",
+                sizeBytes = 0,
+                checksumSha256 = sha,
+                referencedBy = listOf(com.miara.cuentame.core.model.backup.BackupAttachmentReference("PURCHASE_RECEIPT", receipt.id))
+            )
+        }
+
         val manifest = BackupManifest(
-            backupFormatVersion = 1,
+            backupFormatVersion = 2,
             createdAtUtc = "2026-08-10T00:00:00Z",
             applicationId = context.packageName,
             appVersionName = "1.0",
@@ -118,11 +150,11 @@ class BackupRoundTripCorrectnessTest {
             localeTag = "en-US",
             currencyCode = "USD",
             tableMetadata = emptyMap(),
-            attachments = emptyList(),
-            includedSections = listOf("data")
+            attachments = attachments,
+            includedSections = listOf("data", "attachments")
         )
         
-        applier.replaceWithBackup(snapshot, manifest)
+        applier.replaceWithBackup(updatedSnapshot, manifest)
 
         // Run integrity validator against restored data
         val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
@@ -159,13 +191,22 @@ class BackupRoundTripCorrectnessTest {
                 fullText = "OCR Text",
                 processedAt = Instant.now()
             ),
-            pages = emptyList(),
+            pages = listOf(
+                com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage(
+                    ocrResultId = "ocr-" + receiptId.value,
+                    pageIndex = 0,
+                    widthPx = 1000,
+                    heightPx = 1000,
+                    text = "OCR Text",
+                    evidence = com.miara.cuentame.core.ocr.api.OcrPageEvidence(1000, 1000, "OCR Text", emptyList())
+                )
+            ),
             expectedAttachmentPath = storedDoc.location,
             expectedDocumentSha256 = sha
         )
 
         val parseResult = PurchaseInvoiceParseResult(
-            id = "parse-" + receiptId.value,
+            id = "parse1",
             supplierNameCandidate = ParsedField("Sysco", "Sysco", 0.9f),
             invoiceNumber = ParsedField("INV-1", "INV-1", 0.9f),
             invoiceDate = ParsedField("2023-01-01", LocalDate.of(2023, 1, 1), 0.9f),

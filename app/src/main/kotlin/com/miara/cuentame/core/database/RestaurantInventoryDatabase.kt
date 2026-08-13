@@ -411,5 +411,87 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_purchase_invoice_line_origins_applicationId_sourceLineIndex` ON `purchase_invoice_line_origins` (`applicationId`, `sourceLineIndex`)")
             }
         }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `menu_recipes` (
+                        `id` TEXT NOT NULL, 
+                        `restaurantId` TEXT NOT NULL, 
+                        `name` TEXT NOT NULL, 
+                        `normalizedName` TEXT NOT NULL, 
+                        `sellingPrice` TEXT, 
+                        `notes` TEXT, 
+                        `archivedAt` INTEGER, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`restaurantId`) REFERENCES `restaurants`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipes_restaurantId` ON `menu_recipes` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipes_restaurantId_normalizedName` ON `menu_recipes` (`restaurantId`, `normalizedName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipes_archivedAt` ON `menu_recipes` (`archivedAt`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `menu_recipe_components` (
+                        `id` TEXT NOT NULL, 
+                        `menuRecipeId` TEXT NOT NULL, 
+                        `ingredientId` TEXT NOT NULL, 
+                        `ingredientUnitOptionId` TEXT NOT NULL, 
+                        `quantityEntered` TEXT NOT NULL, 
+                        `quantityBase` TEXT NOT NULL, 
+                        `sortOrder` INTEGER NOT NULL, 
+                        `createdAt` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`), 
+                        FOREIGN KEY(`menuRecipeId`) REFERENCES `menu_recipes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`ingredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT, 
+                        FOREIGN KEY(`ingredientUnitOptionId`) REFERENCES `ingredient_unit_options`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipe_components_menuRecipeId` ON `menu_recipe_components` (`menuRecipeId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipe_components_ingredientId` ON `menu_recipe_components` (`ingredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_recipe_components_ingredientUnitOptionId` ON `menu_recipe_components` (`ingredientUnitOptionId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_menu_recipe_components_menuRecipeId_ingredientId` ON `menu_recipe_components` (`menuRecipeId`, `ingredientId`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `stock_count_item_order` (
+                        `restaurantId` TEXT NOT NULL, 
+                        `areaId` TEXT NOT NULL, 
+                        `ingredientId` TEXT NOT NULL, 
+                        `sortOrder` INTEGER NOT NULL, 
+                        `updatedAt` INTEGER NOT NULL, 
+                        PRIMARY KEY(`areaId`, `ingredientId`), 
+                        FOREIGN KEY(`restaurantId`) REFERENCES `restaurants`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`areaId`) REFERENCES `inventory_areas`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`ingredientId`) REFERENCES `ingredients`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_stock_count_item_order_restaurantId` ON `stock_count_item_order` (`restaurantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_stock_count_item_order_ingredientId` ON `stock_count_item_order` (`ingredientId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_stock_count_item_order_areaId_sortOrder` ON `stock_count_item_order` (`areaId`, `sortOrder`)")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `ingredients` ADD COLUMN `parLevelBase` TEXT")
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+            MIGRATION_6_7,
+            MIGRATION_7_8,
+            MIGRATION_8_9,
+            MIGRATION_9_10,
+            MIGRATION_10_11,
+            MIGRATION_11_12
+        )
     }
 }

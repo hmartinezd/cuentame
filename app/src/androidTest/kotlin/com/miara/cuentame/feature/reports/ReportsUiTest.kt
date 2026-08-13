@@ -288,13 +288,15 @@ class ReportsUiTest {
     fun reports_navigation_homeToReports_andBack() {
         seedReadyState()
         ActivityScenario.launch<MainActivity>(MainActivity::class.java).use {
-            composeTestRule.waitUntil(20_000) {
+            composeTestRule.waitUntil(30_000) {
                 composeTestRule.onAllNodes(hasTestTag("view_reports_button")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("view_reports_button"))
+            composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("view_reports_button"))
             composeTestRule.onNodeWithTag("view_reports_button").performClick()
             
-            composeTestRule.waitForTag("reports_screen")
+            composeTestRule.waitUntil(30_000) {
+                composeTestRule.onAllNodes(hasTestTag("reports_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
             composeTestRule.onNodeWithTag("reports_screen").assertIsDisplayed()
             
             // System back

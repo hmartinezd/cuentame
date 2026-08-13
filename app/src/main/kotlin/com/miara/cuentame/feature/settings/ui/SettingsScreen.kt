@@ -15,6 +15,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Backup
@@ -57,6 +58,7 @@ import com.miara.cuentame.feature.settings.viewmodel.SettingsViewModel
 
 @Composable
 fun SettingsRoute(
+    onBack: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -70,6 +72,7 @@ fun SettingsRoute(
     val error by viewModel.error.collectAsStateWithLifecycle()
     
     val backupUiState by backupViewModel.uiState.collectAsStateWithLifecycle()
+    val autoBackupStatus by backupViewModel.autoBackupStatus.collectAsStateWithLifecycle()
     val restoreUiState by restoreViewModel.uiState.collectAsStateWithLifecycle()
     
     val snackbarHostState = remember { SnackbarHostState() }
@@ -115,6 +118,15 @@ fun SettingsRoute(
                         backupLauncher.launch(event.suggestedName)
                     }
                 }
+                is BackupUiEvent.ShareDiagnosticReport -> {
+                    com.miara.cuentame.core.common.util.ShareHelper.shareTextFile(
+                        context = context,
+                        filename = event.filename,
+                        content = event.content,
+                        mimeType = "application/json",
+                        title = context.getString(R.string.export_diagnostics_title)
+                    )
+                }
             }
         }
     }
@@ -151,12 +163,15 @@ fun SettingsRoute(
         appLocaleTag = preferences.appLocaleTag,
         isSaving = isSaving,
         backupUiState = backupUiState,
+        autoBackupStatus = autoBackupStatus,
         restoreUiState = restoreUiState,
         snackbarHostState = snackbarHostState,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
         onLocaleChanged = { viewModel.setAppLocaleTag(it.languageTag) },
         onCreateBackup = backupViewModel::onCreateBackupRequested,
+        onToggleAutoBackup = backupViewModel::onToggleAutoBackup,
+        onExportDiagnostics = backupViewModel::onExportDiagnosticsRequested,
         onRestoreBackup = restoreViewModel::onSelectFileClicked,
         onChooseAnotherRestore = restoreViewModel::onChooseAnotherClicked,
         onDismissRestore = restoreViewModel::onDismissRequest,
@@ -167,10 +182,12 @@ fun SettingsRoute(
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
-        onNavigateToSuppliers = onNavigateToSuppliers
+        onNavigateToSuppliers = onNavigateToSuppliers,
+        onBackClick = onBack
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
@@ -178,12 +195,15 @@ fun SettingsScreen(
     appLocaleTag: String,
     isSaving: Boolean,
     backupUiState: BackupUiState,
+    autoBackupStatus: com.miara.cuentame.feature.settings.viewmodel.AutoBackupUiStatus,
     restoreUiState: BackupRestoreUiState,
     snackbarHostState: SnackbarHostState,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
     onLocaleChanged: (SupportedAppLocale) -> Unit,
     onCreateBackup: () -> Unit,
+    onToggleAutoBackup: (Boolean) -> Unit,
+    onExportDiagnostics: () -> Unit,
     onRestoreBackup: () -> Unit,
     onChooseAnotherRestore: () -> Unit,
     onDismissRestore: () -> Unit,
@@ -194,13 +214,30 @@ fun SettingsScreen(
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
-    onNavigateToSuppliers: () -> Unit
+    onNavigateToSuppliers: () -> Unit,
+    onBackClick: () -> Unit
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.testTag("settings_screen"),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.nav_settings)) },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier.testTag("settings_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back)
+                        )
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
@@ -213,22 +250,26 @@ fun SettingsScreen(
             SettingsItem(
                 title = stringResource(R.string.settings_restaurant),
                 icon = Icons.Default.Store,
-                onClick = onNavigateToRestaurant
+                onClick = onNavigateToRestaurant,
+                modifier = Modifier.testTag("settings_item_RESTAURANT")
             )
             SettingsItem(
                 title = stringResource(R.string.settings_areas),
                 icon = Icons.AutoMirrored.Filled.List,
-                onClick = onNavigateToAreas
+                onClick = onNavigateToAreas,
+                modifier = Modifier.testTag("settings_item_AREAS")
             )
             SettingsItem(
                 title = stringResource(R.string.settings_categories),
                 icon = Icons.Default.Palette,
-                onClick = onNavigateToCategories
+                onClick = onNavigateToCategories,
+                modifier = Modifier.testTag("settings_item_CATEGORIES")
             )
             SettingsItem(
                 title = stringResource(R.string.suppliers),
                 icon = Icons.Default.Store,
-                onClick = onNavigateToSuppliers
+                onClick = onNavigateToSuppliers,
+                modifier = Modifier.testTag("settings_item_SUPPLIERS")
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -278,6 +319,35 @@ fun SettingsScreen(
                 modifier = Modifier
                     .testTag("create_backup_button")
                     .clickable(enabled = !isBackupActive && !isRestoreApplying && restoreUiState != BackupRestoreUiState.RecoveryRequired) { onCreateBackup() }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsHeader(stringResource(R.string.auto_backup_section))
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.auto_backup_enabled_label)) },
+                supportingContent = {
+                    val lastSuccess = autoBackupStatus.lastSuccessTimestamp
+                    val statusText = if (lastSuccess != null) {
+                        val date = java.time.Instant.ofEpochMilli(lastSuccess)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM))
+                        stringResource(R.string.auto_backup_last_success, date)
+                    } else {
+                        stringResource(R.string.auto_backup_last_success_never)
+                    }
+                    val resultText = autoBackupStatus.lastResult?.let {
+                        "\n" + stringResource(R.string.auto_backup_status_format, it)
+                    } ?: ""
+                    Text(statusText + resultText)
+                },
+                trailingContent = {
+                    Switch(
+                        checked = autoBackupStatus.enabled,
+                        onCheckedChange = onToggleAutoBackup,
+                        modifier = Modifier.testTag("auto_backup_switch")
+                    )
+                }
             )
 
             val isRestoreInspecting = restoreUiState is BackupRestoreUiState.Inspecting
@@ -360,6 +430,19 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.app_name)) },
                 supportingContent = { Text(stringResource(R.string.about_desc)) }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsHeader(stringResource(R.string.pilot_diagnostics_section))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.export_diagnostics_title)) },
+                supportingContent = { Text(stringResource(R.string.export_diagnostics_desc)) },
+                trailingContent = {
+                    Button(onClick = onExportDiagnostics) {
+                        Text(stringResource(R.string.action_next))
+                    }
+                },
+                modifier = Modifier.clickable { onExportDiagnostics() }
             )
         }
     }
@@ -739,12 +822,13 @@ fun SettingsHeader(title: String) {
 fun SettingsItem(
     title: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     ListItem(
         headlineContent = { Text(title) },
         leadingContent = { Icon(icon, contentDescription = null) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null) },
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = modifier.clickable(onClick = onClick)
     )
 }

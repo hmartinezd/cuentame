@@ -47,7 +47,7 @@ fun CuentameNavHost(
         preparationsGraph(navController, onBackClick)
         menuGraph(navController, onBackClick)
         productionGraph(navController, onBackClick)
-        areasGraph(navController)
+        areasGraph(navController, onBackClick)
         categoriesGraph()
         suppliersGraph(navController)
     }

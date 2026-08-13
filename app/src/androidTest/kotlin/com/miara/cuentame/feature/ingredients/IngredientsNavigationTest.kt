@@ -30,6 +30,7 @@ class IngredientsNavigationTest {
     fun setup() {
         hiltRule.inject()
         runBlocking {
+            testStateManager.resetAll()
             testStateManager.seedBaseline()
         }
     }
@@ -44,14 +45,14 @@ class IngredientsNavigationTest {
     @Test
     fun createIngredientAndSave_navigatesToDetailWithoutCrash() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
             // Navigate to Inventory
             composeTestRule.onNodeWithTag("nav_inventory").performClick()
             
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_list_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
@@ -74,11 +75,11 @@ class IngredientsNavigationTest {
             composeTestRule.onNodeWithTag("base_unit_item_unit-test-1").performClick()
             
             // Confirm Save is enabled and Save
-            composeTestRule.onNodeWithTag("ingredient_form_save").assertIsEnabled()
+            composeTestRule.onNodeWithTag("ingredient_form_save").performScrollTo().assertIsEnabled()
             composeTestRule.onNodeWithTag("ingredient_form_save").performClick()
             
             // Verify navigation to detail
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_detail_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             

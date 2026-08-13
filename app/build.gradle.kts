@@ -93,6 +93,10 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.work)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Room
     implementation(libs.room.runtime)
@@ -123,6 +127,7 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.room.testing)
     testImplementation(libs.mockk)
+    testImplementation(libs.androidx.work.testing)
     
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

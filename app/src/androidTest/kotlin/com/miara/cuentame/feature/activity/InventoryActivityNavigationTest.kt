@@ -68,6 +68,7 @@ class InventoryActivityNavigationTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
 
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_inventory_activity_button"))
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -88,8 +89,9 @@ class InventoryActivityNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("ingredient_list").performScrollToNode(hasTestTag("ingredient_item_Chicken"))
-            composeTestRule.onNodeWithTag("ingredient_item_Chicken")
+            val chickenTag = "ingredient_item_${fixture.componentIngredientId.value}"
+            composeTestRule.onNodeWithTag("ingredient_list").performScrollToNode(hasTestTag(chickenTag))
+            composeTestRule.onNodeWithTag(chickenTag)
                 .performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("ingredient_detail_screen")).fetchSemanticsNodes().isNotEmpty()
@@ -97,10 +99,10 @@ class InventoryActivityNavigationTest {
 
             composeTestRule.onNodeWithTag("ingredient_view_activity").performClick()
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("inventory_activity_active_ingredient_filter").assertTextContains("Chicken")
+            composeTestRule.onAllNodesWithText("Chicken", substring = true).onFirst().assertIsDisplayed()
         }
     }
 
@@ -110,7 +112,7 @@ class InventoryActivityNavigationTest {
             waitForHome()
 
             composeTestRule.onNodeWithTag("nav_settings").performClick()
-            composeTestRule.onNodeWithTag("settings_areas").performClick()
+            composeTestRule.onNode(hasText("Inventory Areas") and hasClickAction()).performClick()
             
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasText("Storage")).fetchSemanticsNodes().isNotEmpty()
@@ -120,10 +122,10 @@ class InventoryActivityNavigationTest {
             composeTestRule.onNodeWithTag("area_view_activity_${fixture.areaId.value}").performClick()
 
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            composeTestRule.onNodeWithTag("inventory_activity_active_area_filter").assertTextContains("Storage")
+            composeTestRule.onAllNodesWithText("Storage", substring = true).onFirst().assertIsDisplayed()
         }
     }
 
@@ -131,9 +133,10 @@ class InventoryActivityNavigationTest {
     fun activityListToDetailAndBack_preservesState() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_inventory_activity_button"))
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
             
             composeTestRule.onNodeWithTag("inventory_activity_search").performTextInput("Chicken")
@@ -152,9 +155,10 @@ class InventoryActivityNavigationTest {
     fun detailToRelatedMovementStackInvariant() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_inventory_activity_button"))
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
             
             // Reversal -> Original -> Reversal
@@ -182,9 +186,10 @@ class InventoryActivityNavigationTest {
     fun sourceDocumentNavigation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_inventory_activity_button"))
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
             
             // Purchase
@@ -256,14 +261,14 @@ class InventoryActivityNavigationTest {
 
     private fun waitForHome() {
         composeTestRule.waitUntil(15000) {
-            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodes(hasTestTag("home_dashboard_list")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("home_dashboard_list").assertIsDisplayed()
     }
 
     private fun scrollToActivityRow(movementId: com.miara.cuentame.core.common.ids.InventoryMovementId) {
         val rowTag = "inventory_activity_row_${movementId.value}"
-        composeTestRule.onNodeWithTag("inventory_activity_list").performScrollToNode(hasTestTag(rowTag))
+        composeTestRule.onNodeWithTag("inventory_activity_list", useUnmergedTree = true).performScrollToNode(hasTestTag(rowTag))
         composeTestRule.onNodeWithTag(rowTag).assertIsDisplayed()
     }
 

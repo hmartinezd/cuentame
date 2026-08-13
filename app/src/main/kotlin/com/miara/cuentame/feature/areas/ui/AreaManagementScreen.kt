@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -41,6 +42,7 @@ import com.miara.cuentame.feature.areas.viewmodel.AreaManagementViewModel
 
 @Composable
 fun AreaManagementRoute(
+    onBack: () -> Unit,
     onViewActivity: (InventoryAreaId) -> Unit,
     viewModel: AreaManagementViewModel = hiltViewModel()
 ) {
@@ -85,10 +87,12 @@ fun AreaManagementRoute(
         onUpdateArea = viewModel::onUpdateArea,
         onArchiveArea = { viewModel.onArchiveArea(it.id) },
         onMoveUp = viewModel::onMoveUp,
-        onMoveDown = viewModel::onMoveDown
+        onMoveDown = viewModel::onMoveDown,
+        onBack = onBack
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AreaManagementScreen(
     uiState: com.miara.cuentame.feature.areas.viewmodel.AreaManagementUiState,
@@ -104,9 +108,23 @@ fun AreaManagementScreen(
     onUpdateArea: (com.miara.cuentame.core.model.inventory.InventoryArea) -> Unit,
     onArchiveArea: (com.miara.cuentame.core.model.inventory.InventoryArea) -> Unit,
     onMoveUp: (Int) -> Unit,
-    onMoveDown: (Int) -> Unit
+    onMoveDown: (Int) -> Unit,
+    onBack: () -> Unit
 ) {
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = stringResource(R.string.settings_areas)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back)
+                        )
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {

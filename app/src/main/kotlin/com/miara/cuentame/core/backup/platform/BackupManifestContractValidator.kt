@@ -259,6 +259,15 @@ object BackupManifestContractValidator {
             }
         }
 
+        if (manifest.databaseSchemaVersion >= 12) {
+            actualCounts["menu_recipes"] = snapshot.menuRecipes.size
+            actualCounts["menu_recipe_components"] = snapshot.menuRecipeComponents.size
+        } else {
+            if (snapshot.menuRecipes.isNotEmpty() || snapshot.menuRecipeComponents.isNotEmpty()) {
+                return BackupRestoreFailure.ManifestMismatch
+            }
+        }
+
         for ((table, metadata) in manifest.tableMetadata) {
             val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch
             if (actual != metadata.entryCount) {

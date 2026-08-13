@@ -254,7 +254,7 @@ class RoomProductionBatchRepositoryFailureTest {
         assertSnapshotsEqual(snapshotBefore, snapshotAfter)
         
         val batch = repository.getBatch(batchId)!!
-        assertThat(batch.status.name).isEqualTo("POSTED")
+        assertThat(batch.status).isEqualTo(com.miara.cuentame.core.model.inventory.DocumentStatus.POSTED)
         assertThat(batch.voidedAt).isNull()
     }
 

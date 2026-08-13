@@ -206,7 +206,7 @@ class PurchaseFailureUiTest {
                 
                 val movements = database.inventoryMovementDao().getBySourceDocument(SourceDocumentType.PURCHASE_RECEIPT.name, receiptId)
                 assertThat(movements).hasSize(1)
-                assertThat(movements[0].movementType).isEqualTo("PURCHASE")
+                assertThat(movements[0].movementType).isEqualTo(com.miara.cuentame.core.model.inventory.InventoryMovementType.PURCHASE.name)
                 assertThat(movements[0].quantityBaseSigned).isEqualTo("10.0")
 
                 val projection = database.inventoryProjectionDao().getBalance(ingId, areaId)

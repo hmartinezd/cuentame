@@ -4,10 +4,13 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.common.time.TimeProvider
+import com.miara.cuentame.core.diagnostic.PilotDiagnosticExporter
 import com.miara.cuentame.core.domain.repository.BackupOperationStatus
 import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupResult
+import com.miara.cuentame.core.preferences.model.AppPreferences
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -15,6 +18,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Before
@@ -28,14 +32,24 @@ class BackupViewModelTest {
     private val backupRepository = mockk<BackupRepository>()
     private val restaurantRepository = mockk<RestaurantRepository>()
     private val timeProvider = mockk<TimeProvider>()
+    private val preferencesRepository = mockk<AppPreferencesRepository>()
+    private val diagnosticExporter = mockk<PilotDiagnosticExporter>()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        every { preferencesRepository.observePreferences() } returns flowOf(AppPreferences.DEFAULT)
     }
 
     private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): BackupViewModel {
-        return BackupViewModel(backupRepository, restaurantRepository, timeProvider, savedStateHandle)
+        return BackupViewModel(
+            backupRepository,
+            restaurantRepository,
+            preferencesRepository,
+            diagnosticExporter,
+            timeProvider,
+            savedStateHandle
+        )
     }
 
     @After

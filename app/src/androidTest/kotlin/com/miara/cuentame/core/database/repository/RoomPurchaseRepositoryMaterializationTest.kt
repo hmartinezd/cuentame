@@ -128,10 +128,12 @@ class RoomPurchaseRepositoryMaterializationTest {
             confidence = 0.9f
         )
         repository.saveParseResult(receiptId, "ocr1", sha, parseResult)
+        
+        val actualParseId = database.purchaseParseDao().getParseResultIdForReceipt(receiptId.value)!!
 
         val matches = listOf(
             PurchaseInvoiceLineMatch(
-                parseResultId = "parse1",
+                parseResultId = actualParseId,
                 lineIndex = 0,
                 status = InvoiceLineMatchStatus.CONFIRMED,
                 supplierId = supplierId,
@@ -144,7 +146,7 @@ class RoomPurchaseRepositoryMaterializationTest {
                 confirmedAt = Instant.now()
             )
         )
-        repository.saveLineMatchesForReceipt(receiptId, "parse1", matches)
+        repository.saveLineMatchesForReceipt(receiptId, actualParseId, matches)
 
         // 2. Act: Generate Proposal and Apply
         val proposal = generateProposalUseCase.execute(receiptId)

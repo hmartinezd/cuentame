@@ -221,7 +221,7 @@ private fun DashboardContent(
     val scrollState = rememberLazyListState()
     
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().testTag("home_dashboard_list"),
         state = scrollState,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)

@@ -56,8 +56,8 @@ class RoomMigrationTest {
         preCursor.close()
         db.close()
 
-        // 2. Run migration 1 to 2 with schema validation enabled
-        db = helper.runMigrationsAndValidate(TEST_DB, 2, true, RestaurantInventoryDatabase.MIGRATION_1_2)
+        // 2. Run migration 1 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
 
         // Assert exact migrated row count and preserved fields
         val postCursor = db.query("SELECT * FROM ingredient_cost_projection ORDER BY ingredientId")
@@ -97,7 +97,15 @@ class RoomMigrationTest {
         ).addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
-            RestaurantInventoryDatabase.MIGRATION_3_4
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         // Query through real DAO to confirm migrated database opens without schema errors
@@ -137,8 +145,8 @@ class RoomMigrationTest {
         
         db.close()
 
-        // 2. Run migration 2 to 3
-        db = helper.runMigrationsAndValidate(TEST_DB, 3, true, RestaurantInventoryDatabase.MIGRATION_2_3)
+        // 2. Run migration 2 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
 
         // Verify representative data is preserved
         val tablesToVerify = listOf(
@@ -171,7 +179,15 @@ class RoomMigrationTest {
         ).addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
-            RestaurantInventoryDatabase.MIGRATION_3_4
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         assertThat(roomDb.ingredientDao().getActiveIngredients("rest-1")).hasSize(1)
@@ -188,8 +204,8 @@ class RoomMigrationTest {
         db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
         db.close()
 
-        // 2. Run migration 3 to 4
-        db = helper.runMigrationsAndValidate(TEST_DB, 4, true, RestaurantInventoryDatabase.MIGRATION_3_4)
+        // 2. Run migration 3 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
         
         // Verify new tables exist
         val batchCursor = db.query("SELECT * FROM production_batches")
@@ -206,7 +222,15 @@ class RoomMigrationTest {
         ).addMigrations(
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
-            RestaurantInventoryDatabase.MIGRATION_3_4
+            RestaurantInventoryDatabase.MIGRATION_3_4,
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         assertThat(roomDb.productionBatchDao().getById("non-existent")).isNull()
@@ -231,8 +255,8 @@ class RoomMigrationTest {
         db.execSQL("INSERT INTO waste_events (id, restaurantId, ingredientId, areaId, ingredientUnitOptionId, quantityEntered, quantityBase, reason, effectiveAt, status, attachmentPath, createdAt, updatedAt) VALUES ('w-1', 'rest-1', 'ing-1', 'area-1', 'opt-1', '1.0', '1.0', 'EXPIRED', 1000, 'DRAFT', 'att-2', 100, 200)")
         db.close()
 
-        // 2. Run migration 4 to 5
-        db = helper.runMigrationsAndValidate(TEST_DB, 5, true, RestaurantInventoryDatabase.MIGRATION_4_5)
+        // 2. Run migration 4 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
 
         // Verify columns exist and are null
         val prCursor = db.query("SELECT * FROM purchase_receipts WHERE id = 'pr-1'")
@@ -258,7 +282,14 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_1_2,
             RestaurantInventoryDatabase.MIGRATION_2_3,
             RestaurantInventoryDatabase.MIGRATION_3_4,
-            RestaurantInventoryDatabase.MIGRATION_4_5
+            RestaurantInventoryDatabase.MIGRATION_4_5,
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         val pr = roomDb.purchaseDao().getReceiptById("pr-1")
@@ -277,8 +308,8 @@ class RoomMigrationTest {
         db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
         db.close()
 
-        // 2. Run migration 5 to 6
-        db = helper.runMigrationsAndValidate(TEST_DB, 6, true, RestaurantInventoryDatabase.MIGRATION_5_6)
+        // 2. Run migration 5 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
         
         // Verify new tables exist
         val ocrResultCursor = db.query("SELECT * FROM purchase_invoice_ocr_results")
@@ -301,7 +332,13 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_2_3,
             RestaurantInventoryDatabase.MIGRATION_3_4,
             RestaurantInventoryDatabase.MIGRATION_4_5,
-            RestaurantInventoryDatabase.MIGRATION_5_6
+            RestaurantInventoryDatabase.MIGRATION_5_6,
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         assertThat(roomDb.purchaseOcrDao().getOcrResultForReceiptSync("non-existent")).isNull()
@@ -318,8 +355,8 @@ class RoomMigrationTest {
         db.execSQL("INSERT INTO restaurants (id, name, currencyCode, localeTag, createdAt, updatedAt) VALUES ('rest-1', 'Rest 1', 'USD', 'en-US', 100, 200)")
         db.close()
 
-        // 2. Run migration 6 to 7
-        db = helper.runMigrationsAndValidate(TEST_DB, 7, true, RestaurantInventoryDatabase.MIGRATION_6_7)
+        // 2. Run migration 6 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
         
         // Verify new tables exist
         val parseResultCursor = db.query("SELECT * FROM purchase_invoice_parse_results")
@@ -343,7 +380,12 @@ class RoomMigrationTest {
             RestaurantInventoryDatabase.MIGRATION_3_4,
             RestaurantInventoryDatabase.MIGRATION_4_5,
             RestaurantInventoryDatabase.MIGRATION_5_6,
-            RestaurantInventoryDatabase.MIGRATION_6_7
+            RestaurantInventoryDatabase.MIGRATION_6_7,
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         assertThat(roomDb.purchaseParseDao().getParseResultForReceipt("non-existent")).isNull()

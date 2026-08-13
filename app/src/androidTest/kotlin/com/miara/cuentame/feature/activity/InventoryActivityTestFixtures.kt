@@ -109,6 +109,7 @@ suspend fun seedCanonicalInventoryActivity(
     val countDetails = stockCountRepository.observeCount(countId).first()!!
     val countAreaId = countDetails.areas.first().area.id
     stockCountRepository.saveLine(SaveStockCountLineCommand(countId, countAreaId, null, componentIngredientId, componentUnitOptionId, BigDecimal("15.0"), null))
+    stockCountRepository.completeArea(countId, countAreaId)
     stockCountRepository.completeCount(countId)
     val stockCountMovementId = movementDao.getBySourceDocument(SourceDocumentType.STOCK_COUNT.name, countId.value).first().id.let { InventoryMovementId(it) }
 

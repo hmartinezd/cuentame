@@ -57,4 +57,7 @@ enum class BackupSnapshotIntegrityCode {
 
     // Matching and mappings
     INVALID_MATCH_STATUS,
+
+    // Menu costing
+    INVALID_MENU_STRUCTURE,
 }

@@ -12,6 +12,7 @@ import com.miara.cuentame.core.common.ids.*
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
+import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -54,7 +55,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun schema5BackupRoundTrip_preservesAllRecipeData() = runBlocking {
+    fun schema12BackupRoundTrip_preservesAllRecipeData() = runBlocking {
         // 1. Seed database with recipes
         seedDatabaseWithRecipes()
 
@@ -62,7 +63,7 @@ class BackupRoundTripTest {
         val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val snapshotResult = snapshotSource.loadSnapshot(restId.value)
         
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(5)
+        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(12)
         
         val planResult = planner.createPlan(restaurant, snapshotResult)
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
@@ -80,6 +81,8 @@ class BackupRoundTripTest {
         // Compare DTOs ignoring sorting if necessary (though mapper sorts)
         assertThat(restoredSnapshot.preparationRecipes).hasSize(3)
         assertThat(restoredSnapshot.preparationRecipeComponents).hasSize(2)
+        assertThat(restoredSnapshot.productionBatches).hasSize(1)
+        assertThat(restoredSnapshot.productionBatchComponents).hasSize(1)
         
         assertThat(restoredSnapshot).isEqualTo(snapshotDto)
 
@@ -104,6 +107,9 @@ class BackupRoundTripTest {
         database.restaurantDao().insert(RestaurantEntity(restId.value, "Test", "USD", "en-US", 0, 0, null))
         database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
         
+        val area1 = "area-1"
+        database.inventoryAreaDao().upsert(InventoryAreaEntity(area1, restId.value, "Kitchen", "kitchen", 0, true, 100, 100, null))
+
         val ing1 = "ing-1"
         val ing2 = "ing-2"
         database.ingredientDao().insert(IngredientEntity(ing1, restId.value, "Output", "output", null, "u1", null, null, null, BigDecimal("8.125"), true, 100, 100, null, BigDecimal("23.75")))
@@ -124,6 +130,76 @@ class BackupRoundTripTest {
         // Archived
         database.preparationRecipeDao().insert(PreparationRecipeEntity("r-archived", restId.value, ing1, "Old", "old", BigDecimal("1.0"), BigDecimal("1.0"), opt1, "ARCHIVED", null, 50, 50, 500))
         database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-2", "r-archived", ing2, opt2, BigDecimal("10.0"), BigDecimal("10.0"), 0, null, 50, 50))
+
+        // Add a Purchase for ing-1 to establish cost before production
+        database.purchaseDao().insertReceipt(PurchaseReceiptEntity("p-1", restId.value, null, "INV-P1", 100, "POSTED", null, null, null, 100, 100, 100, null))
+        database.purchaseDao().insertLine(PurchaseLineEntity("pl-1", "p-1", ing1, area1, opt1, "10.0", "10.0", "100.0", "10.0", null, 100, 100))
+        database.inventoryMovementDao().insertAll(listOf(
+            InventoryMovementEntity("m-p1", restId.value, ing1, area1, "PURCHASE", "10.0", "10.0", "100.0", 100, "PURCHASE_RECEIPT", "p-1", InventoryMovementOperationIds.purchasePost("p-1", "pl-1"), "pl-1", null, 100)
+        ))
+
+        // Production Batch
+        database.productionBatchDao().insert(ProductionBatchEntity(
+            id = "pb-1",
+            restaurantId = restId.value,
+            recipeId = "r-active",
+            recipeNameSnapshot = "Active",
+            outputIngredientId = ing2,
+            batchMultiplier = "1.0",
+            recipeStandardYieldQuantitySnapshot = "10.0",
+            recipeStandardYieldBaseSnapshot = "10.0",
+            recipeYieldUnitOptionIdSnapshot = opt2,
+            expectedOutputQuantityEntered = "10.0",
+            expectedOutputQuantityBase = "10.0",
+            actualOutputQuantityEntered = "10.0",
+            actualOutputQuantityBase = "10.0",
+            outputUnitOptionId = opt2,
+            outputAreaId = area1,
+            hasManualOutputQuantityOverride = false,
+            totalComponentCostSnapshot = "10.0",
+            outputUnitCostBaseSnapshot = "1.0",
+            effectiveAt = 300,
+            status = "POSTED",
+            notes = "Test batch",
+            createdAt = 300,
+            updatedAt = 300,
+            postedAt = 300,
+            voidedAt = null
+        ))
+        database.productionBatchDao().insertComponents(listOf(ProductionBatchComponentEntity(
+            id = "pbc-1",
+            productionBatchId = "pb-1",
+            sourceRecipeComponentIdSnapshot = "c-1",
+            componentIngredientId = ing1,
+            recipeQuantityEnteredSnapshot = "1.0",
+            recipeQuantityBaseSnapshot = "1.0",
+            recipeUnitOptionIdSnapshot = opt1,
+            expectedQuantityEntered = "1.0",
+            expectedQuantityBase = "1.0",
+            actualQuantityEntered = "1.0",
+            actualQuantityBase = "1.0",
+            unitOptionId = opt1,
+            hasManualQuantityOverride = false,
+            sourceAreaId = area1,
+            unitCostBaseSnapshot = "10.0",
+            totalCostSnapshot = "10.0",
+            sortOrder = 0,
+            notes = null,
+            createdAt = 300,
+            updatedAt = 300
+        )))
+        
+        // Add movements for POSTED batch
+        database.inventoryMovementDao().insertAll(listOf(
+            InventoryMovementEntity("m-consume", restId.value, ing1, area1, "PRODUCTION_CONSUMPTION", "-1.0", "10.0", "-10.0", 300, "PRODUCTION_BATCH", "pb-1", InventoryMovementOperationIds.productionConsumption("pb-1", "pbc-1"), "pbc-1", null, 300),
+            InventoryMovementEntity("m-out", restId.value, ing2, area1, "PRODUCTION_OUTPUT", "10.0", "1.0", "10.0", 300, "PRODUCTION_BATCH", "pb-1", InventoryMovementOperationIds.productionOutput("pb-1"), "pb-1", null, 300)
+        ))
+        
+        // Add projections
+        database.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, ing1, area1, "9.0", 300)) // 10 - 1 = 9
+        database.inventoryProjectionDao().upsert(InventoryBalanceProjectionEntity(restId.value, ing2, area1, "10.0", 300))
+        database.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId.value, ing1, "10.0", 300))
+        database.ingredientCostProjectionDao().upsert(IngredientCostProjectionEntity(restId.value, ing2, "1.0", 300))
     }
 
     @Test
@@ -177,7 +253,7 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun schema5BackupRoundTrip_restoresOverPopulatedStateExactly() = runBlocking {
+    fun schema12BackupRoundTrip_restoresOverPopulatedStateExactly() = runBlocking {
         // 1. Seed state A
         seedDatabaseWithRecipes()
         val originalSnapshot = snapshotSource.loadSnapshot(restId.value).dto
@@ -227,8 +303,7 @@ class BackupRoundTripTest {
         val rollback = applier.captureRollbackSnapshot()
         
         // 3. Mutate database
-        database.restoreDao().deleteAllPreparationRecipeComponents()
-        database.restoreDao().deleteAllPreparationRecipes()
+        database.restoreDao().clearAllInOrder()
         assertThat(database.preparationRecipeDao().getAllRecipesForRestaurant(restId.value)).isEmpty()
         
         // 4. Restore rollback

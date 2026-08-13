@@ -130,7 +130,7 @@ fun OnboardingScreen(
     }
 
     Scaffold(
-        modifier = Modifier.testTag("onboarding_screen_root"),
+        modifier = Modifier.testTag("onboarding_screen"),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             OnboardingBottomBar(

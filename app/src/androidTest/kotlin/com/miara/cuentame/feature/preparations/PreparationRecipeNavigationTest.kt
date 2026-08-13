@@ -49,7 +49,8 @@ class PreparationRecipeNavigationTest {
     fun navigateToPreparationRecipes_fromHome() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             composeTestRule.onNodeWithTag("preparation_recipe_list_screen").assertIsDisplayed()
         }
     }
@@ -58,7 +59,8 @@ class PreparationRecipeNavigationTest {
     fun createRecipeAndBack_returnsToList() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
             
             composeTestRule.onNodeWithTag("preparation_recipe_editor_screen").assertIsDisplayed()
@@ -70,7 +72,7 @@ class PreparationRecipeNavigationTest {
 
     private fun waitForHome() {
         composeTestRule.waitUntil(15000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("home_dashboard_list").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

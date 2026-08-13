@@ -88,8 +88,8 @@ class RoomPurchaseInvoiceMaterializationTest {
     }
 
     @Test
-    fun verifyMigration9To10() {
-        val dbName = "migration-9-10-test"
+    fun verifyMigration9To12() {
+        val dbName = "migration-9-12-test"
         var db = migrationHelper.createDatabase(dbName, 9)
         
         // Seed baseline for v9
@@ -105,8 +105,8 @@ class RoomPurchaseInvoiceMaterializationTest {
         
         db.close()
 
-        // Migrate to 10
-        db = migrationHelper.runMigrationsAndValidate(dbName, 10, true, RestaurantInventoryDatabase.MIGRATION_9_10)
+        // Migrate to 12
+        db = migrationHelper.runMigrationsAndValidate(dbName, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
         
         // Verify unique constraint exists by trying to insert a duplicate (should fail)
         try {
@@ -209,7 +209,7 @@ class RoomPurchaseInvoiceMaterializationTest {
         }
 
         val parseResult = PurchaseInvoiceParseResult(
-            id = "parse-" + receiptId.value,
+            id = "parse1",
             supplierNameCandidate = ParsedField("Sysco", "Sysco", 0.9f),
             invoiceNumber = ParsedField("INV-1", "INV-1", 0.9f),
             invoiceDate = ParsedField("2023-01-01", LocalDate.of(2023, 1, 1), 0.9f),

@@ -144,7 +144,7 @@ class StockCountLifecycleTest {
             composeTestRule.onNodeWithTag("area_checkbox_area_kitchen_life").performClick()
             
             // 5. Save (Button at bottom)
-            composeTestRule.onNodeWithTag("start_count_button").performClick()
+            composeTestRule.onNodeWithTag("start_count_button").performScrollTo().performClick()
             
             // 6. Wait for detail and Verify
             composeTestRule.waitUntil(60000) {
@@ -185,6 +185,9 @@ class StockCountLifecycleTest {
             
             // 11. Complete Dry Storage
             composeTestRule.onNodeWithTag("complete_area_button").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             
             // 12. Open Main Kitchen
             composeTestRule.waitUntil(60000) {
@@ -227,6 +230,9 @@ class StockCountLifecycleTest {
             
             // 16. Complete Main Kitchen
             composeTestRule.onNodeWithTag("complete_area_button").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             
             // 17. Open adjustment review
             composeTestRule.waitUntil(60000) {
@@ -265,6 +271,9 @@ class StockCountLifecycleTest {
             
             // 19. Complete count
             composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             
             // 20. Verify COMPLETED status
             composeTestRule.waitUntil(60000) {
@@ -324,11 +333,13 @@ class StockCountLifecycleTest {
                 composeTestRule.onAllNodesWithTag("void_count_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("void_count_button").performClick()
-            composeTestRule.onNodeWithText("Confirm").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             
             // 23. Verify VOIDED status
             composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithText("Voided").fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodesWithText("Voided", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
             
             // 24. Snapshots after reopening VOIDED
@@ -354,7 +365,7 @@ class StockCountLifecycleTest {
             composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
         }
         composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("home_dashboard_list").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

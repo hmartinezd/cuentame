@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.miara.cuentame.core.backup.api.RestoreStartupState
 import com.miara.cuentame.core.backup.internal.RecoveryBootstrapper
 import com.miara.cuentame.core.backup.internal.RecoveryModule
@@ -50,7 +52,18 @@ object TestStorageModule {
         return Room.inMemoryDatabaseBuilder(
             context,
             RestaurantInventoryDatabase::class.java
-        ).allowMainThreadQueries().build()
+        ).allowMainThreadQueries()
+        .addCallback(object : RoomDatabase.Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                com.miara.cuentame.core.database.seed.SystemUnitSeeder.seed(db)
+            }
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                com.miara.cuentame.core.database.seed.SystemUnitSeeder.seed(db)
+            }
+        })
+        .build()
     }
 
     @Provides

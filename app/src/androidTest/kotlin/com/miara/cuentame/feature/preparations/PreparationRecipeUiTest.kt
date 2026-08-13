@@ -97,7 +97,8 @@ class PreparationRecipeUiTest {
             waitForHome()
 
             // 1. Navigate to Preparation Recipes from Home
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("preparation_list_back").assertIsDisplayed()
 
@@ -160,7 +161,8 @@ class PreparationRecipeUiTest {
     fun recipe_editor_save_validation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
             waitForTag("preparation_recipe_editor_screen")
@@ -175,7 +177,8 @@ class PreparationRecipeUiTest {
     fun recipe_editor_discard_confirmation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
             waitForTag("preparation_recipe_editor_screen")
@@ -205,7 +208,8 @@ class PreparationRecipeUiTest {
     fun component_editor_cancel_returns_to_draft() {
         ActivityScenario.launch(MainActivity::class.java).use {
             waitForHome()
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             waitForTag("preparation_recipe_list_screen")
             composeTestRule.onNodeWithTag("add_preparation_recipe_fab").performClick()
             waitForTag("preparation_recipe_editor_screen")
@@ -253,7 +257,8 @@ class PreparationRecipeUiTest {
                 ))
             }
             
-            composeTestRule.onNodeWithTag("open_preparation_recipes_button", useUnmergedTree = true).performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_preparation_recipes_button"))
+            composeTestRule.onNodeWithTag("open_preparation_recipes_button").performClick()
             waitForTag("preparation_recipe_list_screen")
             
             // Click the recipe to go to details
@@ -268,11 +273,11 @@ class PreparationRecipeUiTest {
 
     private fun waitForHome() {
         composeTestRule.waitUntil(
-            conditionDescription = "Home screen did not appear",
+            conditionDescription = "Home dashboard list did not appear",
             timeoutMillis = 15_000
         ) {
             composeTestRule
-                .onAllNodesWithTag("home_screen")
+                .onAllNodesWithTag("home_dashboard_list")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }

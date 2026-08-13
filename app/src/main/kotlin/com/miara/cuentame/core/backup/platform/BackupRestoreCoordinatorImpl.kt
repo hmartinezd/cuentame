@@ -78,16 +78,7 @@ class BackupRestoreCoordinatorImpl @Inject constructor(
         }
 
         val archive = when (inspection) {
-            is BackupArchiveInspectionResult.Ready -> {
-                if (inspection.eligibility != BackupRestoreEligibility.Eligible) {
-                    val failure = when (inspection.eligibility) {
-                        BackupRestoreEligibility.Eligible -> throw IllegalStateException()
-                        BackupRestoreEligibility.AttachmentsNotSupported -> BackupRestoreFailure.AttachmentsNotSupported
-                    }
-                    return@withOperationalLock BackupRestoreApplyResult.Failure(failure)
-                }
-                inspection.archive
-            }
+            is BackupArchiveInspectionResult.Ready -> inspection.archive
             is BackupArchiveInspectionResult.Failure -> {
                 return@withOperationalLock BackupRestoreApplyResult.Failure(inspection.reason)
             }

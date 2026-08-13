@@ -231,7 +231,12 @@ class BackupCreationPlanner @Inject constructor(
             )
 
             // 10. Snapshot integrity (moved from step 8)
-            BackupSnapshotIntegrityValidator.validate(snapshotDto, finalManifest).getOrElse {
+            BackupSnapshotIntegrityValidator.validate(snapshotDto, finalManifest).getOrElse { e ->
+                if (e is com.miara.cuentame.core.backup.BackupSnapshotIntegrityException) {
+                    android.util.Log.e("BackupCreationPlanner", "Integrity validation failed: ${e.code} - ${e.message}")
+                } else {
+                    android.util.Log.e("BackupCreationPlanner", "Integrity validation failed with unexpected error", e)
+                }
                 return failure(BackupPlanningFailure.InvalidSnapshot)
             }
 
@@ -341,6 +346,12 @@ class BackupCreationPlanner @Inject constructor(
         }
         if (appVersionProvider.databaseSchemaVersion >= 11) {
             tables["stock_count_item_order"] = TableMetadata(dto.stockCountItemOrder.size, false)
+        }
+
+        // Add menu costing tables for schema 12+ (M9)
+        if (appVersionProvider.databaseSchemaVersion >= 12) {
+            tables["menu_recipes"] = TableMetadata(dto.menuRecipes.size, false)
+            tables["menu_recipe_components"] = TableMetadata(dto.menuRecipeComponents.size, false)
         }
 
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }

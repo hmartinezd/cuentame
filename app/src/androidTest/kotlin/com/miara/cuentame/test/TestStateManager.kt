@@ -23,7 +23,12 @@ class TestStateManager @Inject constructor(
         database.clearAllTables()
         dataStoreOwner.clear()
         removeTestFiles()
-        restoreGate.updateRecoveryState(RestoreStartupState.NotStarted)
+        // Re-seed system units because clearAllTables() wiped them, and addCallback only runs once
+        database.openHelper.writableDatabase.let { db ->
+            com.miara.cuentame.core.database.seed.SystemUnitSeeder.seed(db)
+        }
+        // For tests, default to Ready so the app doesn't hang in LoadingContent
+        restoreGate.updateRecoveryState(RestoreStartupState.Ready)
     }
 
     private fun removeTestFiles() {
@@ -33,13 +38,15 @@ class TestStateManager @Inject constructor(
             File(context.filesDir, path).deleteRecursively()
         }
 
-        val cacheDir = context.cacheDir
-        cacheDir.listFiles()?.forEach { file ->
-            val name = file.name
-            if (name.startsWith("integration_test_backup") || 
-                name.startsWith("backup_integration_staging") ||
-                name.contains("cuentame_test_backup")) {
-                file.deleteRecursively()
+        listOf(context.filesDir, context.cacheDir).forEach { dir ->
+            dir.listFiles()?.forEach { file ->
+                val name = file.name
+                if (name.startsWith("integration_test_") || 
+                    name.startsWith("backup_integration_") ||
+                    name.contains("test_attachment") ||
+                    name.contains("cuentame_test_backup")) {
+                    file.deleteRecursively()
+                }
             }
         }
     }

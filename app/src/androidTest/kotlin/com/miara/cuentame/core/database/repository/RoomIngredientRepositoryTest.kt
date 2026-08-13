@@ -150,7 +150,13 @@ class RoomIngredientRepositoryTest {
         db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ingId.value, restId.value, "I", "i", null, "u1", null, null, null, null, true, 0, 0, null))
         db.ingredientUnitOptionDao().insert(com.miara.cuentame.core.database.entity.IngredientUnitOptionEntity("opt1", "i1", "lb", "lb", null, BigDecimal.ONE, true, true, true, true, 0, 0, null))
 
-        // Create a draft batch
+        // Seed Area and Recipe (not outputting i1)
+        val ing2 = "i2"
+        db.ingredientDao().insert(com.miara.cuentame.core.database.entity.IngredientEntity(ing2, restId.value, "I2", "i2", null, "u1", null, null, null, null, true, 0, 0, null))
+        db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity("a1", restId.value, "A", "a", 0, true, 0, 0, null))
+        db.preparationRecipeDao().insert(com.miara.cuentame.core.database.entity.PreparationRecipeEntity("r1", restId.value, ing2, "R", "r", BigDecimal.ONE, BigDecimal.ONE, null, "ACTIVE", null, 0, 0, null))
+
+        // Create a draft batch using i1 as output (even if recipe outputs i2, the batch entity allows override for testing purposes)
         db.productionBatchDao().insert(com.miara.cuentame.core.database.entity.ProductionBatchEntity(
             "b1", restId.value, "r1", "R", ingId.value, "1", "1", "1", "opt1", "1", "1", "1", "1", "opt1", "a1", false, null, null, 0, "DRAFT", null, 0, 0, null, null
         ))

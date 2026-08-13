@@ -104,7 +104,7 @@ class PurchasesNavigationTest {
 
             // Confirm Post
             composeTestRule.onNodeWithTag("purchase_post_confirm_dialog").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Confirm").performClick()
+            composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
 
             // 6. Verify Detail
             composeTestRule.waitUntil(15000) {

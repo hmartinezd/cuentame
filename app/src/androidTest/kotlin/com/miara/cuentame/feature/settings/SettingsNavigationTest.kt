@@ -109,14 +109,14 @@ class SettingsNavigationTest {
             composeTestRule.onNodeWithTag("nav_settings").performClick()
 
             // Restaurant Profile
-            composeTestRule.onNodeWithText("Restaurant Profile").performClick()
+            composeTestRule.onNodeWithTag("settings_item_RESTAURANT").performClick()
             // Secondary screens should not show bottom bar/rail
             composeTestRule.onNodeWithTag("nav_home").assertDoesNotExist()
             // Subsection top bar should have back
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 
             // Areas
-            composeTestRule.onNodeWithText("Inventory Areas").performClick()
+            composeTestRule.onNode(hasText("Inventory Areas") and hasClickAction()).performClick()
             composeTestRule.onNodeWithTag("nav_home").assertDoesNotExist()
             composeTestRule.onNodeWithContentDescription("Back").performClick()
 

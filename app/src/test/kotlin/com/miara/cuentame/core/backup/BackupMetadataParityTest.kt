@@ -133,6 +133,8 @@ class BackupMetadataParityTest {
             "ingredient_cost_projections" to dto.ingredientCostProjections.size,
             "preparation_recipes" to dto.preparationRecipes.size,
             "preparation_recipe_components" to dto.preparationRecipeComponents.size,
+            "menu_recipes" to dto.menuRecipes.size,
+            "menu_recipe_components" to dto.menuRecipeComponents.size,
             "production_batches" to dto.productionBatches.size,
             "production_batch_components" to dto.productionBatchComponents.size,
             "purchase_invoice_ocr_results" to dto.purchaseInvoiceOcrResults.size,

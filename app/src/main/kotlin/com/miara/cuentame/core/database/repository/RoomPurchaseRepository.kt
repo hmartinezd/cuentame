@@ -565,7 +565,7 @@ class RoomPurchaseRepository @Inject constructor(
     ): SourceMutationResult = database.withTransaction {
         if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
         
-        val parseId = idGenerator.newId()
+        val parseId = result.id.ifBlank { idGenerator.newId() }
         
         parseDao.replaceParseResult(
             receiptId = receiptId.value,

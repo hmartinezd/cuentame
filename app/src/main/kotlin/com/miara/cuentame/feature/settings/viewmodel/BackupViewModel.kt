@@ -10,16 +10,17 @@ import com.miara.cuentame.core.domain.repository.BackupRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
 import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.backup.BackupResult
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
+import com.miara.cuentame.core.diagnostic.PilotDiagnosticExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
@@ -38,7 +39,14 @@ sealed interface BackupUiState {
 
 sealed interface BackupUiEvent {
     data class LaunchFilePicker(val operationId: BackupOperationId, val suggestedName: String) : BackupUiEvent
+    data class ShareDiagnosticReport(val filename: String, val content: String) : BackupUiEvent
 }
+
+data class AutoBackupUiStatus(
+    val enabled: Boolean = false,
+    val lastSuccessTimestamp: Long? = null,
+    val lastResult: String? = null
+)
 
 enum class SavedPickerLaunchState {
     NONE,
@@ -50,6 +58,8 @@ enum class SavedPickerLaunchState {
 class BackupViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val restaurantRepository: RestaurantRepository,
+    private val preferencesRepository: AppPreferencesRepository,
+    private val diagnosticExporter: PilotDiagnosticExporter,
     private val timeProvider: TimeProvider,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -67,6 +77,20 @@ class BackupViewModel @Inject constructor(
 
     private val _events = Channel<BackupUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    val autoBackupStatus: StateFlow<AutoBackupUiStatus> = preferencesRepository.observePreferences()
+        .map { 
+            AutoBackupUiStatus(
+                enabled = it.autoBackupEnabled,
+                lastSuccessTimestamp = it.lastAutoBackupSuccessTimestamp,
+                lastResult = it.lastAutoBackupResult
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AutoBackupUiStatus()
+        )
 
     private var destinationPickerPreparationJob: Job? = null
     private var activeBackupJob: Job? = null
@@ -322,6 +346,25 @@ class BackupViewModel @Inject constructor(
         persistStateLocked(lastId, -1L, "IDLE", SavedPickerLaunchState.NONE, null)
         cancelAllJobsLocked()
         _uiState.value = BackupUiState.Idle
+    }
+
+    fun onToggleAutoBackup(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoBackupEnabled(enabled)
+        }
+    }
+
+    fun onExportDiagnosticsRequested() {
+        viewModelScope.launch {
+            try {
+                val reportJson = diagnosticExporter.generateReport()
+                val filename = "cuentame-diagnostic-${DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss'Z'").withZone(ZoneId.of("UTC")).format(timeProvider.now())}.json"
+                _events.send(BackupUiEvent.ShareDiagnosticReport(filename, reportJson))
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                _uiState.value = BackupUiState.Error(null, BackupResult.Error.SystemIOFailure)
+            }
+        }
     }
 
     private fun isTerminalState(state: BackupUiState): Boolean =

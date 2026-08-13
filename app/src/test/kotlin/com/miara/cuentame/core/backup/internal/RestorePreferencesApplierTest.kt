@@ -39,7 +39,12 @@ class RestorePreferencesApplierTest {
 
     @Test
     fun `captureRollback returns current preferences as DTO`() = runTest {
-        val prefs = AppPreferences(true, ThemeMode.LIGHT, true, "en-US")
+        val prefs = AppPreferences.DEFAULT.copy(
+            onboardingCompleted = true,
+            themeMode = ThemeMode.LIGHT,
+            dynamicColorEnabled = true,
+            appLocaleTag = "en-US"
+        )
         every { repository.observePreferences() } returns flowOf(prefs)
         
         val result = applier.captureRollback()

@@ -138,7 +138,7 @@ class PurchaseDocumentViewerIntegrationTest {
             }
             composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
             
-            composeTestRule.onNodeWithTag("purchase_document_view").performClick()
+            composeTestRule.onNodeWithTag("purchase_document_view", useUnmergedTree = true).performClick()
             
             // Wait for viewer and page
             composeTestRule.onNodeWithTag("purchase_document_viewer").assertIsDisplayed()
@@ -172,7 +172,7 @@ class PurchaseDocumentViewerIntegrationTest {
             }
             composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
             
-            composeTestRule.onNodeWithTag("purchase_document_view").performClick()
+            composeTestRule.onNodeWithTag("purchase_document_view", useUnmergedTree = true).performClick()
             
             composeTestRule.waitUntil(10000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_document_pdf_page_0")).fetchSemanticsNodes().isNotEmpty()
@@ -202,7 +202,7 @@ class PurchaseDocumentViewerIntegrationTest {
             }
             composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
             
-            composeTestRule.onNodeWithTag("purchase_document_view").performClick()
+            composeTestRule.onNodeWithTag("purchase_document_view", useUnmergedTree = true).performClick()
             
             // IMMEDIATELY press back without waiting for render
             composeTestRule.onNodeWithTag("purchase_document_viewer_back").performClick()
@@ -253,7 +253,7 @@ class PurchaseDocumentViewerIntegrationTest {
             }
             composeTestRule.onNodeWithTag("purchase_item_$receiptId").performClick()
             
-            composeTestRule.onNodeWithTag("purchase_document_view").performClick()
+            composeTestRule.onNodeWithTag("purchase_document_view", useUnmergedTree = true).performClick()
             
             // Wait for inspector to fail (pageCount will be 0)
             composeTestRule.waitUntil(10000) {

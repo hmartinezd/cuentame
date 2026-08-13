@@ -63,7 +63,9 @@ object BackupFormatV1Contract {
         "supplier_item_mappings",
         "purchase_invoice_line_matches",
         "purchase_invoice_draft_applications",
-        "purchase_invoice_line_origins"
+        "purchase_invoice_line_origins",
+        "menu_recipes",
+        "menu_recipe_components"
     )
 
     fun expectedTablesForSchema(schemaVersion: Int): Set<String> {
@@ -144,7 +146,8 @@ object BackupFormatV1Contract {
                 "purchase_invoice_draft_applications",
                 "purchase_invoice_line_origins"
             )
-            11, 12 -> expectedTablesForSchema(10) + "stock_count_item_order"
+            11 -> expectedTablesForSchema(10) + "stock_count_item_order"
+            12 -> expectedTablesForSchema(10) + setOf("stock_count_item_order", "menu_recipes", "menu_recipe_components")
             else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }
     }

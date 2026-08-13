@@ -29,6 +29,7 @@ object BackupTestFixtures {
         stockCounts = emptyList(),
         stockCountAreas = emptyList(),
         stockCountLines = emptyList(),
+        stockCountItemOrder = emptyList(),
         wasteEvents = emptyList(),
         inventoryMovements = emptyList(),
         inventoryBalanceProjections = emptyList(),
@@ -44,7 +45,9 @@ object BackupTestFixtures {
         supplierItemMappings = emptyList(),
         purchaseInvoiceLineMatches = emptyList(),
         purchaseInvoiceDraftApplications = emptyList(),
-        purchaseInvoiceLineOrigins = emptyList()
+        purchaseInvoiceLineOrigins = emptyList(),
+        menuRecipes = emptyList(),
+        menuRecipeComponents = emptyList()
     )
 
     fun createPopulatedCurrentSnapshot(): BackupSnapshotDto {
@@ -56,7 +59,9 @@ object BackupTestFixtures {
             supplierItemMappings = emptyList(),
             purchaseInvoiceLineMatches = emptyList(),
             purchaseInvoiceDraftApplications = emptyList(),
-            purchaseInvoiceLineOrigins = emptyList()
+            purchaseInvoiceLineOrigins = emptyList(),
+            menuRecipes = emptyList(),
+            menuRecipeComponents = emptyList()
         )
     }
 
@@ -315,6 +320,8 @@ object BackupTestFixtures {
                 "stock_count_areas" to TableMetadata(0, false),
                 "stock_count_lines" to TableMetadata(0, false),
                 "stock_count_item_order" to TableMetadata(0, false),
+                "menu_recipes" to TableMetadata(snapshotWithAttachment.menuRecipes.size, false),
+                "menu_recipe_components" to TableMetadata(snapshotWithAttachment.menuRecipeComponents.size, false),
                 "waste_events" to TableMetadata(0, false),
                 "purchase_invoice_ocr_results" to TableMetadata(0, false),
                 "purchase_invoice_ocr_pages" to TableMetadata(0, false),
@@ -323,7 +330,9 @@ object BackupTestFixtures {
                 "supplier_item_mappings" to TableMetadata(0, false),
                 "purchase_invoice_line_matches" to TableMetadata(0, false),
                 "purchase_invoice_draft_applications" to TableMetadata(0, false),
-                "purchase_invoice_line_origins" to TableMetadata(0, false)
+                "purchase_invoice_line_origins" to TableMetadata(0, false),
+                "menu_recipes" to TableMetadata(snapshotWithAttachment.menuRecipes.size, false),
+                "menu_recipe_components" to TableMetadata(snapshotWithAttachment.menuRecipeComponents.size, false)
             ).entries.sortedBy { it.key }.associate { it.key to it.value },
             attachments = listOf(
                 BackupAttachmentMetadata(
@@ -594,6 +603,48 @@ object BackupTestFixtures {
 
         return snapshot.copy(
             inventoryMovements = snapshot.inventoryMovements + reversal
+        )
+    }
+
+    fun addMenuRecipe(
+        snapshot: BackupSnapshotDto,
+        recipeId: String,
+        componentId: String,
+        ingredientId: String,
+        optionId: String,
+        quantityBase: BigDecimal,
+        price: BigDecimal? = null,
+        createdAt: Long = 100
+    ): BackupSnapshotDto {
+        val restaurantId = snapshot.restaurants.firstOrNull()?.id ?: "r1"
+        
+        val recipe = MenuRecipeBackupDto(
+            id = recipeId,
+            restaurantId = restaurantId,
+            name = "Menu $recipeId",
+            normalizedName = "menu $recipeId",
+            sellingPrice = price?.toPlainString(),
+            notes = null,
+            archivedAt = null,
+            createdAt = createdAt,
+            updatedAt = createdAt
+        )
+
+        val component = MenuRecipeComponentBackupDto(
+            id = componentId,
+            menuRecipeId = recipeId,
+            ingredientId = ingredientId,
+            ingredientUnitOptionId = optionId,
+            quantityEntered = quantityBase.toPlainString(),
+            quantityBase = quantityBase.toPlainString(),
+            sortOrder = 0,
+            createdAt = createdAt,
+            updatedAt = createdAt
+        )
+
+        return snapshot.copy(
+            menuRecipes = snapshot.menuRecipes + recipe,
+            menuRecipeComponents = snapshot.menuRecipeComponents + component
         )
     }
 }

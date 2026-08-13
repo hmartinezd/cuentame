@@ -71,12 +71,12 @@ class InventoryActivityComposeTest {
         }
 
         val expectedLocale = Locale.forLanguageTag("en-US")
-        composeTestRule.onNodeWithTag("inventory_activity_movement_count").assertTextContains("10")
-        composeTestRule.onNodeWithTag("inventory_activity_incoming_count").assertTextContains("6")
-        composeTestRule.onNodeWithTag("inventory_activity_outgoing_count").assertTextContains("4")
-        composeTestRule.onNodeWithTag("inventory_activity_reversal_count").assertTextContains("1")
-        composeTestRule.onNodeWithTag("inventory_activity_value_added").assertTextContains(Formatters.formatCurrency(BigDecimal("100.00"), "USD", expectedLocale))
-        composeTestRule.onNodeWithTag("inventory_activity_value_removed").assertTextContains(Formatters.formatCurrency(BigDecimal("50.00"), "USD", expectedLocale))
+        composeTestRule.onNodeWithTag("inventory_activity_movement_count_value").assertTextContains("10")
+        composeTestRule.onNodeWithTag("inventory_activity_incoming_count_value").assertTextContains("6")
+        composeTestRule.onNodeWithTag("inventory_activity_outgoing_count_value").assertTextContains("4")
+        composeTestRule.onNodeWithTag("inventory_activity_reversal_count_value").assertTextContains("1")
+        composeTestRule.onNodeWithTag("inventory_activity_value_added_value").assertTextContains(Formatters.formatCurrency(BigDecimal("100.00"), "USD", expectedLocale))
+        composeTestRule.onNodeWithTag("inventory_activity_value_removed_value").assertTextContains(Formatters.formatCurrency(BigDecimal("50.00"), "USD", expectedLocale))
     }
 
     @Test
@@ -168,13 +168,9 @@ class InventoryActivityComposeTest {
             }
         }
 
-        // Check unit cost row
+        // Check unit cost and total value rows both show "Not available"
         composeTestRule.onNodeWithText("Unit cost").assertExists()
-        composeTestRule.onNodeWithText("Not available").assertIsDisplayed()
-
-        // Check total value row
         composeTestRule.onNodeWithText("Total value").assertExists()
-        // It appears twice if it matches multiple labels, but here they are unique labels
         composeTestRule.onAllNodesWithText("Not available").assertCountEquals(2)
         
         // Source document button should not be present for Unavailable target

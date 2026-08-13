@@ -48,13 +48,18 @@ class IngredientDetailUiTest {
         }
         
         ActivityScenario.launch(MainActivity::class.java).use {
-            composeTestRule.waitUntil(15000) {
+            composeTestRule.waitUntil(20000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("nav_inventory", useUnmergedTree = true).performClick()
             
+            // Wait for list to load
+            composeTestRule.waitUntil(20000) {
+                composeTestRule.onAllNodes(hasTestTag("ingredient_list_screen")).fetchSemanticsNodes().isNotEmpty()
+            }
+            
             // Just verifying navigation to inventory for now as per minimal behavior
-            composeTestRule.onNodeWithTag("inventory_list_screen").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("ingredient_list_screen").assertIsDisplayed()
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.miara.cuentame.core.backup
 
+import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.backup.api.*
@@ -13,6 +14,7 @@ import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -20,6 +22,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
 import javax.inject.Inject
@@ -30,6 +33,10 @@ class MatchingBackupRestoreTest {
 
     @get:Rule
     var hiltRule = HiltAndroidRule(this)
+
+    @Inject
+    @ApplicationContext
+    lateinit var context: Context
 
     @Inject
     lateinit var planner: BackupCreationPlanner
@@ -62,7 +69,7 @@ class MatchingBackupRestoreTest {
         val restaurant = Restaurant(restId, "Test", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
         val snapshotResult = snapshotSource.loadSnapshot(restId.value)
         
-        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(8)
+        assertThat(appVersionProvider.databaseSchemaVersion).isEqualTo(12)
         
         val planResult = planner.createPlan(restaurant, snapshotResult)
         assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
@@ -85,7 +92,17 @@ class MatchingBackupRestoreTest {
         assertThat(restoredSnapshot).isEqualTo(snapshotDto)
     }
 
+    private val testAttachmentChecksum = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" // SHA-256 of "test"
+
     private suspend fun seedDatabaseWithMatchingData() {
+        val pr1 = "pr-1"
+        val attachmentDisplayName = "Invoice.pdf"
+        val relativePath = PurchaseAttachmentLocation.buildRelativeLocation(PurchaseReceiptId(pr1), attachmentDisplayName)
+        
+        val file = File(context.filesDir, relativePath)
+        file.parentFile?.mkdirs()
+        file.writeText("test")
+
         database.restaurantDao().insert(RestaurantEntity(restId.value, "Test", "USD", "en-US", 0, 0, null))
         database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
         
@@ -101,14 +118,17 @@ class MatchingBackupRestoreTest {
         val sup1 = "sup-1"
         database.supplierDao().insert(SupplierEntity(sup1, restId.value, "SYSCO", "sysco", null, null, null, true, 100, 100, null))
 
-        val pr1 = "pr-1"
-        database.purchaseDao().insertReceipt(PurchaseReceiptEntity(pr1, restId.value, sup1, null, 1000L, "DRAFT", null, null, null, 100L, 200L, null, null))
+        database.purchaseDao().insertReceipt(PurchaseReceiptEntity(pr1, restId.value, sup1, null, 1000L, "DRAFT", null, relativePath, attachmentDisplayName, 100L, 200L, null, null))
         
         val ocr1 = "ocr-1"
-        database.purchaseOcrDao().insertOcrResult(PurchaseInvoiceOcrResultEntity(ocr1, pr1, "sha256", "application/pdf", "MLKIT", 1, 1, "Full Text", 1000L))
+        database.purchaseOcrDao().insertOcrResult(PurchaseInvoiceOcrResultEntity(ocr1, pr1, testAttachmentChecksum, "application/pdf", "MLKIT", 1, 1, "Full Text", 1000L))
         
+        database.purchaseOcrDao().insertOcrPages(listOf(
+            PurchaseInvoiceOcrPageEntity(ocr1, 0, 1000, 1000, "Full Text", "{}")
+        ))
+
         val parse1 = "parse-1"
-        database.purchaseParseDao().insertParseResult(PurchaseInvoiceParseResultEntity(parse1, pr1, ocr1, "sha256", "ENGINE", 2, "{}", "{}", null, "[]", 1000L, null))
+        database.purchaseParseDao().insertParseResult(PurchaseInvoiceParseResultEntity(parse1, pr1, ocr1, testAttachmentChecksum, "ENGINE", 2, "{}", "{}", null, "[]", 1000L, null))
         
         database.purchaseParseDao().insertParsedLines(listOf(
             PurchaseInvoiceParsedLineEntity(parse1, 0, "{}", null, false)

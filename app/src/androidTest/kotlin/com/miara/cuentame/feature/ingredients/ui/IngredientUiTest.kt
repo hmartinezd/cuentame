@@ -34,12 +34,14 @@ class IngredientUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var testStateManager: com.miara.cuentame.test.TestStateManager
+
     @Before
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
 
             database.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
             // Seed a restaurant as well
@@ -58,8 +60,7 @@ class IngredientUiTest {
     @org.junit.After
     fun teardown() {
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
         }
     }
 
@@ -190,11 +191,7 @@ class IngredientUiTest {
     private fun waitForHome() {
         composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("app_loading").fetchSemanticsNodes().isEmpty()
-        }
-        composeTestRule.waitForIdle()
-        composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("dashboard_restaurant_name").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.waitForIdle()
     }

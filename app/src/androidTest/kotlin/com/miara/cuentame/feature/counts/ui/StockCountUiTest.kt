@@ -39,13 +39,15 @@ class StockCountUiTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var testStateManager: com.miara.cuentame.test.TestStateManager
+
     @Before
     fun setup() {
         hiltRule.inject()
         
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
             
             val now = Instant.now()
             database.restaurantDao().insert(Restaurant(RestaurantId("rest_ui_test"), "Test UI Rest", "USD", "en-US", now, now, null).toEntity())
@@ -71,8 +73,7 @@ class StockCountUiTest {
     @org.junit.After
     fun teardown() {
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
         }
     }
 
@@ -102,7 +103,7 @@ class StockCountUiTest {
             composeTestRule.onNodeWithTag("area_checkbox_area_dry_ui").performClick()
             
             // 5. Save (Button at bottom)
-            composeTestRule.onNodeWithTag("start_count_button").performClick()
+            composeTestRule.onNodeWithTag("start_count_button").performScrollTo().performClick()
             composeTestRule.waitForIdle()
             
             // 6. Wait for detail and Verify
@@ -132,6 +133,9 @@ class StockCountUiTest {
             
             // 9. Complete area
             composeTestRule.onNodeWithText("Complete Area").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             composeTestRule.waitForIdle()
             
             // 10. Verify area status in detail
@@ -149,6 +153,9 @@ class StockCountUiTest {
                 composeTestRule.onAllNodesWithTag("confirm_completion_button").fetchSemanticsNodes().isNotEmpty()
             }
             composeTestRule.onNodeWithTag("confirm_completion_button").performClick()
+            if (composeTestRule.onAllNodesWithTag("archive_confirm_button").fetchSemanticsNodes().isNotEmpty()) {
+                composeTestRule.onNodeWithTag("archive_confirm_button").performClick()
+            }
             composeTestRule.waitForIdle()
             
             // 13. Verify COMPLETED status
@@ -166,7 +173,11 @@ class StockCountUiTest {
         }
         composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {
-            composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag("home_dashboard_list").fetchSemanticsNodes().isNotEmpty() ||
+            composeTestRule.onAllNodesWithTag("home_loading").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitUntil(60000) {
+            composeTestRule.onAllNodesWithTag("home_loading").fetchSemanticsNodes().isEmpty()
         }
         composeTestRule.waitForIdle()
     }

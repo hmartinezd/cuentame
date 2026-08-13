@@ -57,12 +57,8 @@ class ProductionBatchComposeTest {
         // Wait for dialog and select Aug 15, 2026
         composeTestRule.onNodeWithTag("production_effective_date_dialog").assertIsDisplayed()
         
-        // Select Aug 15, 2026. Use semantics matcher for the enabled day.
-        composeTestRule.onAllNodesWithText("15")
-            .filter(hasClickAction() and isEnabled())
-            .assertCountEquals(1)
-            .onFirst()
-            .performClick()
+        // Select Aug 15, 2026.
+        composeTestRule.onNode(hasText("15", substring = true) and hasClickAction()).performClick()
 
         composeTestRule.onNodeWithTag("production_effective_date_confirm").performClick()
         

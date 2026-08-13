@@ -31,6 +31,20 @@ class ResolveAppStartStateUseCaseTest {
         override suspend fun setAppLocaleTag(localeTag: String) {
             preferencesFlow.value = preferencesFlow.value.copy(appLocaleTag = localeTag)
         }
+        override suspend fun setAutoBackupEnabled(enabled: Boolean) {
+            preferencesFlow.value = preferencesFlow.value.copy(autoBackupEnabled = enabled)
+        }
+        override suspend fun updateAutoBackupStatus(
+            successTimestamp: Long?,
+            attemptTimestamp: Long,
+            result: String?
+        ) {
+            preferencesFlow.value = preferencesFlow.value.copy(
+                lastAutoBackupSuccessTimestamp = successTimestamp,
+                lastAutoBackupAttemptTimestamp = attemptTimestamp,
+                lastAutoBackupResult = result
+            )
+        }
         override suspend fun loadOnboardingDraft(): OnboardingDraft? = null
         override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {}
         override suspend fun clearOnboardingDraft() {}

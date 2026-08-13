@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.miara.cuentame.core.common.parsePersistedEnum
 import com.miara.cuentame.core.domain.validation.ValidationError
@@ -33,6 +34,10 @@ class DataStoreAppPreferencesRepository @Inject constructor(
         val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
         val APP_LOCALE_TAG = stringPreferencesKey("app_locale_tag")
         val ONBOARDING_DRAFT = stringPreferencesKey("onboarding_draft")
+        val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
+        val LAST_AUTO_BACKUP_SUCCESS = longPreferencesKey("last_auto_backup_success")
+        val LAST_AUTO_BACKUP_ATTEMPT = longPreferencesKey("last_auto_backup_attempt")
+        val LAST_AUTO_BACKUP_RESULT = stringPreferencesKey("last_auto_backup_result")
     }
 
     override fun observePreferences(): Flow<AppPreferences> = dataStore.data
@@ -52,7 +57,11 @@ class DataStoreAppPreferencesRepository @Inject constructor(
                     absentValue = ThemeMode.SYSTEM
                 ),
                 dynamicColorEnabled = preferences[Keys.DYNAMIC_COLOR_ENABLED] ?: true,
-                appLocaleTag = preferences[Keys.APP_LOCALE_TAG] ?: "en-US"
+                appLocaleTag = preferences[Keys.APP_LOCALE_TAG] ?: "en-US",
+                autoBackupEnabled = preferences[Keys.AUTO_BACKUP_ENABLED] ?: true,
+                lastAutoBackupSuccessTimestamp = preferences[Keys.LAST_AUTO_BACKUP_SUCCESS],
+                lastAutoBackupAttemptTimestamp = preferences[Keys.LAST_AUTO_BACKUP_ATTEMPT],
+                lastAutoBackupResult = preferences[Keys.LAST_AUTO_BACKUP_RESULT]
             )
         }
 
@@ -70,6 +79,26 @@ class DataStoreAppPreferencesRepository @Inject constructor(
 
     override suspend fun setAppLocaleTag(localeTag: String) {
         dataStore.edit { it[Keys.APP_LOCALE_TAG] = localeTag }
+    }
+
+    override suspend fun setAutoBackupEnabled(enabled: Boolean) {
+        dataStore.edit { it[Keys.AUTO_BACKUP_ENABLED] = enabled }
+    }
+
+    override suspend fun updateAutoBackupStatus(
+        successTimestamp: Long?,
+        attemptTimestamp: Long,
+        result: String?
+    ) {
+        dataStore.edit { prefs ->
+            successTimestamp?.let { prefs[Keys.LAST_AUTO_BACKUP_SUCCESS] = it }
+            prefs[Keys.LAST_AUTO_BACKUP_ATTEMPT] = attemptTimestamp
+            if (result != null) {
+                prefs[Keys.LAST_AUTO_BACKUP_RESULT] = result
+            } else {
+                prefs.remove(Keys.LAST_AUTO_BACKUP_RESULT)
+            }
+        }
     }
 
     override suspend fun loadOnboardingDraft(): OnboardingDraft? {

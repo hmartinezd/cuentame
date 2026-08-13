@@ -51,8 +51,8 @@ class Migration7To8Test {
         
         db.close()
 
-        // 2. Run migration 7 to 8
-        db = helper.runMigrationsAndValidate(TEST_DB, 8, true, RestaurantInventoryDatabase.MIGRATION_7_8)
+        // 2. Run migration 7 to 12
+        db = helper.runMigrationsAndValidate(TEST_DB, 12, true, *RestaurantInventoryDatabase.ALL_MIGRATIONS)
         
         // Verify new tables exist and constraints work
         val mappingCursor = db.query("SELECT * FROM supplier_item_mappings")
@@ -90,7 +90,11 @@ class Migration7To8Test {
             RestaurantInventoryDatabase.MIGRATION_4_5,
             RestaurantInventoryDatabase.MIGRATION_5_6,
             RestaurantInventoryDatabase.MIGRATION_6_7,
-            RestaurantInventoryDatabase.MIGRATION_7_8
+            RestaurantInventoryDatabase.MIGRATION_7_8,
+            RestaurantInventoryDatabase.MIGRATION_8_9,
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         ).build()
 
         val mapping = roomDb.supplierItemMappingDao().getMapping("rest-1", "sup-1", com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType.VENDOR_CODE, "001234")
@@ -99,7 +103,7 @@ class Migration7To8Test {
 
         val matches = roomDb.purchaseInvoiceLineMatchDao().getMatchesForParseResult("parse-1")
         assertThat(matches.size).isEqualTo(1)
-        assertThat(matches[0].status.name).isEqualTo("CONFIRMED")
+        assertThat(matches[0].status).isEqualTo(com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus.CONFIRMED)
 
         roomDb.close()
     }

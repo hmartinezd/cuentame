@@ -99,16 +99,12 @@ class WasteFailureUiTest {
     }
 
     private fun openWasteListScreen() {
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("nav_reports")).fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodes(hasTestTag("home_dashboard_list")).fetchSemanticsNodes().isNotEmpty()
         }
-        // Actually waste is under activity or direct. In nav it's not a top level but a destination from Home usually.
-        // Let's use the button on Home.
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
-        }
+        composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("view_waste_button"))
         composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
         }
     }

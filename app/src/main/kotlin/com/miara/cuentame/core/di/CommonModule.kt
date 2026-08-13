@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.di
 
+import com.miara.cuentame.core.common.AndroidDeviceInfoProvider
+import com.miara.cuentame.core.common.DeviceInfoProvider
 import com.miara.cuentame.core.database.repository.NoOpFailureBoundary
 import com.miara.cuentame.core.database.repository.IntegrationFailureBoundary
 import com.miara.cuentame.core.common.attachment.AndroidLocalAttachmentPermissionManager
@@ -50,6 +52,10 @@ object CommonModule {
     @Provides
     @Singleton
     fun provideTimeProvider(): TimeProvider = SystemTimeProvider()
+
+    @Provides
+    @Singleton
+    fun provideDeviceInfoProvider(): DeviceInfoProvider = AndroidDeviceInfoProvider()
 
     @Provides
     @Singleton

@@ -32,6 +32,8 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertSuppliers(any()) } just Runs
         coEvery { restoreDao.insertIngredients(any()) } just Runs
         coEvery { restoreDao.insertIngredientUnitOptions(any()) } just Runs
+        coEvery { restoreDao.insertMenuRecipes(any()) } just Runs
+        coEvery { restoreDao.insertMenuRecipeComponents(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipes(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipeComponents(any()) } just Runs
         coEvery { restoreDao.insertProductionBatches(any()) } just Runs
@@ -84,6 +86,8 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertSuppliers(any())
             restoreDao.insertIngredients(any())
             restoreDao.insertIngredientUnitOptions(any())
+            restoreDao.insertMenuRecipes(any())
+            restoreDao.insertMenuRecipeComponents(any())
             restoreDao.insertPreparationRecipes(any())
             restoreDao.insertPreparationRecipeComponents(any())
             restoreDao.insertProductionBatches(any())
@@ -139,6 +143,8 @@ class RestoreDatabaseApplierTest {
         ingredientCostProjections = emptyList(),
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
+        menuRecipes = emptyList(),
+        menuRecipeComponents = emptyList(),
         productionBatches = emptyList(),
         productionBatchComponents = emptyList(),
         purchaseInvoiceOcrResults = emptyList(),
@@ -170,6 +176,8 @@ class RestoreDatabaseApplierTest {
         ingredientCostProjections = emptyList(),
         preparationRecipes = emptyList(),
         preparationRecipeComponents = emptyList(),
+        menuRecipes = emptyList(),
+        menuRecipeComponents = emptyList(),
         productionBatches = emptyList(),
         productionBatchComponents = emptyList(),
         purchaseInvoiceOcrResults = emptyList(),

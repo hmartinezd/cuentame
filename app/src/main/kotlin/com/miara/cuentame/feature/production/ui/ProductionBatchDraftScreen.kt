@@ -1,5 +1,6 @@
 package com.miara.cuentame.feature.production.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -95,6 +96,17 @@ fun ProductionBatchDraftScreen(
     onRetry: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+
+    val handleBack = {
+        if (uiState.hasUnsavedChanges) {
+            showDiscardConfirm = true
+        } else {
+            onBackClick()
+        }
+    }
+
+    BackHandler(enabled = !uiState.isSaving && !uiState.isDeleting, onBack = handleBack)
 
     Scaffold(
         modifier = Modifier.testTag("production_batch_draft_screen"),
@@ -102,7 +114,7 @@ fun ProductionBatchDraftScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.production_batch)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick, modifier = Modifier.testTag("production_back_button")) {
+                    IconButton(onClick = handleBack, modifier = Modifier.testTag("production_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -222,6 +234,28 @@ fun ProductionBatchDraftScreen(
             }
         )
     }
+
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            modifier = Modifier.testTag("discard_changes_dialog"),
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = { onBackClick(); showDiscardConfirm = false },
+                    modifier = Modifier.testTag("discard_confirm_button")
+                ) {
+                    Text(stringResource(R.string.action_discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirm = false }) {
+                    Text(stringResource(R.string.action_stay))
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -255,13 +289,15 @@ private fun DraftHeader(
                 selectedId = uiState.selectedAreaId,
                 areas = uiState.availableAreas,
                 onSelected = onAreaSelected,
-                label = stringResource(R.string.production_output_area_selector)
+                label = stringResource(R.string.production_output_area_selector),
+                modifier = Modifier.testTag("production_output_area_selector")
             )
             UnitSelector(
                 selectedId = uiState.selectedUnitOptionId,
                 options = uiState.availableUnitOptions,
                 onSelected = onUnitOptionSelected,
-                label = stringResource(R.string.production_output_unit_selector)
+                label = stringResource(R.string.production_output_unit_selector),
+                modifier = Modifier.testTag("production_output_unit_selector")
             )
 
             ProductionEffectiveTimeEditor(

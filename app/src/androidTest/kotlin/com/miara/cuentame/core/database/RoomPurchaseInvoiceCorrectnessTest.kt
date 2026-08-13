@@ -86,7 +86,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
         // 1. Manually break one match (set status to SUGGESTED)
         val matches = repository.observeLineMatchesForReceipt(receiptId).first()
         val brokenMatches = matches.mapIndexed { index, match ->
-            if (index == 1) match.copy(status = InvoiceLineMatchStatus.SUGGESTED) else match
+            if (index == 1) match.copy(status = InvoiceLineMatchStatus.SUGGESTED, confirmedAt = null) else match
         }
         val parseId = database.purchaseParseDao().getParseResultIdForReceipt(receiptId.value)!!
         repository.saveLineMatchesForReceipt(receiptId, parseId, brokenMatches)
@@ -332,7 +332,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
         }
 
         val parseResult = PurchaseInvoiceParseResult(
-            id = "parse-" + receiptId.value,
+            id = "parse1",
             supplierNameCandidate = ParsedField("Sysco", "Sysco", 0.9f),
             invoiceNumber = ParsedField("INV-1", "INV-1", 0.9f),
             invoiceDate = ParsedField("2023-01-01", LocalDate.of(2023, 1, 1), 0.9f),

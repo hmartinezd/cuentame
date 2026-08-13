@@ -12,6 +12,13 @@ interface AppPreferencesRepository {
     suspend fun setDynamicColorEnabled(enabled: Boolean)
     suspend fun setAppLocaleTag(localeTag: String)
 
+    suspend fun setAutoBackupEnabled(enabled: Boolean)
+    suspend fun updateAutoBackupStatus(
+        successTimestamp: Long?,
+        attemptTimestamp: Long,
+        result: String?
+    )
+
     suspend fun loadOnboardingDraft(): OnboardingDraft?
     suspend fun saveOnboardingDraft(draft: OnboardingDraft)
     suspend fun clearOnboardingDraft()

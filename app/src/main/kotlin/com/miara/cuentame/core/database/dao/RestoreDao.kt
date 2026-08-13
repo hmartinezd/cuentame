@@ -61,6 +61,12 @@ interface RestoreDao {
     @Query("DELETE FROM waste_events")
     suspend fun deleteAllWasteEvents()
 
+    @Query("DELETE FROM menu_recipe_components")
+    suspend fun deleteAllMenuRecipeComponents()
+
+    @Query("DELETE FROM menu_recipes")
+    suspend fun deleteAllMenuRecipes()
+
     @Query("DELETE FROM production_batch_components")
     suspend fun deleteAllProductionBatchComponents()
 
@@ -184,6 +190,12 @@ interface RestoreDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPurchaseInvoiceLineOrigins(entities: List<PurchaseInvoiceLineOriginEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertMenuRecipes(entities: List<MenuRecipeEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertMenuRecipeComponents(entities: List<MenuRecipeComponentEntity>)
+
     @Transaction
     suspend fun clearAllInOrder() {
         deleteAllStockCountItemOrder()
@@ -203,6 +215,8 @@ interface RestoreDao {
         deleteAllPurchaseInvoiceOcrResults()
         deleteAllPurchaseReceipts()
         deleteAllWasteEvents()
+        deleteAllMenuRecipeComponents()
+        deleteAllMenuRecipes()
         deleteAllProductionBatchComponents()
         deleteAllProductionBatches()
         deleteAllPreparationRecipeComponents()

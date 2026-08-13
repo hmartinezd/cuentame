@@ -3,7 +3,7 @@ package com.miara.cuentame.core.backup.internal
 import androidx.room.withTransaction
 import com.miara.cuentame.core.backup.PurchaseAttachmentLocation
 import com.miara.cuentame.core.backup.model.BackupSnapshotDto
-import com.miara.cuentame.core.backup.platform.BackupMapper
+import com.miara.cuentame.core.backup.platform.*
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.BackupDao
@@ -137,20 +137,22 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         rollbackWastePaths: Map<String, String?>,
         rollbackWasteDisplayNames: Map<String, String?>
     ) {
-        restoreDao.insertRestaurants(snapshot.restaurants.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertInventoryAreas(snapshot.inventoryAreas.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertIngredientCategories(snapshot.ingredientCategories.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertUnits(snapshot.units.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertSuppliers(snapshot.suppliers.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertIngredients(snapshot.ingredients.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertIngredientUnitOptions(snapshot.ingredientUnitOptions.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPreparationRecipes(snapshot.preparationRecipes.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPreparationRecipeComponents(snapshot.preparationRecipeComponents.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertProductionBatches(snapshot.productionBatches.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertProductionBatchComponents(snapshot.productionBatchComponents.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertRestaurants(snapshot.restaurants.map { it.toEntity() })
+        restoreDao.insertInventoryAreas(snapshot.inventoryAreas.map { it.toEntity() })
+        restoreDao.insertIngredientCategories(snapshot.ingredientCategories.map { it.toEntity() })
+        restoreDao.insertUnits(snapshot.units.map { it.toEntity() })
+        restoreDao.insertSuppliers(snapshot.suppliers.map { it.toEntity() })
+        restoreDao.insertIngredients(snapshot.ingredients.map { it.toEntity() })
+        restoreDao.insertIngredientUnitOptions(snapshot.ingredientUnitOptions.map { it.toEntity() })
+        restoreDao.insertMenuRecipes(snapshot.menuRecipes.map { it.toEntity() })
+        restoreDao.insertMenuRecipeComponents(snapshot.menuRecipeComponents.map { it.toEntity() })
+        restoreDao.insertPreparationRecipes(snapshot.preparationRecipes.map { it.toEntity() })
+        restoreDao.insertPreparationRecipeComponents(snapshot.preparationRecipeComponents.map { it.toEntity() })
+        restoreDao.insertProductionBatches(snapshot.productionBatches.map { it.toEntity() })
+        restoreDao.insertProductionBatchComponents(snapshot.productionBatchComponents.map { it.toEntity() })
 
         val receipts = snapshot.purchaseReceipts.map { dto ->
-            val entity = BackupMapper.run { dto.toEntity() }
+            val entity = dto.toEntity()
             if (useOriginalPaths) {
                 entity.copy(
                     attachmentPath = rollbackPaths[dto.id],
@@ -169,14 +171,14 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         }
         restoreDao.insertPurchaseReceipts(receipts)
         
-        restoreDao.insertPurchaseLines(snapshot.purchaseLines.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertStockCounts(snapshot.stockCounts.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertStockCountAreas(snapshot.stockCountAreas.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertStockCountLines(snapshot.stockCountLines.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertStockCountItemOrder(snapshot.stockCountItemOrder.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertPurchaseLines(snapshot.purchaseLines.map { it.toEntity() })
+        restoreDao.insertStockCounts(snapshot.stockCounts.map { it.toEntity() })
+        restoreDao.insertStockCountAreas(snapshot.stockCountAreas.map { it.toEntity() })
+        restoreDao.insertStockCountLines(snapshot.stockCountLines.map { it.toEntity() })
+        restoreDao.insertStockCountItemOrder(snapshot.stockCountItemOrder.map { it.toEntity() })
         
         val waste = snapshot.wasteEvents.map { dto ->
-            val entity = BackupMapper.run { dto.toEntity() }
+            val entity = dto.toEntity()
             if (useOriginalPaths) {
                 entity.copy(
                     attachmentPath = rollbackWastePaths[dto.id],
@@ -195,18 +197,18 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         }
         restoreDao.insertWasteEvents(waste)
         
-        restoreDao.insertInventoryMovements(snapshot.inventoryMovements.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertInventoryBalanceProjections(snapshot.inventoryBalanceProjections.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertIngredientCostProjections(snapshot.ingredientCostProjections.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertInventoryMovements(snapshot.inventoryMovements.map { it.toEntity() })
+        restoreDao.insertInventoryBalanceProjections(snapshot.inventoryBalanceProjections.map { it.toEntity() })
+        restoreDao.insertIngredientCostProjections(snapshot.ingredientCostProjections.map { it.toEntity() })
 
-        restoreDao.insertPurchaseInvoiceOcrResults(snapshot.purchaseInvoiceOcrResults.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceOcrPages(snapshot.purchaseInvoiceOcrPages.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceParseResults(snapshot.purchaseInvoiceParseResults.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceParsedLines(snapshot.purchaseInvoiceParsedLines.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertSupplierItemMappings(snapshot.supplierItemMappings.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceLineMatches(snapshot.purchaseInvoiceLineMatches.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceDraftApplications(snapshot.purchaseInvoiceDraftApplications.map { BackupMapper.run { it.toEntity() } })
-        restoreDao.insertPurchaseInvoiceLineOrigins(snapshot.purchaseInvoiceLineOrigins.map { BackupMapper.run { it.toEntity() } })
+        restoreDao.insertPurchaseInvoiceOcrResults(snapshot.purchaseInvoiceOcrResults.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceOcrPages(snapshot.purchaseInvoiceOcrPages.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceParseResults(snapshot.purchaseInvoiceParseResults.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceParsedLines(snapshot.purchaseInvoiceParsedLines.map { it.toEntity() })
+        restoreDao.insertSupplierItemMappings(snapshot.supplierItemMappings.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceLineMatches(snapshot.purchaseInvoiceLineMatches.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceDraftApplications(snapshot.purchaseInvoiceDraftApplications.map { it.toEntity() })
+        restoreDao.insertPurchaseInvoiceLineOrigins(snapshot.purchaseInvoiceLineOrigins.map { it.toEntity() })
     }
 
     private suspend fun verifySnapshot(expected: BackupSnapshotDto, manifest: BackupManifest): Boolean {

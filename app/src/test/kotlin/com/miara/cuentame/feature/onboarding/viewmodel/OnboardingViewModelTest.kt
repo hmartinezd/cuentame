@@ -42,6 +42,12 @@ class OnboardingViewModelTest {
         override suspend fun setThemeMode(mode: ThemeMode) {}
         override suspend fun setDynamicColorEnabled(enabled: Boolean) {}
         override suspend fun setAppLocaleTag(localeTag: String) {}
+        override suspend fun setAutoBackupEnabled(enabled: Boolean) {}
+        override suspend fun updateAutoBackupStatus(
+            successTimestamp: Long?,
+            attemptTimestamp: Long,
+            result: String?
+        ) {}
         override suspend fun loadOnboardingDraft(): OnboardingDraft? = draftValue
         override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {
             if (shouldFailSave) throw ValidationError.OnboardingDraftSaveFailed

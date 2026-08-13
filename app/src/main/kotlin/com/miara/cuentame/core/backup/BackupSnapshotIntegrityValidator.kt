@@ -61,9 +61,14 @@ object BackupSnapshotIntegrityValidator {
             validateMappings(dto, ctx)?.let { throw it }
             validateStagedMatches(dto, ctx)?.let { throw it }
             validateMaterialization(dto, ctx)?.let { throw it }
+            validateMenuRecipes(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
+        } catch (e: BackupSnapshotIntegrityException) {
+            android.util.Log.e("IntegrityValidator", "Validation failed: ${e.code} - ${e.message}")
+            return Result.failure(e)
         } catch (e: Exception) {
+            android.util.Log.e("IntegrityValidator", "Unexpected validation error", e)
             return Result.failure(e)
         }
     }
@@ -135,6 +140,9 @@ object BackupSnapshotIntegrityValidator {
         val mappingById = dto.supplierItemMappings.associateBy { it.id }
         val applicationById = dto.purchaseInvoiceDraftApplications.associateBy { it.id }
         val originByLineId = dto.purchaseInvoiceLineOrigins.associateBy { it.purchaseLineId }
+        val menuRecipeById = dto.menuRecipes.associateBy { it.id }
+        val menuRecipeComponentById = dto.menuRecipeComponents.associateBy { it.id }
+        val componentsByMenuRecipeId = dto.menuRecipeComponents.groupBy { it.menuRecipeId }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -185,6 +193,8 @@ object BackupSnapshotIntegrityValidator {
         check(dto.supplierItemMappings, { it.id }, "supplier_item_mappings")?.let { return it }
         check(dto.purchaseInvoiceDraftApplications, { it.id }, "purchase_invoice_draft_applications")?.let { return it }
         check(dto.purchaseInvoiceLineOrigins, { it.purchaseLineId }, "purchase_invoice_line_origins")?.let { return it }
+        check(dto.menuRecipes, { it.id }, "menu_recipes")?.let { return it }
+        check(dto.menuRecipeComponents, { it.id }, "menu_recipe_components")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -255,6 +265,8 @@ object BackupSnapshotIntegrityValidator {
                 val parent = receiptById[app.purchaseReceiptId]
                 parent == null || parent.restaurantId != restaurantId
             }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_draft_applications")
+        
+        if (dto.menuRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menu_recipes")
 
         return null
     }
@@ -361,6 +373,13 @@ object BackupSnapshotIntegrityValidator {
             val app = ctx.applicationById[origin.applicationId]!!
             val line = ctx.purchaseLineById[origin.purchaseLineId]!!
             if (line.purchaseReceiptId != app.purchaseReceiptId) return err(RELATIONSHIP_MISMATCH, "Line origin receipt mismatch via application")
+        }
+
+        // Menu recipes orphans
+        for (comp in dto.menuRecipeComponents) {
+            if (!ctx.menuRecipeById.containsKey(comp.menuRecipeId)) {
+                return err(BROKEN_FOREIGN_KEY, "Broken FK: menu recipe component to recipe")
+            }
         }
 
         return null
@@ -1857,8 +1876,13 @@ object BackupSnapshotIntegrityValidator {
     ): BackupSnapshotIntegrityException? {
         val parsedLineKeys = dto.purchaseInvoiceParsedLines.map { it.parseResultId to it.lineIndex }.toSet()
 
+        if (dto.purchaseInvoiceLineMatches.isNotEmpty() && dto.purchaseInvoiceParsedLines.isEmpty()) {
+             android.util.Log.e("IntegrityValidator", "Staged matches exist but no parsed lines found in DTO. Match count: ${dto.purchaseInvoiceLineMatches.size}")
+        }
+
         for (match in dto.purchaseInvoiceLineMatches) {
             if (match.parseResultId to match.lineIndex !in parsedLineKeys) {
+                android.util.Log.e("IntegrityValidator", "Match for result ${match.parseResultId} index ${match.lineIndex} not found in parsedLineKeys. Keys in DTO: $parsedLineKeys")
                 return err(RELATIONSHIP_MISMATCH, "Staged match references non-existent parsed line")
             }
 
@@ -1959,6 +1983,53 @@ object BackupSnapshotIntegrityValidator {
             }
         }
 
+        return null
+    }
+
+    private fun validateMenuRecipes(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        for (recipe in dto.menuRecipes) {
+            // Timestamps
+            if (recipe.createdAt > recipe.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "menu_recipes: createdAt must be <= updatedAt")
+            
+            // Numeric
+            if (recipe.sellingPrice != null) {
+                val r = parseDecimal(recipe.sellingPrice, "Invalid sellingPrice")
+                if (r is BigDecimalResult.Err) return err(r.code, r.msg)
+                if ((r as BigDecimalResult.Ok).value < BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "sellingPrice must be >= 0")
+            }
+
+            val components = ctx.componentsByMenuRecipeId[recipe.id] ?: emptyList()
+            val seenIngredients = mutableSetOf<String>()
+            
+            for (comp in components) {
+                if (comp.menuRecipeId != recipe.id) return err(RELATIONSHIP_MISMATCH, "Component menuRecipeId mismatch")
+                if (!seenIngredients.add(comp.ingredientId)) return err(INVALID_MENU_STRUCTURE, "Duplicate ingredient in menu recipe")
+                
+                // FKs
+                val ing = ctx.ingById[comp.ingredientId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: menu component to ingredient")
+                if (ing.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menu component ingredient")
+                
+                val opt = ctx.optionById[comp.ingredientUnitOptionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: menu component to unit option")
+                if (opt.ingredientId != comp.ingredientId) return err(RELATIONSHIP_MISMATCH, "Unit option mismatch in menu component")
+                
+                // Numeric
+                val qe = parseDecimal(comp.quantityEntered, "Invalid quantityEntered")
+                val qb = parseDecimal(comp.quantityBase, "Invalid quantityBase")
+                
+                if (qe is BigDecimalResult.Err) return err(qe.code, qe.msg)
+                if (qb is BigDecimalResult.Err) return err(qb.code, qb.msg)
+                
+                val qty = (qe as BigDecimalResult.Ok).value
+                val qtyBase = (qb as BigDecimalResult.Ok).value
+                
+                if (qty <= BigDecimal.ZERO || qtyBase <= BigDecimal.ZERO) return err(INVALID_NUMERIC_RANGE, "Menu component quantity must be positive")
+                
+                val factor = (parseDecimal(opt.factorToBase, "Invalid factor") as BigDecimalResult.Ok).value
+                if (qtyBase.compareTo(qty.multiply(factor)) != 0) {
+                    return err(INVALID_NUMERIC_RANGE, "quantityBase mismatch in menu component")
+                }
+            }
+        }
         return null
     }
 

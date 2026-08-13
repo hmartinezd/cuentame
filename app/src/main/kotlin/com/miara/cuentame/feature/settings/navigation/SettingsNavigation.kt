@@ -13,6 +13,7 @@ fun NavGraphBuilder.settingsGraph(
 ) {
     composable(route = Destination.SETTINGS.route) {
         SettingsRoute(
+            onBack = onBackClick,
             onNavigateToAreas = { navController.navigate(Destination.SETTINGS_AREAS.route) },
             onNavigateToCategories = { navController.navigate(Destination.SETTINGS_CATEGORIES.route) },
             onNavigateToRestaurant = { navController.navigate(Destination.SETTINGS_RESTAURANT.route) },

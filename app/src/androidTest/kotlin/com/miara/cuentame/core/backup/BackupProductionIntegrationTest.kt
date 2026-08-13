@@ -10,6 +10,7 @@ import com.miara.cuentame.core.backup.api.*
 import com.miara.cuentame.core.backup.internal.*
 import com.miara.cuentame.core.backup.platform.*
 import com.miara.cuentame.core.common.AppVersionProvider
+import com.miara.cuentame.core.common.database.DatabaseSchema
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
@@ -175,8 +176,8 @@ class BackupProductionIntegrationTest {
         // Manifest consistency
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(ready.archive.manifest, restoredSnapshot)).isNull()
 
-        // Table counts match (Schema 4)
-        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(4)
+        // Table counts match (Current Schema)
+        val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(DatabaseSchema.VERSION)
         assertThat(ready.archive.manifest.tableMetadata.keys).containsExactlyElementsIn(expectedTables)
         
         // Mutation-only records removed
@@ -201,17 +202,17 @@ class BackupProductionIntegrationTest {
         val snapshotSource = RoomBackupSnapshotSource(backupDao, mockk(relaxed = true))
         val snapshotDto = snapshotSource.loadSnapshot("r1").dto
         
-        val tables = createTableMetadata(snapshotDto, 4)
+        val tables = createTableMetadata(snapshotDto, DatabaseSchema.VERSION)
         val manifest = com.miara.cuentame.core.model.backup.BackupManifest(
             backupFormatVersion = 2, createdAtUtc = "2026-01-01T12:00:00Z", applicationId = "com.miara.cuentame",
-            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = 4,
+            appVersionName = "1.0", appVersionCode = 1, databaseSchemaVersion = DatabaseSchema.VERSION,
             restaurantId = "r1", restaurantName = "Original", localeTag = "en-US", currencyCode = "USD",
             tableMetadata = tables, attachments = emptyList(), includedSections = listOf("data", "preferences", "attachments"),
             checksumAlgorithm = "SHA-256"
         )
         
         // Assert exact manifest sets
-        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
+        assertThat(manifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(DatabaseSchema.VERSION))
         
         // Validate manifest/snapshot contract
         assertThat(BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotDto)).isNull()
@@ -405,7 +406,18 @@ class BackupProductionIntegrationTest {
             "preparation_recipes" to dto.preparationRecipes.size,
             "preparation_recipe_components" to dto.preparationRecipeComponents.size,
             "production_batches" to dto.productionBatches.size,
-            "production_batch_components" to dto.productionBatchComponents.size
+            "production_batch_components" to dto.productionBatchComponents.size,
+            "stock_count_item_order" to dto.stockCountItemOrder.size,
+            "purchase_invoice_ocr_results" to dto.purchaseInvoiceOcrResults.size,
+            "purchase_invoice_ocr_pages" to dto.purchaseInvoiceOcrPages.size,
+            "purchase_invoice_parse_results" to dto.purchaseInvoiceParseResults.size,
+            "purchase_invoice_parsed_lines" to dto.purchaseInvoiceParsedLines.size,
+            "supplier_item_mappings" to dto.supplierItemMappings.size,
+            "purchase_invoice_line_matches" to dto.purchaseInvoiceLineMatches.size,
+            "purchase_invoice_draft_applications" to dto.purchaseInvoiceDraftApplications.size,
+            "purchase_invoice_line_origins" to dto.purchaseInvoiceLineOrigins.size,
+            "menu_recipes" to dto.menuRecipes.size,
+            "menu_recipe_components" to dto.menuRecipeComponents.size
         )
         val expectedTables = BackupFormatV1Contract.expectedTablesForSchema(schemaVersion)
         return expectedTables.associateWith { table ->

@@ -51,7 +51,8 @@ class WasteLifecycleTest {
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
-            composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("view_waste_button"))
+            composeTestRule.onNodeWithTag("view_waste_button").performClick()
             composeTestRule.onNodeWithTag("waste_list_screen").assertExists()
             
             composeTestRule.onNodeWithTag("waste_list_back").performClick()

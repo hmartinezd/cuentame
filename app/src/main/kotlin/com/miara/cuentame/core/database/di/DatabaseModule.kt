@@ -59,7 +59,9 @@ object DatabaseModule {
             RestaurantInventoryDatabase.MIGRATION_6_7,
             RestaurantInventoryDatabase.MIGRATION_7_8,
             RestaurantInventoryDatabase.MIGRATION_8_9,
-            RestaurantInventoryDatabase.MIGRATION_9_10
+            RestaurantInventoryDatabase.MIGRATION_9_10,
+            RestaurantInventoryDatabase.MIGRATION_10_11,
+            RestaurantInventoryDatabase.MIGRATION_11_12
         )
         // Pre-release schema policy: version 11 introduces count-order configuration.
         // Development databases are intentionally recreated; no unpublished-data migration.

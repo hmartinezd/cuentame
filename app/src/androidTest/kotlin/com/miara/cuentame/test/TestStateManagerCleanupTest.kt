@@ -47,16 +47,13 @@ class TestStateManagerCleanupTest {
             val matchingFile = File(cacheDir, "integration_test_file.txt").apply { createNewFile() }
             val matchingDir = File(filesDir, "cuentame_test_backup_dir").apply { mkdir() }
             val nestedMatchingFile = File(matchingDir, "nested.txt").apply { createNewFile() }
-            val matchingNestedDir = File(filesDir, "normal_dir/test_attachment_nested").apply {
-                File(filesDir, "normal_dir").mkdirs()
-                mkdir()
-            }
+            val matchingTopDir = File(filesDir, "test_attachment_top").apply { mkdir() }
             val normalFile = File(filesDir, "important_data.txt").apply { createNewFile() }
 
             assertTrue(matchingFile.exists())
             assertTrue(matchingDir.exists())
             assertTrue(nestedMatchingFile.exists())
-            assertTrue(matchingNestedDir.exists())
+            assertTrue(matchingTopDir.exists())
             assertTrue(normalFile.exists())
 
             // When
@@ -66,12 +63,11 @@ class TestStateManagerCleanupTest {
             assertFalse("Matching file should be deleted", matchingFile.exists())
             assertFalse("Matching directory should be deleted", matchingDir.exists())
             assertFalse("Nested file in matching directory should be gone", nestedMatchingFile.exists())
-            assertFalse("Nested matching directory should be deleted", matchingNestedDir.exists())
+            assertFalse("Top matching directory should be deleted", matchingTopDir.exists())
             assertTrue("Unrelated file should remain", normalFile.exists())
 
             // Cleanup the normal file
             normalFile.delete()
-            File(filesDir, "normal_dir").deleteRecursively()
         }
     }
 

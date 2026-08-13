@@ -51,6 +51,9 @@ class ProductionBatchUiTest {
     @Inject
     lateinit var productionBatchRepository: ProductionBatchRepository
 
+    @Inject
+    lateinit var testStateManager: com.miara.cuentame.test.TestStateManager
+
     private val restaurantId = RestaurantId("r1")
     private val areaId = InventoryAreaId("a1")
     private val ingredientId = IngredientId("i1")
@@ -63,8 +66,7 @@ class ProductionBatchUiTest {
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
             
             // Seed base data
             database.restaurantDao().insert(RestaurantEntity(restaurantId.value, "Test Rest", "USD", "en-US", 0, 0, null))
@@ -121,7 +123,7 @@ class ProductionBatchUiTest {
 
     @After
     fun teardown() {
-        runBlocking { database.clearAllTables() }
+        runBlocking { testStateManager.resetAll() }
     }
 
     @Test
@@ -130,7 +132,8 @@ class ProductionBatchUiTest {
             waitForHome()
 
             // 1. Open Production List from Home
-            composeTestRule.onNodeWithTag("open_production_batches_button").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_production_batches_button"))
+            composeTestRule.onNodeWithTag("open_production_batches_button").performClick()
             waitForTag("production_batch_list_screen")
 
             // 2. Create Draft
@@ -138,14 +141,14 @@ class ProductionBatchUiTest {
             waitForTag("production_batch_create_screen")
             
             composeTestRule.onNodeWithTag("production_recipe_selector").performClick()
-            composeTestRule.onNodeWithText("Grounding").performClick()
+            composeTestRule.onAllNodesWithText("Grounding").onLast().performClick()
             
             // Batch multiplier = 2
             // Expected component consumption = 24
             // Expected output = 20
             composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
             composeTestRule.onNodeWithTag("production_output_area_selector").performClick()
-            composeTestRule.onNodeWithText("Kitchen").performClick()
+            composeTestRule.onAllNodesWithText("Kitchen").onLast().performClick()
             
             composeTestRule.onNodeWithTag("production_batch_create").performClick()
             waitForTag("production_batch_draft_screen")
@@ -190,7 +193,7 @@ class ProductionBatchUiTest {
             waitForTag("production_batch_component_screen")
             
             composeTestRule.onNodeWithTag("production_component_area_selector").performClick()
-            composeTestRule.onNodeWithText("Kitchen").performClick()
+            composeTestRule.onAllNodesWithText("Kitchen").onLast().performClick()
             composeTestRule.onNodeWithTag("production_batch_save").performClick()
             waitForTag("production_batch_draft_screen")
 
@@ -336,12 +339,12 @@ class ProductionBatchUiTest {
     }
 
     private fun waitForHome() {
-        waitForTag("home_screen")
+        waitForTag("home_dashboard_list")
     }
 
     private fun waitForTag(tag: String) {
-        composeTestRule.waitUntil(15000) {
-            composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(30000) {
+            composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

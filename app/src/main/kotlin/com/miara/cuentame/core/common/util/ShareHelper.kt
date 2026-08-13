@@ -6,7 +6,17 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 object ShareHelper {
-    fun shareCsv(context: Context, filename: String, content: String, title: String): Result<Unit> = runCatching {
+    fun shareCsv(context: Context, filename: String, content: String, title: String): Result<Unit> {
+        return shareTextFile(context, filename, content, "text/csv", title)
+    }
+
+    fun shareTextFile(
+        context: Context,
+        filename: String,
+        content: String,
+        mimeType: String,
+        title: String
+    ): Result<Unit> = runCatching {
         val cacheDir = File(context.cacheDir, "exports")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
@@ -25,8 +35,9 @@ object ShareHelper {
         )
 
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
+            type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, filename)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 

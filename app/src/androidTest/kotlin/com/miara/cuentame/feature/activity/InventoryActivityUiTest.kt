@@ -1,5 +1,7 @@
 package com.miara.cuentame.feature.activity
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -69,10 +71,11 @@ class InventoryActivityUiTest {
             waitForHome()
 
             // 1. Open Activity
+            composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("open_inventory_activity_button"))
             composeTestRule.onNodeWithTag("open_inventory_activity_button").performClick()
 
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("inventory_activity_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule.onAllNodes(hasTestTag("inventory_activity_list")).fetchSemanticsNodes().isNotEmpty()
             }
 
             // 2. Verify rows by exact movement tags with scrolling
@@ -121,7 +124,9 @@ class InventoryActivityUiTest {
             // 7. Wait for default results to return using Summary count
             waitForMovementCount("7")
             
-            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("")
+            composeTestRule.onNodeWithTag("inventory_activity_search").assert(SemanticsMatcher("is empty") { 
+                it.config.getOrNull(SemanticsProperties.EditableText)?.text?.isEmpty() ?: true
+            })
             composeTestRule.onNodeWithTag("inventory_activity_active_search").assertDoesNotExist()
             
             scrollToActivityRow(fixture.purchaseMovementId)
@@ -139,7 +144,9 @@ class InventoryActivityUiTest {
             waitForMovementCount("7")
             
             // Verify reset from filtered-empty also works
-            composeTestRule.onNodeWithTag("inventory_activity_search").assertTextEquals("")
+            composeTestRule.onNodeWithTag("inventory_activity_search").assert(SemanticsMatcher("is empty") { 
+                it.config.getOrNull(SemanticsProperties.EditableText)?.text?.isEmpty() ?: true
+            })
             composeTestRule.onNodeWithTag("inventory_activity_filtered_empty").assertDoesNotExist()
             composeTestRule.onNodeWithTag("inventory_activity_active_search").assertDoesNotExist()
             scrollToActivityRow(fixture.purchaseMovementId)
@@ -184,9 +191,9 @@ class InventoryActivityUiTest {
 
     private fun waitForHome() {
         composeTestRule.waitUntil(15000) {
-            composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodes(hasTestTag("home_dashboard_list")).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("home_screen").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("home_dashboard_list").assertIsDisplayed()
     }
 
     private fun scrollToActivityRow(movementId: com.miara.cuentame.core.common.ids.InventoryMovementId) {

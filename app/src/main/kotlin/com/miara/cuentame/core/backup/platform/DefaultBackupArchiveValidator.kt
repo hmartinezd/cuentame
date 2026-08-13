@@ -260,6 +260,10 @@ class DefaultBackupArchiveValidator @Inject constructor(
         if (schemaVersion >= 11) {
             tables["stock_count_item_order"] = TableMetadata(dbDto.stockCountItemOrder.size, false)
         }
+        if (schemaVersion >= 12) {
+            tables["menu_recipes"] = TableMetadata(dbDto.menuRecipes.size, false)
+            tables["menu_recipe_components"] = TableMetadata(dbDto.menuRecipeComponents.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 

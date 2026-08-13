@@ -35,8 +35,12 @@ class BackupRestoreProvenanceTest {
 
     @Test
     fun application_and_origin_records_survive_backup_restore() = runBlocking {
-        // 1. Prepare a snapshot with provenance records
+        // 1. Prepare a snapshot with provenance records and their dependencies
         val snapshot = createBaseSnapshot("r1").copy(
+            inventoryAreas = listOf(InventoryAreaBackupDto("a1", "r1", "Kitchen", "kitchen", 0, true, 0, 0, null)),
+            units = listOf(UnitBackupDto("u1", "Unit", "u", "COUNT", "1", true, 0)),
+            ingredients = listOf(IngredientBackupDto("i1", "r1", "Ing", "ing", null, "u1", "a1", null, null, null, true, 0, 0, null)),
+            ingredientUnitOptions = listOf(IngredientUnitOptionBackupDto("o1", "i1", "Unit", "u", null, "1", true, true, true, true, 0, 0, null)),
             purchaseReceipts = listOf(createPurchaseReceiptDto("pr1", "r1")),
             purchaseLines = listOf(createPurchaseLineDto("l1", "pr1")),
             purchaseInvoiceOcrResults = listOf(createOcrResultDto("ocr1", "pr1")),
@@ -73,7 +77,19 @@ class BackupRestoreProvenanceTest {
             restaurantName = "Rest",
             localeTag = "en-US",
             currencyCode = "USD",
-            tableMetadata = emptyMap(),
+            tableMetadata = mapOf(
+                "restaurants" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "inventory_areas" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "units" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "ingredients" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "ingredient_unit_options" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_receipts" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_lines" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_invoice_ocr_results" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_invoice_parse_results" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_invoice_draft_applications" to com.miara.cuentame.core.model.backup.TableMetadata(1, false),
+                "purchase_invoice_line_origins" to com.miara.cuentame.core.model.backup.TableMetadata(1, false)
+            ),
             attachments = emptyList(),
             includedSections = listOf("data")
         )

@@ -99,7 +99,7 @@ class InventoryActivityDaoTest {
         assertThat(rows[1].sourceStockCountResolvedId).isEqualTo("c1")
         
         assertThat(rows[2].movement.id).isEqualTo("m2")
-        assertThat(rows[2].sourceWasteReason).isEqualTo("SPOILED")
+        assertThat(rows[2].sourceWasteReason).isEqualTo(com.miara.cuentame.core.model.inventory.WasteReason.SPOILED.name)
         assertThat(rows[2].sourceWasteResolvedId).isEqualTo("w1")
         
         assertThat(rows[3].movement.id).isEqualTo("m1")
@@ -128,13 +128,13 @@ class InventoryActivityDaoTest {
         
         // m2 reverses m1
         val m2Row = rows.find { it.movement.id == "m2" }!!
-        assertThat(m2Row.reversalOfMovementType).isEqualTo(InventoryMovementType.PURCHASE)
+        assertThat(m2Row.reversalOfMovementType).isEqualTo(com.miara.cuentame.core.model.inventory.InventoryMovementType.PURCHASE.name)
         assertThat(m2Row.reversalOfMovementEffectiveAt).isEqualTo(java.time.Instant.ofEpochMilli(1000L))
         
         // m1 is reversed by m2
         val m1Row = rows.find { it.movement.id == "m1" }!!
         assertThat(m1Row.reversedByMovementId).isEqualTo("m2")
-        assertThat(m1Row.reversedByMovementType).isEqualTo(InventoryMovementType.REVERSAL)
+        assertThat(m1Row.reversedByMovementType).isEqualTo(com.miara.cuentame.core.model.inventory.InventoryMovementType.REVERSAL.name)
         assertThat(m1Row.reversedByMovementEffectiveAt).isEqualTo(java.time.Instant.ofEpochMilli(1100L))
     }
 

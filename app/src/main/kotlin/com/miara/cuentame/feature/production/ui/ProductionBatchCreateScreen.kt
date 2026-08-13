@@ -133,14 +133,16 @@ fun ProductionBatchCreateScreen(
                         selectedId = uiState.selectedAreaId,
                         areas = uiState.availableAreas,
                         onSelected = onAreaSelected,
-                        label = stringResource(R.string.production_output_area_selector)
+                        label = stringResource(R.string.production_output_area_selector),
+                        modifier = Modifier.testTag("production_output_area_selector")
                     )
 
                     UnitSelector(
                         selectedId = uiState.selectedUnitOptionId,
                         options = uiState.availableUnitOptions,
                         onSelected = onUnitOptionSelected,
-                        label = stringResource(R.string.production_output_unit_selector)
+                        label = stringResource(R.string.production_output_unit_selector),
+                        modifier = Modifier.testTag("production_output_unit_selector")
                     )
 
                     ProductionEffectiveTimeEditor(

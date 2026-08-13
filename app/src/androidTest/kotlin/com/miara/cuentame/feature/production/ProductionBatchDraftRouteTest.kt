@@ -36,6 +36,9 @@ class ProductionBatchDraftRouteTest {
     @Inject
     lateinit var preferencesRepository: AppPreferencesRepository
 
+    @Inject
+    lateinit var testStateManager: com.miara.cuentame.test.TestStateManager
+
     private val restaurantId = "r1"
     private val batchId = "batch1"
 
@@ -43,8 +46,7 @@ class ProductionBatchDraftRouteTest {
     fun setup() {
         hiltRule.inject()
         runBlocking {
-            database.clearAllTables()
-            preferencesRepository.clearAll()
+            testStateManager.resetAll()
             
             // Seed data
             database.restaurantDao().insert(RestaurantEntity(restaurantId, "Test Rest", "USD", "en-US", 0, 0, null))
@@ -96,6 +98,30 @@ class ProductionBatchDraftRouteTest {
     }
 
     @Test
+    fun backPress_dirtyForm_showsDiscardDialog() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            navigateToDraft()
+
+            // Make form dirty
+            composeTestRule.onNodeWithTag("production_multiplier_field").performTextReplacement("2")
+            
+            // Press back
+            composeTestRule.onNodeWithTag("production_back_button").performClick()
+            
+            // Verify dialog shown
+            composeTestRule.onNodeWithTag("discard_changes_dialog").assertIsDisplayed()
+            
+            // Confirm discard
+            composeTestRule.onNodeWithTag("discard_confirm_button").performClick()
+            
+            // Verify we are back on the list
+            composeTestRule.waitUntil(10000) {
+                composeTestRule.onAllNodesWithTag("production_batch_list_screen").fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+    }
+
+    @Test
     fun reviewGuard_cleanForm_allowsNavigation() {
         ActivityScenario.launch(MainActivity::class.java).use {
             navigateToDraft()
@@ -111,12 +137,13 @@ class ProductionBatchDraftRouteTest {
     }
 
     private fun navigateToDraft() {
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("open_production_batches_button").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("open_production_batches_button"))
+        composeTestRule.onNodeWithTag("open_production_batches_button").performClick()
         
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodesWithTag("production_batch_list_screen").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("production_batch_item_$batchId").performClick()

@@ -23,12 +23,14 @@ class CompleteOnboardingUseCase @Inject constructor(
             val restaurant = restaurantRepository.getRestaurant()
             if (restaurant != null) {
                 // Seed the Cuban Foodies starter catalog for new restaurants
-                starterCatalogSeeder.seedNewRestaurant(
+                val seedResult = starterCatalogSeeder.seedNewRestaurant(
                     restaurantId = restaurant.id.value,
                     catalog = CubanFoodiesStarterCatalog.definition
                 )
+                if (seedResult is com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Failure) {
+                    throw (seedResult.reason as com.miara.cuentame.core.domain.service.StarterCatalogSeedFailure.DatabaseError).cause
+                }
             }
-
         }
 
         if (result is LocalSetupResult.Success || result is LocalSetupResult.AlreadyCompleted) {

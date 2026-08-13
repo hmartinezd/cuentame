@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,9 +44,17 @@ class RoomLocalSetupRepository @Inject constructor(
 
     override fun observeIsSetupComplete(): Flow<Boolean> {
         return restaurantDao.observeRestaurant().flatMapLatest { restaurant ->
-            if (restaurant == null) flowOf(false)
-            else areaDao.observeActiveAreas(restaurant.id).map { it.isNotEmpty() }
-        }
+            if (restaurant == null) {
+                android.util.Log.d("LocalSetupRepository", "observeIsSetupComplete: No restaurant found")
+                flowOf(false)
+            } else {
+                areaDao.observeActiveAreas(restaurant.id).map { areas ->
+                    val isComplete = areas.isNotEmpty()
+                    android.util.Log.d("LocalSetupRepository", "observeIsSetupComplete: Restaurant ${restaurant.id} found, areas empty? ${areas.isEmpty()}, complete? $isComplete")
+                    isComplete
+                }
+            }
+        }.onStart { android.util.Log.d("LocalSetupRepository", "observeIsSetupComplete: Started") }
     }
 
     override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult {
@@ -73,6 +82,7 @@ class RoomLocalSetupRepository @Inject constructor(
                     existing.id
                 } else {
                     val newId = idGenerator.newId()
+                    android.util.Log.i("LocalSetupRepository", "Creating new restaurant: $newId - ${command.restaurantName}")
                     restaurantDao.insert(
                         RestaurantEntity(
                             id = newId,

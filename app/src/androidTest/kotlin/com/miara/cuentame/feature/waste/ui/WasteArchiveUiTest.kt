@@ -99,11 +99,12 @@ class WasteArchiveUiTest {
     }
 
     private fun openWasteListScreen() {
-        composeTestRule.waitUntil(10000) {
-            composeTestRule.onAllNodes(hasTestTag("view_waste_button")).fetchSemanticsNodes().isNotEmpty()
+        composeTestRule.waitUntil(15000) {
+            composeTestRule.onAllNodes(hasTestTag("home_dashboard_list")).fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.onNodeWithTag("home_dashboard_list").performScrollToNode(hasTestTag("view_waste_button"))
         composeTestRule.onNodeWithTag("view_waste_button", useUnmergedTree = true).performClick()
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(15000) {
             composeTestRule.onAllNodes(hasTestTag("waste_list_screen")).fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -124,10 +125,10 @@ class WasteArchiveUiTest {
     }
 
     private fun waitForReadyWasteForm() {
-        composeTestRule.waitUntil(15000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodes(hasTestTag("waste_save_button"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithTag("waste_save_button", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("waste_save_button", useUnmergedTree = true).performScrollTo().assertExists()
     }
 
     @Test
