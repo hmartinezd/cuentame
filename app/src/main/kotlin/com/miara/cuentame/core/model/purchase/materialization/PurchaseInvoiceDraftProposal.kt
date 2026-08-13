@@ -8,6 +8,7 @@ import com.miara.cuentame.core.common.ids.SupplierId
 import com.miara.cuentame.core.ocr.parser.InvoiceParseWarning
 import java.math.BigDecimal
 import java.time.LocalDate
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
 
 data class PurchaseInvoiceDraftProposal(
     val purchaseReceiptId: PurchaseReceiptId,
@@ -24,7 +25,8 @@ data class PurchaseInvoiceDraftProposal(
     val total: BigDecimal?,
     val lines: List<PurchaseInvoiceLineProposal>,
     val warnings: List<InvoiceParseWarning> = emptyList(),
-    val blockingIssues: List<MaterializationBlockingIssue> = emptyList()
+    val blockingIssues: List<MaterializationBlockingIssue> = emptyList(),
+    val acceptedDuplicate: DuplicateInvoiceCandidate? = null
 )
 
 data class SupplierProposal(

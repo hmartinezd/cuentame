@@ -644,6 +644,21 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         }
     }
 
+    fun onContinueDuplicate() {
+        val failure = uiState.value.materializationFailure as?
+            PurchaseInvoiceMaterializationFailure.StrongDuplicate ?: return
+        val proposal = uiState.value.proposal ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isMaterializing = true, materializationFailure = null) }
+            when (val result = applyInvoiceUseCase.execute(proposal.copy(acceptedDuplicate = failure.candidate))) {
+                PurchaseInvoiceMaterializationResult.Success ->
+                    _uiState.update { it.copy(isMaterializing = false, isMaterialized = true) }
+                is PurchaseInvoiceMaterializationResult.Failure ->
+                    _uiState.update { it.copy(isMaterializing = false, materializationFailure = result.reason) }
+            }
+        }
+    }
+
     fun clearMaterializationFailure() {
         _uiState.update { it.copy(materializationFailure = null) }
     }

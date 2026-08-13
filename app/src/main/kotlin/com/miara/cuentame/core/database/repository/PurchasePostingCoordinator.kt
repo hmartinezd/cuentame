@@ -9,6 +9,8 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.PurchaseDao
+import com.miara.cuentame.core.database.dao.PurchaseOcrDao
+import com.miara.cuentame.core.database.dao.PurchaseInvoiceMaterializationDao
 import com.miara.cuentame.core.database.entity.InventoryMovementEntity
 import com.miara.cuentame.core.database.entity.RestaurantEntity
 import com.miara.cuentame.core.domain.service.PurchaseLineCalculator
@@ -17,6 +19,7 @@ import com.miara.cuentame.core.model.inventory.DocumentStatus
 import com.miara.cuentame.core.model.inventory.InventoryMovementOperationIds
 import com.miara.cuentame.core.model.inventory.InventoryMovementType
 import com.miara.cuentame.core.model.inventory.SourceDocumentType
+import com.miara.cuentame.core.model.purchase.DuplicateInvoicePostingException
 import java.math.BigDecimal
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,6 +27,9 @@ import javax.inject.Singleton
 @Singleton
 class PurchasePostingCoordinator @Inject constructor(
     private val purchaseDao: PurchaseDao,
+    private val ocrDao: PurchaseOcrDao,
+    private val materializationDao: PurchaseInvoiceMaterializationDao,
+    private val duplicateInvoiceDetector: DuplicateInvoiceDetector,
     private val movementDao: InventoryMovementDao,
     private val projectionRebuilder: RoomInventoryProjectionRebuilder,
     private val referenceValidator: PurchaseReferenceValidator,
@@ -54,6 +60,22 @@ class PurchasePostingCoordinator @Inject constructor(
         if (lines.isEmpty()) throw ValidationError.PurchaseHasNoLines
 
         referenceValidator.validateSupplierForPosting(receipt.supplierId, activeRestaurant.id)
+
+        // Authoritative second admission check inside the posting transaction.
+        val sourceSha = ocrDao.getOcrResultForReceiptSync(receipt.id)?.sourceDocumentSha256
+        val duplicate = duplicateInvoiceDetector.find(
+            activeRestaurant.id, receipt.id, receipt.supplierId, receipt.invoiceNumber, sourceSha
+        )
+        if (duplicate != null) {
+            val application = materializationDao.getApplicationForReceipt(receipt.id)
+            val accepted = duplicate.matchesOverride(
+                application?.duplicateOverrideType,
+                application?.duplicateExistingReceiptId,
+                application?.duplicateNormalizedInvoiceNumber,
+                application?.duplicateSourceSha256
+            )
+            if (!accepted) throw DuplicateInvoicePostingException(duplicate)
+        }
 
         val movements = lines.map { lineEntity ->
             val lineRefs = referenceValidator.validateLineReferences(

@@ -2,6 +2,7 @@ package com.miara.cuentame.core.ocr.parser.matching
 
 import com.miara.cuentame.core.common.text.normalizeName
 import java.util.Locale
+import java.text.Normalizer
 
 object InventoryNormalization {
 
@@ -21,7 +22,10 @@ object InventoryNormalization {
      */
     fun normalizeDescription(description: String?): String {
         if (description == null) return ""
-        return description.normalizeName()
+        return Normalizer.normalize(description, Normalizer.Form.NFD)
+            .replace("\\p{M}+".toRegex(), "")
+            .replace("[^\\p{L}\\p{N}]+".toRegex(), " ")
+            .normalizeName()
     }
 
     /**
@@ -30,19 +34,17 @@ object InventoryNormalization {
      */
     fun normalizePackageText(packageText: String?): String {
         if (packageText == null) return ""
-        val normalized = packageText.normalizeName()
+        val normalized = packageText
+            // These separators describe package identity, not package arithmetic.
+            .replace("\\s*([Xx/])\\s*".toRegex(), " $1 ")
+            .replace("(?<=\\d)(?=\\p{L})|(?<=\\p{L})(?=\\d)".toRegex(), " ")
+            .normalizeName()
         
         // Conservative aliases for matching
         return normalized.split(" ").joinToString(" ") { token ->
             when (token) {
-                "CS" -> "CASE"
-                "EA" -> "EACH"
-                "BX" -> "BOX"
-                "PK", "PKG" -> "PACK"
-                "LB", "LBS" -> "LB"
-                "OZ" -> "OZ"
-                "GAL", "GALLON" -> "GAL"
-                "CT", "COUNT" -> "COUNT"
+                "lbs" -> "lb"
+                "gallon" -> "gal"
                 else -> token
             }
         }

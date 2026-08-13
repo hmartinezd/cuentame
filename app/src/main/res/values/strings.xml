@@ -851,6 +851,9 @@
     <string name="ocr_materialization_invalid_line_total">Invalid line total</string>
     <string name="ocr_materialization_invalid_conversion">Invalid conversion</string>
     <string name="ocr_materialization_failure_title">Materialization Failed</string>
+    <string name="ocr_duplicate_continue">Continue anyway</string>
+    <string name="ocr_duplicate_same_document">This document is identical to one attached to another purchase receipt. Continuing will be recorded for audit.</string>
+    <string name="ocr_duplicate_same_supplier_number">This supplier already has invoice %1$s on another purchase receipt. Continuing will be recorded for audit.</string>
     <string name="ocr_header_correction_dialog_title">Correct Header Field</string>
     <string name="ocr_line_correction_dialog_title">Correct Invoice Line</string>
     <string name="ocr_matching_unknown_product">Unknown Product</string>

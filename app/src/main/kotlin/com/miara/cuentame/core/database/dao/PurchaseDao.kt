@@ -173,6 +173,18 @@ interface PurchaseDao {
     @Query("SELECT * FROM purchase_receipts WHERE restaurantId = :restaurantId AND invoiceNumber = :invoiceNumber")
     suspend fun findByInvoiceNumber(restaurantId: String, invoiceNumber: String): List<PurchaseReceiptEntity>
 
+    @Query("SELECT * FROM purchase_receipts WHERE restaurantId = :restaurantId AND supplierId = :supplierId AND id != :excludeReceiptId")
+    suspend fun findSupplierReceipts(restaurantId: String, supplierId: String, excludeReceiptId: String): List<PurchaseReceiptEntity>
+
+    @Query("""
+        SELECT pr.* FROM purchase_receipts pr
+        JOIN purchase_invoice_ocr_results ocr ON ocr.purchaseReceiptId = pr.id
+        WHERE pr.restaurantId = :restaurantId AND pr.id != :excludeReceiptId
+          AND ocr.sourceDocumentSha256 = :sourceSha256
+        ORDER BY pr.createdAt ASC LIMIT 1
+    """)
+    suspend fun findOtherReceiptByDocumentSha(restaurantId: String, excludeReceiptId: String, sourceSha256: String): PurchaseReceiptEntity?
+
     @Query("SELECT * FROM purchase_lines WHERE purchaseReceiptId = :receiptId ORDER BY createdAt ASC")
     suspend fun getLinesForReceipt(receiptId: String): List<PurchaseLineEntity>
 

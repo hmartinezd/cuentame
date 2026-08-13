@@ -35,6 +35,7 @@ import com.miara.cuentame.core.presentation.ui.findActivity
 import com.miara.cuentame.core.model.supplier.Supplier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -538,6 +539,8 @@ class PurchaseDraftViewModel @Inject constructor(
                             }
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.Unknown)
                 }

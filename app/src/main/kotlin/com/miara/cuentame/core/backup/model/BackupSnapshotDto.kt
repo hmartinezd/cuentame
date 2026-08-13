@@ -79,7 +79,12 @@ data class PurchaseInvoiceDraftApplicationBackupDto(
     val parseResultId: String,
     val sourceDocumentSha256: String,
     val sourceStateFingerprint: String,
-    val appliedAt: Long
+    val appliedAt: Long,
+    val duplicateOverrideType: String? = null,
+    val duplicateExistingReceiptId: String? = null,
+    val duplicateNormalizedInvoiceNumber: String? = null,
+    val duplicateSourceSha256: String? = null,
+    val duplicateOverriddenAt: Long? = null
 )
 
 @Serializable

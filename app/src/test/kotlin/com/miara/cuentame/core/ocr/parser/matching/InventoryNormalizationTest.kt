@@ -34,4 +34,12 @@ class InventoryNormalizationTest {
     fun `normalizePackageText uses standard name normalization`() {
         assertEquals("25 lb cs", InventoryNormalization.normalizePackageText(" 25 LB  CS "))
     }
+
+    @Test
+    fun `package identity normalizes safe spacing variations`() {
+        assertEquals(InventoryNormalization.normalizePackageText("40LB"), InventoryNormalization.normalizePackageText("40 LB"))
+        assertEquals(InventoryNormalization.normalizePackageText("4X1 GAL"), InventoryNormalization.normalizePackageText("4 X 1 GAL"))
+        assertEquals(InventoryNormalization.normalizePackageText("6/5 LB"), InventoryNormalization.normalizePackageText("6 / 5 LB"))
+        assertEquals(InventoryNormalization.normalizePackageText("2/10LB"), InventoryNormalization.normalizePackageText("2 / 10 LB"))
+    }
 }

@@ -61,7 +61,12 @@ internal fun PurchaseInvoiceDraftApplicationEntity.toDto(): PurchaseInvoiceDraft
         parseResultId = parseResultId,
         sourceDocumentSha256 = sourceDocumentSha256,
         sourceStateFingerprint = sourceStateFingerprint,
-        appliedAt = appliedAt
+        appliedAt = appliedAt,
+        duplicateOverrideType = duplicateOverrideType,
+        duplicateExistingReceiptId = duplicateExistingReceiptId,
+        duplicateNormalizedInvoiceNumber = duplicateNormalizedInvoiceNumber,
+        duplicateSourceSha256 = duplicateSourceSha256,
+        duplicateOverriddenAt = duplicateOverriddenAt
     )
 
 internal fun PurchaseInvoiceLineOriginEntity.toDto(): PurchaseInvoiceLineOriginBackupDto = 
@@ -855,7 +860,12 @@ fun PurchaseInvoiceDraftApplicationBackupDto.toEntity() = PurchaseInvoiceDraftAp
     parseResultId = parseResultId,
     sourceDocumentSha256 = sourceDocumentSha256,
     sourceStateFingerprint = sourceStateFingerprint,
-    appliedAt = appliedAt
+    appliedAt = appliedAt,
+    duplicateOverrideType = duplicateOverrideType,
+    duplicateExistingReceiptId = duplicateExistingReceiptId,
+    duplicateNormalizedInvoiceNumber = duplicateNormalizedInvoiceNumber,
+    duplicateSourceSha256 = duplicateSourceSha256,
+    duplicateOverriddenAt = duplicateOverriddenAt
 )
 
 fun PurchaseInvoiceLineOriginBackupDto.toEntity() = PurchaseInvoiceLineOriginEntity(

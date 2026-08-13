@@ -480,6 +480,16 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `purchase_invoice_draft_applications` ADD COLUMN `duplicateOverrideType` TEXT")
+                db.execSQL("ALTER TABLE `purchase_invoice_draft_applications` ADD COLUMN `duplicateExistingReceiptId` TEXT")
+                db.execSQL("ALTER TABLE `purchase_invoice_draft_applications` ADD COLUMN `duplicateNormalizedInvoiceNumber` TEXT")
+                db.execSQL("ALTER TABLE `purchase_invoice_draft_applications` ADD COLUMN `duplicateSourceSha256` TEXT")
+                db.execSQL("ALTER TABLE `purchase_invoice_draft_applications` ADD COLUMN `duplicateOverriddenAt` INTEGER")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -491,7 +501,8 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
             MIGRATION_8_9,
             MIGRATION_9_10,
             MIGRATION_10_11,
-            MIGRATION_11_12
+            MIGRATION_11_12,
+            MIGRATION_12_13
         )
     }
 }

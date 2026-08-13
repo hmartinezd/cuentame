@@ -1,5 +1,7 @@
 package com.miara.cuentame.core.model.purchase.materialization.failure
 
+import com.miara.cuentame.core.model.purchase.DuplicateInvoiceCandidate
+
 sealed interface PurchaseInvoiceMaterializationResult {
     data object Success : PurchaseInvoiceMaterializationResult
     data class Failure(val reason: PurchaseInvoiceMaterializationFailure) : PurchaseInvoiceMaterializationResult
@@ -21,5 +23,6 @@ sealed interface PurchaseInvoiceMaterializationFailure {
     data object DraftChanged : PurchaseInvoiceMaterializationFailure
     data object ManualEditConflict : PurchaseInvoiceMaterializationFailure
     data object InvoiceSourceLocked : PurchaseInvoiceMaterializationFailure
+    data class StrongDuplicate(val candidate: DuplicateInvoiceCandidate) : PurchaseInvoiceMaterializationFailure
     data object PersistenceFailed : PurchaseInvoiceMaterializationFailure
 }

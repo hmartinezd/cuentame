@@ -106,6 +106,7 @@ class RoomPurchaseRepository @Inject constructor(
     private val mappingDao: SupplierItemMappingDao,
     private val materializationDao: PurchaseInvoiceMaterializationDao,
     private val fingerprinter: PurchaseInvoiceFingerprinter,
+    private val duplicateInvoiceDetector: DuplicateInvoiceDetector,
     private val json: Json
 ) : PurchaseRepository {
 
@@ -954,6 +955,16 @@ class RoomPurchaseRepository @Inject constructor(
             val effectiveInvoiceNumber = currentParse.invoiceNumber.effectiveValue(corrections?.invoiceNumber)
             val effectiveInvoiceDate = currentParse.invoiceDate.effectiveValue(corrections?.invoiceDate)
 
+            val duplicate = duplicateInvoiceDetector.find(
+                activeRestaurant.id, receiptId.value, receipt.supplierId?.value,
+                effectiveInvoiceNumber, currentOcr.sourceDocumentSha256
+            )
+            if (duplicate != null && proposal.acceptedDuplicate != duplicate) {
+                return@withTransaction PurchaseInvoiceMaterializationResult.Failure(
+                    PurchaseInvoiceMaterializationFailure.StrongDuplicate(duplicate)
+                )
+            }
+
             if (proposal.invoiceNumber != effectiveInvoiceNumber ||
                 proposal.invoiceDate != effectiveInvoiceDate) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.InvoiceStateChanged)
@@ -1107,13 +1118,19 @@ class RoomPurchaseRepository @Inject constructor(
             )
 
             // 2. Application Record
+            val acceptedDuplicate = duplicate?.takeIf { proposal.acceptedDuplicate == it }
             val appEntity = PurchaseInvoiceDraftApplicationEntity(
                 id = applicationId,
                 purchaseReceiptId = receiptId.value,
                 parseResultId = proposal.parseResultId,
                 sourceDocumentSha256 = proposal.sourceDocumentSha256,
                 sourceStateFingerprint = currentFingerprint,
-                appliedAt = timeProvider.now().toEpochMilli()
+                appliedAt = timeProvider.now().toEpochMilli(),
+                duplicateOverrideType = acceptedDuplicate?.type?.name,
+                duplicateExistingReceiptId = acceptedDuplicate?.existingReceiptId?.value,
+                duplicateNormalizedInvoiceNumber = acceptedDuplicate?.normalizedInvoiceNumber,
+                duplicateSourceSha256 = acceptedDuplicate?.sourceSha256,
+                duplicateOverriddenAt = acceptedDuplicate?.let { timeProvider.now().toEpochMilli() }
             )
             materializationDao.upsertApplication(appEntity)
 

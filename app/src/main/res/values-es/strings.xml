@@ -1152,4 +1152,7 @@
     <string name="export_diagnostics_title">Exportar diagnóstico</string>
     <string name="export_diagnostics_desc">Generar un informe técnico para compartir con soporte. No contiene datos privados del negocio.</string>
     <string name="export_diagnostics_action">Exportar informe técnico</string>
+    <string name="ocr_duplicate_continue">Continuar de todos modos</string>
+    <string name="ocr_duplicate_same_document">Este documento es idéntico a uno adjunto a otra compra. Si continúas, quedará registrado para auditoría.</string>
+    <string name="ocr_duplicate_same_supplier_number">Este proveedor ya tiene la factura %1$s en otra compra. Si continúas, quedará registrado para auditoría.</string>
 </resources>

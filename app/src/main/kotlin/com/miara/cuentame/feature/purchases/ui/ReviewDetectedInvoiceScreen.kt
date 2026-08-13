@@ -92,6 +92,7 @@ fun ReviewDetectedInvoiceRoute(
         },
         onStartMatch = { viewModel.onStartMatch(it) },
         onApplyToDraft = viewModel::onApplyToDraft,
+        onContinueDuplicate = viewModel::onContinueDuplicate,
         onClearMaterializationFailure = viewModel::clearMaterializationFailure
     )
 }
@@ -115,6 +116,7 @@ fun ReviewDetectedInvoiceScreen(
     onStartCreateIngredient: (Int, String) -> Unit,
     onStartMatch: (Int?) -> Unit,
     onApplyToDraft: () -> Unit,
+    onContinueDuplicate: () -> Unit = {},
     onClearMaterializationFailure: () -> Unit
 ) {
     val result = uiState.result ?: return
@@ -314,7 +316,8 @@ fun ReviewDetectedInvoiceScreen(
     if (uiState.materializationFailure != null) {
         MaterializationFailureDialog(
             failure = uiState.materializationFailure!!,
-            onDismiss = onClearMaterializationFailure
+            onDismiss = onClearMaterializationFailure,
+            onContinueDuplicate = onContinueDuplicate
         )
     }
 
@@ -898,13 +901,21 @@ private fun LineConversionRow(
 @Composable
 fun MaterializationFailureDialog(
     failure: PurchaseInvoiceMaterializationFailure,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onContinueDuplicate: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) }
+            if (failure is PurchaseInvoiceMaterializationFailure.StrongDuplicate) {
+                TextButton(onClick = onContinueDuplicate) { Text(stringResource(R.string.ocr_duplicate_continue)) }
+            } else {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) }
+            }
         },
+        dismissButton = if (failure is PurchaseInvoiceMaterializationFailure.StrongDuplicate) {
+            { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+        } else null,
         title = { Text(stringResource(R.string.ocr_materialization_failure_title)) },
         text = {
             Text(
@@ -915,6 +926,10 @@ fun MaterializationFailureDialog(
                     PurchaseInvoiceMaterializationFailure.InvoiceStateChanged -> stringResource(R.string.ocr_materialization_parse_changed)
                     PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked -> stringResource(R.string.ocr_materialization_error_source_locked)
                     PurchaseInvoiceMaterializationFailure.UnresolvedLines -> stringResource(R.string.ocr_materialization_error_blocked_line)
+                    is PurchaseInvoiceMaterializationFailure.StrongDuplicate -> when (failure.candidate.type) {
+                        com.miara.cuentame.core.model.purchase.DuplicateInvoiceType.SAME_DOCUMENT -> stringResource(R.string.ocr_duplicate_same_document)
+                        com.miara.cuentame.core.model.purchase.DuplicateInvoiceType.SAME_SUPPLIER_INVOICE_NUMBER -> stringResource(R.string.ocr_duplicate_same_supplier_number, failure.candidate.normalizedInvoiceNumber.orEmpty())
+                    }
                     else -> stringResource(R.string.error_generic)
                 }
             )
