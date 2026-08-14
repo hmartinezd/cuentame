@@ -12,6 +12,7 @@ import com.miara.cuentame.core.domain.usecase.ObservePurchaseDetailsUseCase
 import com.miara.cuentame.core.domain.usecase.VoidPurchaseUseCase
 import com.miara.cuentame.core.model.inventory.DocumentStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +129,8 @@ class PurchaseDetailViewModel @Inject constructor(
             try {
                 voidPurchaseUseCase(receiptId)
                 _events.send(PurchaseDetailEvent.Voided)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = e
             } finally {

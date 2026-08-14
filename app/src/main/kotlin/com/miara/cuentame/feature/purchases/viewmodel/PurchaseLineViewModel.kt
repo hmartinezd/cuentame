@@ -24,6 +24,7 @@ import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.inventory.InventoryArea
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -140,6 +141,8 @@ class PurchaseLineViewModel @Inject constructor(
                     } else {
                         _uiState.update { it.copy(screenState = PurchaseLineScreenState.NotFound) }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _uiState.update { it.copy(screenState = PurchaseLineScreenState.Error(e)) }
                 }
@@ -235,6 +238,8 @@ class PurchaseLineViewModel @Inject constructor(
             try {
                 val calculation = previewPurchaseLineUseCase(qty, total, option.factorToBase)
                 _uiState.update { it.copy(baseQuantityPreview = calculation.quantityBase, unitCostPreview = calculation.unitCostBase) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(baseQuantityPreview = null, unitCostPreview = null) }
             }
@@ -281,6 +286,8 @@ class PurchaseLineViewModel @Inject constructor(
                     )
                 )
                 _events.send(PurchaseLineEvent.Success)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSaving = false, error = e) }
             }

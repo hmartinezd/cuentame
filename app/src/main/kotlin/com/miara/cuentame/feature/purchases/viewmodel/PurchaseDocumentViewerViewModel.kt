@@ -12,6 +12,7 @@ import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.domain.repository.PurchaseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -78,6 +79,8 @@ class PurchaseDocumentViewerViewModel @Inject constructor(
                 } else {
                     _uiState.value = PurchaseDocumentViewerState.NotFound
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = PurchaseDocumentViewerState.Error(e)
             }
