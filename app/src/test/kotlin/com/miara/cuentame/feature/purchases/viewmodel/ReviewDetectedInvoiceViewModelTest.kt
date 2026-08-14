@@ -305,6 +305,25 @@ class ReviewDetectedInvoiceViewModelTest {
         assertThat(raw).isEqualTo("Chi cago Foods Inc")
     }
 
+    @Test
+    fun `supplier matching tolerates common OCR substitution`() {
+        val chicago = supplier("s1", "Chicago Foods Inc.")
+
+        val matches = ReviewDetectedInvoiceViewModel.resolveSupplierCandidates("Chicago Foods lnc.", listOf(chicago))
+
+        assertThat(matches).containsExactly(chicago)
+    }
+
+    @Test
+    fun `ambiguous supplier near matches remain multiple candidates`() {
+        val foods = supplier("s1", "Chicago Foods Inc.")
+        val food = supplier("s2", "Chicago Food Inc.")
+
+        val matches = ReviewDetectedInvoiceViewModel.resolveSupplierCandidates("Chicago Foo ds Inc", listOf(foods, food))
+
+        assertThat(matches).containsExactly(foods, food).inOrder()
+    }
+
     private fun supplier(id: String, name: String) = Supplier(
         id = SupplierId(id), restaurantId = restaurantId, name = name,
         normalizedName = name.lowercase(), isActive = true,

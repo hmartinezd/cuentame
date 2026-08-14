@@ -103,6 +103,47 @@ class DeterministicPurchaseInvoiceParserTest {
     }
 
     @Test
+    fun `payment rows after terminal total are outside item table`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "DESCRIPTION      QTY      PRICE      TOTAL",
+            "ITEM A           1        10.00      10.00",
+            "ITEM B           1         5.00       5.00",
+            "SUBTOTAL                              15.00",
+            "TAX                                    1.05",
+            "TOTAL                                 16.05",
+            "VISA                                  16.05",
+            "PAID                                  16.05",
+            "AUTH 123456"
+        ))))
+
+        assertEquals(listOf("ITEM A", "ITEM B"), result.lines.map { it.description.normalizedValue })
+    }
+
+    @Test
+    fun `headerless receipt does not invent SKU from description`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "TOMATO ROMA      2      3.00      6.00",
+            "ONION YELLOW     1      4.00      4.00",
+            "POTATO RED       3      2.00      6.00"
+        ))))
+
+        assertEquals(3, result.lines.size)
+        assertTrue(result.lines.all { it.vendorCode.normalizedValue == null })
+        assertEquals("TOMATO ROMA", result.lines.first().description.normalizedValue)
+    }
+
+    @Test
+    fun `text before semantic table is not prepended to first item`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "THANK YOU FOR YOUR BUSINESS",
+            "ITEM             DESCRIPTION      QTY      PRICE      TOTAL",
+            "001              TOMATO           1        5.00       5.00"
+        ))))
+
+        assertEquals("TOMATO", result.lines.single().description.normalizedValue)
+    }
+
+    @Test
     fun `determinism test`() {
         val page = createPage(listOf(
             "101   ITEM A   1   10.00   10.00",

@@ -215,7 +215,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         
         if (!cols.containsKey(ColumnType.SKU)) {
             val skuCandidateTokens = candidateRows.flatMap { it.tokens }
-                .filter { it.right < firstNumericLeft && it.text.length >= 3 }
+                .filter { it.right < firstNumericLeft && isCodeLike(it.text) }
             
             val skuClusters = RowClusterer.clusterTokensByX(skuCandidateTokens, allRows)
                 .filter { it.support >= 2 && it.avgLeft < 0.25f }
@@ -245,6 +245,10 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val tableHeaderTopByPage = rows.filter(::isHeaderRow)
             .groupBy { it.pageIndex }
             .mapValues { (_, pageRows) -> pageRows.minOf { it.top } }
+        val tableStartByPage = rows.groupBy { it.pageIndex }.mapValues { (page, pageRows) ->
+            tableHeaderTopByPage[page] ?: inferTableStart(pageRows, pageLayouts[page])
+        }
+        val terminalTopByPage = findTerminalTotals(rows, tableStartByPage)
 
         for (i in rows.indices) {
             val row = rows[i]
@@ -253,6 +257,8 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             // A semantic header is a strong table boundary. Header/address values above it
             // and labeled totals/footer values are never item rows.
             if (tableHeaderTopByPage[row.pageIndex]?.let { row.top <= it } == true) continue
+            if (tableStartByPage[row.pageIndex]?.let { row.top < it } == true) continue
+            if (terminalTopByPage[row.pageIndex]?.let { row.top >= it } == true) continue
             if (isNonItemContext(row)) continue
             
             val isPotentialLine = if (layout.source != LayoutSource.Unknown) {
@@ -276,7 +282,10 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                 if (!hasItemIdentity(candidate)) continue
                 
                 val prevRow = rows.getOrNull(i - 1)
-                if (prevRow != null && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) && 
+                if (prevRow != null && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) &&
+                    candidates.isNotEmpty() && prevRow.top >= (tableStartByPage[row.pageIndex] ?: 0f) &&
+                    row.top - prevRow.bottom <= 0.025f &&
+                    !isNonItemContext(prevRow) &&
                     ((candidate.description.detectedText?.length ?: 0) < 20)) {
                     
                      val isPrevRowPart = prevRow.tokens.none { t -> 
@@ -326,6 +335,41 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return candidates
     }
 
+    private fun inferTableStart(pageRows: List<Row>, layout: PageLayout?): Float {
+        if (layout == null || layout.source == LayoutSource.Unknown) return pageRows.firstOrNull()?.top ?: 0f
+        val compatible = pageRows.filter { row ->
+            !isNonItemContext(row) && row.tokens.any { token ->
+                layout.getColumnType(token.centerX) in setOf(ColumnType.Quantity, ColumnType.UnitPrice, ColumnType.LineTotal) &&
+                    isNumeric(token.text)
+            }
+        }
+        return compatible.firstOrNull()?.top ?: pageRows.firstOrNull()?.top ?: 0f
+    }
+
+    private fun findTerminalTotals(rows: List<Row>, starts: Map<Int, Float>): Map<Int, Float> {
+        val lastPage = rows.maxOfOrNull { it.pageIndex } ?: return emptyMap()
+        return rows.groupBy { it.pageIndex }.mapNotNull { (page, pageRows) ->
+            val start = starts[page] ?: 0f
+            val terminal = pageRows.firstOrNull { row ->
+                row.top >= start && isTerminalTotalRow(row) &&
+                    pageRows.any { prior -> prior.top >= start && prior.top < row.top && looksLikeItemRow(prior) } &&
+                    (page == lastPage || pageRows.any { later -> later.top > row.top && PAYMENT_FOOTER.containsMatchIn(later.text) })
+            }
+            terminal?.let { page to it.top }
+        }.toMap()
+    }
+
+    private fun isTerminalTotalRow(row: Row): Boolean {
+        val text = row.text.trim().lowercase()
+        if (Regex("\\b(page total|page subtotal|carried forward|continued)\\b").containsMatchIn(text)) return false
+        if (!TERMINAL_TOTAL.containsMatchIn(text)) return false
+        if (isHeaderRow(row)) return false
+        return row.tokens.any { isMoneyLike(it.text) }
+    }
+
+    private fun looksLikeItemRow(row: Row) =
+        row.tokens.count { isNumeric(it.text) } >= 2 && row.tokens.any { it.text.any(Char::isLetter) }
+
     private fun hasItemIdentity(candidate: ParsedInvoiceLineCandidate): Boolean {
         val description = candidate.description.normalizedValue.orEmpty().trim()
         return description.length >= 2 && description.any { it.isLetter() }
@@ -342,12 +386,21 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     }
 
     private companion object {
+        val TERMINAL_TOTAL = Regex("\\b(grand total|amount due|total due|total a pagar|importe total|total)\\b", RegexOption.IGNORE_CASE)
+        val PAYMENT_FOOTER = Regex("\\b(cash|card|credit|debit|visa|mastercard|amex|paid|payment|tender|change|auth(?:orization)?|balance)\\b|\\*{4}\\d{2,}", RegexOption.IGNORE_CASE)
         val NON_ITEM_CONTEXT = Regex(
             "\\b(sub[ -]?total|grand total|amount due|balance due|tax|iva|discount|fee|fees|freight|shipping|" +
                 "invoice|factura|account|customer|purchase order|po[ #:.-]|phone|telephone|tel[.: ]|fax|" +
                 "page[ #:.-]|p[aá]gina|route|delivery date|due date)\\b",
             RegexOption.IGNORE_CASE
         )
+    }
+
+    private fun isCodeLike(text: String): Boolean {
+        val value = text.trim().trimEnd('.', ':')
+        if (value.length < 3 || value.any { it.isWhitespace() }) return false
+        val digits = value.count(Char::isDigit)
+        return digits >= 2 && value.all { it.isLetterOrDigit() || it == '-' }
     }
 
     private fun scoreHeaderRow(row: Row): Double {

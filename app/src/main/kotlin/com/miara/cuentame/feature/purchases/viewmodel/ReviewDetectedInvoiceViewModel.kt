@@ -34,6 +34,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.text.Normalizer
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
@@ -679,11 +680,39 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
         fun resolveSupplierCandidates(detectedName: String, suppliers: List<Supplier>): List<Supplier> {
             val primary = detectedName.normalizeName()
             val compact = primary.filter { it.isLetterOrDigit() }
-            return suppliers.filter { supplier ->
+            val scored = suppliers.map { supplier ->
                 val canonical = supplier.name.normalizeName()
-                canonical == primary ||
-                    (compact.length >= 6 && canonical.filter { it.isLetterOrDigit() } == compact)
+                val canonicalCompact = canonical.filter { it.isLetterOrDigit() }
+                supplier to when {
+                    canonical == primary -> 1.0
+                    compact.length >= 6 && canonicalCompact == compact -> 0.99
+                    else -> similarity(normalizeOcrName(compact), normalizeOcrName(canonicalCompact))
+                }
             }
+            val viable = scored.filter { it.second >= 0.88 }.sortedByDescending { it.second }
+            if (viable.isEmpty()) return emptyList()
+            val best = viable.first().second
+            return viable.filter { best - it.second < 0.06 }.map { it.first }
+        }
+
+        private fun normalizeOcrName(value: String) = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .replace('1', 'i')
+            .replace("lnc", "inc")
+
+        private fun similarity(a: String, b: String): Double {
+            if (a.isEmpty() || b.isEmpty()) return 0.0
+            val costs = IntArray(b.length + 1) { it }
+            for (i in a.indices) {
+                var diagonal = costs[0]
+                costs[0] = i + 1
+                for (j in b.indices) {
+                    val above = costs[j + 1]
+                    costs[j + 1] = minOf(costs[j + 1] + 1, costs[j] + 1, diagonal + if (a[i] == b[j]) 0 else 1)
+                    diagonal = above
+                }
+            }
+            return 1.0 - costs[b.length].toDouble() / maxOf(a.length, b.length)
         }
 
         fun isMatchSelectionValid(

@@ -2,6 +2,8 @@ package com.miara.cuentame.core.common.image
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
 import androidx.exifinterface.media.ExifInterface
 import java.io.InputStream
@@ -64,7 +66,7 @@ object SafeImageDecoder {
             else -> needsTransform = false
         }
 
-        return if (needsTransform) {
+        val oriented = if (needsTransform) {
             val transformed = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
             if (transformed != bitmap) {
                 bitmap.recycle()
@@ -73,5 +75,23 @@ object SafeImageDecoder {
         } else {
             bitmap
         }
+
+        if (!oriented.hasAlpha() || !hasTransparentPixels(oriented)) return oriented
+        val opaque = Bitmap.createBitmap(oriented.width, oriented.height, Bitmap.Config.ARGB_8888)
+        Canvas(opaque).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(oriented, 0f, 0f, null)
+        }
+        oriented.recycle()
+        return opaque
+    }
+
+    private fun hasTransparentPixels(bitmap: Bitmap): Boolean {
+        val row = IntArray(bitmap.width)
+        for (y in 0 until bitmap.height) {
+            bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+            if (row.any { it ushr 24 != 0xFF }) return true
+        }
+        return false
     }
 }
