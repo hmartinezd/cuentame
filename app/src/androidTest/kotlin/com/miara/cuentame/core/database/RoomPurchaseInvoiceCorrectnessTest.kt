@@ -16,13 +16,19 @@ import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseIn
 import com.miara.cuentame.core.model.purchase.materialization.failure.PurchaseInvoiceMaterializationResult
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrResult
 import com.miara.cuentame.core.ocr.parser.ParsedField
+import com.miara.cuentame.core.ocr.parser.Correction
+import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection
 import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
 import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
+import com.miara.cuentame.core.ocr.parser.effectiveValue
 import com.miara.cuentame.test.TestSeeder
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -290,6 +296,85 @@ class RoomPurchaseInvoiceCorrectnessTest {
         } catch (e: ValidationError.InvoiceSourceLocked) {
             // Expected
         }
+    }
+
+    @Test
+    fun observeParseResult_reactsToManualLineAndEveryReviewMutation() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult()
+
+        suspend fun mutateAndAwait(mutation: suspend () -> Unit): PurchaseInvoiceParseResult {
+            val next = async(start = CoroutineStart.UNDISPATCHED) {
+                repository.observeParseResult(receiptId).drop(1).first()!!
+            }
+            mutation()
+            return next.await()
+        }
+
+        val manualCorrection = ParsedInvoiceLineCorrection(
+            vendorCode = Correction("00042"),
+            description = Correction("Reviewer item"),
+            quantity = Correction(BigDecimal("3")),
+            packageText = Correction("6 x 1 lb"),
+            unitPrice = Correction(BigDecimal("4.25")),
+            lineTotal = Correction(BigDecimal("12.75"))
+        )
+        val withManualLine = mutateAndAwait {
+            assertThat(repository.addManualParsedLine(receiptId, manualCorrection))
+                .isEqualTo(SourceMutationResult.Success)
+        }
+        assertThat(withManualLine.lines).hasSize(2)
+        val manualLine = withManualLine.lines.single { it.index == 1 }
+        assertThat(manualLine.confidence).isNull()
+        assertThat(manualLine.evidenceRefs).isEmpty()
+        assertThat(manualLine.description.normalizedValue).isNull()
+        assertThat(manualLine.correction).isEqualTo(manualCorrection)
+
+        val identityCorrection = ParsedInvoiceLineCorrection(
+            vendorCode = Correction("00099"),
+            description = Correction("Corrected item"),
+            packageText = Correction("12 pack")
+        )
+        val identityEdit = mutateAndAwait {
+            repository.updateParsedLine(receiptId, 0, false, identityCorrection)
+        }.lines.single { it.index == 0 }
+        assertThat(identityEdit.vendorCode.effectiveValue(identityEdit.correction?.vendorCode)).isEqualTo("00099")
+        assertThat(identityEdit.description.effectiveValue(identityEdit.correction?.description)).isEqualTo("Corrected item")
+        assertThat(identityEdit.packageText.effectiveValue(identityEdit.correction?.packageText)).isEqualTo("12 pack")
+
+        val numericCorrection = ParsedInvoiceLineCorrection(
+            quantity = Correction(BigDecimal("5")),
+            unitPrice = Correction(BigDecimal("2.50")),
+            lineTotal = Correction(BigDecimal("12.50"))
+        )
+        val numericEdit = mutateAndAwait {
+            repository.updateParsedLine(receiptId, 0, false, numericCorrection)
+        }
+        val editedLine = numericEdit.lines.single { it.index == 0 }
+        assertThat(editedLine.quantity.effectiveValue(editedLine.correction?.quantity)).isEqualTo(BigDecimal("5"))
+        assertThat(editedLine.unitPrice.effectiveValue(editedLine.correction?.unitPrice)).isEqualTo(BigDecimal("2.50"))
+        assertThat(editedLine.lineTotal.effectiveValue(editedLine.correction?.lineTotal)).isEqualTo(BigDecimal("12.50"))
+        val correctedProposal = generateProposalUseCase.execute(receiptId)!!
+        assertThat(correctedProposal.lines.single { it.lineIndex == 0 }.quantityEntered).isEqualTo(BigDecimal("5"))
+        assertThat(correctedProposal.lines.single { it.lineIndex == 0 }.lineTotal).isEqualTo(BigDecimal("12.50"))
+
+        val ignored = mutateAndAwait {
+            repository.updateParsedLine(receiptId, 0, true, numericCorrection)
+        }
+        assertThat(ignored.lines.count { !it.isIgnored }).isEqualTo(1)
+        assertThat(generateProposalUseCase.execute(receiptId)!!.lines.map { it.lineIndex }).doesNotContain(0)
+
+        val included = mutateAndAwait {
+            repository.updateParsedLine(receiptId, 0, false, numericCorrection)
+        }
+        assertThat(included.lines.single { it.index == 0 }.isIgnored).isFalse()
+
+        val reset = mutateAndAwait {
+            repository.updateParsedLine(receiptId, 0, false, null)
+        }.lines.single { it.index == 0 }
+        assertThat(reset.correction).isNull()
+        assertThat(reset.description.effectiveValue(reset.correction?.description)).isEqualTo("Item 0")
+        assertThat(reset.quantity.effectiveValue(reset.correction?.quantity)).isEqualTo(BigDecimal.ONE)
+        assertThat(reset.lineTotal.effectiveValue(reset.correction?.lineTotal)).isEqualTo(BigDecimal.TEN)
     }
 
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {

@@ -7,6 +7,7 @@ import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import kotlinx.coroutines.CancellationException
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanResult
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScanner
 import com.miara.cuentame.core.backup.api.PurchaseInvoiceScannerFailure
@@ -29,6 +30,8 @@ class GmsPurchaseInvoiceScanner @Inject constructor() : PurchaseInvoiceScanner {
         val client = GmsDocumentScanning.getClient(options)
         try {
             return client.getStartScanIntent(activity).await()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             val failure = when {
                 e is MlKitException && e.errorCode == MlKitException.UNSUPPORTED -> 

@@ -316,6 +316,8 @@ class PurchaseDraftViewModel @Inject constructor(
                             )
                         )
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -339,6 +341,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     } else {
                         analyzeAndOpenReview(currentReceiptId)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -368,6 +372,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     
                     _captureState.value = InvoiceCaptureState.ScannerOpen
                     onIntentReady(intentSender)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     val reason = (e as? PurchaseInvoiceScannerException)?.reason ?: PurchaseInvoiceScannerFailure.LaunchFailed
                     _scannerError.value = reason
@@ -410,6 +416,8 @@ class PurchaseDraftViewModel @Inject constructor(
                             // Silent
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -477,6 +485,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     if (status == SourceMutationResult.SourceLocked) {
                         _error.value = Exception("Invoice source is locked after materialization")
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -498,6 +508,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     _events.send(PurchaseDraftEvent.Posted)
                 } catch (e: DuplicateInvoicePostingException) {
                     _postingDuplicate.value = e.candidate
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -520,6 +532,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     _events.send(PurchaseDraftEvent.Posted)
                 } catch (e: DuplicateInvoicePostingException) {
                     _postingDuplicate.value = e.candidate
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -541,6 +555,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     _error.value = null
                     deletePurchaseDraftUseCase(currentReceiptId)
                     _events.send(PurchaseDraftEvent.Deleted)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -560,6 +576,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     _error.value = null
                     deletePurchaseLineUseCase(currentReceiptId, lineId)
                     _events.send(PurchaseDraftEvent.LineDeleted(lineId))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _error.value = e
                 } finally {
@@ -606,6 +624,8 @@ class PurchaseDraftViewModel @Inject constructor(
                     } else {
                         _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                      _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)
                 }

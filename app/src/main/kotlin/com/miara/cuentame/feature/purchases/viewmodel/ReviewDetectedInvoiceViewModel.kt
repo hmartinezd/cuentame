@@ -225,6 +225,8 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                                 try {
                                     triggerAutoMatching(details.receipt.supplierId)
                                     lastAutoMatchedKey = currentAutoMatchKey
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
                                 } catch (e: Exception) {
                                     // Retry safe: keep lastAutoMatchedKey as is
                                 }

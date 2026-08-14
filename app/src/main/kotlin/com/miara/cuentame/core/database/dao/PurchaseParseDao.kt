@@ -20,6 +20,9 @@ interface PurchaseParseDao {
     @Query("SELECT * FROM purchase_invoice_parsed_lines WHERE parseResultId = :resultId ORDER BY lineIndex ASC")
     suspend fun getParsedLines(resultId: String): List<PurchaseInvoiceParsedLineEntity>
 
+    @Query("SELECT * FROM purchase_invoice_parsed_lines WHERE parseResultId = :resultId ORDER BY lineIndex ASC")
+    fun observeParsedLines(resultId: String): Flow<List<PurchaseInvoiceParsedLineEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertParseResult(result: PurchaseInvoiceParseResultEntity)
 

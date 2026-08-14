@@ -69,6 +69,7 @@ import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import com.miara.cuentame.core.ocr.parser.effectiveValue
 import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -414,6 +415,8 @@ class RoomPurchaseRepository @Inject constructor(
                 ocrDao.deleteOcrForReceipt(receiptId.value)
                 SourceMutationResult.Success
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return SourceMutationResult.NotFound
         }
@@ -422,6 +425,8 @@ class RoomPurchaseRepository @Inject constructor(
         if (result == SourceMutationResult.Success && oldLocation != null && oldLocation != storedLocation) {
             try {
                 documentStore.delete(oldLocation!!)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Best-effort cleanup failure must not fail the attachment operation
             }
@@ -460,6 +465,8 @@ class RoomPurchaseRepository @Inject constructor(
                 ocrDao.deleteOcrForReceipt(receiptId.value)
                 SourceMutationResult.Success
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return SourceMutationResult.NotFound
         }
@@ -467,6 +474,8 @@ class RoomPurchaseRepository @Inject constructor(
         if (result == SourceMutationResult.Success && oldLocation != null) {
             try {
                 documentStore.delete(oldLocation!!)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Best-effort cleanup failure must not fail the removal operation
             }
@@ -550,34 +559,36 @@ class RoomPurchaseRepository @Inject constructor(
     }
 
     override fun observeParseResult(receiptId: PurchaseReceiptId): Flow<PurchaseInvoiceParseResult?> {
-        return parseDao.observeParseResultForReceipt(receiptId.value).map { entity ->
-            entity?.let {
-                val baseResult = json.decodeFromString<PurchaseInvoiceParseResult>(it.totalsEvidenceJson)
-                val corrections = it.correctionsJson?.takeIf { c -> c != "null" }?.let { c -> 
-                    json.decodeFromString<PurchaseInvoiceCorrections>(c)
+        return parseDao.observeParseResultForReceipt(receiptId.value).flatMapLatest { entity ->
+            if (entity == null) {
+                flowOf(null)
+            } else {
+                parseDao.observeParsedLines(entity.id).map { lineEntities ->
+                    val baseResult = json.decodeFromString<PurchaseInvoiceParseResult>(entity.totalsEvidenceJson)
+                    val corrections = entity.correctionsJson?.takeIf { c -> c != "null" }?.let { c ->
+                        json.decodeFromString<PurchaseInvoiceCorrections>(c)
+                    }
+
+                    baseResult.copy(
+                        id = entity.id,
+                        corrections = corrections,
+                        lines = lineEntities.map(::mapParsedLine)
+                    )
                 }
-                
-                baseResult.copy(
-                    id = it.id,
-                    corrections = corrections,
-                    lines = getParsedLines(it.id)
-                )
             }
         }
     }
 
     override suspend fun getParsedLines(parseResultId: String): List<ParsedInvoiceLineCandidate> {
-        return parseDao.getParsedLines(parseResultId).map { entity ->
-            val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(entity.evidenceJson)
-            val correction = entity.correctionJson?.takeIf { it != "null" }?.let { 
-                json.decodeFromString<ParsedInvoiceLineCorrection>(it)
-            }
-            
-            baseLine.copy(
-                isIgnored = entity.isIgnored,
-                correction = correction
-            )
+        return parseDao.getParsedLines(parseResultId).map(::mapParsedLine)
+    }
+
+    private fun mapParsedLine(entity: PurchaseInvoiceParsedLineEntity): ParsedInvoiceLineCandidate {
+        val baseLine = json.decodeFromString<ParsedInvoiceLineCandidate>(entity.evidenceJson)
+        val correction = entity.correctionJson?.takeIf { it != "null" }?.let {
+            json.decodeFromString<ParsedInvoiceLineCorrection>(it)
         }
+        return baseLine.copy(isIgnored = entity.isIgnored, correction = correction)
     }
 
     override suspend fun saveParseResult(
@@ -1241,6 +1252,8 @@ class RoomPurchaseRepository @Inject constructor(
             
             PurchaseInvoiceMaterializationResult.Success
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PersistenceFailed)
     }

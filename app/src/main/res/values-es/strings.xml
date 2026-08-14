@@ -1161,4 +1161,9 @@
     <string name="ocr_duplicate_same_supplier_number">Este proveedor ya tiene la factura %1$s en otra compra. Si continúas, quedará registrado para auditoría.</string>
     <string name="purchase_duplicate_posting_title">Factura duplicada bloqueada</string>
     <string name="purchase_duplicate_conflicting_receipt">Compra en conflicto: %1$s</string>
+    <string name="ocr_add_missing_item">+ Agregar artículo faltante</string>
+    <string name="ocr_edit_description">Editar descripción</string>
+    <string name="ocr_product_name">Descripción / nombre del producto</string>
+    <string name="ocr_vendor_code">SKU / código del proveedor</string>
+    <string name="ocr_package_description">Descripción del empaque</string>
 </resources>
