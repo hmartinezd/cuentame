@@ -109,6 +109,7 @@ class RoomPurchaseRepository @Inject constructor(
     private val materializationDao: PurchaseInvoiceMaterializationDao,
     private val fingerprinter: PurchaseInvoiceFingerprinter,
     private val duplicateInvoiceDetector: DuplicateInvoiceDetector,
+    private val failureBoundary: IntegrationFailureBoundary,
     private val json: Json
 ) : PurchaseRepository {
 
@@ -977,6 +978,8 @@ class RoomPurchaseRepository @Inject constructor(
             if (receipt.status != DocumentStatus.DRAFT) {
                 return@withTransaction PurchaseInvoiceMaterializationResult.Failure(PurchaseInvoiceMaterializationFailure.PurchaseAlreadyPosted)
             }
+
+            failureBoundary.trigger(IntegrationFailurePoints.PURCHASE_MATERIALIZATION_AFTER_START)
 
             // --- PHASE A: PREFLIGHT / VALIDATION ---
 

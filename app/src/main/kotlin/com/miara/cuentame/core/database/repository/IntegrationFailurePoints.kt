@@ -28,6 +28,8 @@ object IntegrationFailurePoints {
 
     const val PURCHASE_VOID_AFTER_MARK_VOIDED = "purchase-void-after-mark-voided"
 
+    const val PURCHASE_MATERIALIZATION_AFTER_START = "purchase-materialization-after-start"
+
     const val PRODUCTION_POST_AFTER_SNAPSHOTS = "production-post-after-snapshots"
     const val PRODUCTION_POST_AFTER_CONSUMPTION = "production-post-after-consumption"
     const val PRODUCTION_POST_AFTER_OUTPUT = "production-post-after-output"

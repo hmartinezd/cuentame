@@ -28,12 +28,11 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -68,6 +67,9 @@ class RoomPurchaseInvoiceCorrectnessTest {
     lateinit var testStateManager: TestStateManager
 
     @Inject
+    lateinit var failureBoundary: com.miara.cuentame.core.database.repository.ConfigurableFailureBoundary
+
+    @Inject
     lateinit var documentStore: PurchaseDocumentStore
 
     @Inject
@@ -87,6 +89,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
 
     @After
     fun tearDown() {
+        failureBoundary.reset()
         runBlocking { testStateManager.resetAll() }
     }
 
@@ -120,17 +123,22 @@ class RoomPurchaseInvoiceCorrectnessTest {
     fun materialization_propagatesCancellationInsteadOfPersistenceFailure() = runBlocking {
         val receiptId = seedPurchaseWithParseResult()
         val proposal = generateProposalUseCase.execute(receiptId)!!
-        val cancelledJob = Job().apply { cancel(CancellationException("test cancellation")) }
+        failureBoundary.triggerOn(
+            com.miara.cuentame.core.database.repository.IntegrationFailurePoints.PURCHASE_MATERIALIZATION_AFTER_START,
+            CancellationException("test cancellation inside materialization")
+        )
 
         val thrown = runCatching {
-            withContext(cancelledJob) {
-                repository.applyInvoiceToDraft(proposal)
-            }
+            repository.applyInvoiceToDraft(proposal)
         }.exceptionOrNull()
 
         assertThat(thrown).isInstanceOf(CancellationException::class.java)
+        assertThat(failureBoundary.triggerCount).isEqualTo(1)
         assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).isEmpty()
         assertThat(database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)).isNull()
+        assertThat(database.purchaseParseDao().getParseResultForReceipt(receiptId.value)).isNotNull()
+        assertThat(repository.observeLineMatchesForReceipt(receiptId).first()).hasSize(1)
+        assertThat(repository.getReceipt(receiptId)?.invoiceNumber).isEqualTo("INV-1")
     }
 
     @Test
@@ -327,7 +335,8 @@ class RoomPurchaseInvoiceCorrectnessTest {
         val observer = launch(start = CoroutineStart.UNDISPATCHED) {
             repository.observeParseResult(receiptId).filterNotNull().collect(emissions::send)
         }
-        assertThat(emissions.receive().lines).hasSize(1)
+        suspend fun awaitEmission(): PurchaseInvoiceParseResult = withTimeout(5_000) { emissions.receive() }
+        assertThat(awaitEmission().lines).hasSize(1)
 
         val manualCorrection = ParsedInvoiceLineCorrection(
             vendorCode = Correction("00042"),
@@ -339,7 +348,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
         )
         assertThat(repository.addManualParsedLine(receiptId, manualCorrection))
             .isEqualTo(SourceMutationResult.Success)
-        val withManualLine = emissions.receive()
+        val withManualLine = awaitEmission()
         assertThat(withManualLine.lines).hasSize(2)
         val manualLine = withManualLine.lines.single { it.index == 1 }
         assertThat(manualLine.confidence).isNull()
@@ -353,7 +362,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
             packageText = Correction("12 pack")
         )
         repository.updateParsedLine(receiptId, 0, false, identityCorrection)
-        val identityEdit = emissions.receive().lines.single { it.index == 0 }
+        val identityEdit = awaitEmission().lines.single { it.index == 0 }
         assertThat(identityEdit.vendorCode.effectiveValue(identityEdit.correction?.vendorCode)).isEqualTo("00099")
         assertThat(identityEdit.description.effectiveValue(identityEdit.correction?.description)).isEqualTo("Corrected item")
         assertThat(identityEdit.packageText.effectiveValue(identityEdit.correction?.packageText)).isEqualTo("12 pack")
@@ -364,7 +373,7 @@ class RoomPurchaseInvoiceCorrectnessTest {
             lineTotal = Correction(BigDecimal("12.50"))
         )
         repository.updateParsedLine(receiptId, 0, false, numericCorrection)
-        val numericEdit = emissions.receive()
+        val numericEdit = awaitEmission()
         val editedLine = numericEdit.lines.single { it.index == 0 }
         assertThat(editedLine.quantity.effectiveValue(editedLine.correction?.quantity)).isEqualTo(BigDecimal("5"))
         assertThat(editedLine.unitPrice.effectiveValue(editedLine.correction?.unitPrice)).isEqualTo(BigDecimal("2.50"))
@@ -374,16 +383,16 @@ class RoomPurchaseInvoiceCorrectnessTest {
         assertThat(correctedProposal.lines.single { it.lineIndex == 0 }.lineTotal).isEqualTo(BigDecimal("12.50"))
 
         repository.updateParsedLine(receiptId, 0, true, numericCorrection)
-        val ignored = emissions.receive()
+        val ignored = awaitEmission()
         assertThat(ignored.lines.count { !it.isIgnored }).isEqualTo(1)
         assertThat(generateProposalUseCase.execute(receiptId)!!.lines.map { it.lineIndex }).doesNotContain(0)
 
         repository.updateParsedLine(receiptId, 0, false, numericCorrection)
-        val included = emissions.receive()
+        val included = awaitEmission()
         assertThat(included.lines.single { it.index == 0 }.isIgnored).isFalse()
 
         repository.updateParsedLine(receiptId, 0, false, null)
-        val reset = emissions.receive().lines.single { it.index == 0 }
+        val reset = awaitEmission().lines.single { it.index == 0 }
         assertThat(reset.correction).isNull()
         assertThat(reset.description.effectiveValue(reset.correction?.description)).isEqualTo("Item 0")
         assertThat(reset.quantity.effectiveValue(reset.correction?.quantity)).isEqualTo(BigDecimal.ONE)
