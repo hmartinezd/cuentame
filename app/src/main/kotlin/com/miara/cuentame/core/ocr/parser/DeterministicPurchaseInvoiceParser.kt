@@ -731,7 +731,9 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     }
 
     private fun amountFromRow(row: Row, context: NumericContext): ParsedField<BigDecimal?> {
-        val valueToken = row.tokens.asReversed().firstOrNull { isNumeric(it.text) }
+        val valueToken = row.tokens.asReversed().firstOrNull {
+            isNumeric(it.text) && !it.text.contains('%')
+        }
             ?: return ParsedField(null, null, 0f)
         val value = parseBigDecimal(valueToken.text, context)
         return ParsedField(valueToken.text, value, if (value != null) 0.9f else 0.1f, row.tokens.map { it.evidenceRef })

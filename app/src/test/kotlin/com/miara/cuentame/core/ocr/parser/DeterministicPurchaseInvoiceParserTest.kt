@@ -74,6 +74,36 @@ class DeterministicPurchaseInvoiceParserTest {
     }
 
     @Test
+    fun `tax percentage without currency amount is not parsed as money`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "TAX     7.5%",
+            "TOTAL   15.78"
+        ))))
+
+        assertNull(result.tax.normalizedValue)
+    }
+
+    @Test
+    fun `tax decimal without percentage is parsed as money`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "TAX     7.50",
+            "TOTAL   107.50"
+        ))))
+
+        assertEquals(BigDecimal("7.50"), result.tax.normalizedValue)
+    }
+
+    @Test
+    fun `tax percentage plus explicit currency amount uses currency amount`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "TAX     7.5%      7.50",
+            "TOTAL             107.50"
+        ))))
+
+        assertEquals(BigDecimal("7.50"), result.tax.normalizedValue)
+    }
+
+    @Test
     fun `headerless decimal comma regression`() {
         val page = createPage(
             listOf(

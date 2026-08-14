@@ -40,7 +40,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
     private val timeProvider: TimeProvider
 ) {
     private companion object {
-        const val OCR_PDF_RENDER_MAX_WIDTH_PX = 2048
+        const val OCR_PDF_RENDER_MAX_DIMENSION_PX = 2048
         const val EVIDENCE_SCHEMA_VERSION = 1
         const val MAX_PAGES = 20
     }
@@ -93,7 +93,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
 
                 for (i in 0 until info.pageCount) {
                     emit(AnalyzePurchaseInvoiceResult.ProcessingPage(i + 1, info.pageCount))
-                    val renderResult = pdfRenderer.renderPage(file, i, OCR_PDF_RENDER_MAX_WIDTH_PX)
+                    val renderResult = pdfRenderer.renderPage(file, i, OCR_PDF_RENDER_MAX_DIMENSION_PX)
                     when (renderResult) {
                         is PurchasePdfPageRenderResult.Success -> {
                             try {
@@ -118,7 +118,7 @@ class AnalyzePurchaseInvoiceDocumentUseCase @Inject constructor(
                 val bitmap = try {
                     SafeImageDecoder.decode(
                         streamProvider = { documentStore.open(attachmentPath) }, 
-                        maxDimension = OCR_PDF_RENDER_MAX_WIDTH_PX
+                        maxDimension = OCR_PDF_RENDER_MAX_DIMENSION_PX
                     )
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e

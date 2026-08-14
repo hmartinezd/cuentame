@@ -20,7 +20,7 @@ interface PurchasePdfRenderer {
     suspend fun renderPage(
         file: File,
         pageIndex: Int,
-        maxWidthPx: Int
+        maxDimensionPx: Int
     ): PurchasePdfPageRenderResult
 }
 

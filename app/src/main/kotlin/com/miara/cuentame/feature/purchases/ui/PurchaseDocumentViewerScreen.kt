@@ -159,7 +159,7 @@ fun PdfPage(file: File, pageIndex: Int, renderer: PurchasePdfRenderer) {
     
     LaunchedEffect(file, pageIndex) {
         pageState = PdfPageState.Loading
-        val result = renderer.renderPage(file, pageIndex, maxWidthPx = 2048)
+        val result = renderer.renderPage(file, pageIndex, maxDimensionPx = 2048)
         pageState = when (result) {
             is PurchasePdfPageRenderResult.Success -> {
                 PdfPageState.Ready(result.bitmap)

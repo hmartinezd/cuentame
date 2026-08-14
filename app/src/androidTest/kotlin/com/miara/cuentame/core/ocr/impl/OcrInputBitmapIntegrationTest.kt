@@ -95,13 +95,97 @@ class OcrInputBitmapIntegrationTest {
         val prepared = OcrInputBitmapPreparer.prepare(rendered)
         try {
             assertThat(prepared).isSameInstanceAs(rendered)
-            assertThat(prepared.width).isEqualTo(600)
-            assertThat(prepared.height).isEqualTo(800)
+            assertThat(prepared.width).isEqualTo(1536)
+            assertThat(prepared.height).isEqualTo(2048)
             assertThat(prepared.hasAlpha()).isFalse()
             assertThat(prepared.getPixel(10, 10)).isEqualTo(Color.WHITE)
-            assertThat(hasDarkPixel(prepared, 50, 80, 550, 160)).isTrue()
+            assertThat(hasDarkPixel(prepared, 0, 0, prepared.width, prepared.height)).isTrue()
         } finally {
             rendered.recycle()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun realisticLetterPdf_isUpscaledAndRecognizedByRealMlKit() = runBlocking {
+        val file = createInvoicePdf(
+            listOf(
+                listOf(
+                    "CHICAGO ITALIAN BREAD     13.29",
+                    "FRENCH BREAD               2.49",
+                    "TAX 7.5%",
+                    "TOTAL                     15.78"
+                )
+            )
+        )
+
+        val result = AndroidPurchasePdfRenderer().renderPage(file, 0, 2048)
+        assertThat(result).isInstanceOf(PurchasePdfPageRenderResult.Success::class.java)
+        val rendered = (result as PurchasePdfPageRenderResult.Success).bitmap
+        try {
+            assertThat(rendered.width).isGreaterThan(612)
+            assertThat(rendered.height).isGreaterThan(792)
+            assertThat(maxOf(rendered.width, rendered.height)).isEqualTo(2048)
+            assertThat(rendered.width.toFloat() / rendered.height)
+                .isWithin(0.002f).of(612f / 792f)
+            assertThat(rendered.config).isEqualTo(Bitmap.Config.ARGB_8888)
+            assertThat(rendered.hasAlpha()).isFalse()
+            assertThat(rendered.getPixel(10, 10)).isEqualTo(Color.WHITE)
+            assertThat(hasDarkPixel(rendered, 0, 0, rendered.width, rendered.height)).isTrue()
+
+            val prepared = OcrInputBitmapPreparer.prepare(rendered)
+            assertThat(prepared).isSameInstanceAs(rendered)
+            val evidence = MlKitPurchaseInvoiceOcrEngine().recognize(rendered)
+            Log.i("OcrInputBitmapTest", "Realistic PDF bitmap=${rendered.width}x${rendered.height}, rawText=${evidence.text}")
+            assertThat(evidence.widthPx).isEqualTo(rendered.width)
+            assertThat(evidence.heightPx).isEqualTo(rendered.height)
+            assertThat(evidence.text).isNotEmpty()
+            assertThat(listOf("CHICAGO", "BREAD", "TOTAL").any { evidence.text.uppercase().contains(it) }).isTrue()
+        } finally {
+            rendered.recycle()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun realisticTwoPagePdf_rendersAndRecognizesBothPagesInOrder() = runBlocking {
+        val file = createInvoicePdf(
+            listOf(
+                listOf(
+                    "CHICAGO ITALIAN BREAD      13.29",
+                    "FRENCH BREAD                2.49",
+                    "PAGE TOTAL                 15.78"
+                ),
+                listOf(
+                    "ANOTHER ITEM                 5.00",
+                    "TOTAL                       20.78"
+                )
+            )
+        )
+        val renderer = AndroidPurchasePdfRenderer()
+        val info = renderer.inspect(file)
+        assertThat(info.pageCount).isEqualTo(2)
+        val pageTexts = mutableListOf<String>()
+
+        try {
+            for (pageIndex in 0 until info.pageCount) {
+                val result = renderer.renderPage(file, pageIndex, 2048)
+                assertThat(result).isInstanceOf(PurchasePdfPageRenderResult.Success::class.java)
+                val bitmap = (result as PurchasePdfPageRenderResult.Success).bitmap
+                try {
+                    val evidence = MlKitPurchaseInvoiceOcrEngine().recognize(bitmap)
+                    Log.i("OcrInputBitmapTest", "PDF page=$pageIndex bitmap=${bitmap.width}x${bitmap.height}, rawText=${evidence.text}")
+                    assertThat(evidence.text).isNotEmpty()
+                    pageTexts += evidence.text.uppercase()
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+
+            assertThat(pageTexts).hasSize(2)
+            assertThat(pageTexts[0]).contains("BREAD")
+            assertThat(pageTexts[1]).contains("TOTAL")
+        } finally {
             file.delete()
         }
     }
@@ -133,5 +217,25 @@ class OcrInputBitmapIntegrationTest {
             if (Color.red(pixel) < 80 && Color.green(pixel) < 80 && Color.blue(pixel) < 80) return true
         }
         return false
+    }
+
+    private fun createInvoicePdf(pages: List<List<String>>): File {
+        val file = File.createTempFile("realistic-invoice", ".pdf")
+        val document = PdfDocument()
+        val paint = Paint().apply {
+            color = Color.BLACK
+            textSize = 11f
+            isAntiAlias = true
+        }
+        pages.forEachIndexed { index, lines ->
+            val page = document.startPage(PdfDocument.PageInfo.Builder(612, 792, index + 1).create())
+            lines.forEachIndexed { lineIndex, line ->
+                page.canvas.drawText(line, 54f, 90f + lineIndex * 24f, paint)
+            }
+            document.finishPage(page)
+        }
+        file.outputStream().use(document::writeTo)
+        document.close()
+        return file
     }
 }

@@ -2,6 +2,7 @@ package com.miara.cuentame.core.backup.platform
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import com.miara.cuentame.core.backup.api.PurchasePdfDocumentInfo
@@ -36,7 +37,7 @@ class AndroidPurchasePdfRenderer @Inject constructor() : PurchasePdfRenderer {
     override suspend fun renderPage(
         file: File,
         pageIndex: Int,
-        maxWidthPx: Int
+        maxDimensionPx: Int
     ): PurchasePdfPageRenderResult = withContext(Dispatchers.IO) {
         if (!file.exists()) {
             return@withContext PurchasePdfPageRenderResult.Failure(PurchasePdfRenderFailure.FileMissing)
@@ -50,19 +51,24 @@ class AndroidPurchasePdfRenderer @Inject constructor() : PurchasePdfRenderer {
                     }
 
                     renderer.openPage(pageIndex).use { page ->
-                        val scale = if (page.width > maxWidthPx) {
-                            maxWidthPx.toFloat() / page.width
-                        } else {
-                            1.0f
+                        if (maxDimensionPx <= 0) {
+                            return@withContext PurchasePdfPageRenderResult.Failure(PurchasePdfRenderFailure.RenderFailed)
                         }
 
-                        val width = (page.width * scale).toInt().coerceAtLeast(1)
-                        val height = (page.height * scale).toInt().coerceAtLeast(1)
+                        // PdfRenderer page dimensions are logical PDF dimensions, not an OCR-ready
+                        // raster resolution. Scale the long side to the bounded OCR target, including
+                        // upscaling ordinary Letter/A4 pages whose body text would otherwise be tiny.
+                        val logicalLongSide = maxOf(page.width, page.height)
+                        val scale = maxDimensionPx.toFloat() / logicalLongSide
+
+                        val width = (page.width * scale).toInt().coerceIn(1, maxDimensionPx)
+                        val height = (page.height * scale).toInt().coerceIn(1, maxDimensionPx)
 
                         try {
                             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                             bitmap.eraseColor(Color.WHITE)
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            val renderMatrix = Matrix().apply { setScale(scale, scale) }
+                            page.render(bitmap, null, renderMatrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                             bitmap.setHasAlpha(false)
                             PurchasePdfPageRenderResult.Success(bitmap)
                         } catch (e: OutOfMemoryError) {
