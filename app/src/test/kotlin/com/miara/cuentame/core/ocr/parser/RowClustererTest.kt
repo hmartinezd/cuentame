@@ -79,6 +79,46 @@ class RowClustererTest {
     }
 
     @Test
+    fun `greedy next-row regression is invariant to token and block order`() {
+        val fixtures = listOf(
+            listOf(
+                token("CHICKEN", .2f, .100f, block = 0), token("18.99", .85f, .115f, block = 1),
+                token("RICE", .2f, .120f, block = 0), token("22.50", .85f, .120f, block = 1)
+            ),
+            listOf(
+                token("CHICKEN", .2f, .100f, block = 1), token("18.99", .85f, .115f, block = 0),
+                token("RICE", .2f, .120f, block = 1), token("22.50", .85f, .120f, block = 0)
+            )
+        )
+        val expected = listOf("CHICKEN 18.99", "RICE 22.50")
+        fixtures.forEach { tokens ->
+            assertEquals(expected, RowClusterer.clusterIntoRows(tokens).map(Row::text))
+            assertEquals(expected, RowClusterer.clusterIntoRows(tokens.reversed()).map(Row::text))
+            assertEquals(expected, RowClusterer.clusterIntoRows(listOf(tokens[2], tokens[0], tokens[3], tokens[1])).map(Row::text))
+        }
+    }
+
+    @Test
+    fun `ordinary aligned amount forms its row directly`() {
+        val rows = RowClusterer.clusterIntoRows(listOf(
+            token("CHICKEN", .2f, .100f), token("18.99", .85f, .101f),
+            token("padding", .2f, .200f)
+        ))
+        assertTrue(rows.any { it.text == "CHICKEN 18.99" })
+    }
+
+    @Test
+    fun `monetary field classification handles currency and excludes percentages`() {
+        listOf("18.99", "1,244.26", "$18.99", "$1,244.26", "-4.30", "-$4.30", "($4.30)",
+            "€18.99", "18.99£").forEach { value ->
+            assertTrue("Expected monetary field: $value", RowClusterer.isNumericField(value))
+        }
+        listOf("7.5%", "10%", "$", "plastic bag").forEach { value ->
+            assertTrue("Expected non-monetary field: $value", !RowClusterer.isNumericField(value))
+        }
+    }
+
+    @Test
     fun `adjacent products one line apart remain separate`() {
         val rows = RowClusterer.clusterIntoRows(listOf(
             token("Chicken", .2f, .100f), token("10.00", .85f, .100f),

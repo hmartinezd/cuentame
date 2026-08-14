@@ -25,10 +25,19 @@ object RowClusterer {
         tokens.groupBy { it.pageIndex }.toSortedMap().forEach { (_, pageTokens) ->
             val normalLineHeight = estimateNormalLineHeight(pageTokens)
             val sorted = pageTokens.sortedWith(compareBy<LayoutToken>({ it.top }, { it.centerY }, { it.left }, { it.text }, { it.evidenceRef.blockIndex }, { it.evidenceRef.lineIndex }, { it.evidenceRef.elementIndex }))
+            val deferredNumericTokens = normalLineHeight?.let {
+                findAmbiguousNumericTokens(sorted, it)
+            }.orEmpty()
             val baseRows = mutableListOf<MutableList<LayoutToken>>()
             var currentRowTokens = mutableListOf<LayoutToken>()
             
             for (token in sorted) {
+                if (token in deferredNumericTokens) {
+                    if (currentRowTokens.isNotEmpty()) baseRows.add(currentRowTokens)
+                    baseRows.add(mutableListOf(token))
+                    currentRowTokens = mutableListOf()
+                    continue
+                }
                 if (currentRowTokens.isEmpty()) {
                     currentRowTokens.add(token)
                 } else {
@@ -64,6 +73,43 @@ object RowClusterer {
             }
         }
         return rows.sortedWith(compareBy<Row>({ it.pageIndex }, { it.top }, { it.tokens.firstOrNull()?.left ?: 0f }))
+    }
+
+    /**
+     * Isolates a numeric token only when the descriptive row it would otherwise join already
+     * has a better-aligned value in the same X band. This leaves the displaced value for the
+     * adaptive pass without slowing down or weakening ordinary aligned-row construction.
+     */
+    private fun findAmbiguousNumericTokens(
+        tokens: List<LayoutToken>,
+        normalLineHeight: Float
+    ): Set<LayoutToken> {
+        val byCenter = tokens.sortedWith(compareBy<LayoutToken>({ it.centerY }, { it.left }, { it.text }))
+        val deferred = mutableSetOf<LayoutToken>()
+        byCenter.forEachIndexed { index, token ->
+            if (!isNumericField(token.text)) return@forEachIndexed
+            val nearby = mutableListOf<LayoutToken>()
+            var cursor = index - 1
+            while (cursor >= 0 && token.centerY - byCenter[cursor].centerY <= normalLineHeight) {
+                nearby.add(byCenter[cursor--])
+            }
+            cursor = index + 1
+            while (cursor < byCenter.size && byCenter[cursor].centerY - token.centerY <= normalLineHeight) {
+                nearby.add(byCenter[cursor++])
+            }
+            val nearbyDescriptions = nearby.filterNot { isNumericField(it.text) }
+            if (nearbyDescriptions.size < 2) return@forEachIndexed
+            val nearest = nearbyDescriptions.minBy { abs(it.centerY - token.centerY) }
+            val tokenDistance = abs(nearest.centerY - token.centerY)
+            val isAmbiguous = nearby.any { other ->
+                isNumericField(other.text) &&
+                other != token &&
+                    abs(other.centerX - token.centerX) < X_BAND_TOLERANCE &&
+                    abs(other.centerY - nearest.centerY) < tokenDistance
+            }
+            if (isAmbiguous) deferred.add(token)
+        }
+        return deferred
     }
 
     /** Page-local robust body-text height. The second median removes tiny artifacts and titles. */
@@ -156,8 +202,22 @@ object RowClusterer {
             .map { items -> items.map { it.second.centerX }.average().toFloat() }
     }
 
-    private fun isNumericField(text: String): Boolean =
-        text.trim().replace(",", "").replace("\$", "").toBigDecimalOrNull() != null
+    internal fun isNumericField(text: String): Boolean = normalizeNumericField(text) != null
+
+    /** Classification-only normalization; percentages deliberately remain non-monetary. */
+    private fun normalizeNumericField(text: String): String? {
+        var value = text.trim()
+        if (value.isEmpty() || '%' in value) return null
+        if (value.startsWith('(') && value.endsWith(')')) {
+            value = "-" + value.substring(1, value.lastIndex).trim()
+        } else if ('(' in value || ')' in value) {
+            return null
+        }
+        value = value.replace(" ", "")
+        if (!MONETARY_FIELD.matches(value)) return null
+        return value.replace(CURRENCY_SYMBOL, "").replace(",", "")
+            .takeIf { it.toBigDecimalOrNull() != null }
+    }
 
     private fun centerY(tokens: List<LayoutToken>): Float =
         tokens.map { it.centerY }.average().toFloat()
@@ -168,6 +228,10 @@ object RowClusterer {
     }
 
     private data class Candidate(val rowIndex: Int, val score: Float)
+    private val CURRENCY_SYMBOL = Regex("\\p{Sc}")
+    private val MONETARY_FIELD = Regex(
+        "^[+-]?(?:\\p{Sc})?(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?(?:\\p{Sc})?$"
+    )
     private val tokenOrder = compareBy<LayoutToken>({ it.left }, { it.centerY }, { it.text },
         { it.evidenceRef.blockIndex }, { it.evidenceRef.lineIndex }, { it.evidenceRef.elementIndex })
 
