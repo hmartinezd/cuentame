@@ -12,6 +12,7 @@ import com.miara.cuentame.core.domain.usecase.purchase.GenerateInvoiceProposalUs
 import com.miara.cuentame.core.model.ingredient.IngredientUnitOption
 import com.miara.cuentame.core.model.purchase.PurchaseInvoiceLineMatch
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
+import com.miara.cuentame.core.model.supplier.Supplier
 import com.miara.cuentame.core.ocr.parser.*
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -291,4 +292,22 @@ class ReviewDetectedInvoiceViewModelTest {
             assertThat(savedStateHandle.get<Int>("matchingLineIndex")).isNull()
         }
     }
+
+    @Test
+    fun `supplier matching compacts OCR whitespace without rewriting raw evidence`() {
+        val chicago = supplier("s1", "Chicago Foods Inc.")
+        val different = supplier("s2", "Chicago Food Equipment")
+        val raw = "Chi cago Foods Inc"
+
+        val matches = ReviewDetectedInvoiceViewModel.resolveSupplierCandidates(raw, listOf(chicago, different))
+
+        assertThat(matches).containsExactly(chicago)
+        assertThat(raw).isEqualTo("Chi cago Foods Inc")
+    }
+
+    private fun supplier(id: String, name: String) = Supplier(
+        id = SupplierId(id), restaurantId = restaurantId, name = name,
+        normalizedName = name.lowercase(), isActive = true,
+        createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
+    )
 }

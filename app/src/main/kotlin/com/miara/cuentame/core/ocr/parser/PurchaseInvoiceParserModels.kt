@@ -68,7 +68,22 @@ data class ParsedInvoiceLineCandidate(
     val warnings: List<InvoiceParseWarning> = emptyList(),
     val isIgnored: Boolean = false,
     val correction: ParsedInvoiceLineCorrection? = null
-)
+) {
+    companion object {
+        /** Truthful provenance for a reviewer-added line: values are corrections, never OCR. */
+        fun manual(index: Int) = ParsedInvoiceLineCandidate(
+            index = index,
+            vendorCode = ParsedField(null, null, null),
+            description = ParsedField(null, null, null),
+            quantity = ParsedField(null, null, null),
+            packageText = ParsedField(null, null, null),
+            unitPrice = ParsedField(null, null, null),
+            lineTotal = ParsedField(null, null, null),
+            confidence = null,
+            evidenceRefs = emptyList()
+        )
+    }
+}
 
 @Serializable
 data class PurchaseInvoiceParseResult(

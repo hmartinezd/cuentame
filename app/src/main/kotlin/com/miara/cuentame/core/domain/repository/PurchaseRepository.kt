@@ -175,6 +175,12 @@ interface PurchaseRepository {
         correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection?
     ): SourceMutationResult
 
+    /** Adds a reviewer-supplied missing line. The stored candidate has no OCR evidence. */
+    suspend fun addManualParsedLine(
+        receiptId: PurchaseReceiptId,
+        correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection
+    ): SourceMutationResult
+
     suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
         corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections

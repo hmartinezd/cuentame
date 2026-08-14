@@ -11,6 +11,17 @@ class RobustDeterministicPurchaseInvoiceParserTest {
     private val parser = DeterministicPurchaseInvoiceParser()
 
     @Test
+    fun `manual missing line has no fabricated OCR provenance`() {
+        val line = ParsedInvoiceLineCandidate.manual(7)
+
+        assertThat(line.index).isEqualTo(7)
+        assertThat(line.evidenceRefs).isEmpty()
+        assertThat(line.confidence).isNull()
+        assertThat(line.description.detectedText).isNull()
+        assertThat(line.description.evidenceRefs).isEmpty()
+    }
+
+    @Test
     fun `standard US distributor invoice with table`() {
         val pages = listOf(
             OcrPageEvidence(

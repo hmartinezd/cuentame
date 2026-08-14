@@ -648,6 +648,29 @@ class RoomPurchaseRepository @Inject constructor(
         SourceMutationResult.Success
     }
 
+    override suspend fun addManualParsedLine(
+        receiptId: PurchaseReceiptId,
+        correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection
+    ): SourceMutationResult = database.withTransaction {
+        if (isSourceLocked(receiptId)) return@withTransaction SourceMutationResult.SourceLocked
+        val parseResult = parseDao.getParseResultForReceipt(receiptId.value)
+            ?: return@withTransaction SourceMutationResult.NotFound
+        val nextIndex = (parseDao.getParsedLines(parseResult.id).maxOfOrNull { it.lineIndex } ?: -1) + 1
+        val manualLine = com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate.manual(nextIndex)
+        parseDao.insertParsedLines(
+            listOf(
+                PurchaseInvoiceParsedLineEntity(
+                    parseResultId = parseResult.id,
+                    lineIndex = nextIndex,
+                    evidenceJson = json.encodeToString(manualLine),
+                    correctionJson = json.encodeToString(correction),
+                    isIgnored = false
+                )
+            )
+        )
+        SourceMutationResult.Success
+    }
+
     override suspend fun updateParseResult(
         receiptId: PurchaseReceiptId,
         corrections: com.miara.cuentame.core.ocr.parser.PurchaseInvoiceCorrections

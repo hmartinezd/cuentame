@@ -821,6 +821,11 @@
     <string name="ocr_matching_reset_correction">Reset correction</string>
     <string name="ocr_matching_include_line">Include line</string>
     <string name="ocr_matching_ignore_line">Not an item</string>
+    <string name="ocr_add_missing_item">+ Add missing item</string>
+    <string name="ocr_edit_description">Edit description</string>
+    <string name="ocr_product_name">Description / product name</string>
+    <string name="ocr_vendor_code">Vendor SKU / code</string>
+    <string name="ocr_package_description">Package description</string>
     <string name="ocr_matching_change">Change</string>
     <string name="ocr_matching_not_detected_symbol">—</string>
     <string name="ocr_matching_low_confidence">Low confidence</string>

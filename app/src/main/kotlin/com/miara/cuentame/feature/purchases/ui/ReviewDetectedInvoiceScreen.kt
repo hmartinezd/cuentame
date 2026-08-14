@@ -78,6 +78,7 @@ fun ReviewDetectedInvoiceRoute(
         onBack = onBack,
         onUpdateHeader = viewModel::onUpdateHeaderCorrections,
         onUpdateLine = viewModel::onUpdateLineCorrection,
+        onAddMissingLine = viewModel::onAddMissingLine,
         onToggleIgnoreLine = viewModel::onToggleIgnoreLine,
         onResetHeader = viewModel::onResetHeader,
         onResetLine = viewModel::onResetLine,
@@ -105,6 +106,7 @@ fun ReviewDetectedInvoiceScreen(
     onBack: () -> Unit,
     onUpdateHeader: (PurchaseInvoiceCorrections) -> Unit,
     onUpdateLine: (Int, Boolean, ParsedInvoiceLineCorrection?) -> Unit,
+    onAddMissingLine: (ParsedInvoiceLineCorrection) -> Unit,
     onToggleIgnoreLine: (Int) -> Unit,
     onResetHeader: () -> Unit,
     onResetLine: (Int) -> Unit,
@@ -127,6 +129,7 @@ fun ReviewDetectedInvoiceScreen(
     var matchingLineIndex by remember { mutableStateOf<Int?>(uiState.matchingLineIndex) }
     var editingHeaderField by remember { mutableStateOf<HeaderField?>(null) }
     var editingLineIndex by remember { mutableStateOf<Int?>(null) }
+    var addingMissingLine by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.matchingLineIndex) {
         matchingLineIndex = uiState.matchingLineIndex
@@ -237,6 +240,12 @@ fun ReviewDetectedInvoiceScreen(
                         onReset = { onResetLine(line.index) }
                     )
                 }
+                item {
+                    OutlinedButton(
+                        onClick = { addingMissingLine = true },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) { Text(stringResource(R.string.ocr_add_missing_item)) }
+                }
             }
 
             if (uiState.isLoading) {
@@ -312,6 +321,16 @@ fun ReviewDetectedInvoiceScreen(
                 }
             )
         }
+    }
+
+    if (addingMissingLine) {
+        ManualLineDialog(
+            onDismiss = { addingMissingLine = false },
+            onAdd = {
+                onAddMissingLine(it)
+                addingMissingLine = false
+            }
+        )
     }
 
     if (uiState.materializationFailure != null) {
@@ -761,6 +780,9 @@ fun EditLineDialog(
     onDismiss: () -> Unit,
     onUpdate: (ParsedInvoiceLineCorrection) -> Unit
 ) {
+    var description by remember { mutableStateOf(line.description.effectiveValue(line.correction?.description) ?: "") }
+    var vendorCode by remember { mutableStateOf(line.vendorCode.effectiveValue(line.correction?.vendorCode) ?: "") }
+    var packageText by remember { mutableStateOf(line.packageText.effectiveValue(line.correction?.packageText) ?: "") }
     var quantity by remember { mutableStateOf(line.quantity.effectiveValue(line.correction?.quantity)?.toPlainString() ?: "") }
     var unitPrice by remember { mutableStateOf(line.unitPrice.effectiveValue(line.correction?.unitPrice)?.toPlainString() ?: "") }
     var total by remember { mutableStateOf(line.lineTotal.effectiveValue(line.correction?.lineTotal)?.toPlainString() ?: "") }
@@ -770,6 +792,9 @@ fun EditLineDialog(
         title = { Text(stringResource(R.string.ocr_line_correction_dialog_title)) },
         text = {
             Column {
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.ocr_product_name)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = vendorCode, onValueChange = { vendorCode = it }, label = { Text(stringResource(R.string.ocr_vendor_code)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = packageText, onValueChange = { packageText = it }, label = { Text(stringResource(R.string.ocr_package_description)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = quantity, onValueChange = { quantity = it }, label = { Text(stringResource(R.string.product_quantity)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = unitPrice, onValueChange = { unitPrice = it }, label = { Text(stringResource(R.string.product_price)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = total, onValueChange = { total = it }, label = { Text(stringResource(R.string.ocr_total_label)) }, modifier = Modifier.fillMaxWidth())
@@ -778,6 +803,9 @@ fun EditLineDialog(
         confirmButton = {
             Button(onClick = {
                 val correction = ParsedInvoiceLineCorrection(
+                    description = Correction(description.trim().ifBlank { null }),
+                    vendorCode = Correction(vendorCode.trim().ifBlank { null }),
+                    packageText = Correction(packageText.trim().ifBlank { null }),
                     quantity = Correction(try { BigDecimal(quantity) } catch(e: Exception) { null }),
                     unitPrice = Correction(try { BigDecimal(unitPrice) } catch(e: Exception) { null }),
                     lineTotal = Correction(try { BigDecimal(total) } catch(e: Exception) { null })
@@ -791,6 +819,15 @@ fun EditLineDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
+}
+
+@Composable
+fun ManualLineDialog(
+    onDismiss: () -> Unit,
+    onAdd: (ParsedInvoiceLineCorrection) -> Unit
+) {
+    val blank = ParsedInvoiceLineCandidate.manual(0)
+    EditLineDialog(line = blank, onDismiss = onDismiss, onUpdate = onAdd)
 }
 
 @Composable
@@ -1017,6 +1054,11 @@ fun ParsedInvoiceLineItem(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.ocr_edit_description))
+                    }
                     Text(
                         text = stringResource(R.string.ocr_matching_vendor_code_label, line.vendorCode.effectiveValue(line.correction?.vendorCode) ?: stringResource(R.string.not_applicable)),
                         style = MaterialTheme.typography.labelSmall

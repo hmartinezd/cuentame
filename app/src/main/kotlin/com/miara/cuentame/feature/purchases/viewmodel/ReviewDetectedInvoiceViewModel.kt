@@ -593,6 +593,15 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
             }
         }
     }
+
+    fun onAddMissingLine(correction: com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCorrection) {
+        viewModelScope.launch {
+            val status = repository.addManualParsedLine(receiptId, correction)
+            if (status == SourceMutationResult.SourceLocked) {
+                _uiState.update { it.copy(materializationFailure = PurchaseInvoiceMaterializationFailure.InvoiceSourceLocked) }
+            }
+        }
+    }
     
     fun onResetHeader() {
         viewModelScope.launch {
