@@ -97,16 +97,35 @@ class RobustDeterministicPurchaseInvoiceParserTest {
             OcrPageEvidence(
                 widthPx = 1000,
                 heightPx = 2000,
-                text = "QTY PRICE AMOUNT\n2 31.50 630.00",
+                text = "ITEM DESCRIPTION QTY PRICE AMOUNT\n101 TOMATO 2 31.50 630.00",
                 blocks = listOf(
-                    headerBlock(listOf("QTY", "PRICE", "AMOUNT"), 100),
-                    lineBlock(listOf("2", "31.50", "630.00"), 200)
+                    headerBlock(listOf("ITEM", "DESCRIPTION", "QTY", "PRICE", "AMOUNT"), 100),
+                    lineBlock(listOf("101", "TOMATO", "2", "31.50", "630.00"), 200)
                 )
             )
         )
 
         val result = parser.parse(pages)
         assertThat(result.lines[0].warnings).contains(InvoiceParseWarning.LineMathMismatch)
+    }
+
+    @Test
+    fun `numeric header orphan is not an item`() {
+        val pages = listOf(OcrPageEvidence(
+            widthPx = 1000,
+            heightPx = 2000,
+            text = "CHICAGO FOODS 335.96\nITEM DESCRIPTION QTY PRICE AMOUNT\n101 TOMATO 2 5.00 10.00",
+            blocks = listOf(
+                lineBlock(listOf("CHICAGO FOODS", "335.96"), 60),
+                headerBlock(listOf("ITEM", "DESCRIPTION", "QTY", "PRICE", "AMOUNT"), 200),
+                lineBlock(listOf("101", "TOMATO", "2", "5.00", "10.00"), 300)
+            )
+        ))
+
+        val result = parser.parse(pages)
+
+        assertThat(result.lines).hasSize(1)
+        assertThat(result.lines.single().description.normalizedValue).isEqualTo("TOMATO")
     }
 
     // Helper functions to build synthetic OCR evidence

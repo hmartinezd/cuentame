@@ -214,7 +214,7 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
                 val suppliers = array[6] as List<Supplier>
 
                 val suggestedSuppliers = if (details?.receipt?.supplierId == null && result?.supplierNameCandidate?.normalizedValue != null && activeRestaurant != null) {
-                    supplierRepository.searchSuppliers(RestaurantId(activeRestaurant.id), result.supplierNameCandidate.normalizedValue!!)
+                    resolveSupplierCandidates(result.supplierNameCandidate.normalizedValue!!, suppliers)
                 } else emptyList()
 
                 val currentAutoMatchKey = "${receiptId.value}_${details?.receipt?.supplierId?.value}_${result?.id}"
@@ -664,6 +664,17 @@ class ReviewDetectedInvoiceViewModel @Inject constructor(
     }
 
     companion object {
+        /** Matching-only normalization. It never changes canonical supplier or raw OCR text. */
+        fun resolveSupplierCandidates(detectedName: String, suppliers: List<Supplier>): List<Supplier> {
+            val primary = detectedName.normalizeName()
+            val compact = primary.filter { it.isLetterOrDigit() }
+            return suppliers.filter { supplier ->
+                val canonical = supplier.name.normalizeName()
+                canonical == primary ||
+                    (compact.length >= 6 && canonical.filter { it.isLetterOrDigit() } == compact)
+            }
+        }
+
         fun isMatchSelectionValid(
             ingredientId: IngredientId?,
             unitOptionId: IngredientUnitOptionId?,

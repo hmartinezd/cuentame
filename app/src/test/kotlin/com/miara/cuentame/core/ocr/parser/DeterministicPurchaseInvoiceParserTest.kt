@@ -94,8 +94,8 @@ class DeterministicPurchaseInvoiceParserTest {
     fun `leading-zero SKU preservation`() {
         val page = createPage(
             listOf(
-                "ITEM           DESCRIPTION  QTY  TOTAL",
-                "000101         TOMATO       1    10.00"
+                "ITEM           DESCRIPTION   QTY   TOTAL",
+                "000101         TOMATO        1     10.00"
             )
         )
         val result = parser.parse(listOf(page))

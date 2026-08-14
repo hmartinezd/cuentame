@@ -465,13 +465,7 @@ fun PurchaseDocumentSection(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        if (uiState.receiptId == null) {
-            Text(
-                text = stringResource(R.string.purchase_save_header_first),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else if (uiState.documentMetadata == null) {
+        if (uiState.documentMetadata == null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -682,15 +676,7 @@ fun OcrStatusCard(
                             Text(stringResource(R.string.ocr_action_view_text))
                         }
                         
-                        TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
-                            Text(stringResource(R.string.ocr_action_reanalyze))
-                        }
-                    } else if (ocrState !is OcrAnalysisState.Failure) {
-                        TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
-                            Text(stringResource(R.string.ocr_action_analyze))
-                        }
-                    } else {
-                        // In failure state, allow re-analyze
+                    } else if (ocrState is OcrAnalysisState.Failure) {
                         TextButton(onClick = onAnalyze, enabled = !uiState.isPosting && !uiState.isDeletingDraft) {
                             Text(stringResource(R.string.ocr_action_retry))
                         }

@@ -326,16 +326,18 @@ class PurchaseDraftViewModel @Inject constructor(
     }
 
     fun onAttachDocument(uri: android.net.Uri) {
-        val currentReceiptId = receiptId ?: return
         viewModelScope.launch {
             if (!canStartMutation()) return@launch
             operationMutex.withLock {
                 try {
                     _captureState.value = InvoiceCaptureState.ImportingFile
                     _error.value = null
+                    val currentReceiptId = ensureDocumentDraft()
                     val status = attachPurchaseDocumentUseCase(currentReceiptId, uri)
                     if (status == SourceMutationResult.SourceLocked) {
                         _error.value = Exception("Invoice source is locked after materialization")
+                    } else {
+                        analyzeAndOpenReview(currentReceiptId)
                     }
                 } catch (e: Exception) {
                     _error.value = e
@@ -381,12 +383,6 @@ class PurchaseDraftViewModel @Inject constructor(
     }
 
     fun onScannerResult(resultCode: Int, data: android.content.Intent?) {
-        val currentReceiptId = receiptId ?: run {
-             consumePendingScanSession()
-             _captureState.value = InvoiceCaptureState.Idle
-             return
-        }
-
         // Atomically claim the session
         if (consumePendingScanSession() == null) return
 
@@ -397,9 +393,15 @@ class PurchaseDraftViewModel @Inject constructor(
                     when (result) {
                         is PurchaseInvoiceScanResult.Success -> {
                             _captureState.value = InvoiceCaptureState.ImportingScan
+                            val currentReceiptId = ensureDocumentDraft()
                             val dateStr = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.now())
                             val displayName = "Scanned invoice - $dateStr.pdf"
-                            attachPurchaseDocumentUseCase(currentReceiptId, result.pdfUri, displayName)
+                            val status = attachPurchaseDocumentUseCase(currentReceiptId, result.pdfUri, displayName)
+                            if (status == SourceMutationResult.SourceLocked) {
+                                _error.value = Exception("Invoice source is locked after materialization")
+                            } else {
+                                analyzeAndOpenReview(currentReceiptId)
+                            }
                         }
                         is PurchaseInvoiceScanResult.Failure -> {
                             _scannerError.value = result.reason
@@ -421,6 +423,41 @@ class PurchaseDraftViewModel @Inject constructor(
         val id = savedStateHandle.get<String>(KEY_PENDING_SCAN_SESSION_ID)
         savedStateHandle[KEY_PENDING_SCAN_SESSION_ID] = null
         return id
+    }
+
+    /** Persist the technical draft only once a picker/scanner has returned a document. */
+    private suspend fun ensureDocumentDraft(): PurchaseReceiptId {
+        receiptId?.let { return it }
+        val restaurant = restaurantRepository.getRestaurant() ?: error("No restaurant")
+        val newId = createPurchaseDraftUseCase(
+            CreatePurchaseDraftCommand(
+                restaurantId = restaurant.id,
+                supplierId = null,
+                invoiceNumber = null,
+                purchaseDate = Instant.now(),
+                notes = null
+            )
+        )
+        savedStateHandle["receiptId"] = newId.value
+        return newId
+    }
+
+    private suspend fun analyzeAndOpenReview(currentReceiptId: PurchaseReceiptId) {
+        _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
+        analyzePurchaseInvoiceDocumentUseCase(currentReceiptId).collect { result ->
+            when (result) {
+                AnalyzePurchaseInvoiceResult.Preparing -> _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
+                is AnalyzePurchaseInvoiceResult.ProcessingPage -> _ocrState.value = OcrAnalysisState.Analyzing(result.current, result.total)
+                AnalyzePurchaseInvoiceResult.Saving -> _ocrState.value = OcrAnalysisState.Analyzing(100, 100)
+                AnalyzePurchaseInvoiceResult.Parsing -> _ocrState.value = OcrAnalysisState.Parsing
+                AnalyzePurchaseInvoiceResult.Success -> {
+                    _ocrState.value = OcrAnalysisState.Parsed
+                    _events.send(PurchaseDraftEvent.NavigateToReview(currentReceiptId))
+                }
+                is AnalyzePurchaseInvoiceResult.Failure -> _ocrState.value = OcrAnalysisState.Failure(result.reason)
+                is AnalyzePurchaseInvoiceResult.ParseFailed -> _ocrState.value = OcrAnalysisState.Failure(PurchaseInvoiceOcrFailure.ParsingFailed)
+            }
+        }
     }
 
     fun onScannerCancelled() {
@@ -546,32 +583,7 @@ class PurchaseDraftViewModel @Inject constructor(
             if (!canStartMutation()) return@launch
             operationMutex.withLock {
                 try {
-                    _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
-                    analyzePurchaseInvoiceDocumentUseCase(currentReceiptId).collect { result ->
-                        when (result) {
-                            is AnalyzePurchaseInvoiceResult.Preparing -> {
-                                _ocrState.value = OcrAnalysisState.Analyzing(0, 0)
-                            }
-                            is AnalyzePurchaseInvoiceResult.ProcessingPage -> {
-                                _ocrState.value = OcrAnalysisState.Analyzing(result.current, result.total)
-                            }
-                            is AnalyzePurchaseInvoiceResult.Saving -> {
-                                _ocrState.value = OcrAnalysisState.Analyzing(100, 100) // "Saving..."
-                            }
-                            AnalyzePurchaseInvoiceResult.Parsing -> {
-                                _ocrState.value = OcrAnalysisState.Parsing
-                            }
-                            AnalyzePurchaseInvoiceResult.Success -> {
-                                _ocrState.value = OcrAnalysisState.Parsed
-                            }
-                            is AnalyzePurchaseInvoiceResult.Failure -> {
-                                _ocrState.value = OcrAnalysisState.Failure(result.reason)
-                            }
-                            is AnalyzePurchaseInvoiceResult.ParseFailed -> {
-                                _ocrState.value = OcrAnalysisState.Idle // Text extracted, details failed
-                            }
-                        }
-                    }
+                    analyzeAndOpenReview(currentReceiptId)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

@@ -242,11 +242,18 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     ): List<ParsedInvoiceLineCandidate> {
         val candidates = mutableListOf<ParsedInvoiceLineCandidate>()
         var lineIndex = 0
+        val tableHeaderTopByPage = rows.filter(::isHeaderRow)
+            .groupBy { it.pageIndex }
+            .mapValues { (_, pageRows) -> pageRows.minOf { it.top } }
 
         for (i in rows.indices) {
             val row = rows[i]
             val layout = pageLayouts[row.pageIndex] ?: continue
             if (isHeaderRow(row)) continue
+            // A semantic header is a strong table boundary. Header/address values above it
+            // and labeled totals/footer values are never item rows.
+            if (tableHeaderTopByPage[row.pageIndex]?.let { row.top <= it } == true) continue
+            if (isNonItemContext(row)) continue
             
             val isPotentialLine = if (layout.source != LayoutSource.Unknown) {
                 row.tokens.any { t -> 
@@ -263,6 +270,10 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                 } else {
                     extractLineFallback(row, context, lineIndex++)
                 }
+
+                // Numeric evidence alone is insufficient. A row needs a human-readable
+                // product identity; numeric vendor SKUs remain valid when paired with it.
+                if (!hasItemIdentity(candidate)) continue
                 
                 val prevRow = rows.getOrNull(i - 1)
                 if (prevRow != null && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) && 
@@ -315,9 +326,28 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return candidates
     }
 
+    private fun hasItemIdentity(candidate: ParsedInvoiceLineCandidate): Boolean {
+        val description = candidate.description.normalizedValue.orEmpty().trim()
+        return description.length >= 2 && description.any { it.isLetter() }
+    }
+
+    private fun isNonItemContext(row: Row): Boolean {
+        val text = row.text.lowercase()
+        return NON_ITEM_CONTEXT.containsMatchIn(text)
+    }
+
     private fun isHeaderRow(row: Row): Boolean {
         if (row.tokens.count { isNumeric(it.text) } >= 3) return false
         return scoreHeaderRow(row) > 1.5
+    }
+
+    private companion object {
+        val NON_ITEM_CONTEXT = Regex(
+            "\\b(sub[ -]?total|grand total|amount due|balance due|tax|iva|discount|fee|fees|freight|shipping|" +
+                "invoice|factura|account|customer|purchase order|po[ #:.-]|phone|telephone|tel[.: ]|fax|" +
+                "page[ #:.-]|p[aá]gina|route|delivery date|due date)\\b",
+            RegexOption.IGNORE_CASE
+        )
     }
 
     private fun scoreHeaderRow(row: Row): Double {

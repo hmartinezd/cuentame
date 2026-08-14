@@ -765,8 +765,8 @@
     <string name="ocr_viewer_title">Texto Detectado</string>
     <string name="ocr_viewer_metadata">Metadatos OCR</string>
     <string name="ocr_status_not_analyzed">No analizado</string>
-    <string name="ocr_status_analyzing">Analizando…</string>
-    <string name="ocr_status_analyzing_progress">Analizando página %1$d de %2$d…</string>
+    <string name="ocr_status_analyzing">Leyendo factura…</string>
+    <string name="ocr_status_analyzing_progress">Leyendo página %1$d de %2$d de la factura…</string>
     <string name="ocr_status_parsing">Extrayendo detalles…</string>
     <string name="ocr_status_extracted">Texto extraído</string>
     <string name="ocr_status_parsed">Detalles extraídos</string>
@@ -813,7 +813,7 @@
     <string name="ocr_matching_keep_current">Mantener actual</string>
     <string name="ocr_matching_reset_correction">Restablecer corrección</string>
     <string name="ocr_matching_include_line">Incluir línea</string>
-    <string name="ocr_matching_ignore_line">Ignorar línea</string>
+    <string name="ocr_matching_ignore_line">No es un artículo</string>
     <string name="ocr_matching_change">Cambiar</string>
     <string name="ocr_matching_not_detected_symbol">—</string>
     <string name="ocr_matching_low_confidence">Baja confianza</string>
