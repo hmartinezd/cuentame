@@ -49,7 +49,13 @@ class WasteLifecycleTest {
         
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
+                composeTestRule
+                    .onAllNodes(
+                        hasTestTag("home_dashboard_list"),
+                        useUnmergedTree = true
+                    )
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
             }
             composeTestRule.onNodeWithTag("home_dashboard_list", useUnmergedTree = true).performScrollToNode(hasTestTag("view_waste_button"))
             composeTestRule.onNodeWithTag("view_waste_button").performClick()
