@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.miara.cuentame.R
+import com.miara.cuentame.core.designsystem.component.adaptiveContentWidth
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.common.ids.WasteEventId
@@ -210,7 +212,8 @@ fun WasteFormScreen(
             is WasteFormScreenState.Ready -> {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxHeight()
+                        .adaptiveContentWidth(maxWidth = 720.dp)
                         .padding(padding)
                         .padding(16.dp)
                         .verticalScroll(scrollState),
@@ -523,4 +526,3 @@ fun WasteFormScreen(
         }
     }
 }
-

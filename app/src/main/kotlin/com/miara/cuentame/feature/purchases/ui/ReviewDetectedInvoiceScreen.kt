@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.designsystem.component.adaptiveContentWidth
 import com.miara.cuentame.core.common.ids.IngredientId
 import com.miara.cuentame.core.common.ids.IngredientUnitOptionId
 import com.miara.cuentame.core.common.ids.InventoryAreaId
@@ -153,7 +154,7 @@ fun ReviewDetectedInvoiceScreen(
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxHeight().adaptiveContentWidth(maxWidth = 960.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
                 item {

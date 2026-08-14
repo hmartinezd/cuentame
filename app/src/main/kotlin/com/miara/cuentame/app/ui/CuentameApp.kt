@@ -244,7 +244,7 @@ private fun CuentameBottomBar(
     currentDestination: NavDestination?,
     modifier: Modifier = Modifier
 ) {
-    NavigationBar(modifier = modifier) {
+    NavigationBar(modifier = modifier.testTag("top_level_bottom_bar")) {
         destinations.forEach { destination ->
             val selected = currentDestination.isTopLevelDestinationInHierarchy(destination)
             NavigationBarItem(
@@ -270,7 +270,7 @@ private fun CuentameNavRail(
     currentDestination: NavDestination?,
     modifier: Modifier = Modifier
 ) {
-    NavigationRail(modifier = modifier) {
+    NavigationRail(modifier = modifier.testTag("top_level_navigation_rail")) {
         destinations.forEach { destination ->
             val selected = currentDestination.isTopLevelDestinationInHierarchy(destination)
             NavigationRailItem(

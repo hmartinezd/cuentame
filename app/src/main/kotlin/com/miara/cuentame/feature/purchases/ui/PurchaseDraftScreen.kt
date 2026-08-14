@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
+import com.miara.cuentame.core.designsystem.component.adaptiveContentWidth
 import com.miara.cuentame.core.common.ids.PurchaseLineId
 import com.miara.cuentame.core.common.ids.PurchaseReceiptId
 import com.miara.cuentame.core.common.ids.SupplierId
@@ -244,7 +246,8 @@ fun PurchaseDraftScreen(
         } else {
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    .adaptiveContentWidth(maxWidth = 920.dp)
                     .padding(padding)
                     .padding(16.dp)
                     .testTag("purchase_draft_list")
