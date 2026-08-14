@@ -163,10 +163,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     private fun inferTableLayoutFromPage(pageRows: List<Row>, pageIndex: Int, allRows: List<Row>): PageLayout? {
         val candidateRows = pageRows.filter { row ->
             val numericCount = row.tokens.count { isNumeric(it.text) }
-            numericCount >= 2 && row.text.length > 5 && !isHeaderRow(row)
+            numericCount >= 1 && row.text.length > 5 && !isHeaderRow(row) &&
+                !isSummaryLabelRow(row) && !isNonItemContext(row)
         }
         
-        if (candidateRows.isEmpty()) return null
+        // A single amount column is a valid receipt layout, but it needs repetition.
+        if (candidateRows.size < 2) return null
 
         val supportThreshold = if (candidateRows.size >= 3) 3 else 2
 
@@ -225,7 +227,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                 cols[ColumnType.SKU] = leftmost.toRange(0.03f)
                 cols[ColumnType.Description] = FloatRange(leftmost.avgRight + 0.01f, firstNumericLeft - 0.01f)
             } else {
-                cols[ColumnType.Description] = FloatRange(0.05f, firstNumericLeft - 0.01f)
+                cols[ColumnType.Description] = FloatRange(0f, firstNumericLeft - 0.01f)
             }
         } else {
             val skuRange = cols[ColumnType.SKU]!!
@@ -241,6 +243,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         context: NumericContext
     ): List<ParsedInvoiceLineCandidate> {
         val candidates = mutableListOf<ParsedInvoiceLineCandidate>()
+        val consumedRows = mutableSetOf<Int>()
         var lineIndex = 0
         val tableHeaderTopByPage = rows.filter(::isHeaderRow)
             .groupBy { it.pageIndex }
@@ -252,6 +255,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
         for (i in rows.indices) {
             val row = rows[i]
+            if (row.rowId in consumedRows) continue
             val layout = pageLayouts[row.pageIndex] ?: continue
             if (isHeaderRow(row)) continue
             // A semantic header is a strong table boundary. Header/address values above it
@@ -259,6 +263,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             if (tableHeaderTopByPage[row.pageIndex]?.let { row.top <= it } == true) continue
             if (tableStartByPage[row.pageIndex]?.let { row.top < it } == true) continue
             if (terminalTopByPage[row.pageIndex]?.let { row.top >= it } == true) continue
+            if (isSummaryLabelRow(row)) continue
             if (isNonItemContext(row)) continue
             
             val isPotentialLine = if (layout.source != LayoutSource.Unknown) {
@@ -282,8 +287,8 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                 if (!hasItemIdentity(candidate)) continue
                 
                 val prevRow = rows.getOrNull(i - 1)
-                if (prevRow != null && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) &&
-                    candidates.isNotEmpty() && prevRow.top >= (tableStartByPage[row.pageIndex] ?: 0f) &&
+                if (prevRow != null && prevRow.rowId !in consumedRows && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) &&
+                    prevRow.top >= (tableStartByPage[row.pageIndex] ?: 0f) &&
                     row.top - prevRow.bottom <= 0.025f &&
                     !isNonItemContext(prevRow) &&
                     ((candidate.description.detectedText?.length ?: 0) < 20)) {
@@ -294,6 +299,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                      }
                      
                      if (isPrevRowPart) {
+                         consumedRows += prevRow.rowId
                          val combinedDesc = prevRow.text + " " + (candidate.description.detectedText ?: "")
                          var updatedCandidate = candidate.copy(
                              description = candidate.description.copy(
@@ -329,6 +335,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                              evidenceRefs = last.description.evidenceRefs + row.tokens.map { it.evidenceRef }
                          )
                      )
+                     consumedRows += row.rowId
                  }
             }
         }
@@ -362,13 +369,31 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     private fun isTerminalTotalRow(row: Row): Boolean {
         val text = row.text.trim().lowercase()
         if (Regex("\\b(page total|page subtotal|carried forward|continued)\\b").containsMatchIn(text)) return false
-        if (!TERMINAL_TOTAL.containsMatchIn(text)) return false
         if (isHeaderRow(row)) return false
-        return row.tokens.any { isMoneyLike(it.text) }
+        val amountTokens = row.tokens.filter { TERMINAL_MONEY.matches(it.text.trim()) }
+        if (amountTokens.size != 1) return false
+        val label = row.tokens.filterNot { it == amountTokens.single() }
+            .joinToString(" ") { it.text }.trim().replace(Regex("\\s+"), " ")
+        if (label.lowercase() !in TERMINAL_LABELS) return false
+
+        // Exact summary label + one strict amount is summary structure. Product rows
+        // with quantity/price/pack fields necessarily carry additional tokens.
+        return row.tokens.none { token ->
+            token != amountTokens.single() && (isNumeric(token.text) || PackageTextDetector.detectPackageText(token.text) != null)
+        }
     }
 
     private fun looksLikeItemRow(row: Row) =
-        row.tokens.count { isNumeric(it.text) } >= 2 && row.tokens.any { it.text.any(Char::isLetter) }
+        row.tokens.any { isNumeric(it.text) } && row.tokens.any { token ->
+            token.text.any(Char::isLetter) && !isSummaryLabelRow(row)
+        }
+
+    private fun isSummaryLabelRow(row: Row): Boolean {
+        val words = row.tokens.filterNot { isNumeric(it.text) }.joinToString(" ") { it.text }
+            .trim().replace(Regex("\\s+"), " ").lowercase()
+        return words in TERMINAL_LABELS || words in INTERMEDIATE_SUMMARY_LABELS ||
+            words in setOf("subtotal", "sub total", "sub-total", "tax", "iva", "discount")
+    }
 
     private fun hasItemIdentity(candidate: ParsedInvoiceLineCandidate): Boolean {
         val description = candidate.description.normalizedValue.orEmpty().trim()
@@ -382,11 +407,30 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun isHeaderRow(row: Row): Boolean {
         if (row.tokens.count { isNumeric(it.text) } >= 3) return false
-        return scoreHeaderRow(row) > 1.5
+        val text = row.text.lowercase()
+        val semanticColumns = listOf(
+            HeaderAlias.SKU,
+            HeaderAlias.DESCRIPTION,
+            HeaderAlias.QTY,
+            HeaderAlias.PACK,
+            HeaderAlias.PRICE,
+            HeaderAlias.AMOUNT
+        ).count { aliases -> aliases.any { alias -> Regex("\\b${Regex.escape(alias)}\\b").containsMatchIn(text) } }
+        return semanticColumns >= 2
     }
 
     private companion object {
-        val TERMINAL_TOTAL = Regex("\\b(grand total|amount due|total due|total a pagar|importe total|total)\\b", RegexOption.IGNORE_CASE)
+        val TERMINAL_LABELS = setOf("total", "grand total", "amount due", "total due", "total a pagar", "importe total")
+        val INTERMEDIATE_SUMMARY_LABELS = setOf("page total", "page subtotal", "carried forward", "brought forward", "continued")
+        val TERMINAL_MONEY = Regex("^\\$?(?:\\d{1,3}(?:,\\d{3})+|\\d+)\\.\\d{2}$")
+        val SUPPLIER_METADATA = Regex(
+            "\\b(invoice|factura|date|fecha|customer|client|ship to|bill to|phone|email|web|account|order|purchase order|po|page)\\b",
+            RegexOption.IGNORE_CASE
+        )
+        val EMAIL_PHONE_ADDRESS = Regex(
+            "(?:@|https?://|www\\.|\\b(?:tel|phone|fax)\\b|\\b\\d{3}[-.) ]+\\d{3}[- ]+\\d{4}\\b|\\b\\d{3,6}\\s+[a-z]+\\s+(?:st|street|ave|avenue|rd|road|blvd|drive|dr)\\b)",
+            RegexOption.IGNORE_CASE
+        )
         val PAYMENT_FOOTER = Regex("\\b(cash|card|credit|debit|visa|mastercard|amex|paid|payment|tender|change|auth(?:orization)?|balance)\\b|\\*{4}\\d{2,}", RegexOption.IGNORE_CASE)
         val NON_ITEM_CONTEXT = Regex(
             "\\b(sub[ -]?total|grand total|amount due|balance due|tax|iva|discount|fee|fees|freight|shipping|" +
@@ -401,16 +445,6 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         if (value.length < 3 || value.any { it.isWhitespace() }) return false
         val digits = value.count(Char::isDigit)
         return digits >= 2 && value.all { it.isLetterOrDigit() || it == '-' }
-    }
-
-    private fun scoreHeaderRow(row: Row): Double {
-        var score = 0.0
-        val text = row.text.lowercase()
-        if (text.contains(Regex("desc|item|qty|cant|price|precio|total|amount|importe"))) score += 1.0
-        if (HeaderAlias.QTY.any { text.contains(it) }) score += 0.5
-        if (HeaderAlias.PRICE.any { text.contains(it) }) score += 0.5
-        if (HeaderAlias.AMOUNT.any { text.contains(it) }) score += 0.5
-        return score
     }
 
     private fun isDescriptionContinuation(row: Row, layout: PageLayout): Boolean {
@@ -479,13 +513,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val numericTokens = row.tokens.filter { isNumeric(it.text) }
         val textTokens = row.tokens.filter { !isNumeric(it.text) }
         
-        val skuCandidate = row.tokens.firstOrNull { it.text.length >= 3 && it.left < 0.2f }
-        
         return ParsedInvoiceLineCandidate(
             index = index,
-            vendorCode = if (skuCandidate != null && (skuCandidate in numericTokens || skuCandidate.text.any { it.isDigit() })) 
-                extractField(listOf(skuCandidate)) else ParsedField(null, null, 0f),
-            description = extractField(textTokens.filter { it != skuCandidate }),
+            // Unknown layout has no column evidence. Do not manufacture a SKU or
+            // remove a tentative token from the description.
+            vendorCode = ParsedField(null, null, 0f),
+            description = extractField(textTokens),
             quantity = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[0]), context) else ParsedField(null, null, 0f),
             packageText = ParsedField(null, null, 0f),
             unitPrice = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[1]), context) else ParsedField(null, null, 0f),
@@ -523,17 +556,23 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun detectSupplier(tokens: List<LayoutToken>): ParsedField<String?> {
         val firstPage = tokens.filter { it.pageIndex == 0 }
-        val candidates = firstPage.filter { it.top < 0.3f && !isNumeric(it.text) && it.text.length > 2 }
-            .sortedBy { it.top }
+        val candidates = RowClusterer.clusterIntoRows(firstPage).filter { row ->
+            row.top < 0.3f && row.text.length > 2
+        }.map { row ->
+            val text = row.text.trim()
+            val lower = text.lowercase()
+            var score = 0
+            if (text.any(Char::isLetter)) score += 3
+            if (row.tokens.size >= 2) score += 2
+            if (Regex("\\b(inc|llc|ltd|corp|company|co\\.?|foods|market|distribuidora|distributor)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) score += 3
+            if (SUPPLIER_METADATA.containsMatchIn(lower)) score -= 8
+            if (EMAIL_PHONE_ADDRESS.containsMatchIn(lower)) score -= 6
+            row to score
+        }.sortedWith(compareByDescending<Pair<Row, Int>> { it.second }.thenBy { it.first.top })
 
         if (candidates.isEmpty()) return ParsedField(null, null, 0f)
-
-        val best = candidates.firstOrNull { t ->
-            val lowText = t.text.lowercase()
-            !lowText.contains(Regex("invoice|factura|date|fecha|page|página|phone|tel|email|web"))
-        } ?: candidates.first()
-
-        val rowTokens = firstPage.filter { abs(it.top - best.top) < 0.005f }.sortedBy { it.left }
+        val best = candidates.first().first
+        val rowTokens = best.tokens.sortedBy { it.left }
         val name = rowTokens.joinToString(" ") { it.text }
 
         return ParsedField(name, name, 0.7f, rowTokens.map { it.evidenceRef })

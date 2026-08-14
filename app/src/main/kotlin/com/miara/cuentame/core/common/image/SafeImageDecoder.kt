@@ -76,7 +76,9 @@ object SafeImageDecoder {
             bitmap
         }
 
-        if (!oriented.hasAlpha() || !hasTransparentPixels(oriented)) return oriented
+        // Avoid scanning every full-resolution pixel. Alpha-capable input can be
+        // composited directly; callers invoke this decoder on a worker dispatcher.
+        if (!oriented.hasAlpha()) return oriented
         val opaque = Bitmap.createBitmap(oriented.width, oriented.height, Bitmap.Config.ARGB_8888)
         Canvas(opaque).apply {
             drawColor(Color.WHITE)
@@ -86,12 +88,4 @@ object SafeImageDecoder {
         return opaque
     }
 
-    private fun hasTransparentPixels(bitmap: Bitmap): Boolean {
-        val row = IntArray(bitmap.width)
-        for (y in 0 until bitmap.height) {
-            bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
-            if (row.any { it ushr 24 != 0xFF }) return true
-        }
-        return false
-    }
 }

@@ -120,6 +120,63 @@ class DeterministicPurchaseInvoiceParserTest {
     }
 
     @Test
+    fun `product whose description starts with total does not terminate table`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "DESCRIPTION      QTY      PRICE      TOTAL",
+            "CHICKEN BREAST   2        5.00       10.00",
+            "TOTAL CEREAL     1        4.00        4.00",
+            "ONION            3        2.00        6.00",
+            "TOTAL                                 20.00",
+            "VISA                                  20.00"
+        ))))
+
+        assertEquals(listOf("CHICKEN BREAST", "TOTAL CEREAL", "ONION"),
+            result.lines.map { it.description.normalizedValue })
+    }
+
+    @Test
+    fun `description amount receipt establishes repeated item structure`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "DESCRIPTION                         AMOUNT",
+            "CHICKEN BREAST                      10.00",
+            "RICE                                 5.00",
+            "BEANS                                4.50",
+            "TOTAL                               19.50",
+            "PAID                                19.50"
+        ))))
+
+        assertEquals(listOf("CHICKEN BREAST", "RICE", "BEANS"),
+            result.lines.map { it.description.normalizedValue })
+    }
+
+    @Test
+    fun `terminal total requires period and exactly two decimals`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "DESCRIPTION      QTY      PRICE      TOTAL",
+            "ITEM A           1        10.00      10.00",
+            "TOTAL                                 10.0",
+            "ITEM B           1         5.00       5.00",
+            "TOTAL                                15.00",
+            "VISA                                 15.00"
+        ))))
+
+        assertEquals(listOf("ITEM A", "ITEM B"), result.lines.map { it.description.normalizedValue })
+    }
+
+    @Test
+    fun `continuation row is owned by only one product`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "DESCRIPTION      QTY      PRICE      TOTAL",
+            "ITEM A           1        10.00      10.00",
+            "EXTRA DESCRIPTION",
+            "ITEM B           1         5.00       5.00"
+        ))))
+
+        assertEquals("ITEM A EXTRA DESCRIPTION", result.lines[0].description.normalizedValue)
+        assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+    }
+
+    @Test
     fun `headerless receipt does not invent SKU from description`() {
         val result = parser.parse(listOf(createPage(listOf(
             "TOMATO ROMA      2      3.00      6.00",
