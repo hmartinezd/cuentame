@@ -16,8 +16,8 @@ object RowClusterer {
         val rows = mutableListOf<Row>()
         var nextRowId = 0
         
-        tokens.groupBy { it.pageIndex }.forEach { (_, pageTokens) ->
-            val sorted = pageTokens.sortedBy { it.top }
+        tokens.groupBy { it.pageIndex }.toSortedMap().forEach { (_, pageTokens) ->
+            val sorted = pageTokens.sortedWith(compareBy<LayoutToken>({ it.top }, { it.centerY }, { it.left }, { it.text }, { it.evidenceRef.blockIndex }, { it.evidenceRef.lineIndex }, { it.evidenceRef.elementIndex }))
             var currentRowTokens = mutableListOf<LayoutToken>()
             
             for (token in sorted) {
@@ -46,7 +46,7 @@ object RowClusterer {
                 rows.add(Row(currentRowTokens.sortedBy { it.left }, nextRowId++))
             }
         }
-        return rows.sortedWith(compareBy({ it.pageIndex }, { it.top }))
+        return rows.sortedWith(compareBy<Row>({ it.pageIndex }, { it.top }, { it.tokens.firstOrNull()?.left ?: 0f }))
     }
 
     /**

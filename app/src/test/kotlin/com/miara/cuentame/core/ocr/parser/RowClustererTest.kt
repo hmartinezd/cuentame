@@ -40,4 +40,18 @@ class RowClustererTest {
         assertEquals(1, clusters.size)
         assertEquals(3, clusters[0].support) // 3 distinct rows
     }
+
+    @Test
+    fun `row reconstruction is invariant to token input order`() {
+        val evidence = OcrEvidenceRef(0, 0, 0, 0)
+        val tokens = listOf(
+            LayoutToken("A", 0, .1f, .1f, .2f, .12f, evidence),
+            LayoutToken("10.00", 0, .8f, .101f, .9f, .121f, evidence),
+            LayoutToken("B", 0, .1f, .2f, .2f, .22f, evidence),
+            LayoutToken("20.00", 0, .8f, .201f, .9f, .221f, evidence)
+        )
+        val expected = RowClusterer.clusterIntoRows(tokens).map(Row::text)
+        assertEquals(expected, RowClusterer.clusterIntoRows(tokens.reversed()).map(Row::text))
+        assertEquals(expected, RowClusterer.clusterIntoRows(listOf(tokens[2], tokens[0], tokens[3], tokens[1])).map(Row::text))
+    }
 }

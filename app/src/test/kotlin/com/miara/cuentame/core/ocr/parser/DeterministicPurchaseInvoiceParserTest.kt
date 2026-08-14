@@ -164,7 +164,7 @@ class DeterministicPurchaseInvoiceParserTest {
     }
 
     @Test
-    fun `continuation row is owned by only one product`() {
+    fun `ambiguous orphan row does not contaminate either product`() {
         val result = parser.parse(listOf(createPage(listOf(
             "DESCRIPTION      QTY      PRICE      TOTAL",
             "ITEM A           1        10.00      10.00",
@@ -172,8 +172,55 @@ class DeterministicPurchaseInvoiceParserTest {
             "ITEM B           1         5.00       5.00"
         ))))
 
-        assertEquals("ITEM A EXTRA DESCRIPTION", result.lines[0].description.normalizedValue)
+        assertEquals("ITEM A", result.lines[0].description.normalizedValue)
         assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+    }
+
+    @Test
+    fun `separate reversed blocks reconstruct description amount rows`() {
+        val descriptions = block(listOf("Chicago Italian Bread" to OcrRect(50, 100, 300, 125), "French Bread 12oz" to OcrRect(50, 150, 260, 175)))
+        val prices = block(listOf("13.29" to OcrRect(800, 101, 870, 126), "2.49" to OcrRect(800, 151, 860, 176)))
+        val page = OcrPageEvidence(1000, 1000, "", listOf(prices, descriptions))
+
+        val result = parser.parse(listOf(page))
+
+        assertEquals(listOf("Chicago Italian Bread", "French Bread"), result.lines.map { it.description.normalizedValue })
+        assertEquals(listOf(BigDecimal("13.29"), BigDecimal("2.49")), result.lines.map { it.lineTotal.normalizedValue })
+    }
+
+    @Test
+    fun `document total cuts off later physical pages`() {
+        val first = createPage(listOf("DESCRIPTION      AMOUNT", "ITEM A           10.00", "ITEM B           10.00", "TOTAL            20.00", "VISA             20.00"))
+        val second = createPage(listOf("PAYMENT TERMS", "NET 30", "ACCOUNT 12345", "SIGNATURE"))
+        val result = parser.parse(listOf(first, second))
+        assertEquals(listOf("ITEM A", "ITEM B"), result.lines.map { it.description.normalizedValue })
+        assertEquals(BigDecimal("20.00"), result.total.normalizedValue)
+    }
+
+    @Test
+    fun `split package elements do not become quantity`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "CHICKEN BREAST   2   10   LB   13.29",
+            "TOMATOES         1   20   LB    5.00",
+            "ONIONS           3   10   LB    6.00"
+        ))))
+        assertEquals(BigDecimal("2"), result.lines.first().quantity.normalizedValue)
+        assertEquals("10 LB", result.lines.first().packageText.normalizedValue)
+    }
+
+    @Test
+    fun `layout normalization preserves confidence and excludes geometryless evidence`() {
+        val visible = OcrElementEvidence("ITEM", OcrRect(10, 20, 80, 40), confidence = 0.37f)
+        val geometryless = OcrElementEvidence("RAW ONLY", null, confidence = 0.99f)
+        val page = OcrPageEvidence(1000, 1000, "ITEM RAW ONLY", listOf(OcrBlockEvidence(
+            "", null, emptyList(), emptyList(), listOf(OcrLineEvidence("", null, elements = listOf(visible, geometryless)))
+        )))
+
+        val tokens = parser.normalizeLayoutTokens(listOf(page))
+
+        assertEquals(1, tokens.size)
+        assertEquals("ITEM", tokens.single().text)
+        assertEquals(0.37f, tokens.single().ocrConfidence)
     }
 
     @Test
@@ -305,4 +352,11 @@ class DeterministicPurchaseInvoiceParserTest {
             heightPx = 1000
         )
     }
+
+    private fun block(values: List<Pair<String, OcrRect>>) = OcrBlockEvidence(
+        text = values.joinToString("\n") { it.first }, boundingBox = null, cornerPoints = emptyList(),
+        recognizedLanguages = emptyList(), lines = values.map { (text, rect) ->
+            OcrLineEvidence(text, rect, elements = listOf(OcrElementEvidence(text, rect)))
+        }
+    )
 }

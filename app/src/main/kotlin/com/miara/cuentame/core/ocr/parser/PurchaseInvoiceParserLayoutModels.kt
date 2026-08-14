@@ -11,10 +11,16 @@ data class LayoutToken(
     val top: Float,
     val right: Float,
     val bottom: Float,
-    val evidenceRef: OcrEvidenceRef
+    val evidenceRef: OcrEvidenceRef,
+    val ocrConfidence: Float? = null
 ) {
     val centerX: Float get() = left + (right - left) / 2
     val centerY: Float get() = top + (bottom - top) / 2
+}
+
+data class DocumentPosition(val pageIndex: Int, val top: Float) : Comparable<DocumentPosition> {
+    override fun compareTo(other: DocumentPosition): Int =
+        compareValuesBy(this, other, DocumentPosition::pageIndex, DocumentPosition::top)
 }
 
 /**
