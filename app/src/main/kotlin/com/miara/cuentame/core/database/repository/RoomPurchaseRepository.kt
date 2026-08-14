@@ -341,6 +341,8 @@ class RoomPurchaseRepository @Inject constructor(
         if (attachmentPath != null) {
             try {
                 documentStore.delete(attachmentPath)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Best-effort cleanup failure must not fail the draft deletion
             }

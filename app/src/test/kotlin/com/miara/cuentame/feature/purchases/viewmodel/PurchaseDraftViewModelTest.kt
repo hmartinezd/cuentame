@@ -188,7 +188,7 @@ class PurchaseDraftViewModelTest {
         mockkStatic("com.miara.cuentame.core.presentation.ui.ContextUtilsKt")
         val scanner = FakePurchaseInvoiceScanner()
         val viewModel = createViewModel("p1", scanner)
-        scanner.nextResult = PurchaseInvoiceScanResult.Success(Uri.parse("file://test.pdf"), 1)
+        scanner.nextResult = PurchaseInvoiceScanResult.Cancelled
         
         val mockContext = mockk<android.content.Context>(relaxed = true)
         val mockActivity = mockk<android.app.Activity>(relaxed = true)
@@ -203,8 +203,9 @@ class PurchaseDraftViewModelTest {
         // Second call should be ignored because session is consumed
         viewModel.onScannerResult(android.app.Activity.RESULT_OK, null)
         runCurrent()
-        
+
         assertThat(viewModel.uiState.value.captureState).isEqualTo(InvoiceCaptureState.Idle)
+        assertThat(scanner.parseResultCalls).isEqualTo(1)
     }
 
     @Test

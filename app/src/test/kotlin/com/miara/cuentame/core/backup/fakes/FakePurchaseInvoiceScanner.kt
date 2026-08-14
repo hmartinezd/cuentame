@@ -14,6 +14,8 @@ class FakePurchaseInvoiceScanner : PurchaseInvoiceScanner {
     var startScanError: Exception? = null
     var nextResult: PurchaseInvoiceScanResult = PurchaseInvoiceScanResult.Cancelled
     var preparationDelayMillis: Long = 0
+    var parseResultCalls: Int = 0
+        private set
 
     override suspend fun getStartScanIntent(activity: Activity): IntentSender {
         if (preparationDelayMillis > 0) delay(preparationDelayMillis)
@@ -22,6 +24,7 @@ class FakePurchaseInvoiceScanner : PurchaseInvoiceScanner {
     }
 
     override fun parseResult(resultCode: Int, data: Intent?): PurchaseInvoiceScanResult {
+        parseResultCalls += 1
         return nextResult
     }
 }

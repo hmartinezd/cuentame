@@ -26,9 +26,14 @@ import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -109,6 +114,23 @@ class RoomPurchaseInvoiceCorrectnessTest {
         // 4. Verify ZERO PurchaseLines were created (Atomicity proof)
         val lines = database.purchaseDao().getLinesForReceipt(receiptId.value)
         assertThat(lines).isEmpty()
+    }
+
+    @Test
+    fun materialization_propagatesCancellationInsteadOfPersistenceFailure() = runBlocking {
+        val receiptId = seedPurchaseWithParseResult()
+        val proposal = generateProposalUseCase.execute(receiptId)!!
+        val cancelledJob = Job().apply { cancel(CancellationException("test cancellation")) }
+
+        val thrown = runCatching {
+            withContext(cancelledJob) {
+                repository.applyInvoiceToDraft(proposal)
+            }
+        }.exceptionOrNull()
+
+        assertThat(thrown).isInstanceOf(CancellationException::class.java)
+        assertThat(database.purchaseDao().getLinesForReceipt(receiptId.value)).isEmpty()
+        assertThat(database.purchaseInvoiceMaterializationDao().getApplicationForReceipt(receiptId.value)).isNull()
     }
 
     @Test
@@ -301,14 +323,11 @@ class RoomPurchaseInvoiceCorrectnessTest {
     @Test
     fun observeParseResult_reactsToManualLineAndEveryReviewMutation() = runBlocking {
         val receiptId = seedPurchaseWithParseResult()
-
-        suspend fun mutateAndAwait(mutation: suspend () -> Unit): PurchaseInvoiceParseResult {
-            val next = async(start = CoroutineStart.UNDISPATCHED) {
-                repository.observeParseResult(receiptId).drop(1).first()!!
-            }
-            mutation()
-            return next.await()
+        val emissions = Channel<PurchaseInvoiceParseResult>(Channel.UNLIMITED)
+        val observer = launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.observeParseResult(receiptId).filterNotNull().collect(emissions::send)
         }
+        assertThat(emissions.receive().lines).hasSize(1)
 
         val manualCorrection = ParsedInvoiceLineCorrection(
             vendorCode = Correction("00042"),
@@ -318,10 +337,9 @@ class RoomPurchaseInvoiceCorrectnessTest {
             unitPrice = Correction(BigDecimal("4.25")),
             lineTotal = Correction(BigDecimal("12.75"))
         )
-        val withManualLine = mutateAndAwait {
-            assertThat(repository.addManualParsedLine(receiptId, manualCorrection))
-                .isEqualTo(SourceMutationResult.Success)
-        }
+        assertThat(repository.addManualParsedLine(receiptId, manualCorrection))
+            .isEqualTo(SourceMutationResult.Success)
+        val withManualLine = emissions.receive()
         assertThat(withManualLine.lines).hasSize(2)
         val manualLine = withManualLine.lines.single { it.index == 1 }
         assertThat(manualLine.confidence).isNull()
@@ -334,9 +352,8 @@ class RoomPurchaseInvoiceCorrectnessTest {
             description = Correction("Corrected item"),
             packageText = Correction("12 pack")
         )
-        val identityEdit = mutateAndAwait {
-            repository.updateParsedLine(receiptId, 0, false, identityCorrection)
-        }.lines.single { it.index == 0 }
+        repository.updateParsedLine(receiptId, 0, false, identityCorrection)
+        val identityEdit = emissions.receive().lines.single { it.index == 0 }
         assertThat(identityEdit.vendorCode.effectiveValue(identityEdit.correction?.vendorCode)).isEqualTo("00099")
         assertThat(identityEdit.description.effectiveValue(identityEdit.correction?.description)).isEqualTo("Corrected item")
         assertThat(identityEdit.packageText.effectiveValue(identityEdit.correction?.packageText)).isEqualTo("12 pack")
@@ -346,9 +363,8 @@ class RoomPurchaseInvoiceCorrectnessTest {
             unitPrice = Correction(BigDecimal("2.50")),
             lineTotal = Correction(BigDecimal("12.50"))
         )
-        val numericEdit = mutateAndAwait {
-            repository.updateParsedLine(receiptId, 0, false, numericCorrection)
-        }
+        repository.updateParsedLine(receiptId, 0, false, numericCorrection)
+        val numericEdit = emissions.receive()
         val editedLine = numericEdit.lines.single { it.index == 0 }
         assertThat(editedLine.quantity.effectiveValue(editedLine.correction?.quantity)).isEqualTo(BigDecimal("5"))
         assertThat(editedLine.unitPrice.effectiveValue(editedLine.correction?.unitPrice)).isEqualTo(BigDecimal("2.50"))
@@ -357,24 +373,22 @@ class RoomPurchaseInvoiceCorrectnessTest {
         assertThat(correctedProposal.lines.single { it.lineIndex == 0 }.quantityEntered).isEqualTo(BigDecimal("5"))
         assertThat(correctedProposal.lines.single { it.lineIndex == 0 }.lineTotal).isEqualTo(BigDecimal("12.50"))
 
-        val ignored = mutateAndAwait {
-            repository.updateParsedLine(receiptId, 0, true, numericCorrection)
-        }
+        repository.updateParsedLine(receiptId, 0, true, numericCorrection)
+        val ignored = emissions.receive()
         assertThat(ignored.lines.count { !it.isIgnored }).isEqualTo(1)
         assertThat(generateProposalUseCase.execute(receiptId)!!.lines.map { it.lineIndex }).doesNotContain(0)
 
-        val included = mutateAndAwait {
-            repository.updateParsedLine(receiptId, 0, false, numericCorrection)
-        }
+        repository.updateParsedLine(receiptId, 0, false, numericCorrection)
+        val included = emissions.receive()
         assertThat(included.lines.single { it.index == 0 }.isIgnored).isFalse()
 
-        val reset = mutateAndAwait {
-            repository.updateParsedLine(receiptId, 0, false, null)
-        }.lines.single { it.index == 0 }
+        repository.updateParsedLine(receiptId, 0, false, null)
+        val reset = emissions.receive().lines.single { it.index == 0 }
         assertThat(reset.correction).isNull()
         assertThat(reset.description.effectiveValue(reset.correction?.description)).isEqualTo("Item 0")
         assertThat(reset.quantity.effectiveValue(reset.correction?.quantity)).isEqualTo(BigDecimal.ONE)
         assertThat(reset.lineTotal.effectiveValue(reset.correction?.lineTotal)).isEqualTo(BigDecimal.TEN)
+        observer.cancel()
     }
 
     private suspend fun seedPurchaseWithParseResult(lineCount: Int = 1): PurchaseReceiptId {
