@@ -84,6 +84,7 @@ object SafeImageDecoder {
             drawColor(Color.WHITE)
             drawBitmap(oriented, 0f, 0f, null)
         }
+        opaque.setHasAlpha(false)
         oriented.recycle()
         return opaque
     }

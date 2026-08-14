@@ -190,6 +190,64 @@ class DeterministicPurchaseInvoiceParserTest {
     }
 
     @Test
+    fun `headerless quantity first layout uses evidence instead of leftmost position`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "2      CHICKEN BREAST      10 LB      4.50      9.00",
+            "1      TOMATOES            20 LB      3.00      3.00",
+            "3      ONIONS              10 LB      2.00      6.00"
+        ))))
+
+        assertEquals(3, result.lines.size)
+        assertTrue(result.lines.all { it.vendorCode.normalizedValue == null })
+        assertEquals(listOf("CHICKEN BREAST", "TOMATOES", "ONIONS"),
+            result.lines.map { it.description.normalizedValue })
+        assertEquals(listOf(BigDecimal("2"), BigDecimal("1"), BigDecimal("3")),
+            result.lines.map { it.quantity.normalizedValue })
+        assertEquals(listOf(BigDecimal("4.50"), BigDecimal("3.00"), BigDecimal("2.00")),
+            result.lines.map { it.unitPrice.normalizedValue })
+        assertEquals(listOf(BigDecimal("9.00"), BigDecimal("3.00"), BigDecimal("6.00")),
+            result.lines.map { it.lineTotal.normalizedValue })
+    }
+
+    @Test
+    fun `headerless repeated numeric SKU preserves leading zeros`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "000101      TOMATO      2      3.00      6.00",
+            "000102      ONION       1      4.00      4.00",
+            "000103      POTATO      3      2.00      6.00"
+        ))))
+
+        assertEquals(listOf("000101", "000102", "000103"),
+            result.lines.map { it.vendorCode.normalizedValue })
+    }
+
+    @Test
+    fun `headerless repeated alphanumeric SKU is recognized`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "AB-101      TOMATO      2      3.00      6.00",
+            "AB-102      ONION       1      4.00      4.00",
+            "AB-103      POTATO      3      2.00      6.00"
+        ))))
+
+        assertEquals(listOf("AB-101", "AB-102", "AB-103"),
+            result.lines.map { it.vendorCode.normalizedValue })
+        assertEquals(listOf(BigDecimal("2"), BigDecimal("1"), BigDecimal("3")),
+            result.lines.map { it.quantity.normalizedValue })
+    }
+
+    @Test
+    fun `unknown single item does not absorb preceding preamble`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "THANK YOU FOR YOUR BUSINESS",
+            "CHICKEN BREAST      1      5.00      5.00",
+            "TOTAL                            5.00"
+        ))))
+
+        assertTrue(result.warnings.contains(InvoiceParseWarning.UnknownColumnLayout))
+        assertEquals("CHICKEN BREAST", result.lines.single().description.normalizedValue)
+    }
+
+    @Test
     fun `text before semantic table is not prepended to first item`() {
         val result = parser.parse(listOf(createPage(listOf(
             "THANK YOU FOR YOUR BUSINESS",

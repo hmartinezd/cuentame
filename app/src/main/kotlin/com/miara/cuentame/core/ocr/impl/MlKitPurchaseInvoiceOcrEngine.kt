@@ -25,10 +25,14 @@ class MlKitPurchaseInvoiceOcrEngine @Inject constructor() : PurchaseInvoiceOcrEn
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     override suspend fun recognize(bitmap: Bitmap): OcrPageEvidence {
-        val image = InputImage.fromBitmap(bitmap, 0)
-        val result = recognizer.process(image).await()
-        
-        return mapToEvidence(bitmap.width, bitmap.height, result)
+        val ocrBitmap = OcrInputBitmapPreparer.prepare(bitmap)
+        return try {
+            val image = InputImage.fromBitmap(ocrBitmap, 0)
+            val result = recognizer.process(image).await()
+            mapToEvidence(ocrBitmap.width, ocrBitmap.height, result)
+        } finally {
+            if (ocrBitmap !== bitmap) ocrBitmap.recycle()
+        }
     }
 
     private fun mapToEvidence(width: Int, height: Int, text: Text): OcrPageEvidence {

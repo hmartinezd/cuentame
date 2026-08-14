@@ -172,8 +172,10 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
         val supportThreshold = if (candidateRows.size >= 3) 3 else 2
 
-        val numericTokens = candidateRows.flatMap { it.tokens }.filter { isNumeric(it.text) }
-        var clusters = RowClusterer.clusterTokensByX(numericTokens, allRows)
+        val numericTokens = candidateRows.flatMap { it.tokens }.filter {
+            isNumeric(it.text) && PackageTextDetector.detectPackageText(it.text) == null
+        }
+        val clusters = RowClusterer.clusterTokensByX(numericTokens, allRows)
             .filter { it.support >= supportThreshold }
             .sortedBy { it.avgLeft }
 
@@ -181,12 +183,6 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         
         val cols = mutableMapOf<ColumnType, FloatRange>()
         
-        if (clusters.first().avgLeft < 0.2f && clusters.size >= 4) {
-             val leftmost = clusters.first()
-             cols[ColumnType.SKU] = leftmost.toRange(0.03f)
-             clusters = clusters.drop(1)
-        }
-
         val moneyClusters = clusters.filter { c -> 
             val moneyRows = c.tokens.filter { isMoneyLike(it.text) }
                 .map { t -> allRows.find { it.tokens.contains(t) }?.rowId }
@@ -198,40 +194,42 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         
         cols[ColumnType.LineTotal] = rightmost.toRange()
 
-        if (clusters.size >= 2) {
-            val remaining = clusters.filter { it != rightmost }
-            if (remaining.size >= 2) {
-                cols[ColumnType.UnitPrice] = remaining.last().toRange()
-                cols[ColumnType.Quantity] = remaining[remaining.size - 2].toRange()
-            } else {
-                val second = remaining.last()
-                if (isMoneyLike(second.tokens.firstOrNull()?.text ?: "")) {
-                     cols[ColumnType.UnitPrice] = second.toRange()
-                } else if (second.avgRight < rightmost.avgLeft - 0.1f) {
-                     cols[ColumnType.Quantity] = second.toRange()
-                }
-            }
+        val earlierMoney = moneyClusters.filter { it != rightmost }
+        if (earlierMoney.isNotEmpty()) {
+            cols[ColumnType.UnitPrice] = earlierMoney.last().toRange()
         }
 
-        val firstNumericLeft = clusters.minOf { it.avgLeft }
-        
-        if (!cols.containsKey(ColumnType.SKU)) {
-            val skuCandidateTokens = candidateRows.flatMap { it.tokens }
-                .filter { it.right < firstNumericLeft && isCodeLike(it.text) }
-            
-            val skuClusters = RowClusterer.clusterTokensByX(skuCandidateTokens, allRows)
-                .filter { it.support >= 2 && it.avgLeft < 0.25f }
-            
-            if (skuClusters.isNotEmpty()) {
-                val leftmost = skuClusters.minByOrNull { it.avgLeft }!!
-                cols[ColumnType.SKU] = leftmost.toRange(0.03f)
-                cols[ColumnType.Description] = FloatRange(leftmost.avgRight + 0.01f, firstNumericLeft - 0.01f)
-            } else {
-                cols[ColumnType.Description] = FloatRange(0f, firstNumericLeft - 0.01f)
-            }
-        } else {
-            val skuRange = cols[ColumnType.SKU]!!
-            cols[ColumnType.Description] = FloatRange(skuRange.end + 0.01f, firstNumericLeft - 0.01f)
+        val nonMoney = clusters.filter { it != rightmost && it !in earlierMoney }
+        val quantityCluster = nonMoney
+            .filter(::isQuantityLikeCluster)
+            .maxByOrNull { quantityEvidence(it, earlierMoney.lastOrNull(), rightmost, allRows) }
+        if (quantityCluster != null) cols[ColumnType.Quantity] = quantityCluster.toRange()
+
+        val numericSkuClusters = nonMoney.filter { it != quantityCluster && isCredibleNumericSkuCluster(it) }
+        val alphaSkuTokens = candidateRows.flatMap { it.tokens }.filter(::isStrongAlphaNumericCode)
+        val alphaSkuClusters = RowClusterer.clusterTokensByX(alphaSkuTokens, allRows)
+            .filter { it.support >= supportThreshold }
+        val skuCluster = (numericSkuClusters + alphaSkuClusters)
+            .maxWithOrNull(compareBy<TokenCluster>({ skuEvidence(it) }, { it.support }))
+        if (skuCluster != null) cols[ColumnType.SKU] = skuCluster.toRange(0.03f)
+
+        val packageTokens = candidateRows.flatMap { it.tokens }
+            .filter { PackageTextDetector.detectPackageText(it.text) != null }
+        RowClusterer.clusterTokensByX(packageTokens, allRows)
+            .filter { it.support >= supportThreshold }
+            .maxByOrNull { it.support }
+            ?.let { cols[ColumnType.Package] = it.toRange(0.03f) }
+
+        // Description is the residual textual content. Specific inferred columns are
+        // checked first, so this deliberately broad range supports description-first,
+        // quantity-first, and description-then-SKU layouts without positional permutations.
+        cols[ColumnType.Description] = FloatRange(0f, 1f)
+
+        // A price without quantity is still useful. A lone amount must not be promoted
+        // to both price and total, and an unsupported quantity remains absent.
+        if (quantityCluster == null && earlierMoney.isEmpty()) {
+            cols.remove(ColumnType.Quantity)
+            cols.remove(ColumnType.UnitPrice)
         }
         
         return PageLayout(pageIndex, cols, LayoutSource.GeometricInference)
@@ -288,6 +286,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
                 
                 val prevRow = rows.getOrNull(i - 1)
                 if (prevRow != null && prevRow.rowId !in consumedRows && prevRow.pageIndex == row.pageIndex && !isHeaderRow(prevRow) &&
+                    !(candidates.isEmpty() && layout.source == LayoutSource.Unknown) &&
                     prevRow.top >= (tableStartByPage[row.pageIndex] ?: 0f) &&
                     row.top - prevRow.bottom <= 0.025f &&
                     !isNonItemContext(prevRow) &&
@@ -440,11 +439,58 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         )
     }
 
-    private fun isCodeLike(text: String): Boolean {
-        val value = text.trim().trimEnd('.', ':')
-        if (value.length < 3 || value.any { it.isWhitespace() }) return false
-        val digits = value.count(Char::isDigit)
-        return digits >= 2 && value.all { it.isLetterOrDigit() || it == '-' }
+    private fun isQuantityLikeCluster(cluster: TokenCluster): Boolean = cluster.tokens.all { token ->
+        val value = token.text.trim()
+        val number = value.toIntOrNull()
+        number != null && number in 1..999 && (value == "0" || !value.startsWith('0'))
+    }
+
+    private fun quantityEvidence(
+        quantity: TokenCluster,
+        price: TokenCluster?,
+        total: TokenCluster,
+        rows: List<Row>
+    ): Int {
+        var score = quantity.support * 2
+        if (price == null) return score
+        val byRow = rows.associateBy { it.rowId }
+        val sharedRows = quantity.rowIds intersect price.rowIds intersect total.rowIds
+        sharedRows.forEach { rowId ->
+            val row = byRow[rowId] ?: return@forEach
+            val qty = row.tokens.firstOrNull { quantity.toRange().contains(it.centerX) }
+                ?.text?.trim()?.toBigDecimalOrNull()
+            val unitPrice = row.tokens.firstOrNull { price.toRange().contains(it.centerX) }
+                ?.text?.replace(",", "")?.replace("$", "")?.toBigDecimalOrNull()
+            val lineTotal = row.tokens.firstOrNull { total.toRange().contains(it.centerX) }
+                ?.text?.replace(",", "")?.replace("$", "")?.toBigDecimalOrNull()
+            if (qty != null && unitPrice != null && lineTotal != null &&
+                qty.multiply(unitPrice).subtract(lineTotal).abs() <= BigDecimal("0.02")) {
+                score += 10
+            }
+        }
+        return score
+    }
+
+    private fun isCredibleNumericSkuCluster(cluster: TokenCluster): Boolean = cluster.tokens.all { token ->
+        val value = token.text.trim()
+        value.all(Char::isDigit) && value.length >= 4 &&
+            (value.startsWith('0') || value.toLongOrNull()?.let { it > 999L } == true)
+    }
+
+    private fun isStrongAlphaNumericCode(token: LayoutToken): Boolean {
+        val value = token.text.trim().trimEnd('.', ':')
+        return value.length >= 3 && value.any(Char::isLetter) && value.any(Char::isDigit) &&
+            value.all { it.isLetterOrDigit() || it == '-' }
+    }
+
+    private fun skuEvidence(cluster: TokenCluster): Int = cluster.tokens.sumOf { token ->
+        val value = token.text.trim()
+        when {
+            value.any(Char::isLetter) && value.any(Char::isDigit) -> 5
+            value.startsWith('0') && value.length >= 4 -> 4
+            value.length >= 6 -> 3
+            else -> 0
+        }
     }
 
     private fun isDescriptionContinuation(row: Row, layout: PageLayout): Boolean {
