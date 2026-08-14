@@ -850,15 +850,36 @@ fun MaterializationImpactCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             
-            val readyCount = proposal.lines.count { it.blockingReason == null }
+            val progress = materializationProgress(proposal)
             
             Text(
-                text = stringResource(R.string.ocr_materialization_lines_ready, readyCount),
+                text = stringResource(
+                    R.string.ocr_materialization_items_complete,
+                    progress.completeCount,
+                    progress.activeCount
+                ),
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            if (proposal.blockingIssues.isNotEmpty()) {
-                proposal.blockingIssues.forEach { issue ->
+            if (progress.blockedCount > 0) {
+                Text(
+                    text = if (progress.blockedCount == 1) {
+                        stringResource(R.string.ocr_materialization_one_item_needs_attention)
+                    } else {
+                        stringResource(R.string.ocr_materialization_items_need_attention, progress.blockedCount)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            if (proposal.blockingIssues.isNotEmpty() || progress.blockedCount > 0) {
+                proposal.blockingIssues
+                    .filterNot {
+                        it == MaterializationBlockingIssue.UnresolvedLines ||
+                            it == MaterializationBlockingIssue.MissingSupplier
+                    }
+                    .forEach { issue ->
                     Text(
                         text = when(issue) {
                             MaterializationBlockingIssue.UnresolvedLines -> stringResource(R.string.ocr_materialization_unresolved_lines_warning)
@@ -900,11 +921,28 @@ fun MaterializationImpactCard(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            if (proposal.blockingIssues.isNotEmpty()) {
+                Text(
+                    text = when {
+                        MaterializationBlockingIssue.MissingSupplier in proposal.blockingIssues ->
+                            stringResource(R.string.ocr_materialization_select_supplier_to_continue)
+                        progress.blockedCount == 1 ->
+                            stringResource(R.string.ocr_materialization_resolve_or_ignore_one)
+                        progress.blockedCount > 1 ->
+                            stringResource(R.string.ocr_materialization_resolve_or_ignore_many, progress.blockedCount)
+                        else -> stringResource(R.string.ocr_materialization_resolve_global_blocker)
+                    },
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             
             Button(
                 onClick = onApply,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isMaterializing && proposal.blockingIssues.isEmpty() && readyCount > 0
+                enabled = !isMaterializing && materializationCanApply(proposal)
             ) {
                 if (isMaterializing) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
@@ -914,6 +952,29 @@ fun MaterializationImpactCard(
             }
         }
     }
+}
+
+internal data class MaterializationProgress(
+    val activeCount: Int,
+    val completeCount: Int,
+    val blockedCount: Int
+)
+
+internal fun materializationProgress(proposal: PurchaseInvoiceDraftProposal): MaterializationProgress {
+    val activeCount = proposal.lines.size
+    val completeCount = proposal.lines.count { it.blockingReason == null }
+    return MaterializationProgress(
+        activeCount = activeCount,
+        completeCount = completeCount,
+        blockedCount = activeCount - completeCount
+    )
+}
+
+internal fun materializationCanApply(proposal: PurchaseInvoiceDraftProposal): Boolean {
+    val progress = materializationProgress(proposal)
+    return proposal.blockingIssues.isEmpty() &&
+        progress.blockedCount == 0 &&
+        progress.completeCount > 0
 }
 
 @Composable

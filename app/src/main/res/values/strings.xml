@@ -838,8 +838,14 @@
     <string name="ocr_matching_original">Original</string>
     <string name="ocr_matching_deselect">Deselect</string>
     <string name="ocr_materialization_apply_to_draft">Apply to Purchase Draft</string>
-    <string name="ocr_materialization_lines_ready">%1$d lines ready to apply</string>
-    <string name="ocr_materialization_unresolved_lines_warning">Some lines are not matched. These will not be added to the draft.</string>
+    <string name="ocr_materialization_items_complete">%1$d of %2$d items complete</string>
+    <string name="ocr_materialization_items_need_attention">%1$d items need attention</string>
+    <string name="ocr_materialization_one_item_needs_attention">1 item needs attention</string>
+    <string name="ocr_materialization_resolve_or_ignore_many">Resolve or ignore the %1$d remaining items to continue.</string>
+    <string name="ocr_materialization_resolve_or_ignore_one">Resolve or ignore the remaining item to continue.</string>
+    <string name="ocr_materialization_select_supplier_to_continue">Select a supplier before applying this invoice.</string>
+    <string name="ocr_materialization_resolve_global_blocker">Resolve the invoice issue above before applying it to the draft.</string>
+    <string name="ocr_materialization_unresolved_lines_warning">Some active lines still need attention.</string>
     <string name="ocr_materialization_success">Invoice applied to the draft. Return to the draft to review it or use Add line for anything OCR missed.</string>
     <string name="ocr_materialization_success_title">Success</string>
     <string name="ocr_materialization_error_already_posted">This purchase is already posted and cannot be modified.</string>
