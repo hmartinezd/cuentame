@@ -26,8 +26,11 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
         val pageLayouts = detectTableLayouts(rows)
         val terminalPosition = findTerminalTotal(rows, pageLayouts)
-        val lineCandidates = extractLines(rows, pageLayouts, numericContext, terminalPosition)
-        val totals = detectTotals(rows, numericContext, terminalPosition)
+        
+        val summaryIsolation = performSummaryIsolation(rows, numericContext)
+        val lineCandidates = extractLines(rows, pageLayouts, numericContext, terminalPosition, summaryIsolation.consumedRowIds)
+        // println("DEBUG: Found ${lineCandidates.size} candidates")
+        val totals = detectTotals(rows, numericContext, terminalPosition, summaryIsolation)
 
         val warnings = mutableListOf<InvoiceParseWarning>()
         if (pageLayouts.values.all { it.source == LayoutSource.Unknown }) {
@@ -198,14 +201,15 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         cols[ColumnType.LineTotal] = rightmost.toRange()
 
         val earlierMoney = moneyClusters.filter { it != rightmost }
-        if (earlierMoney.isNotEmpty()) {
-            cols[ColumnType.UnitPrice] = earlierMoney.last().toRange()
+        val unitPriceCluster = earlierMoney.lastOrNull()
+        if (unitPriceCluster != null) {
+            cols[ColumnType.UnitPrice] = unitPriceCluster.toRange()
         }
 
-        val nonMoney = clusters.filter { it != rightmost && it !in earlierMoney }
+        val nonMoney = clusters.filter { it != rightmost && it != unitPriceCluster }
         val quantityCluster = nonMoney
             .filter(::isQuantityLikeCluster)
-            .maxByOrNull { quantityEvidence(it, earlierMoney.lastOrNull(), rightmost, allRows) }
+            .maxByOrNull { quantityEvidence(it, unitPriceCluster, rightmost, allRows) }
         if (quantityCluster != null) cols[ColumnType.Quantity] = quantityCluster.toRange()
 
         val numericSkuClusters = nonMoney.filter { it != quantityCluster && isCredibleNumericSkuCluster(it) }
@@ -242,11 +246,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         rows: List<Row>,
         pageLayouts: Map<Int, PageLayout>,
         context: NumericContext,
-        terminalPosition: DocumentPosition?
+        terminalPosition: DocumentPosition?,
+        consumedBySummary: Set<Int>
     ): List<ParsedInvoiceLineCandidate> {
         val candidates = mutableListOf<ParsedInvoiceLineCandidate>()
-        val consumedRows = mutableSetOf<Int>()
         var lineIndex = 0
+        
         val tableHeaderTopByPage = rows.filter(::isHeaderRow)
             .groupBy { it.pageIndex }
             .mapValues { (_, pageRows) -> pageRows.minOf { it.top } }
@@ -254,57 +259,110 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             tableHeaderTopByPage[page] ?: inferTableStart(pageRows, pageLayouts[page])
         }
 
-        for (i in rows.indices) {
-            val row = rows[i]
-            if (row.rowId in consumedRows) continue
-            val layout = pageLayouts[row.pageIndex] ?: continue
-            if (isHeaderRow(row)) continue
-            // A semantic header is a strong table boundary. Header/address values above it
-            // and labeled totals/footer values are never item rows.
-            if (tableHeaderTopByPage[row.pageIndex]?.let { row.top <= it } == true) continue
-            if (tableStartByPage[row.pageIndex]?.let { row.top < it } == true) continue
-            if (terminalPosition?.let { DocumentPosition(row.pageIndex, row.top) >= it } == true) continue
-            if (isSummaryLabelRow(row)) continue
-            if (isNonItemContext(row)) continue
+        val isRowConsumedExternally: (Row) -> Boolean = { row ->
+            row.rowId in consumedBySummary ||
+            isHeaderRow(row) ||
+            tableHeaderTopByPage[row.pageIndex]?.let { row.top <= it } == true ||
+            tableStartByPage[row.pageIndex]?.let { row.top < it } == true ||
+            terminalPosition?.let { DocumentPosition(row.pageIndex, row.top) >= it } == true ||
+            isSummaryLabelRow(row) ||
+            isNonItemContext(row)
+        }
+
+        val logicalItems = rows.groupBy { it.pageIndex }.toSortedMap().flatMap { (pageIdx, pageRows) ->
+            LogicalInvoiceItemAssembler.assemble(
+                pageRows,
+                pageLayouts[pageIdx],
+                isRowConsumedExternally
+            )
+        }
+
+        for (item in logicalItems) {
+            val primaryRow = item.primaryRow
+            val layout = pageLayouts[primaryRow.pageIndex] ?: continue
             
-            val isPotentialLine = if (layout.source != LayoutSource.Unknown) {
-                row.tokens.any { t -> 
-                    val type = layout.getColumnType(t.centerX)
-                    (type == ColumnType.Quantity || type == ColumnType.UnitPrice || type == ColumnType.LineTotal) && isNumeric(t.text)
-                }
+            val candidate = if (layout.source != LayoutSource.Unknown) {
+                extractLogicalLineWithLayout(item, layout, context, lineIndex++)
             } else {
-                row.tokens.count { isNumeric(it.text) } >= 2 && row.tokens.any { it.text.length > 2 && !isNumeric(it.text) }
+                extractLineFallback(primaryRow, context, lineIndex++)
             }
 
-            if (isPotentialLine) {
-                val candidate = if (layout.source != LayoutSource.Unknown) {
-                    extractLineWithLayout(row, layout, context, lineIndex++)
-                } else {
-                    extractLineFallback(row, context, lineIndex++)
-                }
-
-                // Numeric evidence alone is insufficient. A row needs a human-readable
-                // product identity; numeric vendor SKUs remain valid when paired with it.
-                if (!hasItemIdentity(candidate)) continue
-                
+            if (hasItemIdentity(candidate)) {
                 candidates.add(candidate)
-            } else if (candidates.isNotEmpty() && isStrongDescriptionContinuation(rows, i, row, layout, candidates.last())) {
-                 val last = candidates.last()
-                 val rowText = row.text.trim()
-                 if (rowText.isNotEmpty()) {
-                     val newDesc = last.description.detectedText + " " + rowText
-                     candidates[candidates.size - 1] = last.copy(
-                         description = last.description.copy(
-                             detectedText = newDesc,
-                             normalizedValue = newDesc,
-                             evidenceRefs = last.description.evidenceRefs + row.tokens.map { it.evidenceRef }
-                         )
-                     )
-                     consumedRows += row.rowId
-                 }
             }
         }
         return candidates
+    }
+
+    private fun extractLogicalLineWithLayout(
+        item: LogicalInvoiceItemAssembler.LogicalItem,
+        layout: PageLayout,
+        context: NumericContext,
+        index: Int
+    ): ParsedInvoiceLineCandidate {
+        val fields = mutableMapOf<ColumnType, MutableList<LayoutToken>>()
+        item.allTokens.forEach { t ->
+            val type = layout.getColumnType(t.centerX)
+            if (type != null) {
+                fields.getOrPut(type) { mutableListOf() }.add(t)
+            }
+        }
+
+        // Heuristic: If description is missing but SKU column has multiple tokens from different 
+        // rows, those secondary tokens are almost certainly misaligned description content.
+        val skuTokens = fields[ColumnType.SKU]
+        if ((fields[ColumnType.Description] == null || fields[ColumnType.Description]!!.isEmpty()) &&
+            skuTokens != null && skuTokens.size > 1) {
+            val firstLineIdx = skuTokens.map { it.evidenceRef.lineIndex }.filterNotNull().minOrNull() ?: 0
+            val potentialDesc = skuTokens.filter { (it.evidenceRef.lineIndex ?: 0) > firstLineIdx }
+            if (potentialDesc.isNotEmpty()) {
+                fields.getOrPut(ColumnType.Description) { mutableListOf() }.addAll(potentialDesc)
+                skuTokens.removeAll(potentialDesc)
+            }
+        }
+
+        val descTokens = fields[ColumnType.Description] ?: emptyList()
+        val rawDescription = extractField(descTokens)
+        
+        val packageSpan = PackageTextDetector.findPackageSpan(item.allTokens.map { it.text })
+        val packageFromDesc = packageSpan?.text ?: PackageTextDetector.findPackageToken(item.allTokens.map { it.text })
+            ?: PackageTextDetector.detectPackageText(rawDescription.detectedText ?: "")
+        
+        val packageField: ParsedField<String?> = if (packageFromDesc != null) {
+            val packageTokens = packageSpan?.let { item.allTokens.subList(it.startIndex, it.endIndexExclusive) }
+                ?: item.allTokens.filter { packageFromDesc.contains(it.text, ignoreCase = true) }
+            ParsedField(packageFromDesc, packageFromDesc, 0.8f, packageTokens.map { it.evidenceRef }.ifEmpty { rawDescription.evidenceRefs })
+        } else {
+            extractField(fields[ColumnType.Package])
+        }
+        
+        val finalDescription = if (packageFromDesc != null) {
+            val packageParts = packageSpan?.let { item.allTokens.subList(it.startIndex, it.endIndexExclusive).map(LayoutToken::text).toSet() }.orEmpty()
+            val cleaned = rawDescription.detectedText?.split(" ")?.filterNot { part -> part in packageParts }?.joinToString(" ")
+                ?.replace(packageFromDesc, "", ignoreCase = true)?.trim()
+            rawDescription.copy(detectedText = cleaned, normalizedValue = cleaned)
+        } else {
+            rawDescription
+        }
+
+        return ParsedInvoiceLineCandidate(
+            index = index,
+            vendorCode = extractField(fields[ColumnType.SKU]),
+            description = finalDescription,
+            quantity = extractNumericField(fields[ColumnType.Quantity]?.filterNot { token ->
+                packageSpan?.let { span -> item.allTokens.indexOf(token) in span.startIndex until span.endIndexExclusive } == true
+            }, context),
+            packageText = packageField,
+            unitPrice = extractNumericField(fields[ColumnType.UnitPrice], context),
+            lineTotal = extractNumericField(fields[ColumnType.LineTotal], context),
+            confidence = when(layout.source) {
+                LayoutSource.SemanticHeader -> 0.9f
+                LayoutSource.CompatibleContinuation -> 0.85f
+                LayoutSource.GeometricInference -> 0.7f
+                else -> 0.5f
+            },
+            evidenceRefs = item.allTokens.map { it.evidenceRef }
+        )
     }
 
     private fun inferTableStart(pageRows: List<Row>, layout: PageLayout?): Float {
@@ -357,7 +415,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             token.text.any(Char::isLetter) && !isSummaryLabelRow(row)
         }
 
-    private fun isSummaryLabelRow(row: Row): Boolean {
+    internal fun isSummaryLabelRow(row: Row): Boolean {
         val words = row.tokens.filterNot { isNumeric(it.text) }.joinToString(" ") { it.text }
             .trim().replace(Regex("\\s+"), " ").lowercase()
         return words in TERMINAL_LABELS || words in INTERMEDIATE_SUMMARY_LABELS ||
@@ -366,15 +424,18 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun hasItemIdentity(candidate: ParsedInvoiceLineCandidate): Boolean {
         val description = candidate.description.normalizedValue.orEmpty().trim()
-        return description.length >= 2 && description.any { it.isLetter() }
+        if (description.length >= 2 && description.any { it.isLetter() }) return true
+        
+        val sku = candidate.vendorCode.normalizedValue.orEmpty().trim()
+        return sku.length >= 2 && sku.any { it.isLetter() }
     }
 
-    private fun isNonItemContext(row: Row): Boolean {
+    internal fun isNonItemContext(row: Row): Boolean {
         val text = row.text.lowercase()
         return NON_ITEM_CONTEXT.containsMatchIn(text)
     }
 
-    private fun isHeaderRow(row: Row): Boolean {
+    internal fun isHeaderRow(row: Row): Boolean {
         if (row.tokens.count { isNumeric(it.text) } >= 3) return false
         val text = row.text.lowercase()
         val semanticColumns = listOf(
@@ -411,8 +472,9 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun isQuantityLikeCluster(cluster: TokenCluster): Boolean = cluster.tokens.all { token ->
         val value = token.text.trim()
-        val number = value.toIntOrNull()
-        number != null && number in 1..999 && (value == "0" || !value.startsWith('0'))
+        val number = value.toBigDecimalOrNull()
+        number != null && number > BigDecimal.ZERO && number < BigDecimal("1000") && 
+            (value.contains('.') || value == "0" || !value.startsWith('0'))
     }
 
     private fun quantityEvidence(
@@ -463,91 +525,6 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         }
     }
 
-    private fun isStrongDescriptionContinuation(
-        rows: List<Row>, index: Int, row: Row, layout: PageLayout, previous: ParsedInvoiceLineCandidate
-    ): Boolean {
-        if (row.tokens.any { isNumeric(it.text) }) return false
-        
-        val text = row.text.lowercase()
-        if (text.contains(Regex("thank you|gracias|payment|remit|due date|balance|total|subtotal|tax"))) return false
-
-        if (layout.source == LayoutSource.Unknown) return false
-        
-        val previousRow = rows.getOrNull(index - 1) ?: return false
-        if (previousRow.pageIndex != row.pageIndex || previousRow.rowId !in previous.evidenceRefs.mapNotNull { ref ->
-                rows.firstOrNull { candidate -> candidate.tokens.any { it.evidenceRef == ref } }?.rowId
-            }) return false
-        val nextRow = rows.getOrNull(index + 1)?.takeIf { it.pageIndex == row.pageIndex }
-        val gapToPrevious = row.top - previousRow.bottom
-        val gapToNext = nextRow?.let { it.top - row.bottom }
-        if (gapToPrevious < -0.005f || gapToPrevious > 0.012f) return false
-        if (gapToNext != null && gapToNext <= gapToPrevious * 1.5f) return false
-
-        val descriptionTokens = previousRow.tokens.filter { token ->
-            layout.getColumnType(token.centerX) == ColumnType.Description && token.text.any(Char::isLetter)
-        }
-        if (descriptionTokens.isEmpty()) return false
-        val previousLeft = descriptionTokens.minOf { it.left }
-        val rowLeft = row.tokens.minOf { it.left }
-        return kotlin.math.abs(rowLeft - previousLeft) <= 0.02f && row.tokens.all { it.left < 0.7f }
-    }
-
-    private fun extractLineWithLayout(row: Row, layout: PageLayout, context: NumericContext, index: Int): ParsedInvoiceLineCandidate {
-        val fields = mutableMapOf<ColumnType, MutableList<LayoutToken>>()
-        row.tokens.forEach { t ->
-            val type = layout.getColumnType(t.centerX)
-            if (type != null) {
-                fields.getOrPut(type) { mutableListOf() }.add(t)
-            }
-        }
-
-        val descTokens = fields[ColumnType.Description] ?: emptyList()
-        val rawDescription = extractField(descTokens)
-        
-        // Try individual tokens first
-        val packageSpan = PackageTextDetector.findPackageSpan(row.tokens.map { it.text })
-        val packageFromDesc = packageSpan?.text ?: PackageTextDetector.findPackageToken(row.tokens.map { it.text })
-            ?: PackageTextDetector.detectPackageText(rawDescription.detectedText ?: "")
-        
-        val packageField: ParsedField<String?> = if (packageFromDesc != null) {
-            val packageTokens = packageSpan?.let { row.tokens.subList(it.startIndex, it.endIndexExclusive) }
-                ?: row.tokens.filter { packageFromDesc.contains(it.text, ignoreCase = true) }
-            ParsedField(packageFromDesc, packageFromDesc, 0.8f, packageTokens.map { it.evidenceRef }.ifEmpty { rawDescription.evidenceRefs })
-        } else {
-            extractField(fields[ColumnType.Package])
-        }
-        
-        val finalDescription = if (packageFromDesc != null) {
-            val packageParts = packageSpan?.let { row.tokens.subList(it.startIndex, it.endIndexExclusive).map(LayoutToken::text).toSet() }.orEmpty()
-            val cleaned = rawDescription.detectedText?.split(" ")?.filterNot { part -> part in packageParts }?.joinToString(" ")
-                ?.replace(packageFromDesc, "", ignoreCase = true)?.trim()
-            rawDescription.copy(detectedText = cleaned, normalizedValue = cleaned)
-        } else {
-            rawDescription
-        }
-
-        val confidence = when(layout.source) {
-            LayoutSource.SemanticHeader -> 0.9f
-            LayoutSource.CompatibleContinuation -> 0.85f
-            LayoutSource.GeometricInference -> 0.7f
-            else -> 0.5f
-        }
-
-        return ParsedInvoiceLineCandidate(
-            index = index,
-            vendorCode = extractField(fields[ColumnType.SKU]),
-            description = finalDescription,
-            quantity = extractNumericField(fields[ColumnType.Quantity]?.filterNot { token ->
-                packageSpan?.let { span -> row.tokens.indexOf(token) in span.startIndex until span.endIndexExclusive } == true
-            }, context),
-            packageText = packageField,
-            unitPrice = extractNumericField(fields[ColumnType.UnitPrice], context),
-            lineTotal = extractNumericField(fields[ColumnType.LineTotal], context),
-            confidence = confidence,
-            evidenceRefs = row.tokens.map { it.evidenceRef }
-        )
-    }
-
     private fun extractLineFallback(row: Row, context: NumericContext, index: Int): ParsedInvoiceLineCandidate {
         val numericTokens = row.tokens.filter { isNumeric(it.text) }
         val textTokens = row.tokens.filter { !isNumeric(it.text) }
@@ -561,7 +538,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             quantity = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[0]), context) else ParsedField(null, null, 0f),
             packageText = ParsedField(null, null, 0f),
             unitPrice = if (numericTokens.size >= 3) extractNumericField(listOf(numericTokens[1]), context) else ParsedField(null, null, 0f),
-            lineTotal = extractNumericField(listOf(numericTokens.last()), context),
+            lineTotal = if (numericTokens.isNotEmpty()) extractNumericField(listOf(numericTokens.last()), context) else ParsedField(null, null, 0f),
             confidence = 0.4f,
             evidenceRefs = row.tokens.map { it.evidenceRef }
         )
@@ -577,14 +554,15 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         if (tokens.isNullOrEmpty()) return ParsedField(null, null, 0f)
         val text = tokens.joinToString("") { it.text }
         val value = parseBigDecimal(text, context)
+        // if (value == null) println("DEBUG Parser: Failed to parse numeric field from '$text'")
         return ParsedField(text, value, if (value != null) 0.9f else 0.1f, tokens.map { it.evidenceRef })
     }
 
-    private fun isNumeric(text: String): Boolean {
+    internal fun isNumeric(text: String): Boolean {
         val sanitized = text.replace(Regex("[^0-9]"), "")
         if (sanitized.isEmpty()) return false
         val letters = text.count { it.isLetter() }
-        if (letters > text.length / 2 && text.length > 3) return false
+        if (letters > text.length / 2) return false
         val totalMeaningful = text.replace(Regex("[^0-9,.()\\- $]"), "").length
         return totalMeaningful >= 1
     }
@@ -688,7 +666,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return null
     }
 
-    private fun detectTotals(rows: List<Row>, context: NumericContext, terminalPosition: DocumentPosition?): TotalsResult {
+    private fun detectTotals(
+        rows: List<Row>,
+        context: NumericContext,
+        terminalPosition: DocumentPosition?,
+        summaryIsolation: SummaryIsolationResult
+    ): TotalsResult {
         val totalLabels = listOf("\\btotal\\b", "importe total", "grand total")
         val taxLabels = listOf("tax", "iva", "itbis", "impuesto")
         val subtotalLabels = listOf("subtotal", "sub-total", "sub total")
@@ -696,17 +679,79 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val feesLabels = listOf("fee", "cargo", "flete", "shipping", "delivery")
 
         return TotalsResult(
-            subtotal = findAmountNearLabel(rows, subtotalLabels, context),
-            discount = findAmountNearLabel(rows, discountLabels, context),
-            fees = findAmountNearLabel(rows, feesLabels, context),
-            tax = findAmountNearLabel(rows, taxLabels, context),
-            total = terminalPosition?.let { position ->
+            subtotal = summaryIsolation.totals["subtotal"] ?: findAmountNearLabel(rows, subtotalLabels, context),
+            discount = summaryIsolation.totals["discount"] ?: findAmountNearLabel(rows, discountLabels, context),
+            fees = summaryIsolation.totals["fees"] ?: findAmountNearLabel(rows, feesLabels, context),
+            tax = summaryIsolation.totals["tax"] ?: findAmountNearLabel(rows, taxLabels, context),
+            total = summaryIsolation.totals["total"] ?: (terminalPosition?.let { position ->
                 rows.firstOrNull { it.pageIndex == position.pageIndex && it.top == position.top }
                     ?.let { amountFromRow(it, context) }
-            } ?: ParsedField(null, null, 0f),
+            } ?: ParsedField(null, null, 0f)),
             currency = ParsedField(null, null, 0f)
         )
     }
+
+    private fun performSummaryIsolation(
+        rows: List<Row>,
+        context: NumericContext
+    ): SummaryIsolationResult {
+        val consumedRows = mutableSetOf<Int>()
+        val totals = mutableMapOf<String, ParsedField<BigDecimal?>>()
+        
+        val labelGroups = mapOf(
+            "subtotal" to listOf("subtotal", "sub-total", "sub total"),
+            "tax" to listOf("tax", "iva", "itbis", "impuesto"),
+            "discount" to listOf("discount", "descuento"),
+            "fees" to listOf("fee", "cargo", "flete", "shipping", "delivery"),
+            "total" to TERMINAL_LABELS.toList()
+        )
+
+        for (i in rows.indices) {
+            val row = rows[i]
+            if (row.rowId in consumedRows) continue
+            val lowText = row.text.lowercase()
+            
+            for ((key, labels) in labelGroups) {
+                if (totals.containsKey(key)) continue
+                
+                if (labels.any { lowText.contains(it) }) {
+                    var amount = amountFromRow(row, context)
+                    if (amount.normalizedValue != null) {
+                        // Check if it's potentially a product line with "TOTAL" in description
+                        // e.g. "1 TOTAL CEREAL 18.00 18.00"
+                        // If it has multiple numbers, it's probably not a summary row
+                        if (row.tokens.count { isNumeric(it.text) } >= 3) continue
+
+                        totals[key] = amount
+                        consumedRows.add(row.rowId)
+                        break
+                    }
+                    
+                    // Lookahead for split summary
+                    if (row.tokens.none { isNumeric(it.text) }) {
+                        val nextRow = rows.getOrNull(i + 1)
+                        if (nextRow != null && nextRow.rowId !in consumedRows && nextRow.pageIndex == row.pageIndex) {
+                            amount = amountFromRow(nextRow, context)
+                            // Next row must be strictly an amount (no other text) for safe split isolation
+                            if (amount.normalizedValue != null && nextRow.tokens.size == 1) {
+                                totals[key] = amount
+                                consumedRows.add(row.rowId)
+                                consumedRows.add(nextRow.rowId)
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return SummaryIsolationResult(totals, consumedRows)
+    }
+
+    internal data class SummaryIsolationResult(
+        val totals: Map<String, ParsedField<BigDecimal?>>,
+        val consumedRowIds: Set<Int>
+    )
 
     private fun findAmountNearLabel(
         rows: List<Row>,
@@ -743,7 +788,8 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         var commaAsDecimal = 0
         var dotAsDecimal = 0
         
-        val moneyRegex = Regex("[0-9]{1,3}([,.][0-9]{3})*[,.][0-9]{2}")
+        // Use the same regex as parseBigDecimal to find candidates for inference
+        val moneyRegex = Regex("[0-9]{1,3}(?:[,.][0-9]{3})*[,.][0-9]{1,3}")
         
         for (token in tokens) {
             val match = moneyRegex.find(token.text) ?: continue
@@ -765,17 +811,17 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     private fun parseBigDecimal(text: String?, context: NumericContext): BigDecimal? {
         if (text == null) return null
         
-        val moneyRegex = Regex("-?[0-9]{1,3}([,.][0-9]{3})*[,.][0-9]{2}")
-        val matches = moneyRegex.findAll(text).toList()
-        val matchCandidate = matches.lastOrNull()?.value
-        
-        val sanitized = matchCandidate ?: text.replace(Regex("[^0-9,.-]"), "")
-        if (sanitized.isBlank() || sanitized == "." || sanitized == "-") return null
+        val sanitized = text.replace(Regex("[^0-9,.-]"), "")
+        if (sanitized.isBlank() || sanitized == "." || sanitized == "-" || sanitized == "," || sanitized == "..") return null
         
         return try {
             val normalized = if (context.decimalSeparator == ',') {
+                // Comma-based: 1.234,56 -> 1234.56
+                // If there's only one dot/comma, we need to decide if it's decimal or grouping.
+                // context.decimalSeparator tells us what to expect for the decimal.
                 sanitized.replace(".", "").replace(",", ".")
             } else {
+                // Dot-based: 1,234.56 -> 1234.56
                 sanitized.replace(",", "")
             }
             val final = if (text.contains("(") && text.contains(")")) "-$normalized" else normalized
@@ -809,7 +855,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return score.coerceIn(0f, 1f)
     }
 
-    private data class PageLayout(
+    internal data class PageLayout(
         val pageIndex: Int,
         val columns: Map<ColumnType, FloatRange>,
         val source: LayoutSource
@@ -854,22 +900,22 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         }
     }
 
-    private enum class LayoutSource {
+    internal enum class LayoutSource {
         SemanticHeader, CompatibleContinuation, GeometricInference, Unknown
     }
 
-    private enum class ColumnType {
+    internal enum class ColumnType {
         SKU, Description, Quantity, Package, UnitPrice, LineTotal
     }
 
-    private data class NumericContext(
+    internal data class NumericContext(
         val decimalSeparator: Char,
         val isAmbiguous: Boolean
     )
 
     private object HeaderAlias {
         val QTY = listOf("qty", "quantity", "cant", "cantidad", "unidades")
-        val PRICE = listOf("price", "unit price", "precio", "cost", "unit cost")
+        val PRICE = listOf("price", "unit price", "precio", "cost", "unit cost", "rate")
         val AMOUNT = listOf("amount", "total", "importe", "ext", "extension")
         val SKU = listOf("item", "code", "sku", "código", "articulo", "artículo")
         val DESCRIPTION = listOf("description", "descripción", "desc")
