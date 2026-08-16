@@ -24,6 +24,8 @@ interface MenuCatalogRepository {
     suspend fun setArchived(id: MenuId, archived: Boolean)
     suspend fun saveCategory(menuId: MenuId, categoryId: MenuCategoryId?, name: String, sortOrder: Int): MenuCategoryId
     suspend fun removeCategory(menuId: MenuId, categoryId: MenuCategoryId)
+    suspend fun reorderCategories(menuId: MenuId, orderedCategoryIds: List<MenuCategoryId>)
     suspend fun savePlacement(menuId: MenuId, placementId: MenuPlacementId?, categoryId: MenuCategoryId, menuRecipeId: MenuRecipeId, sortOrder: Int): MenuPlacementId
     suspend fun removePlacement(menuId: MenuId, placementId: MenuPlacementId)
+    suspend fun reorderPlacements(menuId: MenuId, orderedPlacementIds: List<MenuPlacementId>)
 }

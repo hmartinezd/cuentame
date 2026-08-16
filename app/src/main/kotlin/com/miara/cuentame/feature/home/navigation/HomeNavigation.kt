@@ -22,6 +22,7 @@ fun NavGraphBuilder.homeGraph(navController: NavHostController) {
             onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) },
             onViewPreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) },
             onViewMenuItems = { navController.navigate(Destination.MENU_RECIPE_LIST.route) },
+            onViewMenus = { navController.navigate(Destination.MENU_CATALOG_LIST.route) },
             onViewProduction = { navController.navigate(Destination.PRODUCTION_BATCH_LIST.route) },
             onViewInventoryDetail = { filter -> navController.navigate(AppRoutes.reportInventoryDetail(filter)) },
             onViewPurchaseDetail = { range -> navController.navigate(AppRoutes.reportPurchaseDetail(range.name)) },

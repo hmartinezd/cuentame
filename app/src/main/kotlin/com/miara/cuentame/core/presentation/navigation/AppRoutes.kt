@@ -14,6 +14,7 @@ import com.miara.cuentame.core.common.ids.PreparationRecipeComponentId
 import com.miara.cuentame.core.common.ids.ProductionBatchId
 import com.miara.cuentame.core.common.ids.ProductionBatchComponentId
 import com.miara.cuentame.core.common.ids.MenuRecipeId
+import com.miara.cuentame.core.common.ids.MenuId
 
 object AppRoutes {
     var encoder: RouteEncoder = AndroidRouteEncoder
@@ -22,6 +23,7 @@ object AppRoutes {
         "inventory/${encoder.encode(id.value)}"
 
     fun menuRecipeDetail(id: MenuRecipeId): String = "menu-items/${encoder.encode(id.value)}"
+    fun menuCatalogDetail(id: MenuId): String = "menus/${encoder.encode(id.value)}"
 
     fun ingredientCreate(prefillName: String? = null): String =
         "inventory/create" + (prefillName?.let { "?prefillName=${encoder.encode(it)}" } ?: "")

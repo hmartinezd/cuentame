@@ -80,6 +80,15 @@ class RoomMenuCatalogRepository @Inject constructor(
         }
     }
 
+    override suspend fun reorderCategories(menuId: MenuId, orderedCategoryIds: List<MenuCategoryId>) = database.withTransaction {
+        val existing = dao.getCategories(menuId.value).map { it.id }
+        val requested = orderedCategoryIds.map { it.value }
+        if (requested.size != requested.distinct().size || requested.toSet() != existing.toSet()) {
+            throw MenuCatalogPersistenceException.OwnershipMismatch()
+        }
+        requested.forEachIndexed { index, id -> dao.updateCategoryOrder(menuId.value, id, index * 10) }
+    }
+
     override suspend fun savePlacement(menuId: MenuId, placementId: MenuPlacementId?, categoryId: MenuCategoryId,
         menuRecipeId: MenuRecipeId, sortOrder: Int): MenuPlacementId = database.withTransaction {
         val menu = dao.getMenu(menuId.value) ?: throw MenuCatalogPersistenceException.NotFound()
@@ -104,6 +113,16 @@ class RoomMenuCatalogRepository @Inject constructor(
         if (dao.deletePlacement(menuId.value, placementId.value) == 0 && dao.getPlacement(placementId.value) != null) {
             throw MenuCatalogPersistenceException.OwnershipMismatch()
         }
+    }
+
+
+    override suspend fun reorderPlacements(menuId: MenuId, orderedPlacementIds: List<MenuPlacementId>) = database.withTransaction {
+        val existing = dao.getPlacements(menuId.value).map { it.id }
+        val requested = orderedPlacementIds.map { it.value }
+        if (requested.size != requested.distinct().size || requested.toSet() != existing.toSet()) {
+            throw MenuCatalogPersistenceException.OwnershipMismatch()
+        }
+        requested.forEachIndexed { index, id -> dao.updatePlacementOrder(menuId.value, id, index * 10) }
     }
 
     private fun validateMenu(menu: Menu): Menu {

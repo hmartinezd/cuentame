@@ -199,6 +199,17 @@ class MenuDetailViewModel @Inject constructor(
     fun consumeInfoSaveSuccess() { operations.value = operations.value.copy(infoSaveSucceeded = false) }
     fun clearInfoError() { operations.value = operations.value.copy(infoError = null) }
 
+    fun setCashDiscountBehavior(behavior: CashDiscountBehavior) {
+        val recipe = state.value.recipe ?: return
+        if (operations.value.isSavingInfo || recipe.cashDiscountBehavior == behavior) return
+        viewModelScope.launch {
+            operations.value = operations.value.copy(isSavingInfo = true, infoError = null)
+            try { recipes.setCashDiscountBehavior(id, behavior); operations.value = operations.value.copy(isSavingInfo = false)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { operations.value = operations.value.copy(isSavingInfo = false, infoError = e.presentationError()) }
+        }
+    }
+
     fun archive() {
         if (operations.value.isArchiving) return
         val recipe = state.value.recipe ?: return

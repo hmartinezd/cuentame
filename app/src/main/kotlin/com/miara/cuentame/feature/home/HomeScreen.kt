@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PrecisionManufacturing
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SoupKitchen
@@ -77,6 +78,7 @@ fun HomeRoute(
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
+    onViewMenus: () -> Unit,
     onViewProduction: () -> Unit,
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
@@ -102,6 +104,7 @@ fun HomeRoute(
         onViewReports = onViewReports,
         onViewPreparations = onViewPreparations,
         onViewMenuItems = onViewMenuItems,
+        onViewMenus = onViewMenus,
         onViewProduction = onViewProduction,
         onViewInventoryDetail = onViewInventoryDetail,
         onViewPurchaseDetail = onViewPurchaseDetail,
@@ -128,6 +131,7 @@ fun HomeScreen(
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
+    onViewMenus: () -> Unit,
     onViewProduction: () -> Unit,
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
@@ -185,6 +189,7 @@ fun HomeScreen(
                     onViewReports = onViewReports,
                     onViewPreparations = onViewPreparations,
                     onViewMenuItems = onViewMenuItems,
+                    onViewMenus = onViewMenus,
                     onViewProduction = onViewProduction,
                     onViewInventoryDetail = onViewInventoryDetail,
                     onViewPurchaseDetail = onViewPurchaseDetail,
@@ -212,6 +217,7 @@ private fun DashboardContent(
     onViewReports: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
+    onViewMenus: () -> Unit,
     onViewProduction: () -> Unit,
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
@@ -305,6 +311,7 @@ private fun DashboardContent(
                 onViewActivity = onViewActivity,
                 onViewPreparations = onViewPreparations,
                 onViewMenuItems = onViewMenuItems,
+                onViewMenus = onViewMenus,
                 onViewProduction = onViewProduction,
                 onViewReorder = onViewReorder
             )
@@ -597,6 +604,7 @@ private fun QuickActionsSection(
     onViewActivity: () -> Unit,
     onViewPreparations: () -> Unit,
     onViewMenuItems: () -> Unit,
+    onViewMenus: () -> Unit,
     onViewProduction: () -> Unit,
     onViewReorder: () -> Unit
 ) {
@@ -614,12 +622,16 @@ private fun QuickActionsSection(
             QuickActionButton(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), onViewProduction, Modifier.weight(1f).testTag("open_production_batches_button"))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.MenuBook, stringResource(R.string.catalog_menus), onViewMenus, Modifier.weight(1f).testTag("open_menus_button"))
             QuickActionButton(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), onViewMenuItems, Modifier.weight(1f).testTag("open_menu_items_button"))
-            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), onViewReorder, Modifier.weight(1f).testTag("reorder_assistance_button"))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), onViewReorder, Modifier.weight(1f).testTag("reorder_assistance_button"))
             QuickActionButton(Icons.Default.History, stringResource(R.string.inventory_activity_title), onViewActivity, Modifier.weight(1f).testTag("open_inventory_activity_button"))
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.weight(1f).testTag("view_reports_button"))
+            Spacer(Modifier.weight(1f))
         }
     }
 }

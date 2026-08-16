@@ -7,4 +7,6 @@ import com.miara.cuentame.feature.menu.ui.*
 fun NavGraphBuilder.menuGraph(nav:NavHostController,onBack:()->Unit){
  composable(Destination.MENU_RECIPE_LIST.route){MenuListRoute(onBack,{nav.navigate(AppRoutes.menuRecipeDetail(it))})}
  composable(Destination.MENU_RECIPE_DETAIL.route,arguments=listOf(navArgument("menuRecipeId"){type=NavType.StringType})){MenuDetailRoute(onBack={nav.popBackStack()})}
+ composable(Destination.MENU_CATALOG_LIST.route){MenuCatalogListRoute(onBack,{nav.navigate(AppRoutes.menuCatalogDetail(it))})}
+ composable(Destination.MENU_CATALOG_DETAIL.route,arguments=listOf(navArgument("menuId"){type=NavType.StringType})){MenuCatalogDetailRoute(onBack={nav.popBackStack()},onOpenMenuItem={nav.navigate(AppRoutes.menuRecipeDetail(it))})}
 }
