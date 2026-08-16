@@ -69,7 +69,7 @@ internal object LogicalInvoiceItemAssembler {
             consumedIndices.add(i)
 
             var j = i + 1
-            while (j < rows.size && j < i + 15) {
+            while (j < rows.size && j < i + 8) {
                 if (j in consumedIndices || isRowConsumed(rows[j])) {
                     j++
                     continue
@@ -92,10 +92,9 @@ internal object LogicalInvoiceItemAssembler {
                 if (isMoneyContinuation(currentGroup, nextCandidate, layout)) {
                     currentGroup.add(nextCandidate)
                     consumedIndices.add(j)
-                    // Once money is found for an item, we continue merging to catch any following description rows.
-                    // Product fixtures like JC Foods can have descriptions after the SKU/Qty line.
-                    j++
-                    continue
+                    // Once money is found for an item, we stop merging to avoid swallowing 
+                    // unrelated text or subsequent items.
+                    break 
                 }
                 
                 if (isDescriptionContinuation(currentGroup.last(), nextCandidate, layout, rows.getOrNull(j + 1))) {
@@ -139,7 +138,6 @@ internal object LogicalInvoiceItemAssembler {
         nextRow: Row,
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
-        if (hasMoney(currentGroup, layout)) return false
         val parser = DeterministicPurchaseInvoiceParser()
         val nextHasMoney = nextRow.tokens.any { t ->
             val type = layout.getColumnType(t.centerX)
@@ -147,7 +145,10 @@ internal object LogicalInvoiceItemAssembler {
                 parser.isNumeric(t.text)
         }
         if (!nextHasMoney) return false
-        return !isPotentialIdentityRow(nextRow, layout)
+        
+        // A money continuation is valid if the current group is missing money
+        // OR if the next row doesn't look like a new item.
+        return !hasMoney(currentGroup, layout) || !startsNewItem(nextRow, layout)
     }
 
     private fun hasMoney(group: List<Row>, layout: DeterministicPurchaseInvoiceParser.PageLayout): Boolean {
@@ -182,9 +183,12 @@ internal object LogicalInvoiceItemAssembler {
         following: Row?
     ): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
+        // A description continuation should not contain multiple numeric tokens (likely a new product)
         if (next.tokens.count { parser.isNumeric(it.text) } >= 2) return false
+        
         val gap = next.top - previous.bottom
-        if (gap < -0.05f || gap > 0.30f) return false 
+        // Plausible vertical proximity for a continuation.
+        if (gap < -0.005f || gap > 0.10f) return false 
 
         val nextLeft = next.tokens.minOfOrNull { it.left } ?: 1.0f
         if (nextLeft > 0.75f || !next.text.any { it.isLetter() }) return false
@@ -200,7 +204,9 @@ internal object LogicalInvoiceItemAssembler {
             kotlin.math.abs(nextLeft - previous.tokens.minOf { it.left })
         }
 
-        if (alignmentGap <= 0.45f) {
+        // Tighten alignment for description continuations.
+        if (alignmentGap <= 0.15f) {
+            // Ambiguity check: avoid swallowing orphans if perfectly aligned with next item.
             if (alignmentGap < 0.01f && following != null && startsNewItem(following, layout)) {
                 val followingLeft = following.tokens.filter { it.text.any(Char::isLetter) }.minOfOrNull { it.left } ?: following.tokens.minOf { it.left }
                 if (kotlin.math.abs(nextLeft - followingLeft) < 0.01f) return false

@@ -182,7 +182,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             it !in packageSpanTokens && isNumeric(it.text) && PackageTextDetector.detectPackageText(it.text) == null
         }
         val clusters = RowClusterer.clusterTokensByX(numericTokens, allRows)
-            .filter { it.support >= supportThreshold }
+            .filter { it.support >= supportThreshold || (candidateRows.size < 3 && it.tokens.any { isMoneyLike(it.text) }) }
             .sortedBy { it.avgLeft }
 
         if (clusters.isEmpty()) return null
@@ -266,7 +266,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             tableStartByPage[row.pageIndex]?.let { row.top < it } == true ||
             terminalPosition?.let { DocumentPosition(row.pageIndex, row.top) >= it } == true ||
             isSummaryLabelRow(row) ||
-            isNonItemContext(row)
+            (isNonItemContext(row) && row.tokens.count { isNumeric(it.text) } < 2)
         }
 
         val logicalItems = rows.groupBy { it.pageIndex }.toSortedMap().flatMap { (pageIdx, pageRows) ->
@@ -400,8 +400,8 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val amountTokens = row.tokens.filter { TERMINAL_MONEY.matches(it.text.trim()) }
         if (amountTokens.size != 1) return false
         val label = row.tokens.filterNot { it == amountTokens.single() }
-            .joinToString(" ") { it.text }.trim().replace(Regex("\\s+"), " ")
-        if (label.lowercase() !in TERMINAL_LABELS) return false
+            .joinToString(" ") { it.text.lowercase().trimEnd(':', '.', ',') }.trim().replace(Regex("\\s+"), " ")
+        if (label !in TERMINAL_LABELS) return false
 
         // Exact summary label + one strict amount is summary structure. Product rows
         // with quantity/price/pack fields necessarily carry additional tokens.
@@ -416,10 +416,14 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         }
 
     internal fun isSummaryLabelRow(row: Row): Boolean {
-        val words = row.tokens.filterNot { isNumeric(it.text) }.joinToString(" ") { it.text }
-            .trim().replace(Regex("\\s+"), " ").lowercase()
+        // Items typically have at least two numeric components (e.g., SKU/Qty and Amount).
+        // Summary rows should be minimalist to avoid swallowing valid product rows.
+        if (row.tokens.count { isNumeric(it.text) } >= 2) return false
+        
+        val words = row.tokens.filterNot { isNumeric(it.text) }.joinToString(" ") { it.text.lowercase().trimEnd(':', '.', ',') }
+            .trim().replace(Regex("\\s+"), " ")
         return words in TERMINAL_LABELS || words in INTERMEDIATE_SUMMARY_LABELS ||
-            words in setOf("subtotal", "sub total", "sub-total", "tax", "iva", "discount")
+            words in setOf("subtotal", "sub total", "sub-total", "tax", "iva", "itbis", "discount", "descuento", "fees", "fee")
     }
 
     private fun hasItemIdentity(candidate: ParsedInvoiceLineCandidate): Boolean {
@@ -476,7 +480,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         )
         val PAYMENT_FOOTER = Regex("\\b(cash|card|credit|debit|visa|mastercard|amex|paid|payment|tender|change|auth(?:orization)?|balance)\\b|\\*{4}\\d{2,}", RegexOption.IGNORE_CASE)
         val NON_ITEM_CONTEXT = Regex(
-            "\\b(sub[ -]?total|grand total|amount due|balance due|tax|iva|discount|fee|fees|freight|shipping|" +
+            "\\b(sub[ -]?total|grand total|amount due|balance due|freight|shipping|" +
                 "invoice|factura|account|customer|purchase order|po[ #:.-]|phone|telephone|tel[.: ]|fax|" +
                 "page[ #:.-]|p[aá]gina|route|delivery date|due date)\\b",
             RegexOption.IGNORE_CASE
@@ -687,7 +691,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         terminalPosition: DocumentPosition?,
         summaryIsolation: SummaryIsolationResult
     ): TotalsResult {
-        val totalLabels = listOf("\\btotal\\b", "importe total", "grand total")
+        val totalLabels = listOf("total", "importe total", "grand total")
         val taxLabels = listOf("tax", "iva", "itbis", "impuesto")
         val subtotalLabels = listOf("subtotal", "sub-total", "sub total")
         val discountLabels = listOf("discount", "descuento")
@@ -717,7 +721,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             "subtotal" to listOf("subtotal", "sub-total", "sub total"),
             "tax" to listOf("tax", "iva", "itbis", "impuesto"),
             "discount" to listOf("discount", "descuento"),
-            "fees" to listOf("fee", "cargo", "flete", "shipping", "delivery"),
+            "fees" to listOf("fee", "fees", "cargo", "flete", "shipping", "delivery", "delivery fee", "shipping fee"),
             "total" to TERMINAL_LABELS.toList()
         )
 
@@ -750,19 +754,22 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     }
 
     private fun isCredibleSummaryRow(row: Row, labels: Set<String>): Boolean {
-        val words = row.tokens.filter { it.text.any(Char::isLetter) }
-        val labelText = words.joinToString(" ").lowercase().trim()
+        // Filter out purely numeric tokens to get the label text
+        val labelTokens = row.tokens.filter { token ->
+            val text = token.text
+            !isNumeric(text) && text.any { it.isLetter() }
+        }
+        val labelText = labelTokens.joinToString(" ") { it.text.lowercase().trimEnd(':', '.', ',') }.trim()
         
         if (labelText.isEmpty()) return false
 
-        // Match label strictly as whole words. 
-        val matchesLabel = labels.any { label -> 
-            labelText == label || labelText.endsWith(" $label") || labelText.startsWith("$label ") || labelText.contains(" $label ")
-        }
+        // Match label strictly as the whole phrase. 
+        val matchesLabel = labels.any { label -> labelText == label }
         
         if (!matchesLabel) return false
         
-        val numericCount = row.tokens.count { isNumeric(it.text) }
+        // Ignore percentages (rates) when counting amounts.
+        val numericCount = row.tokens.count { isNumeric(it.text) && !it.text.contains('%') }
         
         // A summary row should have exactly one amount (on the same row) or zero (if split).
         if (numericCount >= 2) return false
@@ -813,18 +820,10 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     private fun findAmountNearLabel(
         rows: List<Row>,
         labels: List<String>, 
-        context: NumericContext,
-        isRegex: Boolean = false
+        context: NumericContext
     ): ParsedField<BigDecimal?> {
         for (row in rows) {
-            val lowText = row.text.lowercase()
-            val matched = if (isRegex) {
-                labels.any { Regex(it).containsMatchIn(lowText) }
-            } else {
-                labels.any { lowText.contains(it) }
-            }
-            
-            if (matched) {
+            if (isCredibleSummaryRow(row, labels.toSet())) {
                 val amount = amountFromRow(row, context)
                 if (amount.normalizedValue != null) return amount
             }
@@ -875,18 +874,15 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return try {
             val normalized = if (context.decimalSeparator == ',') {
                 // Comma-based: 1.234,56 -> 1234.56
-                if (sanitized.count { it == ',' } == 1 && sanitized.count { it == '.' } > 0) {
-                     sanitized.replace(".", "").replace(",", ".")
-                } else if (sanitized.count { it == ',' } == 1) {
-                     sanitized.replace(",", ".")
-                } else {
-                     sanitized.replace(".", "")
-                }
+                sanitized.replace(".", "").replace(",", ".")
             } else {
                 // Dot-based: 1,234.56 -> 1234.56
                 sanitized.replace(",", "")
             }
-            if (normalized.any { it.isDigit() }) BigDecimal(normalized) else null
+            if (normalized.any { it.isDigit() }) {
+                val value = BigDecimal(normalized)
+                if (text.contains("(") && text.contains(")")) value.negate() else value
+            } else null
         } catch (_: Exception) {
             null
         }
