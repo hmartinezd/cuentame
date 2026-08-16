@@ -1072,6 +1072,16 @@
     <string name="menu_create_title">Create menu item</string>
     <string name="menu_empty">No menu items yet</string>
     <string name="menu_show_archived">Show archived</string>
+    <string name="menu_hide_archived">Hide archived</string>
+    <string name="menu_new_item">New menu item</string>
+    <string name="menu_empty_body">Create a menu item to define its price, costing, and recipe.</string>
+    <string name="menu_fully_costed">Fully costed</string>
+    <string name="menu_partially_costed_status">Partially costed</string>
+    <string name="menu_uncosted_status">Uncosted</string>
+    <string name="menu_archived_status">Archived</string>
+    <string name="menu_cost_profitability">Cost &amp; profitability</string>
+    <string name="menu_item_overview">Item overview</string>
+    <string name="menu_recipe_components">Recipe / components</string>
     <string name="menu_name">Menu item name</string>
     <string name="menu_selling_price">Selling price</string>
     <string name="menu_selling_not_set">Selling price not set</string>
@@ -1122,6 +1132,7 @@
     <string name="catalog_menus">Menus</string>
     <string name="catalog_menu">Menu</string>
     <string name="catalog_create">Create menu</string>
+    <string name="catalog_new_menu">New menu</string>
     <string name="catalog_edit">Edit menu</string>
     <string name="catalog_description">Description (optional)</string>
     <string name="catalog_discount_percent">Default cash discount %</string>
@@ -1135,6 +1146,11 @@
     <string name="catalog_archive">Archive menu</string>
     <string name="catalog_hide_archived">Hide archived</string>
     <string name="catalog_categories">Categories</string>
+    <string name="catalog_overview">Menu overview</string>
+    <string name="catalog_structure">Menu structure</string>
+    <string name="catalog_more_actions">More actions for %1$s</string>
+    <string name="catalog_move_up">Move %1$s up</string>
+    <string name="catalog_move_down">Move %1$s down</string>
     <string name="catalog_add_category">Add category</string>
     <string name="catalog_category_name">Category name</string>
     <string name="catalog_no_categories">Add a category to start organizing this menu.</string>
