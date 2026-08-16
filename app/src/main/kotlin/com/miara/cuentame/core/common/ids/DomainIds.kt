@@ -59,3 +59,12 @@ value class MenuRecipeId(val value: String)
 
 @JvmInline
 value class MenuRecipeComponentId(val value: String)
+
+@JvmInline
+value class MenuId(val value: String)
+
+@JvmInline
+value class MenuCategoryId(val value: String)
+
+@JvmInline
+value class MenuPlacementId(val value: String)
