@@ -16,6 +16,10 @@ interface MenuCatalogDao {
     @Query("SELECT * FROM menu_placements WHERE id=:id") suspend fun getPlacement(id: String): MenuPlacementEntity?
     @Query("SELECT COUNT(*) FROM menus WHERE restaurantId=:restaurantId AND normalizedName=:normalizedName AND archivedAt IS NULL AND id!=:excludeId")
     suspend fun activeNameCount(restaurantId: String, normalizedName: String, excludeId: String): Int
+    @Query("SELECT COUNT(*) FROM menu_categories WHERE menuId=:menuId AND normalizedName=:normalizedName AND id!=:excludeId")
+    suspend fun categoryNameCount(menuId: String, normalizedName: String, excludeId: String): Int
+    @Query("SELECT COUNT(*) FROM menu_placements WHERE menuId=:menuId AND menuRecipeId=:menuRecipeId AND id!=:excludeId")
+    suspend fun menuRecipePlacementCount(menuId: String, menuRecipeId: String, excludeId: String): Int
     @Insert suspend fun insertMenu(entity: MenuEntity)
     @Update suspend fun updateMenu(entity: MenuEntity)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertCategory(entity: MenuCategoryEntity)

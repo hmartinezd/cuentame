@@ -66,6 +66,9 @@ class RoomMenuCatalogRepository @Inject constructor(
         if (old != null && old.menuId != menuId.value) throw MenuCatalogPersistenceException.OwnershipMismatch()
         val candidate = MenuCatalogValidator.canonicalize(MenuCategory(id, menuId, name, "", sortOrder))
         if (MenuCatalogValidator.validateCategories(menu.domain(), listOf(candidate)).isNotEmpty()) throw MenuCatalogPersistenceException.InvalidCatalog()
+        if (dao.categoryNameCount(menuId.value, candidate.normalizedName, id.value) > 0) {
+            throw MenuCatalogPersistenceException.DuplicateCategoryName()
+        }
         val entity = candidate.entity()
         if (old == null) dao.insertCategory(entity) else dao.updateCategory(entity)
         id
@@ -89,6 +92,9 @@ class RoomMenuCatalogRepository @Inject constructor(
         if (old != null && old.menuId != menuId.value) throw MenuCatalogPersistenceException.OwnershipMismatch()
         val candidate = MenuPlacement(id, menuId, categoryId, menuRecipeId, sortOrder)
         if (MenuCatalogValidator.validatePlacements(menu.domain(), listOf(category.domain()), listOf(candidate)).isNotEmpty()) throw MenuCatalogPersistenceException.InvalidCatalog()
+        if (dao.menuRecipePlacementCount(menuId.value, menuRecipeId.value, id.value) > 0) {
+            throw MenuCatalogPersistenceException.DuplicateMenuRecipePlacement()
+        }
         val entity = candidate.entity()
         if (old == null) dao.insertPlacement(entity) else dao.updatePlacement(entity)
         id

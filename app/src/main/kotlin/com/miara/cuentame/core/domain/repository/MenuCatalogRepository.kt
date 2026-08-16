@@ -9,6 +9,8 @@ sealed class MenuCatalogPersistenceException(message: String) : IllegalArgumentE
     class InvalidCatalog : MenuCatalogPersistenceException("Menu catalog values are invalid")
     class NotFound : MenuCatalogPersistenceException("Menu catalog object does not exist")
     class DuplicateName : MenuCatalogPersistenceException("An active menu already uses this name")
+    class DuplicateCategoryName : MenuCatalogPersistenceException("This menu already contains a category with this name")
+    class DuplicateMenuRecipePlacement : MenuCatalogPersistenceException("This menu already contains this menu item")
     class OwnershipMismatch : MenuCatalogPersistenceException("Menu catalog objects must belong to the same restaurant and menu")
 }
 

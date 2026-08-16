@@ -534,7 +534,88 @@ class BackupSnapshotIntegrityValidatorTest {
         assertThat(result.exceptionOrNull()?.message).contains("Incompatible mapping area")
     }
 
+    @Test
+    fun `menu backup validation rejects invalid menu values`() {
+        val base = createValidMenuCatalogSnapshot()
+        val invalidCases = listOf(
+            base.copy(menus = base.menus.map { if (it.id == "menu-1") it.copy(name = "  ", normalizedName = "") else it }) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+            base.copy(menus = base.menus.map { if (it.id == "menu-1") it.copy(normalizedName = "wrong") else it }) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+            base.copy(menus = base.menus.map { if (it.id == "menu-2") it.copy(name = " DINNER ", normalizedName = "dinner") else it }) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+            base.copy(menus = base.menus.map { if (it.id == "menu-1") it.copy(publicationRevision = -1) else it }) to BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE,
+            base.copy(menus = base.menus.map { if (it.id == "menu-1") it.copy(defaultCashDiscountPercent = "100") else it }) to BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE,
+        )
+
+        invalidCases.forEach { (dto, expectedCode) -> assertMenuIntegrityFailure(dto, expectedCode) }
+    }
+
+    @Test
+    fun `menu backup validation rejects invalid category values`() {
+        val base = createValidMenuCatalogSnapshot()
+        val first = base.menuCategories.first()
+        val invalidCases = listOf(
+            base.copy(menuCategories = base.menuCategories.map { if (it.id == first.id) it.copy(name = " ", normalizedName = "") else it }) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+            base.copy(menuCategories = base.menuCategories.map { if (it.id == first.id) it.copy(normalizedName = "wrong") else it }) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+            base.copy(menuCategories = base.menuCategories.map { if (it.id == first.id) it.copy(sortOrder = -1) else it }) to BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE,
+            base.copy(menuCategories = base.menuCategories.map { if (it.id == first.id) it.copy(menuId = "missing") else it }) to BackupSnapshotIntegrityCode.BROKEN_FOREIGN_KEY,
+            base.copy(menuCategories = base.menuCategories + first.copy(id = "category-duplicate", name = " SIDES ")) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+        )
+
+        invalidCases.forEach { (dto, expectedCode) -> assertMenuIntegrityFailure(dto, expectedCode) }
+    }
+
+    @Test
+    fun `menu backup validation rejects invalid placement values`() {
+        val base = createValidMenuCatalogSnapshot()
+        val first = base.menuPlacements.first()
+        val invalidCases = listOf(
+            base.copy(menuPlacements = base.menuPlacements.map { if (it.id == first.id) it.copy(sortOrder = -1) else it }) to BackupSnapshotIntegrityCode.INVALID_NUMERIC_RANGE,
+            base.copy(menuPlacements = base.menuPlacements.map { if (it.id == first.id) it.copy(categoryId = "category-2") else it }) to BackupSnapshotIntegrityCode.RELATIONSHIP_MISMATCH,
+            base.copy(menuRecipes = base.menuRecipes.map { if (it.id == first.menuRecipeId) it.copy(restaurantId = "other") else it }) to BackupSnapshotIntegrityCode.RESTAURANT_ISOLATION_FAILURE,
+            base.copy(menuPlacements = base.menuPlacements + first.copy(id = "placement-duplicate")) to BackupSnapshotIntegrityCode.INVALID_MENU_STRUCTURE,
+        )
+
+        invalidCases.forEach { (dto, expectedCode) -> assertMenuIntegrityFailure(dto, expectedCode) }
+    }
+
+    @Test
+    fun `menu backup validation accepts scoped reuse and tied ordering`() {
+        val dto = createValidMenuCatalogSnapshot().let { base ->
+            base.copy(
+                menus = base.menus + base.menus.first().copy(id = "menu-archived", name = "DINNER", archivedAt = 2000),
+                menuCategories = base.menuCategories + MenuCategoryBackupDto("category-1b", "menu-1", "Desserts", "desserts", 0),
+                menuPlacements = base.menuPlacements + MenuPlacementBackupDto("placement-1b", "menu-1", "category-1b", "recipe-2", 0),
+            )
+        }
+
+        assertThat(BackupSnapshotIntegrityValidator.validate(dto, manifest).isSuccess).isTrue()
+    }
+
     // Helpers
+    private fun createValidMenuCatalogSnapshot() = createEmptyDto().copy(
+        menuRecipes = listOf(
+            MenuRecipeBackupDto("recipe-1", restId, "Burger", "burger", "10", null, archivedAt = null, createdAt = 1000, updatedAt = 1000),
+            MenuRecipeBackupDto("recipe-2", restId, "Fries", "fries", "4", null, archivedAt = null, createdAt = 1000, updatedAt = 1000),
+        ),
+        menus = listOf(
+            MenuBackupDto("menu-1", restId, "Dinner", "dinner", null, "10", 0, null, 1000, 1000),
+            MenuBackupDto("menu-2", restId, "Delivery", "delivery", null, "0", 0, null, 1000, 1000),
+        ),
+        menuCategories = listOf(
+            MenuCategoryBackupDto("category-1", "menu-1", "Sides", "sides", 0),
+            MenuCategoryBackupDto("category-2", "menu-2", "Sides", "sides", 0),
+        ),
+        menuPlacements = listOf(
+            MenuPlacementBackupDto("placement-1", "menu-1", "category-1", "recipe-1", 0),
+            MenuPlacementBackupDto("placement-2", "menu-2", "category-2", "recipe-1", 0),
+        ),
+    )
+
+    private fun assertMenuIntegrityFailure(dto: BackupSnapshotDto, expectedCode: BackupSnapshotIntegrityCode) {
+        val result = BackupSnapshotIntegrityValidator.validate(dto, manifest)
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as BackupSnapshotIntegrityException).code).isEqualTo(expectedCode)
+    }
+
     private fun mockkIngredient(id: String) = IngredientBackupDto(id, restId, "Name", "name", null, "u1", null, null, null, null, true, 0, 0, null)
     private fun mockkUnit(id: String) = UnitBackupDto(id, "Unit", "u", "MASS", "1.0", true, 0)
     private fun mockkOption(id: String, ingId: String) = IngredientUnitOptionBackupDto(id, ingId, "Opt", "o", null, "1.0", true, true, true, true, 0, 0, null)

@@ -2039,16 +2039,28 @@ object BackupSnapshotIntegrityValidator {
     }
 
     private fun validateMenus(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        val activeMenuNames = mutableSetOf<Pair<String, String>>()
         val categoryNames = mutableSetOf<Pair<String,String>>()
         dto.menus.forEach { menu ->
             if (menu.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menus")
+            val canonicalName = menu.name.normalizeName()
+            if (canonicalName.isBlank()) return err(INVALID_MENU_STRUCTURE, "Menu name must not be blank")
+            if (menu.normalizedName != canonicalName) return err(INVALID_MENU_STRUCTURE, "Menu normalizedName mismatch")
+            if (menu.archivedAt == null && !activeMenuNames.add(menu.restaurantId to menu.normalizedName)) {
+                return err(INVALID_MENU_STRUCTURE, "Duplicate active menu name")
+            }
             if (menu.publicationRevision < 0) return err(INVALID_NUMERIC_RANGE, "Menu publication revision must be non-negative")
             val discount = runCatching { BigDecimal(menu.defaultCashDiscountPercent) }.getOrNull()
                 ?: return err(INVALID_NUMERIC_RANGE, "Invalid menu discount")
             if (discount < BigDecimal.ZERO || discount >= BigDecimal("100")) return err(INVALID_NUMERIC_RANGE, "Invalid menu discount")
+            if (menu.createdAt > menu.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "menu.createdAt must be <= menu.updatedAt")
         }
         dto.menuCategories.forEach { category ->
             if (ctx.menuById[category.menuId] == null) return err(BROKEN_FOREIGN_KEY, "Broken FK: menu category to menu")
+            val canonicalName = category.name.normalizeName()
+            if (canonicalName.isBlank()) return err(INVALID_MENU_STRUCTURE, "Menu category name must not be blank")
+            if (category.normalizedName != canonicalName) return err(INVALID_MENU_STRUCTURE, "Menu category normalizedName mismatch")
+            if (category.sortOrder < 0) return err(INVALID_NUMERIC_RANGE, "Menu category sort order must be non-negative")
             if (!categoryNames.add(category.menuId to category.normalizedName)) return err(INVALID_MENU_STRUCTURE, "Duplicate category name")
         }
         val placements = mutableSetOf<Pair<String,String>>()
@@ -2057,6 +2069,7 @@ object BackupSnapshotIntegrityValidator {
             val category = ctx.menuCategoryById[placement.categoryId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: placement to category")
             val recipe = ctx.menuRecipeById[placement.menuRecipeId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: placement to menu recipe")
             if (category.menuId != menu.id || recipe.restaurantId != menu.restaurantId) return err(RELATIONSHIP_MISMATCH, "Invalid menu placement ownership")
+            if (placement.sortOrder < 0) return err(INVALID_NUMERIC_RANGE, "Menu placement sort order must be non-negative")
             if (!placements.add(menu.id to recipe.id)) return err(INVALID_MENU_STRUCTURE, "Duplicate menu recipe placement")
         }
         return null

@@ -50,7 +50,9 @@ class RoomMenuCatalogRepositoryTest {
         val c2=repository.saveCategory(m1,null,"  Sides ",1);val c1=repository.saveCategory(m1,null,"Mains",1)
         val rows=repository.observeCategories(m1).first();assertThat(rows.map{it.id.value}).containsExactlyElementsIn(listOf(c1.value,c2.value).sorted()).inOrder()
         assertThat(rows.single{it.id==c2}.normalizedName).isEqualTo("sides")
-        assertFailsWith<Exception>{repository.saveCategory(m1,null,"SIDES",2)}
+        assertFailsWith<MenuCatalogPersistenceException.DuplicateCategoryName>{repository.saveCategory(m1,null,"SIDES",2)}
+        val entrees=repository.saveCategory(m1,null,"Entrees",2)
+        assertFailsWith<MenuCatalogPersistenceException.DuplicateCategoryName>{repository.saveCategory(m1,entrees," SIDES ",3)}
         repository.saveCategory(m2,null,"Sides",0)
         assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.saveCategory(m2,c1,"Moved",0)}
     }
@@ -62,7 +64,8 @@ class RoomMenuCatalogRepositoryTest {
         val c1=repository.saveCategory(m1,null,"Mains",0);val c2=repository.saveCategory(m2,null,"Mains",0)
         val p1=repository.savePlacement(m1,null,c1,recipe,1);val p2=repository.savePlacement(m1,null,c1,secondRecipe,1);repository.savePlacement(m2,null,c2,recipe,1)
         assertThat(repository.observePlacements(m1).first().map{it.id.value}).containsExactlyElementsIn(listOf(p1.value,p2.value).sorted()).inOrder()
-        assertFailsWith<Exception>{repository.savePlacement(m1,null,c1,recipe,2)}
+        assertFailsWith<MenuCatalogPersistenceException.DuplicateMenuRecipePlacement>{repository.savePlacement(m1,null,c1,recipe,2)}
+        repository.savePlacement(m1,p1,c1,recipe,3)
         assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.savePlacement(m1,null,c2,recipe,0)}
         db.restaurantDao().insert(RestaurantEntity("r2","Other","USD","en-US",0,0,null));val other=recipes.create(RestaurantId("r2"),"Other",null,null)
         assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.savePlacement(m1,null,c1,other,0)}
