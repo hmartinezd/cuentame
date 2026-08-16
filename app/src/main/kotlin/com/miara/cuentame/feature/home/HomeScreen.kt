@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,7 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -238,14 +238,24 @@ private fun DashboardContent(
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
-    val isWide = LocalConfiguration.current.screenWidthDp >= 840
-    
-    LazyColumn(
-        modifier = Modifier.widthIn(max = 1200.dp).fillMaxHeight().fillMaxWidth().testTag("home_dashboard_list"),
-        state = scrollState,
-        contentPadding = PaddingValues(horizontal = if (isWide) AppSpacing.xl else AppSpacing.md, vertical = AppSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
-    ) {
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val layoutSpec = dashboardLayoutSpec(maxWidth)
+
+        LazyColumn(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .widthIn(max = 1200.dp)
+                .fillMaxHeight()
+                .fillMaxWidth()
+                .testTag("home_dashboard_list"),
+            state = scrollState,
+            contentPadding = PaddingValues(
+                horizontal = if (layoutSpec.mode == DashboardLayoutMode.NARROW) AppSpacing.md else AppSpacing.xl,
+                vertical = AppSpacing.lg
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
+        ) {
         item {
             DashboardHeader(state.restaurantName)
         }
@@ -309,6 +319,7 @@ private fun DashboardContent(
             KpiSection(
                 state = state,
                 locale = restaurantLocale,
+                columns = layoutSpec.kpiColumns,
                 onInventoryClick = { onViewInventoryDetail(null) },
                 onNegativeBalanceClick = { onViewInventoryDetail("negative") },
                 onPurchaseClick = { onViewPurchaseDetail(state.loadedRange) },
@@ -319,6 +330,7 @@ private fun DashboardContent(
         item {
             AppSectionHeader(title = stringResource(R.string.quick_actions_label))
             QuickActionsSection(
+                columns = layoutSpec.quickActionColumns,
                 onLogWaste = onLogWaste,
                 onNewPurchase = onNewPurchase,
                 onStartCount = onStartCount,
@@ -335,7 +347,7 @@ private fun DashboardContent(
         }
 
         item {
-            if (isWide) {
+            if (layoutSpec.useTwoColumnDetails) {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
                         Box(Modifier.weight(1f)) { DataCompletenessSection(state, restaurantLocale, { onViewInventoryDetail("missing_cost") }, onManageIngredients) }
@@ -357,6 +369,38 @@ private fun DashboardContent(
         }
     }
 }
+}
+
+internal enum class DashboardLayoutMode { NARROW, MEDIUM, WIDE }
+
+internal data class DashboardLayoutSpec(
+    val mode: DashboardLayoutMode,
+    val kpiColumns: Int,
+    val quickActionColumns: Int,
+    val useTwoColumnDetails: Boolean,
+)
+
+internal fun dashboardLayoutSpec(availableWidth: androidx.compose.ui.unit.Dp): DashboardLayoutSpec =
+    when {
+        availableWidth < 720.dp -> DashboardLayoutSpec(
+            mode = DashboardLayoutMode.NARROW,
+            kpiColumns = 2,
+            quickActionColumns = 2,
+            useTwoColumnDetails = false,
+        )
+        availableWidth < 1000.dp -> DashboardLayoutSpec(
+            mode = DashboardLayoutMode.MEDIUM,
+            kpiColumns = 2,
+            quickActionColumns = 3,
+            useTwoColumnDetails = true,
+        )
+        else -> DashboardLayoutSpec(
+            mode = DashboardLayoutMode.WIDE,
+            kpiColumns = 4,
+            quickActionColumns = 4,
+            useTwoColumnDetails = true,
+        )
+    }
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -483,12 +527,13 @@ private fun RangeSelector(
 private fun KpiSection(
     state: HomeScreenState.Ready,
     locale: Locale,
+    columns: Int,
     onInventoryClick: () -> Unit,
     onNegativeBalanceClick: () -> Unit,
     onPurchaseClick: () -> Unit,
     onWasteClick: () -> Unit
 ) {
-    val isWide = LocalConfiguration.current.screenWidthDp >= 840
+    val isWide = columns == 4
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             KpiCard(
@@ -645,6 +690,7 @@ private fun MetricTrend(comparison: DashboardMetricUiModel, locale: Locale) {
 
 @Composable
 private fun QuickActionsSection(
+    columns: Int,
     onLogWaste: () -> Unit,
     onNewPurchase: () -> Unit,
     onStartCount: () -> Unit,
@@ -672,7 +718,6 @@ private fun QuickActionsSection(
         QuickActionSpec(Icons.Default.BarChart, stringResource(R.string.view_reports_action), "view_reports_button", onViewReports),
         QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.sales_title), "open_sales_button", onViewSales),
     )
-    val columns = if (LocalConfiguration.current.screenWidthDp >= 840) 4 else 2
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
         actions.chunked(columns).forEach { rowActions ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
