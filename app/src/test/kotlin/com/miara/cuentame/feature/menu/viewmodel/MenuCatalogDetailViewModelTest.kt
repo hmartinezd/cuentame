@@ -65,6 +65,11 @@ class MenuCatalogDetailViewModelTest {
         override suspend fun getRestaurant() = restaurantFlow.value
         override suspend fun save(restaurant: Restaurant) = Unit
     }
+    private val publications = object : MenuPublicationRepository {
+        override fun observePublications(menuId: MenuId) = flowOf(emptyList<MenuPublication>())
+        override fun observePublication(publicationId: MenuPublicationId) = flowOf<MenuPublicationSnapshot?>(null)
+        override suspend fun publish(menuId: MenuId) = MenuPublicationId("publication")
+    }
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
@@ -112,7 +117,7 @@ class MenuCatalogDetailViewModelTest {
         collection.cancel()
     }
 
-    private fun viewModel() = MenuCatalogDetailViewModel(SavedStateHandle(mapOf("menuId" to menuId.value)), catalogs, recipes, restaurants)
+    private fun viewModel() = MenuCatalogDetailViewModel(SavedStateHandle(mapOf("menuId" to menuId.value)), catalogs, recipes, restaurants, publications)
     private fun menu() = Menu(menuId, restaurantId, "Dinner", "dinner", null, BigDecimal.ZERO, 0, null, now, now)
     private fun restaurant(id: RestaurantId = restaurantId, currency: String = "USD") = Restaurant(id, "R", currency, "en-US", now, now, null)
     private fun recipe(id: String, archived: Boolean = false) = MenuRecipe(MenuRecipeId(id), restaurantId, id, id, BigDecimal.TEN, null, CashDiscountBehavior.APPLY_DEFAULT, 0, 0, if (archived) now else null, now, now)

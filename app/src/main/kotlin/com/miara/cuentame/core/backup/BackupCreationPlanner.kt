@@ -355,6 +355,12 @@ class BackupCreationPlanner @Inject constructor(
             tables["menu_categories"] = TableMetadata(dto.menuCategories.size, false)
             tables["menu_placements"] = TableMetadata(dto.menuPlacements.size, false)
         }
+        if (appVersionProvider.databaseSchemaVersion >= 15) {
+            tables["menu_publications"] = TableMetadata(dto.menuPublications.size, false)
+            tables["menu_publication_categories"] = TableMetadata(dto.menuPublicationCategories.size, false)
+            tables["menu_publication_items"] = TableMetadata(dto.menuPublicationItems.size, false)
+            tables["menu_publication_item_components"] = TableMetadata(dto.menuPublicationItemComponents.size, false)
+        }
 
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }

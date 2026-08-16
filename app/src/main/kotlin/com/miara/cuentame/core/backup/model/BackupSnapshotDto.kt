@@ -37,7 +37,11 @@ data class BackupSnapshotDto(
     val menuRecipeComponents: List<MenuRecipeComponentBackupDto> = emptyList(),
     val menus: List<MenuBackupDto> = emptyList(),
     val menuCategories: List<MenuCategoryBackupDto> = emptyList(),
-    val menuPlacements: List<MenuPlacementBackupDto> = emptyList()
+    val menuPlacements: List<MenuPlacementBackupDto> = emptyList(),
+    val menuPublications: List<MenuPublicationBackupDto> = emptyList(),
+    val menuPublicationCategories: List<MenuPublicationCategoryBackupDto> = emptyList(),
+    val menuPublicationItems: List<MenuPublicationItemBackupDto> = emptyList(),
+    val menuPublicationItemComponents: List<MenuPublicationItemComponentBackupDto> = emptyList()
 )
 
 @Serializable
@@ -60,6 +64,10 @@ data class MenuRecipeBackupDto(
     val description:String?,val defaultCashDiscountPercent:String,val publicationRevision:Long=0,val archivedAt:Long?,val createdAt:Long,val updatedAt:Long)
 @Serializable data class MenuCategoryBackupDto(val id:String,val menuId:String,val name:String,val normalizedName:String,val sortOrder:Int)
 @Serializable data class MenuPlacementBackupDto(val id:String,val menuId:String,val categoryId:String,val menuRecipeId:String,val sortOrder:Int)
+@Serializable data class MenuPublicationBackupDto(val id:String,val restaurantId:String,val sourceMenuId:String,val publicationRevision:Long,val menuNameSnapshot:String,val menuDescriptionSnapshot:String?,val defaultCashDiscountPercentSnapshot:String,val currencyCodeSnapshot:String,val publishedAt:Long)
+@Serializable data class MenuPublicationCategoryBackupDto(val id:String,val publicationId:String,val sourceMenuCategoryId:String,val nameSnapshot:String,val sortOrder:Int)
+@Serializable data class MenuPublicationItemBackupDto(val id:String,val publicationId:String,val publicationCategoryId:String,val sourceMenuPlacementId:String,val menuRecipeId:String,val displayNameSnapshot:String,val sellingPriceSnapshot:String,val cashDiscountBehaviorSnapshot:String,val commercialRevision:Long,val consumptionRevision:Long,val sortOrder:Int)
+@Serializable data class MenuPublicationItemComponentBackupDto(val id:String,val publicationItemId:String,val sourceMenuRecipeComponentId:String,val ingredientId:String,val ingredientUnitOptionId:String,val quantityEnteredSnapshot:String,val quantityBaseSnapshot:String,val sortOrder:Int)
 
 @Serializable
 data class MenuRecipeComponentBackupDto(

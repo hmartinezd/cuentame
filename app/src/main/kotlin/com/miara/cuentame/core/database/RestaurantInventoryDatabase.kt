@@ -35,6 +35,10 @@ import com.miara.cuentame.core.common.database.DatabaseSchema
         MenuEntity::class,
         MenuCategoryEntity::class,
         MenuPlacementEntity::class,
+        MenuPublicationEntity::class,
+        MenuPublicationCategoryEntity::class,
+        MenuPublicationItemEntity::class,
+        MenuPublicationItemComponentEntity::class,
         ProductionBatchEntity::class,
         ProductionBatchComponentEntity::class,
         PurchaseInvoiceOcrResultEntity::class,
@@ -67,6 +71,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun preparationRecipeDao(): PreparationRecipeDao
     abstract fun menuRecipeDao(): MenuRecipeDao
     abstract fun menuCatalogDao(): MenuCatalogDao
+    abstract fun menuPublicationDao(): MenuPublicationDao
     abstract fun productionBatchDao(): ProductionBatchDao
     abstract fun purchaseOcrDao(): PurchaseOcrDao
     abstract fun purchaseParseDao(): PurchaseParseDao

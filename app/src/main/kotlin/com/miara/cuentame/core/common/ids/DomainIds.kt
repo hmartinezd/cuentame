@@ -68,3 +68,15 @@ value class MenuCategoryId(val value: String)
 
 @JvmInline
 value class MenuPlacementId(val value: String)
+
+@JvmInline
+value class MenuPublicationId(val value: String)
+
+@JvmInline
+value class MenuPublicationCategoryId(val value: String)
+
+@JvmInline
+value class MenuPublicationItemId(val value: String)
+
+@JvmInline
+value class MenuPublicationItemComponentId(val value: String)

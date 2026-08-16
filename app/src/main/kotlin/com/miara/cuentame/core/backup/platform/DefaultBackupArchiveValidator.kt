@@ -259,6 +259,12 @@ class DefaultBackupArchiveValidator @Inject constructor(
             tables["menu_categories"] = TableMetadata(dbDto.menuCategories.size, false)
             tables["menu_placements"] = TableMetadata(dbDto.menuPlacements.size, false)
         }
+        if (schemaVersion >= 15) {
+            tables["menu_publications"] = TableMetadata(dbDto.menuPublications.size, false)
+            tables["menu_publication_categories"] = TableMetadata(dbDto.menuPublicationCategories.size, false)
+            tables["menu_publication_items"] = TableMetadata(dbDto.menuPublicationItems.size, false)
+            tables["menu_publication_item_components"] = TableMetadata(dbDto.menuPublicationItemComponents.size, false)
+        }
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 

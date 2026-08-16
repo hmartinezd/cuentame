@@ -12,6 +12,7 @@ interface MenuRecipeDao {
     @Query("SELECT * FROM menu_recipes WHERE id = :id") fun observeRecipe(id: String): Flow<MenuRecipeEntity?>
     @Query("SELECT * FROM menu_recipes WHERE id = :id") suspend fun getRecipe(id: String): MenuRecipeEntity?
     @Query("SELECT * FROM menu_recipe_components WHERE menuRecipeId = :id ORDER BY sortOrder, id") fun observeComponents(id: String): Flow<List<MenuRecipeComponentEntity>>
+    @Query("SELECT * FROM menu_recipe_components WHERE menuRecipeId = :id ORDER BY sortOrder, id") suspend fun getComponents(id: String): List<MenuRecipeComponentEntity>
     @Query("SELECT mrc.* FROM menu_recipe_components mrc JOIN menu_recipes mr ON mr.id=mrc.menuRecipeId WHERE mr.restaurantId=:restaurantId ORDER BY mrc.menuRecipeId,mrc.sortOrder,mrc.id") fun observeAllComponents(restaurantId: String): Flow<List<MenuRecipeComponentEntity>>
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertRecipe(entity: MenuRecipeEntity)
     @Update suspend fun updateRecipe(entity: MenuRecipeEntity)

@@ -121,6 +121,9 @@ abstract class RepositoryModule {
     abstract fun bindMenuCatalogRepository(repo: RoomMenuCatalogRepository): MenuCatalogRepository
 
     @Binds @Singleton
+    abstract fun bindMenuPublicationRepository(repo: com.miara.cuentame.core.database.repository.RoomMenuPublicationRepository): com.miara.cuentame.core.domain.repository.MenuPublicationRepository
+
+    @Binds @Singleton
     abstract fun bindMenuCostRepository(repo: RoomMenuCostRepository): MenuCostRepository
 
     @Binds

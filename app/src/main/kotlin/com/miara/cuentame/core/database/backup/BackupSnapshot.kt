@@ -36,5 +36,9 @@ data class BackupSnapshot(
     val menuRecipeComponents: List<MenuRecipeComponentEntity> = emptyList(),
     val menus: List<MenuEntity> = emptyList(),
     val menuCategories: List<MenuCategoryEntity> = emptyList(),
-    val menuPlacements: List<MenuPlacementEntity> = emptyList()
+    val menuPlacements: List<MenuPlacementEntity> = emptyList(),
+    val menuPublications: List<MenuPublicationEntity> = emptyList(),
+    val menuPublicationCategories: List<MenuPublicationCategoryEntity> = emptyList(),
+    val menuPublicationItems: List<MenuPublicationItemEntity> = emptyList(),
+    val menuPublicationItemComponents: List<MenuPublicationItemComponentEntity> = emptyList()
 )

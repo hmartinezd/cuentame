@@ -1213,4 +1213,17 @@
     <string name="export_diagnostics_title">Export diagnostics</string>
     <string name="export_diagnostics_desc">Generate a technical report to share with support. Contains no private business data.</string>
     <string name="export_diagnostics_action">Export technical report</string>
+    <string name="catalog_publish">Publish</string>
+    <string name="catalog_publish_title">Publish %1$s?</string>
+    <string name="catalog_publish_body">This creates an immutable revision using the current categories, items, prices, and recipes. Future edits will not change it.</string>
+    <string name="catalog_publish_revision">Current published revision: %1$d\nNext publication: %2$d</string>
+    <string name="catalog_publish_success">Published revision %1$d</string>
+    <string name="catalog_publication_history">Publication history</string>
+    <string name="catalog_history_row">Revision %1$d    %2$s</string>
+    <string name="catalog_publish_error_archived">Archived menus cannot be published. Restore this menu first.</string>
+    <string name="catalog_publish_error_empty">Add at least one category and one Menu Item before publishing.</string>
+    <string name="catalog_publish_error_item_archived">%1$s is archived. Restore it or remove it from this menu before publishing.</string>
+    <string name="catalog_publish_error_price">%1$s does not have a selling price. Set its price before publishing.</string>
+    <string name="catalog_publish_error_catalog">The menu contains an invalid catalog relationship. Correct it before publishing.</string>
+    <string name="catalog_publish_error_save">The publication could not be saved. No revision was created.</string>
 </resources>

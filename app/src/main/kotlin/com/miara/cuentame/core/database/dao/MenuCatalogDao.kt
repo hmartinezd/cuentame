@@ -32,4 +32,6 @@ interface MenuCatalogDao {
     @Query("DELETE FROM menu_placements WHERE id=:id AND menuId=:menuId") suspend fun deletePlacement(menuId: String, id: String): Int
     @Query("UPDATE menu_categories SET sortOrder=:sortOrder WHERE id=:id AND menuId=:menuId") suspend fun updateCategoryOrder(menuId: String, id: String, sortOrder: Int): Int
     @Query("UPDATE menu_placements SET sortOrder=:sortOrder WHERE id=:id AND menuId=:menuId") suspend fun updatePlacementOrder(menuId: String, id: String, sortOrder: Int): Int
+    @Query("UPDATE menus SET publicationRevision=:nextRevision, updatedAt=:updatedAt WHERE id=:menuId AND publicationRevision=:currentRevision")
+    suspend fun advancePublicationRevision(menuId: String, currentRevision: Long, nextRevision: Long, updatedAt: Long): Int
 }

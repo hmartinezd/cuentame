@@ -71,6 +71,10 @@ class MenuBackupRoundTripTest {
         assertThat(restoredSnapshot.menus).hasSize(1)
         assertThat(restoredSnapshot.menuCategories).hasSize(1)
         assertThat(restoredSnapshot.menuPlacements).hasSize(1)
+        assertThat(restoredSnapshot.menuPublications).hasSize(1)
+        assertThat(restoredSnapshot.menuPublicationCategories).hasSize(1)
+        assertThat(restoredSnapshot.menuPublicationItems).hasSize(1)
+        assertThat(restoredSnapshot.menuPublicationItemComponents).hasSize(1)
         
         val originalRecipe = plan.snapshotDto.menuRecipes[0]
         val restoredRecipe = restoredSnapshot.menuRecipes[0]
@@ -89,6 +93,8 @@ class MenuBackupRoundTripTest {
         val restoredComp = restoredSnapshot.menuRecipeComponents[0]
         assertThat(restoredComp.id).isEqualTo(originalComp.id)
         assertThat(restoredComp.quantityBase).isEqualTo(originalComp.quantityBase)
+        assertThat(restoredSnapshot.menuPublications.single().currencyCodeSnapshot).isEqualTo("USD")
+        assertThat(restoredSnapshot.menuPublicationItems.single().sellingPriceSnapshot).isEqualTo("15.99")
     }
 
     private suspend fun seedDatabaseWithMenuRecipes() {
@@ -131,5 +137,9 @@ class MenuBackupRoundTripTest {
         database.menuCatalogDao().insertMenu(MenuEntity("menu-1",restId.value,"Dinner","dinner","Main",BigDecimal("5.00"),0,null,100,100))
         database.menuCatalogDao().insertCategory(MenuCategoryEntity("category-1","menu-1","Mains","mains",0))
         database.menuCatalogDao().insertPlacement(MenuPlacementEntity("placement-1","menu-1","category-1",recipeId,0))
+        database.menuPublicationDao().insertPublication(MenuPublicationEntity("publication-1",restId.value,"menu-1",1,"Dinner","Main",BigDecimal("5.00"),"USD",200))
+        database.menuPublicationDao().insertCategories(listOf(MenuPublicationCategoryEntity("publication-category-1","publication-1","category-1","Mains",0)))
+        database.menuPublicationDao().insertItems(listOf(MenuPublicationItemEntity("publication-item-1","publication-1","publication-category-1","placement-1",recipeId,"Test Dish",BigDecimal("15.99"),CashDiscountBehavior.NONE,3,4,0)))
+        database.menuPublicationDao().insertComponents(listOf(MenuPublicationItemComponentEntity("publication-component-1","publication-item-1","menu-comp-1",ing1,opt1,BigDecimal("2.5"),BigDecimal("2.5"),0)))
     }
 }

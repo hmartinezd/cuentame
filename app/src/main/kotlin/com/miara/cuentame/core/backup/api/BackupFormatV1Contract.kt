@@ -7,7 +7,7 @@ object BackupFormatV1Contract {
     const val BACKUP_FORMAT_VERSION = 1
     val DATABASE_SCHEMA_VERSION = DatabaseSchema.VERSION
 
-    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+    val SUPPORTED_RESTORE_DATABASE_SCHEMA_VERSIONS = setOf(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
     const val DATABASE_ENTRY = "data/database.json"
     const val PREFERENCES_ENTRY = "preferences/settings.json"
@@ -152,6 +152,7 @@ object BackupFormatV1Contract {
             11 -> expectedTablesForSchema(10) + "stock_count_item_order"
             12, 13 -> expectedTablesForSchema(10) + setOf("stock_count_item_order", "menu_recipes", "menu_recipe_components")
             14 -> expectedTablesForSchema(13) + setOf("menus", "menu_categories", "menu_placements")
+            15 -> expectedTablesForSchema(14) + setOf("menu_publications", "menu_publication_categories", "menu_publication_items", "menu_publication_item_components")
             else -> throw IllegalArgumentException("Unsupported schema version: $schemaVersion")
         }
     }

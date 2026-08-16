@@ -43,7 +43,8 @@ interface BackupDao {
             purchaseInvoiceLineOrigins = getPurchaseInvoiceLineOrigins(restaurantId),
             menuRecipes = getMenuRecipes(restaurantId),
             menuRecipeComponents = getMenuRecipeComponents(restaurantId),
-            menus = getMenus(restaurantId), menuCategories = getMenuCategories(restaurantId), menuPlacements = getMenuPlacements(restaurantId)
+            menus = getMenus(restaurantId), menuCategories = getMenuCategories(restaurantId), menuPlacements = getMenuPlacements(restaurantId),
+            menuPublications=getMenuPublications(restaurantId),menuPublicationCategories=getMenuPublicationCategories(restaurantId),menuPublicationItems=getMenuPublicationItems(restaurantId),menuPublicationItemComponents=getMenuPublicationItemComponents(restaurantId)
         )
     }
 
@@ -222,6 +223,10 @@ interface BackupDao {
     @Query("SELECT * FROM menus WHERE restaurantId=:restaurantId ORDER BY id") suspend fun getMenus(restaurantId:String):List<MenuEntity>
     @Query("SELECT c.* FROM menu_categories c JOIN menus m ON m.id=c.menuId WHERE m.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuCategories(restaurantId:String):List<MenuCategoryEntity>
     @Query("SELECT p.* FROM menu_placements p JOIN menus m ON m.id=p.menuId WHERE m.restaurantId=:restaurantId ORDER BY p.id") suspend fun getMenuPlacements(restaurantId:String):List<MenuPlacementEntity>
+    @Query("SELECT * FROM menu_publications WHERE restaurantId=:restaurantId ORDER BY id") suspend fun getMenuPublications(restaurantId:String):List<MenuPublicationEntity>
+    @Query("SELECT c.* FROM menu_publication_categories c JOIN menu_publications p ON p.id=c.publicationId WHERE p.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuPublicationCategories(restaurantId:String):List<MenuPublicationCategoryEntity>
+    @Query("SELECT i.* FROM menu_publication_items i JOIN menu_publications p ON p.id=i.publicationId WHERE p.restaurantId=:restaurantId ORDER BY i.id") suspend fun getMenuPublicationItems(restaurantId:String):List<MenuPublicationItemEntity>
+    @Query("SELECT c.* FROM menu_publication_item_components c JOIN menu_publication_items i ON i.id=c.publicationItemId JOIN menu_publications p ON p.id=i.publicationId WHERE p.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuPublicationItemComponents(restaurantId:String):List<MenuPublicationItemComponentEntity>
 
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
@@ -256,7 +261,7 @@ interface BackupDao {
             purchaseInvoiceDraftApplications = getAllPurchaseInvoiceDraftApplications(),
             purchaseInvoiceLineOrigins = getAllPurchaseInvoiceLineOrigins(),
             menuRecipes = getAllMenuRecipes(),
-            menuRecipeComponents = getAllMenuRecipeComponents(), menus=getAllMenus(), menuCategories=getAllMenuCategories(), menuPlacements=getAllMenuPlacements()
+            menuRecipeComponents = getAllMenuRecipeComponents(), menus=getAllMenus(), menuCategories=getAllMenuCategories(), menuPlacements=getAllMenuPlacements(),menuPublications=getAllMenuPublications(),menuPublicationCategories=getAllMenuPublicationCategories(),menuPublicationItems=getAllMenuPublicationItems(),menuPublicationItemComponents=getAllMenuPublicationItemComponents()
         )
     }
 
@@ -352,4 +357,8 @@ interface BackupDao {
     @Query("SELECT * FROM menus") suspend fun getAllMenus():List<MenuEntity>
     @Query("SELECT * FROM menu_categories") suspend fun getAllMenuCategories():List<MenuCategoryEntity>
     @Query("SELECT * FROM menu_placements") suspend fun getAllMenuPlacements():List<MenuPlacementEntity>
+    @Query("SELECT * FROM menu_publications") suspend fun getAllMenuPublications():List<MenuPublicationEntity>
+    @Query("SELECT * FROM menu_publication_categories") suspend fun getAllMenuPublicationCategories():List<MenuPublicationCategoryEntity>
+    @Query("SELECT * FROM menu_publication_items") suspend fun getAllMenuPublicationItems():List<MenuPublicationItemEntity>
+    @Query("SELECT * FROM menu_publication_item_components") suspend fun getAllMenuPublicationItemComponents():List<MenuPublicationItemComponentEntity>
 }

@@ -40,7 +40,8 @@ fun createManifestForSnapshot(
         "production_batches" to snapshot.productionBatches.size,
         "production_batch_components" to snapshot.productionBatchComponents.size
         ,"menu_recipes" to snapshot.menuRecipes.size,"menu_recipe_components" to snapshot.menuRecipeComponents.size,
-        "menus" to snapshot.menus.size,"menu_categories" to snapshot.menuCategories.size,"menu_placements" to snapshot.menuPlacements.size
+        "menus" to snapshot.menus.size,"menu_categories" to snapshot.menuCategories.size,"menu_placements" to snapshot.menuPlacements.size,
+        "menu_publications" to snapshot.menuPublications.size,"menu_publication_categories" to snapshot.menuPublicationCategories.size,"menu_publication_items" to snapshot.menuPublicationItems.size,"menu_publication_item_components" to snapshot.menuPublicationItemComponents.size
     )
 
     for (table in expectedTables) {

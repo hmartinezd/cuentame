@@ -52,7 +52,11 @@ object BackupMapper {
             menuRecipeComponents = snapshot.menuRecipeComponents.map { it.toDto() }.sortedBy { it.id },
             menus = snapshot.menus.map { it.toDto() }.sortedBy { it.id },
             menuCategories = snapshot.menuCategories.map { it.toDto() }.sortedBy { it.id },
-            menuPlacements = snapshot.menuPlacements.map { it.toDto() }.sortedBy { it.id }
+            menuPlacements = snapshot.menuPlacements.map { it.toDto() }.sortedBy { it.id },
+            menuPublications = snapshot.menuPublications.map { it.toDto() }.sortedBy { it.id },
+            menuPublicationCategories = snapshot.menuPublicationCategories.map { it.toDto() }.sortedBy { it.id },
+            menuPublicationItems = snapshot.menuPublicationItems.map { it.toDto() }.sortedBy { it.id },
+            menuPublicationItemComponents = snapshot.menuPublicationItemComponents.map { it.toDto() }.sortedBy { it.id }
         )
     }
 }
@@ -99,6 +103,10 @@ internal fun MenuRecipeEntity.toDto() = MenuRecipeBackupDto(
 internal fun MenuEntity.toDto() = MenuBackupDto(id,restaurantId,name,normalizedName,description,defaultCashDiscountPercent.toNormalizedString(),publicationRevision,archivedAt,createdAt,updatedAt)
 internal fun MenuCategoryEntity.toDto() = MenuCategoryBackupDto(id,menuId,name,normalizedName,sortOrder)
 internal fun MenuPlacementEntity.toDto() = MenuPlacementBackupDto(id,menuId,categoryId,menuRecipeId,sortOrder)
+internal fun MenuPublicationEntity.toDto()=MenuPublicationBackupDto(id,restaurantId,sourceMenuId,publicationRevision,menuNameSnapshot,menuDescriptionSnapshot,defaultCashDiscountPercentSnapshot.toNormalizedString(),currencyCodeSnapshot,publishedAt)
+internal fun MenuPublicationCategoryEntity.toDto()=MenuPublicationCategoryBackupDto(id,publicationId,sourceMenuCategoryId,nameSnapshot,sortOrder)
+internal fun MenuPublicationItemEntity.toDto()=MenuPublicationItemBackupDto(id,publicationId,publicationCategoryId,sourceMenuPlacementId,menuRecipeId,displayNameSnapshot,sellingPriceSnapshot.toNormalizedString(),cashDiscountBehaviorSnapshot.name,commercialRevision,consumptionRevision,sortOrder)
+internal fun MenuPublicationItemComponentEntity.toDto()=MenuPublicationItemComponentBackupDto(id,publicationItemId,sourceMenuRecipeComponentId,ingredientId,ingredientUnitOptionId,quantityEnteredSnapshot.toNormalizedString(),quantityBaseSnapshot.toNormalizedString(),sortOrder)
 
 internal fun MenuRecipeComponentEntity.toDto() = MenuRecipeComponentBackupDto(
     id = id,
@@ -175,6 +183,10 @@ internal fun IngredientEntity.toDto() = IngredientBackupDto(
 )
 
 fun MenuBackupDto.toEntity() = MenuEntity(id,restaurantId,name,normalizedName,description,java.math.BigDecimal(defaultCashDiscountPercent),publicationRevision,archivedAt,createdAt,updatedAt)
+fun MenuPublicationBackupDto.toEntity()=MenuPublicationEntity(id,restaurantId,sourceMenuId,publicationRevision,menuNameSnapshot,menuDescriptionSnapshot,java.math.BigDecimal(defaultCashDiscountPercentSnapshot),currencyCodeSnapshot,publishedAt)
+fun MenuPublicationCategoryBackupDto.toEntity()=MenuPublicationCategoryEntity(id,publicationId,sourceMenuCategoryId,nameSnapshot,sortOrder)
+fun MenuPublicationItemBackupDto.toEntity()=MenuPublicationItemEntity(id,publicationId,publicationCategoryId,sourceMenuPlacementId,menuRecipeId,displayNameSnapshot,java.math.BigDecimal(sellingPriceSnapshot),com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(cashDiscountBehaviorSnapshot),commercialRevision,consumptionRevision,sortOrder)
+fun MenuPublicationItemComponentBackupDto.toEntity()=MenuPublicationItemComponentEntity(id,publicationItemId,sourceMenuRecipeComponentId,ingredientId,ingredientUnitOptionId,java.math.BigDecimal(quantityEnteredSnapshot),java.math.BigDecimal(quantityBaseSnapshot),sortOrder)
 fun MenuCategoryBackupDto.toEntity() = MenuCategoryEntity(id,menuId,name,normalizedName,sortOrder)
 fun MenuPlacementBackupDto.toEntity() = MenuPlacementEntity(id,menuId,categoryId,menuRecipeId,sortOrder)
 

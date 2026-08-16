@@ -63,6 +63,7 @@ object BackupSnapshotIntegrityValidator {
             validateMaterialization(dto, ctx)?.let { throw it }
             validateMenuRecipes(dto, ctx)?.let { throw it }
             validateMenus(dto, ctx)?.let { throw it }
+            validateMenuPublications(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: BackupSnapshotIntegrityException) {
@@ -199,6 +200,10 @@ object BackupSnapshotIntegrityValidator {
         check(dto.menus, { it.id }, "menus")?.let { return it }
         check(dto.menuCategories, { it.id }, "menu_categories")?.let { return it }
         check(dto.menuPlacements, { it.id }, "menu_placements")?.let { return it }
+        check(dto.menuPublications, { it.id }, "menu_publications")?.let { return it }
+        check(dto.menuPublicationCategories, { it.id }, "menu_publication_categories")?.let { return it }
+        check(dto.menuPublicationItems, { it.id }, "menu_publication_items")?.let { return it }
+        check(dto.menuPublicationItemComponents, { it.id }, "menu_publication_item_components")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -2072,6 +2077,23 @@ object BackupSnapshotIntegrityValidator {
             if (placement.sortOrder < 0) return err(INVALID_NUMERIC_RANGE, "Menu placement sort order must be non-negative")
             if (!placements.add(menu.id to recipe.id)) return err(INVALID_MENU_STRUCTURE, "Duplicate menu recipe placement")
         }
+        return null
+    }
+
+    private fun validateMenuPublications(dto:BackupSnapshotDto,ctx:ValidationContext):BackupSnapshotIntegrityException? {
+        val publications=dto.menuPublications.associateBy{it.id};val categories=dto.menuPublicationCategories.associateBy{it.id};val items=dto.menuPublicationItems.associateBy{it.id}
+        val revisions=mutableSetOf<Pair<String,Long>>();val sourceCategories=mutableSetOf<Pair<String,String>>();val sourcePlacements=mutableSetOf<Pair<String,String>>();val recipes=mutableSetOf<Pair<String,String>>();val sourceComponents=mutableSetOf<Pair<String,String>>()
+        dto.menuPublications.forEach{p->
+            if(p.restaurantId!=ctx.restaurantId)return err(RESTAURANT_ISOLATION_FAILURE,"Isolation error in menu publications")
+            if(p.sourceMenuId.isBlank()||p.publicationRevision<=0||p.menuNameSnapshot.isBlank()||p.publishedAt<=0)return err(INVALID_MENU_STRUCTURE,"Invalid menu publication")
+            val discount=runCatching{BigDecimal(p.defaultCashDiscountPercentSnapshot)}.getOrNull()?:return err(INVALID_NUMERIC_RANGE,"Invalid publication discount")
+            if(discount<BigDecimal.ZERO||discount>=BigDecimal("100"))return err(INVALID_NUMERIC_RANGE,"Invalid publication discount")
+            if(runCatching{java.util.Currency.getInstance(p.currencyCodeSnapshot)}.isFailure)return err(INVALID_MENU_STRUCTURE,"Invalid publication currency")
+            if(!revisions.add(p.sourceMenuId to p.publicationRevision))return err(INVALID_MENU_STRUCTURE,"Duplicate menu publication revision")
+        }
+        dto.menuPublicationCategories.forEach{c->if(publications[c.publicationId]==null||c.sourceMenuCategoryId.isBlank()||c.nameSnapshot.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication category");if(c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication category order");if(!sourceCategories.add(c.publicationId to c.sourceMenuCategoryId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication category")}
+        dto.menuPublicationItems.forEach{i->val p=publications[i.publicationId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item parent");val c=categories[i.publicationCategoryId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item category");if(c.publicationId!=p.id)return err(RELATIONSHIP_MISMATCH,"Publication item category mismatch");if(i.sourceMenuPlacementId.isBlank()||i.menuRecipeId.isBlank()||i.displayNameSnapshot.isBlank())return err(INVALID_MENU_STRUCTURE,"Invalid publication item");val price=runCatching{BigDecimal(i.sellingPriceSnapshot)}.getOrNull()?:return err(INVALID_NUMERIC_RANGE,"Invalid publication item price");if(price<BigDecimal.ZERO||i.commercialRevision<0||i.consumptionRevision<0||i.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication item numeric value");if(runCatching{com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(i.cashDiscountBehaviorSnapshot)}.isFailure)return err(INVALID_MENU_STRUCTURE,"Invalid publication cash behavior");if(!sourcePlacements.add(i.publicationId to i.sourceMenuPlacementId)||!recipes.add(i.publicationId to i.menuRecipeId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication item")}
+        dto.menuPublicationItemComponents.forEach{c->if(items[c.publicationItemId]==null||c.sourceMenuRecipeComponentId.isBlank()||c.ingredientId.isBlank()||c.ingredientUnitOptionId.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val entered=runCatching{BigDecimal(c.quantityEnteredSnapshot)}.getOrNull();val base=runCatching{BigDecimal(c.quantityBaseSnapshot)}.getOrNull();if(entered==null||base==null||entered<=BigDecimal.ZERO||base<=BigDecimal.ZERO||c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication component quantity");if(!sourceComponents.add(c.publicationItemId to c.sourceMenuRecipeComponentId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication component")}
         return null
     }
 

@@ -9,6 +9,10 @@ import com.miara.cuentame.core.database.entity.*
 
 @Dao
 interface RestoreDao {
+    @Query("DELETE FROM menu_publication_item_components") suspend fun deleteAllMenuPublicationItemComponents()
+    @Query("DELETE FROM menu_publication_items") suspend fun deleteAllMenuPublicationItems()
+    @Query("DELETE FROM menu_publication_categories") suspend fun deleteAllMenuPublicationCategories()
+    @Query("DELETE FROM menu_publications") suspend fun deleteAllMenuPublications()
     @Query("DELETE FROM menu_placements") suspend fun deleteAllMenuPlacements()
     @Query("DELETE FROM menu_categories") suspend fun deleteAllMenuCategories()
     @Query("DELETE FROM menus") suspend fun deleteAllMenus()
@@ -201,9 +205,17 @@ interface RestoreDao {
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenus(entities:List<MenuEntity>)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuCategories(entities:List<MenuCategoryEntity>)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPlacements(entities:List<MenuPlacementEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublications(entities:List<MenuPublicationEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationCategories(entities:List<MenuPublicationCategoryEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationItems(entities:List<MenuPublicationItemEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationItemComponents(entities:List<MenuPublicationItemComponentEntity>)
 
     @Transaction
     suspend fun clearAllInOrder() {
+        deleteAllMenuPublicationItemComponents()
+        deleteAllMenuPublicationItems()
+        deleteAllMenuPublicationCategories()
+        deleteAllMenuPublications()
         deleteAllStockCountItemOrder()
         deleteAllIngredientCostProjections()
         deleteAllInventoryBalanceProjections()

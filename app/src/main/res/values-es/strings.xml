@@ -1172,4 +1172,17 @@
     <string name="ocr_product_name">Descripción / nombre del producto</string>
     <string name="ocr_vendor_code">SKU / código del proveedor</string>
     <string name="ocr_package_description">Descripción del empaque</string>
+    <string name="catalog_publish">Publicar</string>
+    <string name="catalog_publish_title">¿Publicar %1$s?</string>
+    <string name="catalog_publish_body">Esto crea una revisión inmutable con las categorías, artículos, precios y recetas actuales. Los cambios futuros no la modificarán.</string>
+    <string name="catalog_publish_revision">Revisión publicada actual: %1$d\nPróxima publicación: %2$d</string>
+    <string name="catalog_publish_success">Revisión %1$d publicada</string>
+    <string name="catalog_publication_history">Historial de publicaciones</string>
+    <string name="catalog_history_row">Revisión %1$d    %2$s</string>
+    <string name="catalog_publish_error_archived">No se puede publicar un menú archivado. Restáuralo primero.</string>
+    <string name="catalog_publish_error_empty">Agrega al menos una categoría y un artículo de menú antes de publicar.</string>
+    <string name="catalog_publish_error_item_archived">%1$s está archivado. Restáuralo o elimínalo de este menú antes de publicar.</string>
+    <string name="catalog_publish_error_price">%1$s no tiene precio de venta. Define el precio antes de publicar.</string>
+    <string name="catalog_publish_error_catalog">El menú contiene una relación de catálogo inválida. Corrígela antes de publicar.</string>
+    <string name="catalog_publish_error_save">No se pudo guardar la publicación. No se creó ninguna revisión.</string>
 </resources>
