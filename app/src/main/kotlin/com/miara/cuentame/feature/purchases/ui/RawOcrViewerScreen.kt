@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -12,16 +13,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.miara.cuentame.R
+import com.miara.cuentame.BuildConfig
+import com.miara.cuentame.core.common.util.ShareHelper
 import com.miara.cuentame.core.model.purchase.ocr.PurchaseInvoiceOcrPage
 import com.miara.cuentame.feature.purchases.viewmodel.RawOcrViewerUiState
 import com.miara.cuentame.feature.purchases.viewmodel.RawOcrViewerViewModel
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +36,7 @@ fun RawOcrViewerScreen(
     viewModel: RawOcrViewerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -38,6 +45,25 @@ fun RawOcrViewerScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (BuildConfig.DEBUG && uiState.pages.isNotEmpty()) {
+                        IconButton(onClick = {
+                            val files = uiState.pages
+                                .sortedBy { it.pageIndex }
+                                .map { page ->
+                                    "page-${page.pageIndex + 1}.json" to FIXTURE_JSON.encodeToString(page.evidence)
+                                }
+                            ShareHelper.shareTextFiles(
+                                context = context,
+                                files = files,
+                                mimeType = "application/json",
+                                title = "Export OCR evidence fixtures"
+                            )
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = "Export OCR evidence fixtures")
+                        }
                     }
                 }
             )
@@ -57,6 +83,11 @@ fun RawOcrViewerScreen(
             }
         }
     }
+}
+
+private val FIXTURE_JSON = Json {
+    encodeDefaults = true
+    prettyPrint = true
 }
 
 @Composable

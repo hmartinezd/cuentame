@@ -1,0 +1,3 @@
+# Explicitly synthetic. This validates fixture loading only; it is not real invoice evidence.
+page-1.json
+page-2.json

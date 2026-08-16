@@ -1,0 +1,16 @@
+{
+  "widthPx": 1000,
+  "heightPx": 1400,
+  "text": "SECOND PAGE",
+  "blocks": [{
+    "text": "SECOND PAGE",
+    "boundingBox": {"left": 100, "top": 100, "right": 320, "bottom": 130},
+    "cornerPoints": [],
+    "recognizedLanguages": [],
+    "lines": [{
+      "text": "SECOND PAGE",
+      "boundingBox": {"left": 100, "top": 100, "right": 320, "bottom": 130},
+      "elements": [{"text": "SECOND PAGE", "boundingBox": {"left": 100, "top": 100, "right": 320, "bottom": 130}}]
+    }]
+  }]
+}

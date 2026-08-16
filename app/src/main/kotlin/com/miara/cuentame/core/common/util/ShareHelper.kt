@@ -43,4 +43,29 @@ object ShareHelper {
 
         context.startActivity(Intent.createChooser(intent, title))
     }
+
+    fun shareTextFiles(
+        context: Context,
+        files: List<Pair<String, String>>,
+        mimeType: String,
+        title: String
+    ): Result<Unit> = runCatching {
+        require(files.isNotEmpty()) { "At least one file is required" }
+        val cacheDir = File(context.cacheDir, "exports")
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+        cacheDir.listFiles()?.forEach { it.delete() }
+
+        val uris = ArrayList(files.map { (filename, content) ->
+            val file = File(cacheDir, filename)
+            file.writeText(content)
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        })
+
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = mimeType
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, title))
+    }
 }

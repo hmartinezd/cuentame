@@ -1,0 +1,20 @@
+{
+  "widthPx": 1000,
+  "heightPx": 1400,
+  "text": "FIRST PAGE",
+  "blocks": [{
+    "text": "FIRST PAGE",
+    "boundingBox": {"left": 100, "top": 100, "right": 300, "bottom": 130},
+    "cornerPoints": [{"x": 100, "y": 100}, {"x": 300, "y": 100}, {"x": 300, "y": 130}, {"x": 100, "y": 130}],
+    "recognizedLanguages": [],
+    "lines": [{
+      "text": "FIRST PAGE",
+      "boundingBox": {"left": 100, "top": 100, "right": 300, "bottom": 130},
+      "cornerPoints": [],
+      "confidence": 0.97,
+      "angleDegrees": 0.0,
+      "recognizedLanguages": [],
+      "elements": [{"text": "FIRST PAGE", "boundingBox": {"left": 100, "top": 100, "right": 300, "bottom": 130}, "cornerPoints": [], "confidence": 0.97, "angleDegrees": 0.0, "recognizedLanguages": []}]
+    }]
+  }]
+}
