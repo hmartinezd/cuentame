@@ -56,7 +56,7 @@ class DataStoreAppPreferencesRepository @Inject constructor(
                     unknownValue = ThemeMode.UNKNOWN,
                     absentValue = ThemeMode.SYSTEM
                 ),
-                dynamicColorEnabled = preferences[Keys.DYNAMIC_COLOR_ENABLED] ?: true,
+                dynamicColorEnabled = preferences[Keys.DYNAMIC_COLOR_ENABLED] ?: false,
                 appLocaleTag = preferences[Keys.APP_LOCALE_TAG] ?: "en-US",
                 autoBackupEnabled = preferences[Keys.AUTO_BACKUP_ENABLED] ?: true,
                 lastAutoBackupSuccessTimestamp = preferences[Keys.LAST_AUTO_BACKUP_SUCCESS],

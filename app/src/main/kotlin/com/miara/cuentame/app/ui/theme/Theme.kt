@@ -9,39 +9,55 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = BrandPrimaryDark, onPrimary = BrandOnPrimaryDark,
+    primaryContainer = BrandPrimaryContainerDark, onPrimaryContainer = BrandOnPrimaryContainerDark,
+    secondary = BrandSecondaryDark, onSecondary = BrandOnSecondaryDark,
+    secondaryContainer = BrandSecondaryContainerDark, onSecondaryContainer = BrandOnSecondaryContainerDark,
+    background = BackgroundDark, onBackground = OnSurfaceDark,
+    surface = SurfaceDark, onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark, onSurfaceVariant = OnSurfaceVariantDark,
+    outline = OutlineDark, outlineVariant = OutlineVariantDark,
+    error = ErrorDark, onError = BrandOnPrimaryDark,
+    errorContainer = ErrorContainerDark, onErrorContainer = OnErrorContainerDark,
+    surfaceTint = BrandPrimaryDark,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = BrandPrimaryLight, onPrimary = BrandOnPrimaryLight,
+    primaryContainer = BrandPrimaryContainerLight, onPrimaryContainer = BrandOnPrimaryContainerLight,
+    secondary = BrandSecondaryLight, onSecondary = BrandOnSecondaryLight,
+    secondaryContainer = BrandSecondaryContainerLight, onSecondaryContainer = BrandOnSecondaryContainerLight,
+    background = BackgroundLight, onBackground = OnSurfaceLight,
+    surface = SurfaceLight, onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceVariantLight, onSurfaceVariant = OnSurfaceVariantLight,
+    outline = OutlineLight, outlineVariant = OutlineVariantLight,
+    error = ErrorLight, onError = BrandOnPrimaryLight,
+    errorContainer = ErrorContainerLight, onErrorContainer = OnErrorContainerLight,
+    surfaceTint = BrandPrimaryLight,
 )
 
+private val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
+
+object AppTheme {
+    val semanticColors: SemanticColors
+        @Composable @ReadOnlyComposable get() = LocalSemanticColors.current
+}
+
 @Composable
-fun CuentameTheme(
+fun AppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -57,14 +73,32 @@ fun CuentameTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.statusBarColor = colorScheme.surface.toArgb()
+            window.navigationBarColor = colorScheme.surface.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalSemanticColors provides if (darkTheme) DarkSemanticColors else LightSemanticColors
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content
+        )
+    }
 }
+
+/** Temporary source-compatible bridge while callers migrate to the neutral name. */
+@Deprecated("Use AppTheme", ReplaceWith("AppTheme(darkTheme, dynamicColor, content)"))
+@Composable
+fun CuentameTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
+) = AppTheme(darkTheme, dynamicColor, content)

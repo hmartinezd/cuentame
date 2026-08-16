@@ -16,7 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.app.ui.AppPreferencesState
 import com.miara.cuentame.app.ui.AppViewModel
 import com.miara.cuentame.app.ui.CuentameApp
-import com.miara.cuentame.app.ui.theme.CuentameTheme
+import com.miara.cuentame.app.ui.theme.AppTheme
 import com.miara.cuentame.core.preferences.model.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            CuentameTheme(
+            AppTheme(
                 darkTheme = when (preferences?.themeMode) {
                     ThemeMode.SYSTEM, ThemeMode.UNKNOWN, null -> isSystemInDarkTheme()
                     ThemeMode.LIGHT -> false

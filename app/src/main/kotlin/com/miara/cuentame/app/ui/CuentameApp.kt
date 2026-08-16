@@ -192,8 +192,10 @@ fun MainAppContent(
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 )
             }
@@ -244,7 +246,10 @@ private fun CuentameBottomBar(
     currentDestination: NavDestination?,
     modifier: Modifier = Modifier
 ) {
-    NavigationBar(modifier = modifier.testTag("top_level_bottom_bar")) {
+    NavigationBar(
+        modifier = modifier.testTag("top_level_bottom_bar"),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
         destinations.forEach { destination ->
             val selected = currentDestination.isTopLevelDestinationInHierarchy(destination)
             NavigationBarItem(
@@ -270,7 +275,10 @@ private fun CuentameNavRail(
     currentDestination: NavDestination?,
     modifier: Modifier = Modifier
 ) {
-    NavigationRail(modifier = modifier.testTag("top_level_navigation_rail")) {
+    NavigationRail(
+        modifier = modifier.testTag("top_level_navigation_rail"),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
         destinations.forEach { destination ->
             val selected = currentDestination.isTopLevelDestinationInHierarchy(destination)
             NavigationRailItem(

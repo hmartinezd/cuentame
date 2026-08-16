@@ -14,7 +14,9 @@ data class AppPreferences(
         val DEFAULT = AppPreferences(
             onboardingCompleted = false,
             themeMode = ThemeMode.SYSTEM,
-            dynamicColorEnabled = true,
+            // Keep the intentionally designed brand palette as the out-of-box experience.
+            // Users can still opt into wallpaper-derived Material colors in Settings.
+            dynamicColorEnabled = false,
             appLocaleTag = "en-US",
             autoBackupEnabled = true, // Safety feature enabled by default
             lastAutoBackupSuccessTimestamp = null,
