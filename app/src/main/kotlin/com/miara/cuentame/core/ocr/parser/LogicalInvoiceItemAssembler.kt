@@ -59,7 +59,7 @@ internal object LogicalInvoiceItemAssembler {
             }
             
             val followedByMoney = nextRow != null && 
-                isComplementaryMoneyRow(listOf(row), nextRow, layout) && 
+                isStrictlyComplementaryMoneyRow(listOf(row), nextRow, layout) && 
                 !startsNewItem(nextRow, layout) &&
                 !parser.isHeaderRow(row)
             
@@ -143,15 +143,7 @@ internal object LogicalInvoiceItemAssembler {
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
-        val missing = missingMoneyColumns(currentGroup, layout)
-        if (missing.isEmpty()) return false
-
-        val nextMoney = getMoneyColumnsInRow(nextRow, layout)
-        if (nextMoney.isEmpty()) return false
-
-        // Continuation only if it fills a missing field and doesn't duplicate an existing one.
-        val contributesNew = nextMoney.any { it in missing }
-        if (!contributesNew) return false
+        if (!isStrictlyComplementaryMoneyRow(currentGroup, nextRow, layout)) return false
 
         val nextHasQty = nextRow.tokens.any { 
             layout.getColumnType(it.centerX) == DeterministicPurchaseInvoiceParser.ColumnType.Quantity && 
@@ -164,6 +156,44 @@ internal object LogicalInvoiceItemAssembler {
         
         // Ensure no product identity tokens in this row
         if (isPotentialIdentityRow(nextRow, layout)) return false
+
+        return true
+    }
+
+    private fun getMoneyColumnCounts(
+        row: Row,
+        layout: DeterministicPurchaseInvoiceParser.PageLayout
+    ): Map<DeterministicPurchaseInvoiceParser.ColumnType, Int> {
+        val parser = DeterministicPurchaseInvoiceParser()
+        val counts = mutableMapOf<DeterministicPurchaseInvoiceParser.ColumnType, Int>()
+        for (t in row.tokens) {
+            val type = layout.getColumnType(t.centerX)
+            if ((type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || 
+                    type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) && 
+                parser.isNumeric(t.text)) {
+                counts[type] = (counts[type] ?: 0) + 1
+            }
+        }
+        return counts
+    }
+
+    private fun isStrictlyComplementaryMoneyRow(
+        currentGroup: List<Row>,
+        nextRow: Row,
+        layout: DeterministicPurchaseInvoiceParser.PageLayout
+    ): Boolean {
+        val missing = missingMoneyColumns(currentGroup, layout)
+        if (missing.isEmpty()) return false
+
+        val nextMoneyCounts = getMoneyColumnCounts(nextRow, layout)
+        if (nextMoneyCounts.isEmpty()) return false
+
+        // Every money field contributed by a continuation must correspond to a field 
+        // currently missing from the logical item. (Non-empty subset rule)
+        if (!nextMoneyCounts.keys.all { it in missing }) return false
+
+        // Protect against duplicate tokens inside one money column in the continuation row.
+        if (nextMoneyCounts.values.any { it > 1 }) return false
 
         return true
     }
@@ -190,23 +220,6 @@ internal object LogicalInvoiceItemAssembler {
         return missing
     }
 
-    private fun getMoneyColumnsInRow(
-        row: Row,
-        layout: DeterministicPurchaseInvoiceParser.PageLayout
-    ): Set<DeterministicPurchaseInvoiceParser.ColumnType> {
-        val parser = DeterministicPurchaseInvoiceParser()
-        val types = mutableSetOf<DeterministicPurchaseInvoiceParser.ColumnType>()
-        for (t in row.tokens) {
-            val type = layout.getColumnType(t.centerX)
-            if ((type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || 
-                    type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) && 
-                parser.isNumeric(t.text)) {
-                types.add(type)
-            }
-        }
-        return types
-    }
-
     private fun hasMoney(group: List<Row>, layout: DeterministicPurchaseInvoiceParser.PageLayout): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
         return group.any { row ->
@@ -218,15 +231,16 @@ internal object LogicalInvoiceItemAssembler {
         }
     }
 
-    private fun isComplementaryMoneyRow(
-        currentGroup: List<Row>,
-        nextRow: Row,
+    private fun hasCredibleDescription(
+        group: List<Row>,
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
-        val missing = missingMoneyColumns(currentGroup, layout)
-        if (missing.isEmpty()) return false
-        val nextMoney = getMoneyColumnsInRow(nextRow, layout)
-        return nextMoney.any { it in missing }
+        return group.any { row ->
+            row.tokens.any { t ->
+                layout.getColumnType(t.centerX) == DeterministicPurchaseInvoiceParser.ColumnType.Description && 
+                t.text.any { it.isLetter() }
+            }
+        }
     }
 
     private fun isDescriptionContinuation(
@@ -238,9 +252,10 @@ internal object LogicalInvoiceItemAssembler {
         val previous = currentGroup.last()
         val parser = DeterministicPurchaseInvoiceParser()
 
-        // If the current item already has identity AND money, it's complete.
-        // It should not absorb random description text.
-        if (isPotentialIdentityRow(currentGroup.first(), layout) && hasMoney(currentGroup, layout)) {
+        // A product is "complete" for description purposes only if it has a credible 
+        // description AND its required money structure is sufficiently populated.
+        // A SKU alone does not satisfy description completeness.
+        if (hasCredibleDescription(currentGroup, layout) && hasMoney(currentGroup, layout)) {
             return false
         }
 

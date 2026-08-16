@@ -35,6 +35,7 @@ class LogicalItemParserTest {
         val line1 = result.lines[0]
         assertEquals("DSALAM1", line1.vendorCode.normalizedValue)
         assertTrue(line1.description.normalizedValue?.contains("CITERIO GENOA SALAMI") == true)
+        assertEquals("3/6lb", line1.packageText.normalizedValue)
         assertEquals(0, BigDecimal("6").compareTo(line1.quantity.normalizedValue))
         assertEquals(0, BigDecimal("4.68").compareTo(line1.unitPrice.normalizedValue))
         assertEquals(0, BigDecimal("28.08").compareTo(line1.lineTotal.normalizedValue))
@@ -52,6 +53,7 @@ class LogicalItemParserTest {
         val line3 = result.lines[2]
         assertEquals("FYUC000", line3.vendorCode.normalizedValue)
         assertTrue(line3.description.normalizedValue?.contains("CARIBBEAN BEST YUCA") == true)
+        assertEquals("6/5 LBS", line3.packageText.normalizedValue)
         assertEquals(0, BigDecimal("1").compareTo(line3.quantity.normalizedValue))
         assertEquals(0, BigDecimal("48.24").compareTo(line3.unitPrice.normalizedValue))
         assertEquals(0, BigDecimal("48.24").compareTo(line3.lineTotal.normalizedValue))
@@ -275,8 +277,20 @@ class LogicalItemParserTest {
         val result = parser.parse(listOf(page))
 
         assertEquals(2, result.lines.size)
-        assertEquals("ITEM A", result.lines[0].description.normalizedValue)
-        assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+        
+        val line1 = result.lines[0]
+        assertEquals("ABC", line1.vendorCode.normalizedValue)
+        assertEquals("ITEM A", line1.description.normalizedValue)
+        assertEquals(0, BigDecimal("1").compareTo(line1.quantity.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line1.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line1.lineTotal.normalizedValue))
+
+        val line2 = result.lines[1]
+        assertEquals("XYZ", line2.vendorCode.normalizedValue)
+        assertEquals("ITEM B", line2.description.normalizedValue)
+        assertEquals(0, BigDecimal("1").compareTo(line2.quantity.normalizedValue))
+        assertEquals(0, BigDecimal("20.00").compareTo(line2.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("20.00").compareTo(line2.lineTotal.normalizedValue))
     }
 
     @Test
@@ -296,6 +310,108 @@ class LogicalItemParserTest {
         assertTrue(result.lines.any { it.description.normalizedValue == "ITEM A" })
         assertTrue(result.lines.any { it.description.normalizedValue == "ITEM B" })
         assertEquals(0, BigDecimal("30.00").compareTo(result.total.normalizedValue))
+        // Verify PAGE SUBTOTAL didn't become document subtotal
+        assertNull(result.subtotal.normalizedValue)
+    }
+
+    @Test
+    fun `money continuation - fill only missing LineTotal`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tPRODUCT A\t10.00",
+            "\t\t\t\t10.00"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(1, result.lines.size)
+        val line = result.lines[0]
+        assertEquals(0, BigDecimal("10.00").compareTo(line.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `money continuation - fill both missing money fields`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tPRODUCT A",
+            "\t\t\t10.00\t10.00"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(1, result.lines.size)
+        val line = result.lines[0]
+        assertEquals(0, BigDecimal("10.00").compareTo(line.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `money continuation - reject duplication of UnitPrice`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tPRODUCT A\t10.00",
+            "\t\t\t12.00\t10.00"
+        ))
+        val result = parser.parse(listOf(page))
+        val lineA = result.lines.find { it.vendorCode.normalizedValue == "ABC" }
+        assertNotNull(lineA)
+        assertEquals(0, BigDecimal("10.00").compareTo(lineA!!.unitPrice.normalizedValue))
+        assertNull(lineA.lineTotal.normalizedValue)
+    }
+
+    @Test
+    fun `money continuation - reject duplicate tokens in same money column`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tPRODUCT A\t10.00",
+            "\t\t\t\t10.00 12.00"
+        ))
+        val result = parser.parse(listOf(page))
+        val lineA = result.lines.find { it.vendorCode.normalizedValue == "ABC" }
+        assertNotNull(lineA)
+        assertNull(lineA!!.lineTotal.normalizedValue)
+    }
+
+    @Test
+    fun `description continuation - SKU plus complete money, description on following row`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\t\t10.00\t10.00",
+            "\t\tCHICKEN BREAST"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(1, result.lines.size)
+        val line = result.lines[0]
+        assertEquals("ABC", line.vendorCode.normalizedValue)
+        assertEquals("CHICKEN BREAST", line.description.normalizedValue)
+        assertEquals(0, BigDecimal("10.00").compareTo(line.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `description continuation - SKU plus partial money, description then remaining money`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\t\t10.00",
+            "\t\tCHICKEN BREAST",
+            "\t\t\t\t10.00"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(1, result.lines.size)
+        val line = result.lines[0]
+        assertEquals("CHICKEN BREAST", line.description.normalizedValue)
+        assertEquals(0, BigDecimal("10.00").compareTo(line.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `description continuation - keep complete-product random-text rejection`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tCHICKEN\t10.00\t10.00",
+            "\t\tRANDOM TEXT",
+            "1\tXYZ\tRICE\t20.00\t20.00"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(2, result.lines.size)
+        assertEquals("CHICKEN", result.lines[0].description.normalizedValue)
+        assertEquals("RICE", result.lines[1].description.normalizedValue)
     }
 
     private fun createPage(lines: List<String>): OcrPageEvidence {

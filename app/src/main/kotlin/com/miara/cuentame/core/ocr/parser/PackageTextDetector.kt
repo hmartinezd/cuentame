@@ -8,10 +8,10 @@ object PackageTextDetector {
     data class PackageSpan(val text: String, val startIndex: Int, val endIndexExclusive: Int)
 
     private val PACKAGE_PATTERNS = listOf(
-        Regex("\\b\\d+\\s*X\\s*\\d+\\s*(LB|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)?\\b", RegexOption.IGNORE_CASE),
-        Regex("(\\b\\d+/)?\\d+\\s*(LB|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)(\\s+(CS|EA|PK|BX|BAG|CASE))?\\b", RegexOption.IGNORE_CASE),
-        Regex("\\b\\d+\\s*(LB|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)\\b", RegexOption.IGNORE_CASE),
-        Regex("\\b(CASE|CS|EA|PK|BX|BAG|GAL|OZ|LB|KG)\\b", RegexOption.IGNORE_CASE)
+        Regex("\\b\\d+\\s*X\\s*\\d+\\s*(LBS?|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)?\\b", RegexOption.IGNORE_CASE),
+        Regex("(\\b\\d+/)?\\d+\\s*(LBS?|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)(\\s+(CS|EA|PK|BX|BAG|CASE))?\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b\\d+\\s*(LBS?|KG|OZ|GAL|CT|PK|BX|BAG|CASE|CS|EA)\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(CASE|CS|EA|PK|BX|BAG|GAL|OZ|LBS?|KG)\\b", RegexOption.IGNORE_CASE)
     )
 
     /**
