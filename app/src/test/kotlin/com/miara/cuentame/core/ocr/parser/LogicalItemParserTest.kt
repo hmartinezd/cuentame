@@ -402,6 +402,33 @@ class LogicalItemParserTest {
         assertEquals("CHICKEN", result.lines.find { it.vendorCode.normalizedValue == "ABC" }?.description?.normalizedValue)
     }
 
+    @Test
+    fun `description continuation - incomplete-money product followed by random text and new product with only missing column`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tCHICKEN\t10.00",
+            "\t\tRANDOM TEXT",
+            "1\tXYZ\tRICE\t\t20.00"
+        ))
+        val result = parser.parse(listOf(page))
+        
+        // Product ABC is missing LineTotal. 
+        // Row XYZ contributes only LineTotal (Rate is empty), so it is "strictly complementary".
+        // But XYZ is a new product (has Qty, SKU, Description), so it must NOT 
+        // validate RANDOM TEXT as part of ABC.
+        
+        assertEquals(2, result.lines.size)
+        val lineA = result.lines.find { it.vendorCode.normalizedValue == "ABC" }
+        val lineX = result.lines.find { it.vendorCode.normalizedValue == "XYZ" }
+        
+        assertNotNull(lineA)
+        assertNotNull(lineX)
+        
+        assertEquals("CHICKEN", lineA!!.description.normalizedValue)
+        assertEquals("RICE", lineX!!.description.normalizedValue)
+        assertFalse(lineA.description.normalizedValue?.contains("RANDOM TEXT") == true)
+    }
+
     private fun createPageWithMultiTokens(lines: List<String>): OcrPageEvidence {
         val ocrLines = lines.mapIndexed { lineIdx, text ->
             val elements = mutableListOf<OcrElementEvidence>()

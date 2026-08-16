@@ -142,6 +142,14 @@ internal object LogicalInvoiceItemAssembler {
         nextRow: Row,
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
+        return isCredibleMoneyContinuation(currentGroup, nextRow, layout)
+    }
+
+    private fun isCredibleMoneyContinuation(
+        currentGroup: List<Row>,
+        nextRow: Row,
+        layout: DeterministicPurchaseInvoiceParser.PageLayout
+    ): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
         if (!isStrictlyComplementaryMoneyRow(currentGroup, nextRow, layout)) return false
 
@@ -150,12 +158,12 @@ internal object LogicalInvoiceItemAssembler {
                 parser.isNumeric(it.text) 
         }
 
-        // startsNewItem(nextRow) is checked by caller before calling this.
-        // Safety: even if not technically a new item, if it has its own quantity, it's likely not a continuation.
         if (nextHasQty) return false
         
         // Ensure no product identity tokens in this row
         if (isPotentialIdentityRow(nextRow, layout)) return false
+
+        if (startsNewItem(nextRow, layout)) return false
 
         return true
     }
@@ -262,7 +270,7 @@ internal object LogicalInvoiceItemAssembler {
             // sandwiched by a subsequent row that strictly completes the money structure.
             // This prevents an incomplete product A from swallowing text that might belong 
             // to a following product B or be an orphan.
-            if (following == null || !isStrictlyComplementaryMoneyRow(currentGroup, following, layout)) {
+            if (following == null || !isCredibleMoneyContinuation(currentGroup, following, layout)) {
                 return false
             }
         }
