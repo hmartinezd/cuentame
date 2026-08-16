@@ -48,7 +48,11 @@ import com.miara.cuentame.core.common.database.DatabaseSchema
         SupplierItemMappingEntity::class,
         PurchaseInvoiceLineMatchEntity::class,
         PurchaseInvoiceDraftApplicationEntity::class,
-        PurchaseInvoiceLineOriginEntity::class
+        PurchaseInvoiceLineOriginEntity::class,
+        SalesImportEntity::class,
+        ImportedSaleTransactionEntity::class,
+        ImportedSaleLineEntity::class,
+        SalesImportTransactionRefEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -80,6 +84,7 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun purchaseInvoiceMaterializationDao(): PurchaseInvoiceMaterializationDao
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
+    abstract fun salesImportDao(): SalesImportDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {

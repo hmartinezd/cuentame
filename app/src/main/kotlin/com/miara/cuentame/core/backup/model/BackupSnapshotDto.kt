@@ -41,8 +41,17 @@ data class BackupSnapshotDto(
     val menuPublications: List<MenuPublicationBackupDto> = emptyList(),
     val menuPublicationCategories: List<MenuPublicationCategoryBackupDto> = emptyList(),
     val menuPublicationItems: List<MenuPublicationItemBackupDto> = emptyList(),
-    val menuPublicationItemComponents: List<MenuPublicationItemComponentBackupDto> = emptyList()
+    val menuPublicationItemComponents: List<MenuPublicationItemComponentBackupDto> = emptyList(),
+    val salesImports: List<SalesImportBackupDto> = emptyList(),
+    val importedSaleTransactions: List<ImportedSaleTransactionBackupDto> = emptyList(),
+    val importedSaleLines: List<ImportedSaleLineBackupDto> = emptyList(),
+    val salesImportTransactionRefs: List<SalesImportTransactionRefBackupDto> = emptyList()
 )
+
+@Serializable data class SalesImportBackupDto(val exportId:String,val originalSha256:String,val restaurantId:String,val terminalId:String,val generatedAt:Long,val businessDate:String,val menuPackageId:String,val menuId:String,val publicationRevision:Long,val currency:String,val importedAt:Long)
+@Serializable data class ImportedSaleTransactionBackupDto(val terminalId:String,val transactionId:String,val restaurantId:String,val menuPackageId:String,val menuId:String,val publicationRevision:Long,val businessDate:String,val currency:String,val openedAt:Long,val closedAt:Long,val status:String,val firstSeenExportId:String,val firstImportedAt:Long,val lastSeenExportId:String,val lastSeenGeneratedAt:Long)
+@Serializable data class ImportedSaleLineBackupDto(val terminalId:String,val saleLineId:String,val transactionId:String,val sellableItemId:String,val displayNameSnapshot:String,val quantity:String,val unitPrice:String,val gross:String,val discount:String,val net:String,val commercialRevision:Long,val consumptionRevision:Long)
+@Serializable data class SalesImportTransactionRefBackupDto(val exportId:String,val terminalId:String,val transactionId:String)
 
 @Serializable
 data class MenuRecipeBackupDto(

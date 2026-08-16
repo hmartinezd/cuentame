@@ -145,4 +145,7 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindPriceIntelligenceRepository(repo: RoomPriceIntelligenceRepository): PriceIntelligenceRepository
+
+    @Binds @Singleton
+    abstract fun bindSalesImportRepository(repo: com.miara.cuentame.core.database.repository.RoomSalesImportRepository): com.miara.cuentame.core.domain.repository.SalesImportRepository
 }

@@ -57,7 +57,11 @@ object BackupMapper {
             menuPublications = snapshot.menuPublications.map { it.toDto() }.sortedBy { it.id },
             menuPublicationCategories = snapshot.menuPublicationCategories.map { it.toDto() }.sortedBy { it.id },
             menuPublicationItems = snapshot.menuPublicationItems.map { it.toDto() }.sortedBy { it.id },
-            menuPublicationItemComponents = snapshot.menuPublicationItemComponents.map { it.toDto() }.sortedBy { it.id }
+            menuPublicationItemComponents = snapshot.menuPublicationItemComponents.map { it.toDto() }.sortedBy { it.id },
+            salesImports=snapshot.salesImports.map{it.toDto()}.sortedBy{it.exportId},
+            importedSaleTransactions=snapshot.importedSaleTransactions.map{it.toDto()}.sortedWith(compareBy({it.terminalId},{it.transactionId})),
+            importedSaleLines=snapshot.importedSaleLines.map{it.toDto()}.sortedWith(compareBy({it.terminalId},{it.saleLineId})),
+            salesImportTransactionRefs=snapshot.salesImportTransactionRefs.map{it.toDto()}.sortedWith(compareBy({it.exportId},{it.terminalId},{it.transactionId}))
         )
     }
 }
@@ -108,6 +112,10 @@ internal fun MenuPublicationEntity.toDto()=MenuPublicationBackupDto(id,restauran
 internal fun MenuPublicationCategoryEntity.toDto()=MenuPublicationCategoryBackupDto(id,publicationId,sourceMenuCategoryId,nameSnapshot,sortOrder)
 internal fun MenuPublicationItemEntity.toDto()=MenuPublicationItemBackupDto(id,publicationId,publicationCategoryId,sourceMenuPlacementId,menuRecipeId,displayNameSnapshot,sellingPriceSnapshot.toNormalizedString(),cashDiscountBehaviorSnapshot.name,commercialRevision,consumptionRevision,sortOrder)
 internal fun MenuPublicationItemComponentEntity.toDto()=MenuPublicationItemComponentBackupDto(id,publicationItemId,sourceMenuRecipeComponentId,ingredientId,ingredientUnitOptionId,quantityEnteredSnapshot.toNormalizedString(),quantityBaseSnapshot.toNormalizedString(),sortOrder)
+internal fun SalesImportEntity.toDto()=SalesImportBackupDto(exportId,originalSha256,restaurantId,terminalId,generatedAt,businessDate,menuPackageId,menuId,publicationRevision,currency,importedAt)
+internal fun ImportedSaleTransactionEntity.toDto()=ImportedSaleTransactionBackupDto(terminalId,transactionId,restaurantId,menuPackageId,menuId,publicationRevision,businessDate,currency,openedAt,closedAt,status,firstSeenExportId,firstImportedAt,lastSeenExportId,lastSeenGeneratedAt)
+internal fun ImportedSaleLineEntity.toDto()=ImportedSaleLineBackupDto(terminalId,saleLineId,transactionId,sellableItemId,displayNameSnapshot,quantity.toNormalizedString(),unitPrice.toNormalizedString(),gross.toNormalizedString(),discount.toNormalizedString(),net.toNormalizedString(),commercialRevision,consumptionRevision)
+internal fun SalesImportTransactionRefEntity.toDto()=SalesImportTransactionRefBackupDto(exportId,terminalId,transactionId)
 
 internal fun MenuRecipeComponentEntity.toDto() = MenuRecipeComponentBackupDto(
     id = id,
@@ -188,6 +196,10 @@ fun MenuPublicationBackupDto.toEntity()=MenuPublicationEntity(id,restaurantId,so
 fun MenuPublicationCategoryBackupDto.toEntity()=MenuPublicationCategoryEntity(id,publicationId,sourceMenuCategoryId,nameSnapshot,sortOrder)
 fun MenuPublicationItemBackupDto.toEntity()=MenuPublicationItemEntity(id,publicationId,publicationCategoryId,sourceMenuPlacementId,menuRecipeId,displayNameSnapshot,java.math.BigDecimal(sellingPriceSnapshot),com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(cashDiscountBehaviorSnapshot),commercialRevision,consumptionRevision,sortOrder)
 fun MenuPublicationItemComponentBackupDto.toEntity()=MenuPublicationItemComponentEntity(id,publicationItemId,sourceMenuRecipeComponentId,ingredientId,ingredientUnitOptionId,java.math.BigDecimal(quantityEnteredSnapshot),java.math.BigDecimal(quantityBaseSnapshot),sortOrder)
+fun SalesImportBackupDto.toEntity()=SalesImportEntity(exportId,originalSha256,restaurantId,terminalId,generatedAt,businessDate,menuPackageId,menuId,publicationRevision,currency,importedAt)
+fun ImportedSaleTransactionBackupDto.toEntity()=ImportedSaleTransactionEntity(terminalId,transactionId,restaurantId,menuPackageId,menuId,publicationRevision,businessDate,currency,openedAt,closedAt,status,firstSeenExportId,firstImportedAt,lastSeenExportId,lastSeenGeneratedAt)
+fun ImportedSaleLineBackupDto.toEntity()=ImportedSaleLineEntity(terminalId,saleLineId,transactionId,sellableItemId,displayNameSnapshot,java.math.BigDecimal(quantity),java.math.BigDecimal(unitPrice),java.math.BigDecimal(gross),java.math.BigDecimal(discount),java.math.BigDecimal(net),commercialRevision,consumptionRevision)
+fun SalesImportTransactionRefBackupDto.toEntity()=SalesImportTransactionRefEntity(exportId,terminalId,transactionId)
 fun MenuCategoryBackupDto.toEntity() = MenuCategoryEntity(id,menuId,name,normalizedName,sortOrder)
 fun MenuPlacementBackupDto.toEntity() = MenuPlacementEntity(id,menuId,categoryId,menuRecipeId,sortOrder)
 

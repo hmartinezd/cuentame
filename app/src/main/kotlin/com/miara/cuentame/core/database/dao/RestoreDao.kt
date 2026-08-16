@@ -9,6 +9,10 @@ import com.miara.cuentame.core.database.entity.*
 
 @Dao
 interface RestoreDao {
+    @Query("DELETE FROM sales_import_transaction_refs") suspend fun deleteAllSalesImportTransactionRefs()
+    @Query("DELETE FROM imported_sale_lines") suspend fun deleteAllImportedSaleLines()
+    @Query("DELETE FROM imported_sale_transactions") suspend fun deleteAllImportedSaleTransactions()
+    @Query("DELETE FROM sales_imports") suspend fun deleteAllSalesImports()
     @Query("DELETE FROM menu_publication_item_components") suspend fun deleteAllMenuPublicationItemComponents()
     @Query("DELETE FROM menu_publication_items") suspend fun deleteAllMenuPublicationItems()
     @Query("DELETE FROM menu_publication_categories") suspend fun deleteAllMenuPublicationCategories()
@@ -209,9 +213,17 @@ interface RestoreDao {
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationCategories(entities:List<MenuPublicationCategoryEntity>)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationItems(entities:List<MenuPublicationItemEntity>)
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPublicationItemComponents(entities:List<MenuPublicationItemComponentEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertSalesImports(entities:List<SalesImportEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertImportedSaleTransactions(entities:List<ImportedSaleTransactionEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertImportedSaleLines(entities:List<ImportedSaleLineEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertSalesImportTransactionRefs(entities:List<SalesImportTransactionRefEntity>)
 
     @Transaction
     suspend fun clearAllInOrder() {
+        deleteAllSalesImportTransactionRefs()
+        deleteAllImportedSaleLines()
+        deleteAllImportedSaleTransactions()
+        deleteAllSalesImports()
         deleteAllMenuPublicationItemComponents()
         deleteAllMenuPublicationItems()
         deleteAllMenuPublicationCategories()

@@ -44,7 +44,8 @@ interface BackupDao {
             menuRecipes = getMenuRecipes(restaurantId),
             menuRecipeComponents = getMenuRecipeComponents(restaurantId),
             menus = getMenus(restaurantId), menuCategories = getMenuCategories(restaurantId), menuPlacements = getMenuPlacements(restaurantId),
-            menuPublications=getMenuPublications(restaurantId),menuPublicationCategories=getMenuPublicationCategories(restaurantId),menuPublicationItems=getMenuPublicationItems(restaurantId),menuPublicationItemComponents=getMenuPublicationItemComponents(restaurantId)
+            menuPublications=getMenuPublications(restaurantId),menuPublicationCategories=getMenuPublicationCategories(restaurantId),menuPublicationItems=getMenuPublicationItems(restaurantId),menuPublicationItemComponents=getMenuPublicationItemComponents(restaurantId),
+            salesImports=getSalesImports(restaurantId),importedSaleTransactions=getImportedSaleTransactions(restaurantId),importedSaleLines=getImportedSaleLines(restaurantId),salesImportTransactionRefs=getSalesImportTransactionRefs(restaurantId)
         )
     }
 
@@ -227,6 +228,10 @@ interface BackupDao {
     @Query("SELECT c.* FROM menu_publication_categories c JOIN menu_publications p ON p.id=c.publicationId WHERE p.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuPublicationCategories(restaurantId:String):List<MenuPublicationCategoryEntity>
     @Query("SELECT i.* FROM menu_publication_items i JOIN menu_publications p ON p.id=i.publicationId WHERE p.restaurantId=:restaurantId ORDER BY i.id") suspend fun getMenuPublicationItems(restaurantId:String):List<MenuPublicationItemEntity>
     @Query("SELECT c.* FROM menu_publication_item_components c JOIN menu_publication_items i ON i.id=c.publicationItemId JOIN menu_publications p ON p.id=i.publicationId WHERE p.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuPublicationItemComponents(restaurantId:String):List<MenuPublicationItemComponentEntity>
+    @Query("SELECT * FROM sales_imports WHERE restaurantId=:restaurantId ORDER BY exportId") suspend fun getSalesImports(restaurantId:String):List<SalesImportEntity>
+    @Query("SELECT * FROM imported_sale_transactions WHERE restaurantId=:restaurantId ORDER BY terminalId,transactionId") suspend fun getImportedSaleTransactions(restaurantId:String):List<ImportedSaleTransactionEntity>
+    @Query("SELECT l.* FROM imported_sale_lines l JOIN imported_sale_transactions t ON t.terminalId=l.terminalId AND t.transactionId=l.transactionId WHERE t.restaurantId=:restaurantId ORDER BY l.terminalId,l.saleLineId") suspend fun getImportedSaleLines(restaurantId:String):List<ImportedSaleLineEntity>
+    @Query("SELECT r.* FROM sales_import_transaction_refs r JOIN sales_imports i ON i.exportId=r.exportId WHERE i.restaurantId=:restaurantId ORDER BY r.exportId,r.terminalId,r.transactionId") suspend fun getSalesImportTransactionRefs(restaurantId:String):List<SalesImportTransactionRefEntity>
 
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
@@ -261,7 +266,7 @@ interface BackupDao {
             purchaseInvoiceDraftApplications = getAllPurchaseInvoiceDraftApplications(),
             purchaseInvoiceLineOrigins = getAllPurchaseInvoiceLineOrigins(),
             menuRecipes = getAllMenuRecipes(),
-            menuRecipeComponents = getAllMenuRecipeComponents(), menus=getAllMenus(), menuCategories=getAllMenuCategories(), menuPlacements=getAllMenuPlacements(),menuPublications=getAllMenuPublications(),menuPublicationCategories=getAllMenuPublicationCategories(),menuPublicationItems=getAllMenuPublicationItems(),menuPublicationItemComponents=getAllMenuPublicationItemComponents()
+            menuRecipeComponents = getAllMenuRecipeComponents(), menus=getAllMenus(), menuCategories=getAllMenuCategories(), menuPlacements=getAllMenuPlacements(),menuPublications=getAllMenuPublications(),menuPublicationCategories=getAllMenuPublicationCategories(),menuPublicationItems=getAllMenuPublicationItems(),menuPublicationItemComponents=getAllMenuPublicationItemComponents(),salesImports=getAllSalesImports(),importedSaleTransactions=getAllImportedSaleTransactions(),importedSaleLines=getAllImportedSaleLines(),salesImportTransactionRefs=getAllSalesImportTransactionRefs()
         )
     }
 
@@ -361,4 +366,8 @@ interface BackupDao {
     @Query("SELECT * FROM menu_publication_categories") suspend fun getAllMenuPublicationCategories():List<MenuPublicationCategoryEntity>
     @Query("SELECT * FROM menu_publication_items") suspend fun getAllMenuPublicationItems():List<MenuPublicationItemEntity>
     @Query("SELECT * FROM menu_publication_item_components") suspend fun getAllMenuPublicationItemComponents():List<MenuPublicationItemComponentEntity>
+    @Query("SELECT * FROM sales_imports") suspend fun getAllSalesImports():List<SalesImportEntity>
+    @Query("SELECT * FROM imported_sale_transactions") suspend fun getAllImportedSaleTransactions():List<ImportedSaleTransactionEntity>
+    @Query("SELECT * FROM imported_sale_lines") suspend fun getAllImportedSaleLines():List<ImportedSaleLineEntity>
+    @Query("SELECT * FROM sales_import_transaction_refs") suspend fun getAllSalesImportTransactionRefs():List<SalesImportTransactionRefEntity>
 }

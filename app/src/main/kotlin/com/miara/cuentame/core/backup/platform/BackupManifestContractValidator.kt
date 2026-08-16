@@ -265,6 +265,14 @@ object BackupManifestContractValidator {
         } else if (snapshot.menuPublications.isNotEmpty() || snapshot.menuPublicationCategories.isNotEmpty() || snapshot.menuPublicationItems.isNotEmpty() || snapshot.menuPublicationItemComponents.isNotEmpty()) {
             return BackupRestoreFailure.ManifestMismatch
         }
+        if (manifest.databaseSchemaVersion >= 16) {
+            actualCounts["sales_imports"] = snapshot.salesImports.size
+            actualCounts["imported_sale_transactions"] = snapshot.importedSaleTransactions.size
+            actualCounts["imported_sale_lines"] = snapshot.importedSaleLines.size
+            actualCounts["sales_import_transaction_refs"] = snapshot.salesImportTransactionRefs.size
+        } else if (snapshot.salesImports.isNotEmpty() || snapshot.importedSaleTransactions.isNotEmpty() || snapshot.importedSaleLines.isNotEmpty() || snapshot.salesImportTransactionRefs.isNotEmpty()) {
+            return BackupRestoreFailure.ManifestMismatch
+        }
 
         for ((table, metadata) in manifest.tableMetadata) {
             val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch

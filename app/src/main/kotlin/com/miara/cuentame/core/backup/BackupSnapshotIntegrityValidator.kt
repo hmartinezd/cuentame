@@ -64,6 +64,7 @@ object BackupSnapshotIntegrityValidator {
             validateMenuRecipes(dto, ctx)?.let { throw it }
             validateMenus(dto, ctx)?.let { throw it }
             validateMenuPublications(dto, ctx)?.let { throw it }
+            validateSalesImports(dto, manifestRestaurantId)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: BackupSnapshotIntegrityException) {
@@ -204,6 +205,13 @@ object BackupSnapshotIntegrityValidator {
         check(dto.menuPublicationCategories, { it.id }, "menu_publication_categories")?.let { return it }
         check(dto.menuPublicationItems, { it.id }, "menu_publication_items")?.let { return it }
         check(dto.menuPublicationItemComponents, { it.id }, "menu_publication_item_components")?.let { return it }
+        check(dto.salesImports, { it.exportId }, "sales_imports")?.let { return it }
+        val transactionKeys=dto.importedSaleTransactions.map{it.terminalId to it.transactionId}
+        if(transactionKeys.any{it.first.isBlank()||it.second.isBlank()}||transactionKeys.distinct().size!=transactionKeys.size)return err(DUPLICATE_COMPOSITE_KEY,"Invalid imported sale transaction identity")
+        val lineKeys=dto.importedSaleLines.map{it.terminalId to it.saleLineId}
+        if(lineKeys.any{it.first.isBlank()||it.second.isBlank()}||lineKeys.distinct().size!=lineKeys.size)return err(DUPLICATE_COMPOSITE_KEY,"Invalid imported sale line identity")
+        val refKeys=dto.salesImportTransactionRefs.map{Triple(it.exportId,it.terminalId,it.transactionId)}
+        if(refKeys.distinct().size!=refKeys.size)return err(DUPLICATE_COMPOSITE_KEY,"Duplicate sales import transaction reference")
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -241,6 +249,15 @@ object BackupSnapshotIntegrityValidator {
             return err(DUPLICATE_COMPOSITE_KEY, "Duplicate composite key in ingredient_cost_projection")
         }
 
+        return null
+    }
+
+    private fun validateSalesImports(dto:BackupSnapshotDto,restaurantId:String):BackupSnapshotIntegrityException? {
+        val publications=dto.menuPublications.associateBy{it.id};val imports=dto.salesImports.associateBy{it.exportId};val txs=dto.importedSaleTransactions.associateBy{it.terminalId to it.transactionId}
+        for(i in dto.salesImports){if(i.restaurantId!=restaurantId)return err(RESTAURANT_ISOLATION_FAILURE,"Isolation error in sales_imports");if(!i.originalSha256.matches(Regex("[0-9a-f]{64}"))||i.terminalId.isBlank()||i.menuId.isBlank()||i.publicationRevision<=0||runCatching{java.time.LocalDate.parse(i.businessDate);java.time.Instant.ofEpochMilli(i.generatedAt);java.util.Currency.getInstance(i.currency)}.isFailure)return err(INVALID_DECIMAL,"Invalid sales import envelope");if(publications[i.menuPackageId]?.restaurantId!=restaurantId)return err(BROKEN_FOREIGN_KEY,"Broken sales import publication FK")}
+        for(t in dto.importedSaleTransactions){if(t.restaurantId!=restaurantId||t.status !in setOf("COMPLETED","VOIDED")||t.closedAt<t.openedAt||t.menuPackageId !in publications)return err(RELATIONSHIP_MISMATCH,"Invalid imported transaction")}
+        for(l in dto.importedSaleLines){val parent=txs[l.terminalId to l.transactionId]?:return err(BROKEN_FOREIGN_KEY,"Broken imported sale line FK");if(l.saleLineId.isBlank()||l.sellableItemId.isBlank()||l.displayNameSnapshot.isBlank()||l.commercialRevision<0||l.consumptionRevision<0)return err(RELATIONSHIP_MISMATCH,"Invalid imported sale line");val values=try{listOf(BigDecimal(l.quantity),BigDecimal(l.unitPrice),BigDecimal(l.gross),BigDecimal(l.discount),BigDecimal(l.net))}catch(_:Exception){return err(INVALID_DECIMAL,"Invalid imported sale decimal")};val(q,p,g,d,n)=values;if(q<=BigDecimal.ZERO||p<BigDecimal.ZERO||g<BigDecimal.ZERO||d<BigDecimal.ZERO||n<BigDecimal.ZERO||d>g||g.compareTo(q*p)!=0||n.compareTo(g-d)!=0)return err(INVALID_DECIMAL,"Invalid imported sale arithmetic");if(parent.terminalId!=l.terminalId)return err(RELATIONSHIP_MISMATCH,"Imported sale parent mismatch")}
+        for(r in dto.salesImportTransactionRefs){if(r.exportId !in imports||r.terminalId to r.transactionId !in txs)return err(BROKEN_FOREIGN_KEY,"Broken sales import reference FK")}
         return null
     }
 
