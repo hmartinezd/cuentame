@@ -358,15 +358,96 @@ class LogicalItemParserTest {
 
     @Test
     fun `money continuation - reject duplicate tokens in same money column`() {
-        val page = createPage(listOf(
+        val page = createPageWithMultiTokens(listOf(
             "Qty\tItem\tDescription\tRate\tAmount",
             "1\tABC\tPRODUCT A\t10.00",
-            "\t\t\t\t10.00 12.00"
+            "\t\t\t\t[10.00] [12.00]"
         ))
         val result = parser.parse(listOf(page))
         val lineA = result.lines.find { it.vendorCode.normalizedValue == "ABC" }
         assertNotNull(lineA)
+        // Should NOT merge the row because it has two separate tokens for the same column.
         assertNull(lineA!!.lineTotal.normalizedValue)
+    }
+
+    @Test
+    fun `description continuation - multi-line description with partial money`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tCHICKEN\t10.00",
+            "\t\tBREAST",
+            "\t\t\t\t10.00"
+        ))
+        val result = parser.parse(listOf(page))
+        assertEquals(1, result.lines.size)
+        val line = result.lines[0]
+        assertEquals("CHICKEN BREAST", line.description.normalizedValue)
+        assertEquals(0, BigDecimal("10.00").compareTo(line.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(line.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `description continuation - incomplete-money product followed by random text and next product`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tCHICKEN\t10.00",
+            "\t\tRANDOM TEXT",
+            "1\tXYZ\tRICE\t20.00\t20.00"
+        ))
+        val result = parser.parse(listOf(page))
+        // Product ABC is missing LineTotal. RANDOM TEXT should NOT be absorbed 
+        // because the following row (XYZ) does not strictly complete Product ABC 
+        // (it starts a new item and duplicates UnitPrice).
+        assertEquals(2, result.lines.size)
+        assertEquals("CHICKEN", result.lines.find { it.vendorCode.normalizedValue == "ABC" }?.description?.normalizedValue)
+    }
+
+    private fun createPageWithMultiTokens(lines: List<String>): OcrPageEvidence {
+        val ocrLines = lines.mapIndexed { lineIdx, text ->
+            val elements = mutableListOf<OcrElementEvidence>()
+            val parts = text.split("\t")
+            var currentPos = 0
+            for (part in parts) {
+                if (part.isNotBlank()) {
+                    if (part.startsWith("[") && part.contains("] [")) {
+                        // Special syntax for multiple tokens in one "cell"
+                        val tokens = part.split("] [").map { it.trim('[', ']') }
+                        for (token in tokens) {
+                            val rect = OcrRect(
+                                left = currentPos * 100,
+                                top = lineIdx * 50,
+                                right = (currentPos + 1) * 100,
+                                bottom = (lineIdx + 1) * 50
+                            )
+                            elements.add(OcrElementEvidence(text = token, boundingBox = rect))
+                        }
+                    } else {
+                        val rect = OcrRect(
+                            left = currentPos * 100,
+                            top = lineIdx * 50,
+                            right = (currentPos + 1) * 100,
+                            bottom = (lineIdx + 1) * 50
+                        )
+                        elements.add(OcrElementEvidence(text = part.trim(), boundingBox = rect))
+                    }
+                }
+                currentPos++
+            }
+            OcrLineEvidence(text = text.replace("\t", " "), boundingBox = null, elements = elements)
+        }
+        val pageText = lines.joinToString("\n").replace("\t", " ")
+        return OcrPageEvidence(
+            text = pageText, 
+            blocks = listOf(OcrBlockEvidence(
+                text = pageText, 
+                boundingBox = null, 
+                cornerPoints = emptyList(), 
+                recognizedLanguages = emptyList(), 
+                lines = ocrLines
+            )),
+            widthPx = 1000,
+            heightPx = 1000
+        )
     }
 
     @Test

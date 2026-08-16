@@ -11,12 +11,14 @@ class PackageTextDetectorTest {
         assertEquals("25 LB", PackageTextDetector.detectPackageText("25 LB"))
         assertEquals("50 LB", PackageTextDetector.detectPackageText("50 LB"))
         assertEquals("25 LB CS", PackageTextDetector.detectPackageText("25 LB CS"))
+        assertEquals("50 LBS", PackageTextDetector.detectPackageText("50 LBS"))
     }
 
     @Test
     fun `detect case quantity`() {
         assertEquals("6/5 LB", PackageTextDetector.detectPackageText("6/5 LB"))
         assertEquals("2/10 LB", PackageTextDetector.detectPackageText("2/10 LB"))
+        assertEquals("6/5 LBS", PackageTextDetector.detectPackageText("6/5 LBS"))
     }
 
     @Test

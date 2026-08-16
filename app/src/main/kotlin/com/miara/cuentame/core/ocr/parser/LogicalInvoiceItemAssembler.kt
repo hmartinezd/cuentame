@@ -254,9 +254,17 @@ internal object LogicalInvoiceItemAssembler {
 
         // A product is "complete" for description purposes only if it has a credible 
         // description AND its required money structure is sufficiently populated.
-        // A SKU alone does not satisfy description completeness.
         if (hasCredibleDescription(currentGroup, layout) && hasMoney(currentGroup, layout)) {
-            return false
+            // If the item is already money-complete, it rejects further description.
+            if (missingMoneyColumns(currentGroup, layout).isEmpty()) return false
+            
+            // If money is incomplete, we only accept a description continuation if it is 
+            // sandwiched by a subsequent row that strictly completes the money structure.
+            // This prevents an incomplete product A from swallowing text that might belong 
+            // to a following product B or be an orphan.
+            if (following == null || !isStrictlyComplementaryMoneyRow(currentGroup, following, layout)) {
+                return false
+            }
         }
 
         // A description continuation should not contain multiple numeric tokens (likely a new product)
