@@ -579,11 +579,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val sanitized = text.replace(Regex("[^0-9,.-]"), "")
         if (sanitized.isEmpty() || !sanitized.any { it.isDigit() }) return false
         
-        // Alphanumeric SKUs like "DSALAM1" or "FYUC000" should not be considered strictly numeric.
         val digits = text.count { it.isDigit() }
         val letters = text.count { it.isLetter() }
         
-        return digits > letters
+        if (digits <= letters) return false
+        
+        return true
     }
     
     private fun isMoneyLike(text: String): Boolean {

@@ -18,7 +18,7 @@ class LogicalItemParserTest {
                 "\t\tCITERIO GENOA SALAMI 3/6lb",
                 "\t\t\t4.68\t28.08",
                 "1\tFPLATMAYA",
-                "\t\tMAYA SWEET PLANTAIN 24 LB",
+                "\t\tMAYA SWEET PLANTAIN",
                 "\t\tUPC5265800837",
                 "\t\t\t32.00\t32.00",
                 "1\tFYUC000",

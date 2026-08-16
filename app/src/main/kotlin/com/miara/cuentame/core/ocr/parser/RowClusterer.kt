@@ -11,7 +11,7 @@ object RowClusterer {
 
     private const val LEGACY_CENTER_TOLERANCE = 0.005f
     private const val STRONG_CENTER_FACTOR = 0.5f
-    private const val MAX_CENTER_FACTOR = 1.0f
+    private const val MAX_CENTER_FACTOR = 0.8f
     private const val X_BAND_TOLERANCE = 0.03f
     private const val AMBIGUITY_EPSILON = 0.08f
 
@@ -75,6 +75,92 @@ object RowClusterer {
         return rows.sortedWith(compareBy<Row>({ it.pageIndex }, { it.top }, { it.tokens.firstOrNull()?.left ?: 0f }))
     }
 
+    private fun mergeDisplacedComplementaryFields(
+        sourceRows: List<MutableList<LayoutToken>>,
+        normalLineHeight: Float
+    ): List<MutableList<LayoutToken>> {
+        val rows = sourceRows.map { it.toMutableList() }.toMutableList()
+        val establishedNumericColumns = inferEstablishedNumericColumns(sourceRows)
+        // Rows are Y-sorted, so only a bounded neighborhood can be within one line height.
+        // Descending removal keeps unvisited indices stable and makes this pass linear in N.
+        for (movingIndex in rows.lastIndex downTo 0) {
+            val moving = rows[movingIndex]
+            // Move isolated numeric fields into stable descriptive bands. Keeping text
+            // fragments stationary preserves conservative orphan/continuation behavior.
+            if (moving.isEmpty() || !moving.all { isNumericField(it.text) }) continue
+            val candidates = ((movingIndex - 3).coerceAtLeast(0)..(movingIndex + 3).coerceAtMost(rows.lastIndex))
+                .asSequence()
+                .filter { it != movingIndex }
+                .mapNotNull { candidateIndex ->
+                    associationScore(moving, rows[candidateIndex], normalLineHeight, establishedNumericColumns)
+                        ?.let { Candidate(candidateIndex, it) }
+                }
+                .sortedWith(compareByDescending<Candidate> { it.score }.thenBy { it.rowIndex })
+                .toList()
+            val best = candidates.firstOrNull() ?: continue
+            val runnerUp = candidates.getOrNull(1)
+            if (runnerUp != null && best.score - runnerUp.score < AMBIGUITY_EPSILON) continue
+            rows[best.rowIndex].addAll(moving)
+            rows.removeAt(movingIndex)
+        }
+        return rows
+    }
+
+    private fun associationScore(
+        fragment: List<LayoutToken>,
+        candidate: List<LayoutToken>,
+        lineHeight: Float,
+        establishedNumericColumns: List<Float>
+    ): Float? {
+        val fragmentCenterY = centerY(fragment)
+        val candidateCenterY = centerY(candidate)
+        val delta = abs(fragmentCenterY - candidateCenterY)
+        if (delta > lineHeight * MAX_CENTER_FACTOR || delta == 0f) return null
+
+        // Adaptive merging is for complementary table fields, never arbitrary text continuation.
+        val fragmentNumeric = fragment.all { isNumericField(it.text) }
+        val candidateNumeric = candidate.all { isNumericField(it.text) }
+        if (fragmentNumeric == candidateNumeric) return null
+
+        val xConflict = fragment.any { token ->
+            candidate.any { existing -> abs(token.centerX - existing.centerX) < X_BAND_TOLERANCE }
+        }
+        if (xConflict) return null
+
+        val normalizedDistance = delta / lineHeight
+        val columnEstablished = fragment.all { token ->
+            establishedNumericColumns.any { center -> abs(token.centerX - center) < X_BAND_TOLERANCE }
+        }
+        // The wider half-to-one-line window is only a candidate window and requires
+        // repeated X-column evidence. Stronger associations retain legacy resilience.
+        if (normalizedDistance > STRONG_CENTER_FACTOR && !columnEstablished) return null
+        
+        val distanceScore = 1f - normalizedDistance
+        val strongBonus = if (normalizedDistance <= STRONG_CENTER_FACTOR) 0.35f else 0f
+        val establishedColumnBonus = if (columnEstablished) 0.15f else 0f
+        return distanceScore + strongBonus + establishedColumnBonus
+    }
+
+    private fun inferEstablishedNumericColumns(rows: List<List<LayoutToken>>): List<Float> {
+        val clusters = mutableListOf<MutableList<Pair<Int, LayoutToken>>>()
+        rows.forEachIndexed { rowIndex, row ->
+            row.filter { isNumericField(it.text) }.forEach { token ->
+                val cluster = clusters.firstOrNull { items ->
+                    abs(token.centerX - items.map { it.second.centerX }.average().toFloat()) < X_BAND_TOLERANCE
+                }
+                if (cluster == null) clusters.add(mutableListOf(rowIndex to token))
+                else cluster.add(rowIndex to token)
+            }
+        }
+        return clusters.filter { items -> items.map { it.first }.distinct().size >= 2 }
+            .map { items -> items.map { it.second.centerX }.average().toFloat() }
+    }
+
+    private fun centerY(tokens: List<LayoutToken>): Float =
+        tokens.map { it.centerY }.average().toFloat()
+
+    private data class Candidate(val rowIndex: Int, val score: Float)
+
     /**
      * Isolates a numeric token only when the descriptive row it would otherwise join already
      * has a better-aligned value in the same X band. This leaves the displaced value for the
@@ -124,82 +210,9 @@ object RowClusterer {
         return median(bodyHeights.sorted()).takeIf { it > 0f }
     }
 
-    private fun mergeDisplacedComplementaryFields(
-        sourceRows: List<MutableList<LayoutToken>>,
-        normalLineHeight: Float
-    ): List<MutableList<LayoutToken>> {
-        val rows = sourceRows.map { it.toMutableList() }.toMutableList()
-        val establishedNumericColumns = inferEstablishedNumericColumns(sourceRows)
-        // Rows are Y-sorted, so only a bounded neighborhood can be within one line height.
-        // Descending removal keeps unvisited indices stable and makes this pass linear in N.
-        for (movingIndex in rows.lastIndex downTo 0) {
-            val moving = rows[movingIndex]
-            // Move isolated numeric fields into stable descriptive bands. Keeping text
-            // fragments stationary preserves conservative orphan/continuation behavior.
-            if (moving.isEmpty() || !moving.all { isNumericField(it.text) }) continue
-            val candidates = ((movingIndex - 3).coerceAtLeast(0)..(movingIndex + 3).coerceAtMost(rows.lastIndex))
-                .asSequence()
-                .filter { it != movingIndex }
-                .mapNotNull { candidateIndex ->
-                    associationScore(moving, rows[candidateIndex], normalLineHeight, establishedNumericColumns)
-                        ?.let { Candidate(candidateIndex, it) }
-                }
-                .sortedWith(compareByDescending<Candidate> { it.score }.thenBy { it.rowIndex })
-                .toList()
-            val best = candidates.firstOrNull() ?: continue
-            val runnerUp = candidates.getOrNull(1)
-            if (runnerUp != null && best.score - runnerUp.score < AMBIGUITY_EPSILON) continue
-            rows[best.rowIndex].addAll(moving)
-            rows.removeAt(movingIndex)
-        }
-        return rows
-    }
-
-    private fun associationScore(
-        fragment: List<LayoutToken>,
-        candidate: List<LayoutToken>,
-        lineHeight: Float,
-        establishedNumericColumns: List<Float>
-    ): Float? {
-        val delta = abs(centerY(fragment) - centerY(candidate))
-        if (delta > lineHeight * MAX_CENTER_FACTOR || delta == 0f) return null
-
-        // Adaptive merging is for complementary table fields, never arbitrary text continuation.
-        val fragmentNumeric = fragment.all { isNumericField(it.text) }
-        val candidateNumeric = candidate.all { isNumericField(it.text) }
-        if (fragmentNumeric == candidateNumeric) return null
-
-        val xConflict = fragment.any { token ->
-            candidate.any { existing -> abs(token.centerX - existing.centerX) < X_BAND_TOLERANCE }
-        }
-        if (xConflict) return null
-
-        val normalizedDistance = delta / lineHeight
-        val columnEstablished = fragment.all { token ->
-            establishedNumericColumns.any { center -> abs(token.centerX - center) < X_BAND_TOLERANCE }
-        }
-        // The wider half-to-one-line window is only a candidate window and requires
-        // repeated X-column evidence. Stronger associations retain legacy resilience.
-        if (normalizedDistance > STRONG_CENTER_FACTOR && !columnEstablished) return null
-        val distanceScore = 1f - normalizedDistance
-        val strongBonus = if (normalizedDistance <= STRONG_CENTER_FACTOR) 0.35f else 0f
-        val establishedColumnBonus = if (columnEstablished) 0.15f else 0f
-        return distanceScore + strongBonus + establishedColumnBonus
-    }
-
-    private fun inferEstablishedNumericColumns(rows: List<List<LayoutToken>>): List<Float> {
-        val clusters = mutableListOf<MutableList<Pair<Int, LayoutToken>>>()
-        rows.forEachIndexed { rowIndex, row ->
-            row.filter { isNumericField(it.text) }.forEach { token ->
-                val cluster = clusters.firstOrNull { items ->
-                    abs(token.centerX - items.map { it.second.centerX }.average().toFloat()) < X_BAND_TOLERANCE
-                }
-                if (cluster == null) clusters.add(mutableListOf(rowIndex to token))
-                else cluster.add(rowIndex to token)
-            }
-        }
-        return clusters.filter { items -> items.map { it.first }.distinct().size >= 2 }
-            .map { items -> items.map { it.second.centerX }.average().toFloat() }
+    private fun median(values: List<Float>): Float {
+        val middle = values.size / 2
+        return if (values.size % 2 == 1) values[middle] else (values[middle - 1] + values[middle]) / 2f
     }
 
     internal fun isNumericField(text: String): Boolean = normalizeNumericField(text) != null
@@ -219,15 +232,6 @@ object RowClusterer {
             .takeIf { it.toBigDecimalOrNull() != null }
     }
 
-    private fun centerY(tokens: List<LayoutToken>): Float =
-        tokens.map { it.centerY }.average().toFloat()
-
-    private fun median(values: List<Float>): Float {
-        val middle = values.size / 2
-        return if (values.size % 2 == 1) values[middle] else (values[middle - 1] + values[middle]) / 2f
-    }
-
-    private data class Candidate(val rowIndex: Int, val score: Float)
     private val CURRENCY_SYMBOL = Regex("\\p{Sc}")
     private val MONETARY_FIELD = Regex(
         "^[+-]?(?:\\p{Sc})?(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?(?:\\p{Sc})?$"

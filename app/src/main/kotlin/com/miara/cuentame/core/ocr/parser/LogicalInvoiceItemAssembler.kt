@@ -79,8 +79,10 @@ internal object LogicalInvoiceItemAssembler {
                 if (nextCandidate.text.isBlank()) { j++; continue }
                 if (nextCandidate.pageIndex != row.pageIndex) break
                 
-                // If the next row starts a new logical item, it's a hard boundary. 
-                if (startsNewItem(nextCandidate, layout)) break
+                // If the next row starts a new logical item, it's a hard boundary.
+                if (startsNewItem(nextCandidate, layout)) {
+                    break
+                }
 
                 if (isUPCContinuation(nextCandidate)) {
                     currentGroup.add(nextCandidate)
@@ -96,7 +98,7 @@ internal object LogicalInvoiceItemAssembler {
                     // unrelated text or subsequent items.
                     break 
                 }
-                
+
                 if (isDescriptionContinuation(currentGroup.last(), nextCandidate, layout, rows.getOrNull(j + 1))) {
                      currentGroup.add(nextCandidate)
                      consumedIndices.add(j)
@@ -130,7 +132,9 @@ internal object LogicalInvoiceItemAssembler {
 
     private fun isUPCContinuation(row: Row): Boolean {
         val text = row.text.trim().uppercase()
-        return text.startsWith("UPC") || (text.length >= 8 && text.filter { it.isDigit() }.length >= 8)
+        // Broaden UPC detection: starts with UPC or is a long numeric-heavy string without being a money row
+        return text.startsWith("UPC") || 
+            (text.length >= 8 && text.filter { it.isDigit() }.length >= 8 && !text.contains(Regex("[.,][0-9]{2}")))
     }
 
     private fun isMoneyContinuation(
@@ -146,9 +150,15 @@ internal object LogicalInvoiceItemAssembler {
         }
         if (!nextHasMoney) return false
         
-        // A money continuation is valid if the current group is missing money
-        // OR if the next row doesn't look like a new item.
-        return !hasMoney(currentGroup, layout) || !startsNewItem(nextRow, layout)
+        val nextHasQty = nextRow.tokens.any { layout.getColumnType(it.centerX) == DeterministicPurchaseInvoiceParser.ColumnType.Quantity && parser.isNumeric(it.text) }
+
+        // If the next row looks like a new item start, we only swallow it if it
+        // provides money we are missing AND doesn't have its own quantity.
+        if (startsNewItem(nextRow, layout)) {
+            return !hasMoney(currentGroup, layout) && !nextHasQty
+        }
+        
+        return true
     }
 
     private fun hasMoney(group: List<Row>, layout: DeterministicPurchaseInvoiceParser.PageLayout): Boolean {
@@ -204,7 +214,7 @@ internal object LogicalInvoiceItemAssembler {
             kotlin.math.abs(nextLeft - previous.tokens.minOf { it.left })
         }
 
-        // Tighten alignment for description continuations.
+        // Loosen alignment threshold slightly for multi-row descriptions that might be shifted.
         if (alignmentGap <= 0.15f) {
             // Ambiguity check: avoid swallowing orphans if perfectly aligned with next item.
             if (alignmentGap < 0.01f && following != null && startsNewItem(following, layout)) {
