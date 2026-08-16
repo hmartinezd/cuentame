@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 },
-                dynamicColor = preferences?.dynamicColorEnabled ?: true
+                dynamicColor = preferences?.dynamicColorEnabled ?: false
             ) {
                 CuentameApp(windowSizeClass = windowSizeClass)
             }

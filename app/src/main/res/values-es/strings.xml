@@ -865,6 +865,8 @@
     <string name="ocr_materialization_error_generic">Ocurrió un error al aplicar la factura: %1$s</string>
 
   <string name="dashboard_title">Panel de Control</string>
+  <string name="dashboard_overview_label">Resumen</string>
+  <string name="quick_actions_label">Acciones rápidas</string>
   <string name="range_7_days">7 días</string>
   <string name="range_30_days">30 días</string>
   <string name="range_90_days">90 días</string>

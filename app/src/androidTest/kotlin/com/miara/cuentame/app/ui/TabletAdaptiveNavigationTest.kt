@@ -10,6 +10,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -39,13 +40,11 @@ class TabletAdaptiveNavigationTest {
     fun tearDown() = runBlocking { testStateManager.resetAll() }
 
     @Test
-    fun nonCompactNavigation_usesRail_andPreservesScreenAcrossRotation() {
+    fun nonCompactNavigation_usesAdaptiveSideNavigation_andPreservesScreenAcrossRotation() {
         ActivityScenario.launch<MainActivity>(MainActivity::class.java).use { scenario ->
             composeTestRule.waitUntil(30_000) {
-                composeTestRule.onAllNodes(hasTestTag("top_level_navigation_rail"))
-                    .fetchSemanticsNodes().isNotEmpty()
+                sideNavigationNodeCount() > 0
             }
-            composeTestRule.onNodeWithTag("top_level_navigation_rail").assertExists()
             composeTestRule.onNodeWithTag("top_level_bottom_bar").assertDoesNotExist()
 
             composeTestRule.onNodeWithTag("nav_inventory").performClick()
@@ -65,7 +64,13 @@ class TabletAdaptiveNavigationTest {
             }
             composeTestRule.waitForIdle()
             composeTestRule.onNodeWithTag("ingredient_list_screen").assertExists()
-            composeTestRule.onNodeWithTag("top_level_navigation_rail").assertExists()
+            assertTrue(sideNavigationNodeCount() > 0)
         }
     }
+
+    private fun sideNavigationNodeCount(): Int =
+        composeTestRule.onAllNodes(hasTestTag("top_level_navigation_rail"))
+            .fetchSemanticsNodes().size +
+            composeTestRule.onAllNodes(hasTestTag("top_level_navigation_sidebar"))
+                .fetchSemanticsNodes().size
 }

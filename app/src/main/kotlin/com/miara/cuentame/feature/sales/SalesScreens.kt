@@ -13,6 +13,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.miara.cuentame.R
 import com.miara.cuentame.core.designsystem.util.Formatters
+import com.miara.cuentame.core.designsystem.component.AppSnackbarHost
 import com.miara.cuentame.core.model.salesimport.*
 import java.time.ZoneId
 import java.time.format.*
@@ -23,8 +24,9 @@ private val dateTimeFmt get()=DateTimeFormatter.ofLocalizedDateTime(FormatStyle.
 private val timeFmt get()=DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault())
 
 @OptIn(ExperimentalMaterial3Api::class) @Composable fun SalesRoute(onBack:()->Unit,onImport:(String)->Unit,vm:SalesImportListViewModel=hiltViewModel()){
- val s by vm.state.collectAsStateWithLifecycle();val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::select)};val pick={picker.launch(arrayOf("application/json","text/json","text/plain"))}
- Scaffold(topBar={TopAppBar(title={Text(stringResource(R.string.sales_title))},navigationIcon={TextButton(onClick=onBack){Text(stringResource(R.string.action_back))}},actions={TextButton(onClick=pick,enabled=!s.busy){Text(stringResource(R.string.sales_import))}})}) { p ->
+ val s by vm.state.collectAsStateWithLifecycle();val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::select)};val pick={picker.launch(arrayOf("application/json","text/json","text/plain"))};val snackbarHostState=remember{SnackbarHostState()};val successMessage=stringResource(R.string.sales_import_success)
+ LaunchedEffect(s.success){if(s.success){snackbarHostState.showSnackbar(successMessage);vm.consumeSuccess()}}
+ Scaffold(snackbarHost={AppSnackbarHost(snackbarHostState)},topBar={TopAppBar(title={Text(stringResource(R.string.sales_title))},navigationIcon={TextButton(onClick=onBack){Text(stringResource(R.string.action_back))}},actions={TextButton(onClick=pick,enabled=!s.busy){Text(stringResource(R.string.sales_import))}})}) { p ->
   Box(Modifier.fillMaxSize().padding(p)) {
    when {
     s.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -38,7 +40,6 @@ private val timeFmt get()=DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).w
  s.prepared?.let{x->AlertDialog(onDismissRequest=vm::dismiss,title={Text(stringResource(R.string.sales_preview_title))},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){Label(R.string.sales_business_date,dateFmt.format(x.businessDate));Label(R.string.sales_terminal_label,x.terminalId);Label(R.string.sales_generated,dateTimeFmt.format(x.generatedAt));Label(R.string.sales_revision_label,x.publicationRevision.toString());Label(R.string.sales_currency,x.currency);HorizontalDivider();Text(stringResource(R.string.sales_transactions_summary,x.completedCount,x.voidedCount));Text(stringResource(R.string.sales_line_count,x.lineCount));Money(R.string.sales_gross,x.completedGross,x.currency);Money(R.string.sales_discounts,x.completedDiscount,x.currency);Money(R.string.sales_net,x.completedNet,x.currency)}},confirmButton={Button(onClick=vm::confirm,enabled=!s.busy){Text(stringResource(R.string.sales_import_action))}},dismissButton={TextButton(onClick=vm::dismiss,enabled=!s.busy){Text(stringResource(R.string.action_cancel))}})}
  s.duplicate?.let{x->AlertDialog(onDismissRequest=vm::dismiss,title={Text(stringResource(R.string.sales_duplicate_title))},text={Text(stringResource(R.string.sales_duplicate_body,dateFmt.format(x.businessDate),dateTimeFmt.format(x.importedAt)))},confirmButton={Button(onClick={vm.dismiss();onImport(x.exportId)}){Text(stringResource(R.string.sales_view_import))}},dismissButton={TextButton(onClick=vm::dismiss){Text(stringResource(R.string.action_cancel))}})}
  s.error?.let{AlertDialog(onDismissRequest=vm::dismiss,confirmButton={TextButton(onClick=vm::dismiss){Text(stringResource(android.R.string.ok))}},text={Text(stringResource(it.message()))})}
- if(s.success){LaunchedEffect(Unit){vm.consumeSuccess()};Snackbar{Text(stringResource(R.string.sales_import_success))}}
 }
 @Composable private fun Label(label:Int,value:String){Text("${stringResource(label)}: $value")}
 @Composable private fun Money(label:Int,value:java.math.BigDecimal,currency:String){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(stringResource(label));Text(Formatters.formatCurrency(value,currency))}}

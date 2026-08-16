@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -22,6 +24,10 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,6 +57,8 @@ import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.domain.usecase.AppStartState
 import com.miara.cuentame.feature.onboarding.ui.OnboardingRoute
+import com.miara.cuentame.app.ui.theme.AppSpacing
+import com.miara.cuentame.app.ui.theme.AppTheme
 
 @Composable
 fun CuentameApp(
@@ -133,6 +141,7 @@ fun MainAppContent(
     navController: NavHostController = rememberNavController()
 ) {
     val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
+    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
@@ -145,12 +154,13 @@ fun MainAppContent(
     val isSettingsRoot = currentDestination?.route == Destination.SETTINGS.route
     
     val shouldShowBottomBar = isCompact && isTopLevelDestination
-    val shouldShowNavRail = !isCompact && isTopLevelDestination
+    val shouldShowNavRail = !isCompact && !isExpanded && isTopLevelDestination
+    val shouldShowSidebar = isExpanded && isTopLevelDestination
 
     Scaffold(
         topBar = {
             if (isTopLevelDestination || isSettingsRoot) {
-                CenterAlignedTopAppBar(
+                TopAppBar(
                     title = {
                         Text(
                             text = if (isSettingsRoot) {
@@ -175,7 +185,7 @@ fun MainAppContent(
                         }
                     },
                     actions = {
-                        if (isTopLevelDestination) {
+                        if (isTopLevelDestination && !shouldShowSidebar) {
                             IconButton(
                                 onClick = {
                                     navController.navigate(Destination.SETTINGS.route) {
@@ -191,7 +201,7 @@ fun MainAppContent(
                             }
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                         navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -228,11 +238,71 @@ fun MainAppContent(
                     currentDestination = currentDestination
                 )
             }
+            if (shouldShowSidebar) {
+                AppNavigationSidebar(
+                    destinations = TopLevelDestination.entries,
+                    onNavigateToDestination = { destination ->
+                        navigateToTopLevelDestination(navController, destination)
+                    },
+                    onSettingsClick = {
+                        navController.navigate(Destination.SETTINGS.route) { launchSingleTop = true }
+                    },
+                    currentDestination = currentDestination
+                )
+            }
 
             CuentameNavHost(
                 navController = navController,
                 onBackClick = { navController.popBackStack() },
                 modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppNavigationSidebar(
+    destinations: List<TopLevelDestination>,
+    onNavigateToDestination: (TopLevelDestination) -> Unit,
+    onSettingsClick: () -> Unit,
+    currentDestination: NavDestination?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.width(240.dp).fillMaxSize().testTag("top_level_navigation_sidebar"),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, AppTheme.semanticColors.divider),
+    ) {
+        Column(Modifier.padding(AppSpacing.md)) {
+            Text(
+                stringResource(com.miara.cuentame.R.string.app_name),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.lg),
+            )
+            destinations.forEach { destination ->
+                val selected = currentDestination.isTopLevelDestinationInHierarchy(destination)
+                NavigationDrawerItem(
+                    selected = selected,
+                    onClick = { onNavigateToDestination(destination) },
+                    icon = { Icon(if (selected) destination.selectedIcon else destination.unselectedIcon, null) },
+                    label = { Text(stringResource(destination.iconTextId)) },
+                    modifier = Modifier.padding(vertical = AppSpacing.xs).testTag(destination.testTag),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = AppTheme.semanticColors.selected,
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            HorizontalDivider(color = AppTheme.semanticColors.divider)
+            NavigationDrawerItem(
+                selected = false,
+                onClick = onSettingsClick,
+                icon = { Icon(Icons.Default.Settings, null) },
+                label = { Text(stringResource(com.miara.cuentame.R.string.nav_settings)) },
+                modifier = Modifier.padding(top = AppSpacing.sm).testTag("nav_settings"),
             )
         }
     }

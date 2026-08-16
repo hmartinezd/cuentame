@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -43,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -60,6 +63,11 @@ import com.miara.cuentame.core.presentation.navigation.Destination
 import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.core.presentation.ui.RefreshErrorBanner
 import com.miara.cuentame.core.presentation.ui.RefreshIndicator
+import com.miara.cuentame.core.designsystem.component.AppCard
+import com.miara.cuentame.core.designsystem.component.AppSectionHeader
+import com.miara.cuentame.core.designsystem.component.AppStatusChip
+import com.miara.cuentame.core.designsystem.component.StatusTone
+import com.miara.cuentame.app.ui.theme.AppSpacing
 import java.time.format.FormatStyle
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -230,12 +238,13 @@ private fun DashboardContent(
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
+    val isWide = LocalConfiguration.current.screenWidthDp >= 840
     
     LazyColumn(
-        modifier = Modifier.fillMaxSize().testTag("home_dashboard_list"),
+        modifier = Modifier.widthIn(max = 1200.dp).fillMaxHeight().fillMaxWidth().testTag("home_dashboard_list"),
         state = scrollState,
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        contentPadding = PaddingValues(horizontal = if (isWide) AppSpacing.xl else AppSpacing.md, vertical = AppSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
     ) {
         item {
             DashboardHeader(state.restaurantName)
@@ -296,6 +305,7 @@ private fun DashboardContent(
         }
 
         item {
+            AppSectionHeader(title = stringResource(R.string.dashboard_overview_label))
             KpiSection(
                 state = state,
                 locale = restaurantLocale,
@@ -307,6 +317,7 @@ private fun DashboardContent(
         }
 
         item {
+            AppSectionHeader(title = stringResource(R.string.quick_actions_label))
             QuickActionsSection(
                 onLogWaste = onLogWaste,
                 onNewPurchase = onNewPurchase,
@@ -324,24 +335,25 @@ private fun DashboardContent(
         }
 
         item {
-            DataCompletenessSection(
-                state = state,
-                locale = restaurantLocale,
-                onMissingCostClick = { onViewInventoryDetail("missing_cost") },
-                onMissingOptionsClick = onManageIngredients
-            )
-        }
-
-        item {
-            StockCountSummarySection(state, restaurantLocale)
-        }
-
-        item {
-            TopWasteSection(state, restaurantLocale)
-        }
-
-        item {
-            RecentActivitySection(state, restaurantLocale)
+            if (isWide) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+                        Box(Modifier.weight(1f)) { DataCompletenessSection(state, restaurantLocale, { onViewInventoryDetail("missing_cost") }, onManageIngredients) }
+                        Box(Modifier.weight(1f)) { StockCountSummarySection(state, restaurantLocale) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.weight(1f)) { TopWasteSection(state, restaurantLocale) }
+                        Box(Modifier.weight(1f)) { RecentActivitySection(state, restaurantLocale) }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
+                    DataCompletenessSection(state, restaurantLocale, { onViewInventoryDetail("missing_cost") }, onManageIngredients)
+                    StockCountSummarySection(state, restaurantLocale)
+                    TopWasteSection(state, restaurantLocale)
+                    RecentActivitySection(state, restaurantLocale)
+                }
+            }
         }
     }
 }
@@ -359,10 +371,19 @@ private fun SetupReadinessSection(
 ) {
     var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var selectedArea by androidx.compose.runtime.remember(setup.areas) { androidx.compose.runtime.mutableStateOf(setup.areas.singleOrNull()) }
-    ElevatedCard(Modifier.fillMaxWidth().testTag("setup_readiness")) {
+    AppCard(Modifier.fillMaxWidth().testTag("setup_readiness")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(stringResource(R.string.setup_hub_title), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(if (setup.coreReady) R.string.setup_core_ready else R.string.setup_core_not_ready))
+            AppSectionHeader(
+                title = stringResource(R.string.setup_hub_title),
+                trailing = {
+                    AppStatusChip(
+                        label = stringResource(if (setup.coreReady) R.string.setup_core_ready else R.string.setup_core_not_ready),
+                        tone = if (setup.coreReady) StatusTone.SUCCESS else StatusTone.WARNING,
+                        icon = if (setup.coreReady) Icons.Default.CheckCircle else Icons.Default.Error,
+                    )
+                }
+            )
+            if (!setup.coreReady) {
             SetupRow(true, R.string.setup_restaurant_ready, null)
             SetupRow(setup.areas.isNotEmpty(), R.string.setup_areas, onManageAreas)
             SetupRow(setup.ingredientCount > 0 && setup.invalidUnitCount == 0, R.string.setup_ingredients, onManageIngredients)
@@ -379,6 +400,7 @@ private fun SetupReadinessSection(
                 Button(onClick = { selectedArea?.id?.let(onAssignUnassigned) }, enabled = selectedArea != null, modifier = Modifier.fillMaxWidth().testTag("assign_all_unassigned")) { Text(stringResource(R.string.setup_assign_all)) }
             }
             SetupRow(setup.hasCompletedInitialCount, R.string.setup_initial_count, onStartCount)
+            }
         }
     }
 }
@@ -396,16 +418,16 @@ private fun SetupRow(complete: Boolean, label: Int, action: (() -> Unit)?) {
 private fun DashboardHeader(restaurantName: String) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = restaurantName,
-            style = MaterialTheme.typography.headlineSmall,
+            text = stringResource(R.string.dashboard_title),
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.testTag("dashboard_restaurant_name")
+            color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = stringResource(R.string.dashboard_title),
+            text = restaurantName,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("dashboard_restaurant_name")
         )
     }
 }
@@ -466,8 +488,9 @@ private fun KpiSection(
     onPurchaseClick: () -> Unit,
     onWasteClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    val isWide = LocalConfiguration.current.screenWidthDp >= 840
+    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             KpiCard(
                 title = stringResource(R.string.inventory_value_label),
                 value = Formatters.formatCurrency(state.dashboard.inventoryValue, state.currencyCode, locale),
@@ -481,15 +504,34 @@ private fun KpiSection(
                 modifier = Modifier.weight(1f).testTag("dashboard_negative_balance_count"),
                 valueColor = if (state.dashboard.negativeBalanceCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
+            if (isWide) {
+                KpiCard(
+                    title = stringResource(R.string.purchase_spend_label),
+                    value = Formatters.formatCurrency(state.dashboard.purchaseSpend.value, state.currencyCode, locale),
+                    comparison = state.dashboard.purchaseSpend,
+                    locale = locale,
+                    onClick = onPurchaseClick,
+                    modifier = Modifier.weight(1f).testTag("dashboard_purchase_spend")
+                )
+                KpiCard(
+                    title = stringResource(R.string.waste_value_label),
+                    value = Formatters.formatCurrency(state.dashboard.wasteValue.value, state.currencyCode, locale),
+                    comparison = state.dashboard.wasteValue,
+                    locale = locale,
+                    onClick = onWasteClick,
+                    modifier = Modifier.weight(1f).testTag("dashboard_waste_value")
+                )
+            }
         }
-        
+        if (!isWide) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
         KpiCard(
             title = stringResource(R.string.purchase_spend_label),
             value = Formatters.formatCurrency(state.dashboard.purchaseSpend.value, state.currencyCode, locale),
             comparison = state.dashboard.purchaseSpend,
             locale = locale,
             onClick = onPurchaseClick,
-            modifier = Modifier.fillMaxWidth().testTag("dashboard_purchase_spend")
+            modifier = Modifier.weight(1f).testTag("dashboard_purchase_spend")
         )
 
         KpiCard(
@@ -498,8 +540,10 @@ private fun KpiSection(
             comparison = state.dashboard.wasteValue,
             locale = locale,
             onClick = onWasteClick,
-            modifier = Modifier.fillMaxWidth().testTag("dashboard_waste_value")
+            modifier = Modifier.weight(1f).testTag("dashboard_waste_value")
         )
+        }
+        }
     }
 }
 
@@ -530,9 +574,8 @@ private fun KpiCard(
         "$directionText ${stringResource(R.string.from_previous_period)}"
     } else ""
 
-    Card(
-        onClick = onClick,
-        modifier = modifier.semantics(mergeDescendants = true) {
+    AppCard(
+        modifier = modifier.clickable(onClick = onClick).semantics(mergeDescendants = true) {
             contentDescription = "$title: $value. $trendDescription"
         }
     ) {
@@ -615,33 +658,34 @@ private fun QuickActionsSection(
     onViewReorder: () -> Unit,
     onViewSales: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.Delete, stringResource(R.string.log_waste_action), onLogWaste, Modifier.weight(1f).testTag("log_waste_button"))
-            QuickActionButton(Icons.Default.History, stringResource(R.string.waste_history), onViewWasteHistory, Modifier.weight(1f).testTag("view_waste_button"))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.new_purchase_action), onNewPurchase, Modifier.weight(1f).testTag("new_purchase_button"))
-            QuickActionButton(Icons.Default.Straighten, stringResource(R.string.start_count_action), onStartCount, Modifier.weight(1f).testTag("start_count_button"))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.SoupKitchen, stringResource(R.string.preparation_recipes), onViewPreparations, Modifier.weight(1f).testTag("open_preparation_recipes_button"))
-            QuickActionButton(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), onViewProduction, Modifier.weight(1f).testTag("open_production_batches_button"))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.MenuBook, stringResource(R.string.catalog_menus), onViewMenus, Modifier.weight(1f).testTag("open_menus_button"))
-            QuickActionButton(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), onViewMenuItems, Modifier.weight(1f).testTag("open_menu_items_button"))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), onViewReorder, Modifier.weight(1f).testTag("reorder_assistance_button"))
-            QuickActionButton(Icons.Default.History, stringResource(R.string.inventory_activity_title), onViewActivity, Modifier.weight(1f).testTag("open_inventory_activity_button"))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.weight(1f).testTag("view_reports_button"))
-            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.sales_title), onViewSales, Modifier.weight(1f).testTag("open_sales_button"))
+    val actions = listOf(
+        QuickActionSpec(Icons.Default.Delete, stringResource(R.string.log_waste_action), "log_waste_button", onLogWaste),
+        QuickActionSpec(Icons.Default.History, stringResource(R.string.waste_history), "view_waste_button", onViewWasteHistory),
+        QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.new_purchase_action), "new_purchase_button", onNewPurchase),
+        QuickActionSpec(Icons.Default.Straighten, stringResource(R.string.start_count_action), "start_count_button", onStartCount),
+        QuickActionSpec(Icons.Default.SoupKitchen, stringResource(R.string.preparation_recipes), "open_preparation_recipes_button", onViewPreparations),
+        QuickActionSpec(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), "open_production_batches_button", onViewProduction),
+        QuickActionSpec(Icons.Default.MenuBook, stringResource(R.string.catalog_menus), "open_menus_button", onViewMenus),
+        QuickActionSpec(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), "open_menu_items_button", onViewMenuItems),
+        QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), "reorder_assistance_button", onViewReorder),
+        QuickActionSpec(Icons.Default.History, stringResource(R.string.inventory_activity_title), "open_inventory_activity_button", onViewActivity),
+        QuickActionSpec(Icons.Default.BarChart, stringResource(R.string.view_reports_action), "view_reports_button", onViewReports),
+        QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.sales_title), "open_sales_button", onViewSales),
+    )
+    val columns = if (LocalConfiguration.current.screenWidthDp >= 840) 4 else 2
+    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+        actions.chunked(columns).forEach { rowActions ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                rowActions.forEach { action ->
+                    QuickActionButton(action.icon, action.label, action.onClick, Modifier.weight(1f).testTag(action.testTag))
+                }
+                repeat(columns - rowActions.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
     }
 }
+
+private data class QuickActionSpec(val icon: ImageVector, val label: String, val testTag: String, val onClick: () -> Unit)
 
 
 @Composable
@@ -651,16 +695,16 @@ private fun QuickActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    FilledTonalButton(
-        onClick = onClick,
-        modifier = modifier.semantics {
+    AppCard(
+        modifier = modifier.clickable(onClick = onClick).semantics {
             contentDescription = label
         },
-        contentPadding = PaddingValues(12.dp)
     ) {
-        Icon(icon, contentDescription = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = label, style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth().padding(AppSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.width(AppSpacing.sm))
+            Text(text = label, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 

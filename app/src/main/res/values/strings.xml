@@ -882,6 +882,8 @@
     <string name="ocr_materialization_error_generic">An error occurred while applying the invoice: %1$s</string>
 
   <string name="dashboard_title">Dashboard</string>
+  <string name="dashboard_overview_label">Overview</string>
+  <string name="quick_actions_label">Quick actions</string>
   <string name="range_7_days">7 days</string>
   <string name="range_30_days">30 days</string>
   <string name="range_90_days">90 days</string>
