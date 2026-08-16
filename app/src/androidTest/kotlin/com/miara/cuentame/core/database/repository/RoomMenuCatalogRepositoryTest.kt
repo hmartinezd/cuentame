@@ -73,6 +73,42 @@ class RoomMenuCatalogRepositoryTest {
         assertThat(recipes.observeRecipe(recipe).first()).isNotNull()
     }
 
+    @Test fun categoryReorderPersistsNormalizedOrderAndRejectsInvalidSetsAtomically()=runBlocking {
+        val menu=repository.createMenu(restaurant,"Dinner",null,BigDecimal.ZERO)
+        val a=repository.saveCategory(menu,null,"A",50);val b=repository.saveCategory(menu,null,"B",10);val c=repository.saveCategory(menu,null,"C",30)
+        repository.reorderCategories(menu,listOf(c,a,b))
+        assertThat(repository.observeCategories(menu).first().map{it.id}).containsExactly(c,a,b).inOrder()
+        assertThat(repository.observeCategories(menu).first().map{it.sortOrder}).containsExactly(0,10,20).inOrder()
+
+        val stable=repository.observeCategories(menu).first()
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderCategories(menu,listOf(c,c,b))}
+        assertThat(repository.observeCategories(menu).first()).isEqualTo(stable)
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderCategories(menu,listOf(c,a))}
+        assertThat(repository.observeCategories(menu).first()).isEqualTo(stable)
+        val other=repository.createMenu(restaurant,"Lunch",null,BigDecimal.ZERO);val foreign=repository.saveCategory(other,null,"Other",0)
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderCategories(menu,listOf(c,a,foreign))}
+        assertThat(repository.observeCategories(menu).first()).isEqualTo(stable)
+    }
+
+    @Test fun placementReorderPersistsNormalizedOrderAndRejectsInvalidSetsAtomically()=runBlocking {
+        val menu=repository.createMenu(restaurant,"Dinner",null,BigDecimal.ZERO);val category=repository.saveCategory(menu,null,"Items",0)
+        val ra=recipes.create(restaurant,"A",null,null);val rb=recipes.create(restaurant,"B",null,null);val rc=recipes.create(restaurant,"C",null,null)
+        val a=repository.savePlacement(menu,null,category,ra,50);val b=repository.savePlacement(menu,null,category,rb,10);val c=repository.savePlacement(menu,null,category,rc,30)
+        repository.reorderPlacements(menu,listOf(c,a,b))
+        assertThat(repository.observePlacements(menu).first().map{it.id}).containsExactly(c,a,b).inOrder()
+        assertThat(repository.observePlacements(menu).first().map{it.sortOrder}).containsExactly(0,10,20).inOrder()
+
+        val stable=repository.observePlacements(menu).first()
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderPlacements(menu,listOf(c,c,b))}
+        assertThat(repository.observePlacements(menu).first()).isEqualTo(stable)
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderPlacements(menu,listOf(c,a))}
+        assertThat(repository.observePlacements(menu).first()).isEqualTo(stable)
+        val other=repository.createMenu(restaurant,"Lunch",null,BigDecimal.ZERO);val otherCategory=repository.saveCategory(other,null,"Items",0)
+        val foreign=repository.savePlacement(other,null,otherCategory,ra,0)
+        assertFailsWith<MenuCatalogPersistenceException.OwnershipMismatch>{repository.reorderPlacements(menu,listOf(c,a,foreign))}
+        assertThat(repository.observePlacements(menu).first()).isEqualTo(stable)
+    }
+
     private suspend inline fun <reified T:Throwable> assertFailsWith(crossinline block:suspend()->Unit) {
         var failure:Throwable?=null;try{block()}catch(t:Throwable){failure=t};assertThat(failure).isInstanceOf(T::class.java)
     }

@@ -52,14 +52,16 @@ class MenuCatalogListViewModel @Inject constructor(private val catalogs: MenuCat
 
 data class MenuPlacementUiModel(val placement:MenuPlacement,val recipe:MenuRecipe)
 data class MenuCategoryUiModel(val category:MenuCategory,val items:List<MenuPlacementUiModel>)
-data class MenuCatalogDetailState(val loading:Boolean=true,val menu:Menu?=null,val categories:List<MenuCategoryUiModel> = emptyList(),val availableItems:List<MenuRecipe> = emptyList(),val loadError:Boolean=false,val busy:Boolean=false,val error:MenuCatalogUiError?=null)
+data class MenuCatalogDetailState(val loading:Boolean=true,val menu:Menu?=null,val categories:List<MenuCategoryUiModel> = emptyList(),val availableItems:List<MenuRecipe> = emptyList(),val currencyCode:String="",val loadError:Boolean=false,val busy:Boolean=false,val error:MenuCatalogUiError?=null)
 
 @HiltViewModel @OptIn(ExperimentalCoroutinesApi::class)
-class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,private val catalogs:MenuCatalogRepository,private val recipes:MenuRecipeRepository):ViewModel(){
+class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,private val catalogs:MenuCatalogRepository,private val recipes:MenuRecipeRepository,private val restaurants:RestaurantRepository):ViewModel(){
     private val id=MenuId(requireNotNull(saved["menuId"])); private val op=MutableStateFlow(MenuCatalogDetailState(loading=false))
-    private val content=catalogs.observeMenu(id).flatMapLatest { menu -> if(menu==null) flowOf(MenuCatalogDetailState(false,loadError=true)) else combine(catalogs.observeCategories(id),catalogs.observePlacements(id),recipes.observeRecipes(menu.restaurantId,false)){categories,placements,allRecipes ->
+    private val content=catalogs.observeMenu(id).flatMapLatest { menu -> if(menu==null) flowOf(MenuCatalogDetailState(false,loadError=true)) else combine(catalogs.observeCategories(id),catalogs.observePlacements(id),recipes.observeRecipes(menu.restaurantId,true),restaurants.observeRestaurant()){categories,placements,allRecipes,restaurant ->
+        if(restaurant?.id!=menu.restaurantId) return@combine MenuCatalogDetailState(false,loadError=true)
         val byId=allRecipes.associateBy{it.id}; val placed=placements.map{it.menuRecipeId}.toSet()
-        MenuCatalogDetailState(false,menu,categories.map{cat->MenuCategoryUiModel(cat,placements.filter{it.categoryId==cat.id}.mapNotNull{p->byId[p.menuRecipeId]?.let{MenuPlacementUiModel(p,it)}})},allRecipes.filter{it.id !in placed})
+        val projected=categories.map{cat->MenuCategoryUiModel(cat,placements.filter{it.categoryId==cat.id}.map{p->MenuPlacementUiModel(p,checkNotNull(byId[p.menuRecipeId]){"Menu placement references a missing MenuRecipe: ${p.menuRecipeId.value}"})})}
+        MenuCatalogDetailState(false,menu,projected,allRecipes.filter{it.archivedAt==null&&it.id !in placed},restaurant.currencyCode)
     }}.catch{emit(MenuCatalogDetailState(false,loadError=true))}
     val state=combine(content,op){c,o->c.copy(busy=o.busy,error=o.error)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),MenuCatalogDetailState())
     fun clearError(){op.value=op.value.copy(error=null)}

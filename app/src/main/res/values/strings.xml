@@ -1128,6 +1128,7 @@
     <string name="catalog_counts">%1$d categories • %2$d items</string>
     <string name="catalog_default_discount">Default cash discount: %1$s%%</string>
     <string name="catalog_archived">Archived</string>
+    <string name="catalog_item_archived">Archived</string>
     <string name="catalog_restore">Restore menu</string>
     <string name="catalog_archive">Archive menu</string>
     <string name="catalog_hide_archived">Hide archived</string>
