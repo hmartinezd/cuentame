@@ -83,6 +83,7 @@ fun HomeRoute(
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
     onViewReorder: () -> Unit,
+    onViewSales: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -109,6 +110,7 @@ fun HomeRoute(
         onViewInventoryDetail = onViewInventoryDetail,
         onViewPurchaseDetail = onViewPurchaseDetail,
         onViewReorder = onViewReorder,
+        onViewSales = onViewSales,
         modifier = modifier
     )
 }
@@ -136,6 +138,7 @@ fun HomeScreen(
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
     onViewReorder: () -> Unit,
+    onViewSales: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -193,7 +196,8 @@ fun HomeScreen(
                     onViewProduction = onViewProduction,
                     onViewInventoryDetail = onViewInventoryDetail,
                     onViewPurchaseDetail = onViewPurchaseDetail,
-                    onViewReorder = onViewReorder
+                    onViewReorder = onViewReorder,
+                    onViewSales = onViewSales
                 )
             }
         }
@@ -221,7 +225,8 @@ private fun DashboardContent(
     onViewProduction: () -> Unit,
     onViewInventoryDetail: (String?) -> Unit,
     onViewPurchaseDetail: (DashboardDateRange) -> Unit,
-    onViewReorder: () -> Unit
+    onViewReorder: () -> Unit,
+    onViewSales: () -> Unit
 ) {
     val restaurantLocale = remember(state.localeTag) { Locale.forLanguageTag(state.localeTag) }
     val scrollState = rememberLazyListState()
@@ -313,7 +318,8 @@ private fun DashboardContent(
                 onViewMenuItems = onViewMenuItems,
                 onViewMenus = onViewMenus,
                 onViewProduction = onViewProduction,
-                onViewReorder = onViewReorder
+                onViewReorder = onViewReorder,
+                onViewSales = onViewSales
             )
         }
 
@@ -606,7 +612,8 @@ private fun QuickActionsSection(
     onViewMenuItems: () -> Unit,
     onViewMenus: () -> Unit,
     onViewProduction: () -> Unit,
-    onViewReorder: () -> Unit
+    onViewReorder: () -> Unit,
+    onViewSales: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -631,7 +638,7 @@ private fun QuickActionsSection(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickActionButton(Icons.Default.BarChart, stringResource(R.string.view_reports_action), onViewReports, Modifier.weight(1f).testTag("view_reports_button"))
-            Spacer(Modifier.weight(1f))
+            QuickActionButton(Icons.Default.ShoppingCart, stringResource(R.string.sales_title), onViewSales, Modifier.weight(1f).testTag("open_sales_button"))
         }
     }
 }

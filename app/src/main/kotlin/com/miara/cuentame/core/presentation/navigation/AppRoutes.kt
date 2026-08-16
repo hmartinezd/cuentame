@@ -24,6 +24,8 @@ object AppRoutes {
 
     fun menuRecipeDetail(id: MenuRecipeId): String = "menu-items/${encoder.encode(id.value)}"
     fun menuCatalogDetail(id: MenuId): String = "menus/${encoder.encode(id.value)}"
+    fun salesImportDetail(exportId: String) = "sales/import/${encoder.encode(exportId)}"
+    fun salesTransactionDetail(terminalId: String, transactionId: String) = "sales/transaction/${encoder.encode(terminalId)}/${encoder.encode(transactionId)}"
 
     fun ingredientCreate(prefillName: String? = null): String =
         "inventory/create" + (prefillName?.let { "?prefillName=${encoder.encode(it)}" } ?: "")

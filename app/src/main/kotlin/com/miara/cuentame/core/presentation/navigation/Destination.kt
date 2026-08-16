@@ -66,5 +66,8 @@ enum class Destination(val route: String) {
     PRODUCTION_BATCH_DETAIL("production/batches/{batchId}"),
 
     INVENTORY_ACTIVITY("inventory/activity?ingredientId={ingredientId}&areaId={areaId}"),
-    INVENTORY_ACTIVITY_DETAIL("inventory/activity/{movementId}")
+    INVENTORY_ACTIVITY_DETAIL("inventory/activity/{movementId}"),
+    SALES_IMPORT_LIST("sales"),
+    SALES_IMPORT_DETAIL("sales/import/{exportId}"),
+    SALES_TRANSACTION_DETAIL("sales/transaction/{terminalId}/{transactionId}")
 }

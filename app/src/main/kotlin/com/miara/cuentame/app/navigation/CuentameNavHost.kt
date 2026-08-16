@@ -21,6 +21,7 @@ import com.miara.cuentame.feature.suppliers.navigation.suppliersGraph
 import com.miara.cuentame.feature.waste.navigation.wasteGraph
 import com.miara.cuentame.feature.menu.navigation.menuGraph
 import com.miara.cuentame.feature.reorder.reorderGraph
+import com.miara.cuentame.feature.sales.salesGraph
 
 @Composable
 fun CuentameNavHost(
@@ -50,5 +51,6 @@ fun CuentameNavHost(
         areasGraph(navController, onBackClick)
         categoriesGraph()
         suppliersGraph(navController)
+        salesGraph(navController)
     }
 }
