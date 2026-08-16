@@ -252,12 +252,101 @@ object BackupSnapshotIntegrityValidator {
         return null
     }
 
-    private fun validateSalesImports(dto:BackupSnapshotDto,restaurantId:String):BackupSnapshotIntegrityException? {
-        val publications=dto.menuPublications.associateBy{it.id};val imports=dto.salesImports.associateBy{it.exportId};val txs=dto.importedSaleTransactions.associateBy{it.terminalId to it.transactionId}
-        for(i in dto.salesImports){if(i.restaurantId!=restaurantId)return err(RESTAURANT_ISOLATION_FAILURE,"Isolation error in sales_imports");if(!i.originalSha256.matches(Regex("[0-9a-f]{64}"))||i.terminalId.isBlank()||i.menuId.isBlank()||i.publicationRevision<=0||runCatching{java.time.LocalDate.parse(i.businessDate);java.time.Instant.ofEpochMilli(i.generatedAt);java.util.Currency.getInstance(i.currency)}.isFailure)return err(INVALID_DECIMAL,"Invalid sales import envelope");if(publications[i.menuPackageId]?.restaurantId!=restaurantId)return err(BROKEN_FOREIGN_KEY,"Broken sales import publication FK")}
-        for(t in dto.importedSaleTransactions){if(t.restaurantId!=restaurantId||t.status !in setOf("COMPLETED","VOIDED")||t.closedAt<t.openedAt||t.menuPackageId !in publications)return err(RELATIONSHIP_MISMATCH,"Invalid imported transaction")}
-        for(l in dto.importedSaleLines){val parent=txs[l.terminalId to l.transactionId]?:return err(BROKEN_FOREIGN_KEY,"Broken imported sale line FK");if(l.saleLineId.isBlank()||l.sellableItemId.isBlank()||l.displayNameSnapshot.isBlank()||l.commercialRevision<0||l.consumptionRevision<0)return err(RELATIONSHIP_MISMATCH,"Invalid imported sale line");val values=try{listOf(BigDecimal(l.quantity),BigDecimal(l.unitPrice),BigDecimal(l.gross),BigDecimal(l.discount),BigDecimal(l.net))}catch(_:Exception){return err(INVALID_DECIMAL,"Invalid imported sale decimal")};val(q,p,g,d,n)=values;if(q<=BigDecimal.ZERO||p<BigDecimal.ZERO||g<BigDecimal.ZERO||d<BigDecimal.ZERO||n<BigDecimal.ZERO||d>g||g.compareTo(q*p)!=0||n.compareTo(g-d)!=0)return err(INVALID_DECIMAL,"Invalid imported sale arithmetic");if(parent.terminalId!=l.terminalId)return err(RELATIONSHIP_MISMATCH,"Imported sale parent mismatch")}
-        for(r in dto.salesImportTransactionRefs){if(r.exportId !in imports||r.terminalId to r.transactionId !in txs)return err(BROKEN_FOREIGN_KEY,"Broken sales import reference FK")}
+    private fun validateSalesImports(dto: BackupSnapshotDto, restaurantId: String): BackupSnapshotIntegrityException? {
+        val publications = dto.menuPublications.associateBy { it.id }
+        val publicationItems = dto.menuPublicationItems.groupBy { it.publicationId }
+        val imports = dto.salesImports.associateBy { it.exportId }
+        val transactions = dto.importedSaleTransactions.associateBy { it.terminalId to it.transactionId }
+
+        fun validDate(value: String) = runCatching { java.time.LocalDate.parse(value) }.isSuccess
+        fun validInstant(value: Long) = runCatching { java.time.Instant.ofEpochMilli(value) }.isSuccess
+        fun validCurrency(value: String) = runCatching { java.util.Currency.getInstance(value) }.isSuccess
+        fun publicationMatches(publication: com.miara.cuentame.core.backup.model.MenuPublicationBackupDto, ownerRestaurantId: String, menuId: String, revision: Long, currency: String) =
+            publication.restaurantId == ownerRestaurantId &&
+                publication.sourceMenuId == menuId &&
+                publication.publicationRevision == revision &&
+                publication.currencyCodeSnapshot == currency
+
+        for (salesImport in dto.salesImports) {
+            if (salesImport.restaurantId != restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in sales_imports")
+            if (salesImport.exportId.isBlank() || salesImport.restaurantId.isBlank() || salesImport.terminalId.isBlank() ||
+                salesImport.menuPackageId.isBlank() || salesImport.menuId.isBlank() ||
+                !salesImport.originalSha256.matches(Regex("[0-9a-f]{64}"))) {
+                return err(RELATIONSHIP_MISMATCH, "Invalid sales import envelope")
+            }
+            if (salesImport.publicationRevision <= 0) return err(INVALID_NUMERIC_RANGE, "Invalid sales import revision")
+            if (!validDate(salesImport.businessDate) || !validCurrency(salesImport.currency)) return err(INVALID_ENUM, "Invalid sales import date or currency")
+            if (!validInstant(salesImport.generatedAt) || !validInstant(salesImport.importedAt)) return err(INVALID_TIMESTAMP_ORDER, "Invalid sales import timestamp")
+            val publication = publications[salesImport.menuPackageId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken sales import publication FK")
+            if (!publicationMatches(publication, salesImport.restaurantId, salesImport.menuId, salesImport.publicationRevision, salesImport.currency)) {
+                return err(RELATIONSHIP_MISMATCH, "Sales import publication provenance mismatch")
+            }
+        }
+
+        for (transaction in dto.importedSaleTransactions) {
+            if (transaction.restaurantId != restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in imported transactions")
+            if (transaction.terminalId.isBlank() || transaction.transactionId.isBlank() || transaction.restaurantId.isBlank() ||
+                transaction.menuPackageId.isBlank() || transaction.menuId.isBlank()) return err(RELATIONSHIP_MISMATCH, "Invalid imported transaction identity")
+            if (transaction.publicationRevision <= 0) return err(INVALID_NUMERIC_RANGE, "Invalid imported transaction revision")
+            if (!validDate(transaction.businessDate) || !validCurrency(transaction.currency)) return err(INVALID_ENUM, "Invalid imported transaction date or currency")
+            if (!validInstant(transaction.openedAt) || !validInstant(transaction.closedAt) || !validInstant(transaction.firstImportedAt) || !validInstant(transaction.lastSeenGeneratedAt) || transaction.closedAt < transaction.openedAt) {
+                return err(INVALID_TIMESTAMP_ORDER, "Invalid imported transaction timestamp")
+            }
+            if (transaction.status !in setOf("COMPLETED", "VOIDED")) return err(INVALID_ENUM, "Invalid imported transaction status")
+            val publication = publications[transaction.menuPackageId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken imported transaction publication FK")
+            if (!publicationMatches(publication, transaction.restaurantId, transaction.menuId, transaction.publicationRevision, transaction.currency)) {
+                return err(RELATIONSHIP_MISMATCH, "Imported transaction publication provenance mismatch")
+            }
+            val first = imports[transaction.firstSeenExportId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken first-seen sales import FK")
+            val last = imports[transaction.lastSeenExportId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken last-seen sales import FK")
+            fun importMatches(value: com.miara.cuentame.core.backup.model.SalesImportBackupDto) =
+                value.terminalId == transaction.terminalId && value.restaurantId == transaction.restaurantId &&
+                    value.menuPackageId == transaction.menuPackageId && value.menuId == transaction.menuId &&
+                    value.publicationRevision == transaction.publicationRevision && value.businessDate == transaction.businessDate &&
+                    value.currency == transaction.currency
+            if (!importMatches(first) || !importMatches(last)) return err(RELATIONSHIP_MISMATCH, "Imported transaction audit provenance mismatch")
+            if (transaction.firstImportedAt != first.importedAt || transaction.lastSeenGeneratedAt < first.generatedAt || transaction.lastSeenGeneratedAt != last.generatedAt) {
+                return err(INVALID_TIMESTAMP_ORDER, "Imported transaction audit timestamp mismatch")
+            }
+        }
+
+        for (line in dto.importedSaleLines) {
+            val parent = transactions[line.terminalId to line.transactionId]
+                ?: return err(BROKEN_FOREIGN_KEY, "Broken imported sale line FK")
+            if (line.terminalId != parent.terminalId || line.transactionId != parent.transactionId) return err(RELATIONSHIP_MISMATCH, "Imported sale parent mismatch")
+            if (line.saleLineId.isBlank() || line.sellableItemId.isBlank() || line.displayNameSnapshot.isBlank() || line.commercialRevision < 0 || line.consumptionRevision < 0) {
+                return err(RELATIONSHIP_MISMATCH, "Invalid imported sale line")
+            }
+            val values = try { listOf(BigDecimal(line.quantity), BigDecimal(line.unitPrice), BigDecimal(line.gross), BigDecimal(line.discount), BigDecimal(line.net)) }
+            catch (_: Exception) { return err(INVALID_DECIMAL, "Invalid imported sale decimal") }
+            val (quantity, unitPrice, gross, discount, net) = values
+            if (quantity <= BigDecimal.ZERO || unitPrice < BigDecimal.ZERO || gross < BigDecimal.ZERO || discount < BigDecimal.ZERO || net < BigDecimal.ZERO ||
+                discount > gross || gross.compareTo(quantity * unitPrice) != 0 || net.compareTo(gross - discount) != 0) {
+                return err(INVALID_DECIMAL, "Invalid imported sale arithmetic")
+            }
+            val item = publicationItems[parent.menuPackageId].orEmpty().find { it.menuRecipeId == line.sellableItemId }
+                ?: return err(BROKEN_FOREIGN_KEY, "Unknown imported sale publication item")
+            val itemPrice = try { BigDecimal(item.sellingPriceSnapshot) } catch (_: Exception) { return err(INVALID_DECIMAL, "Invalid publication item price") }
+            if (item.displayNameSnapshot != line.displayNameSnapshot || item.commercialRevision != line.commercialRevision ||
+                item.consumptionRevision != line.consumptionRevision || itemPrice.compareTo(unitPrice) != 0) {
+                return err(RELATIONSHIP_MISMATCH, "Imported sale line publication provenance mismatch")
+            }
+        }
+
+        for (ref in dto.salesImportTransactionRefs) {
+            val salesImport = imports[ref.exportId] ?: return err(BROKEN_FOREIGN_KEY, "Broken sales import reference FK")
+            val transaction = transactions[ref.terminalId to ref.transactionId] ?: return err(BROKEN_FOREIGN_KEY, "Broken sales import reference FK")
+            if (ref.terminalId != salesImport.terminalId || ref.terminalId != transaction.terminalId ||
+                salesImport.restaurantId != transaction.restaurantId || salesImport.menuPackageId != transaction.menuPackageId ||
+                salesImport.menuId != transaction.menuId || salesImport.publicationRevision != transaction.publicationRevision ||
+                salesImport.businessDate != transaction.businessDate || salesImport.currency != transaction.currency) {
+                return err(RELATIONSHIP_MISMATCH, "Sales import reference provenance mismatch")
+            }
+        }
         return null
     }
 

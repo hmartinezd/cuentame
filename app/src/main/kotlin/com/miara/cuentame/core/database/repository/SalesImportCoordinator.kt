@@ -2,6 +2,7 @@ package com.miara.cuentame.core.database.repository
 
 import androidx.room.withTransaction
 import com.miara.cuentame.core.common.ids.RestaurantId
+import com.miara.cuentame.core.common.time.TimeProvider
 import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.dao.*
 import com.miara.cuentame.core.database.entity.*
@@ -20,7 +21,7 @@ import javax.inject.Singleton
 
 const val MAX_SALES_EXPORT_BYTES:Int=16*1024*1024
 
-@Singleton class SalesImportCoordinator @Inject constructor(private val database:RestaurantInventoryDatabase,private val restaurantDao:RestaurantDao,private val publicationDao:MenuPublicationDao,private val salesDao:SalesImportDao) {
+@Singleton class SalesImportCoordinator @Inject constructor(private val database:RestaurantInventoryDatabase,private val restaurantDao:RestaurantDao,private val publicationDao:MenuPublicationDao,private val salesDao:SalesImportDao,private val timeProvider:TimeProvider) {
  suspend fun prepare(restaurantId:RestaurantId,rawBytes:ByteArray):SalesImportPreparationResult {
   if(rawBytes.size>MAX_SALES_EXPORT_BYTES)return failP(SalesImportFailureCode.FILE_TOO_LARGE)
   val hash=MessageDigest.getInstance("SHA-256").digest(rawBytes).joinToString(""){"%02x".format(it)}
@@ -39,7 +40,7 @@ const val MAX_SALES_EXPORT_BYTES:Int=16*1024*1024
   validateProvenance(RestaurantId(export.restaurantId),export)?.let{return@withTransaction SalesImportCommitResult.Failure(it)}
   salesDao.getImport(export.exportId)?.let{return@withTransaction if(it.originalSha256==prepared.originalSha256)SalesImportCommitResult.Duplicate(it.domain())else failC(SalesImportFailureCode.EXPORT_ID_CONFLICT)}
   analyzeDurable(export)?.let{return@withTransaction SalesImportCommitResult.Failure(it)}
-  val importedAt=System.currentTimeMillis();val generatedAt=Instant.parse(export.generatedAt).toEpochMilli()
+  val importedAt=timeProvider.now().toEpochMilli();val generatedAt=Instant.parse(export.generatedAt).toEpochMilli()
   salesDao.insertImport(SalesImportEntity(export.exportId,prepared.originalSha256,export.restaurantId,export.terminalId,generatedAt,export.businessDate,export.menuPackageId,export.menuId,export.publicationRevision,export.currency,importedAt))
   for(t in export.transactions){
    val old=salesDao.getTransaction(export.terminalId,t.transactionId)
@@ -48,8 +49,8 @@ const val MAX_SALES_EXPORT_BYTES:Int=16*1024*1024
    else if(generatedAt>=old.lastSeenGeneratedAt)salesDao.updateTransaction(old.copy(lastSeenExportId=export.exportId,lastSeenGeneratedAt=generatedAt))
   }
   salesDao.insertRefs(export.transactions.map{SalesImportTransactionRefEntity(export.exportId,export.terminalId,it.transactionId)})
-  val repo=com.miara.cuentame.core.database.repository.RoomSalesImportRepository(salesDao)
-  SalesImportCommitResult.Imported(checkNotNull(repo.getImport(export.exportId)))
+  val imported=checkNotNull(salesDao.getImport(export.exportId))
+  SalesImportCommitResult.Imported(SalesImportDetail(imported.domain(),salesDao.getTransactionsForImport(export.exportId).map{t->ImportedSaleTransactionDetail(t.domain(),salesDao.getLines(t.terminalId,t.transactionId).map(ImportedSaleLineEntity::domain))}))
  }}catch(e:CancellationException){throw e}catch(_:Exception){failC(SalesImportFailureCode.PERSISTENCE_FAILURE)}
 
  private suspend fun validateProvenance(target:RestaurantId,e:SalesExportV1):SalesImportFailure? {
