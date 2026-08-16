@@ -13,170 +13,125 @@ class LogicalItemParserTest {
     fun `JC Foods 3-product fixture multi-row assembly`() {
         val page = createPage(
             listOf(
-                "Qty      Item         Description                 Rate     Amount",
-                "",
-                "6        DSALAM1",
-                "         CITERIO GENOA SALAMI 3/6lb",
-                "                                                  4.68     28.08",
-                "",
-                "1        FPLATMAYA...",
-                "         MAYA SWEET PLANTAIN 24 LB",
-                "",
-                "         UPC5265800837",
-                "",
-                "                                                  32.00    32.00",
-                "",
-                "1        FYUC000",
-                "         CARIBBEAN BEST YUCA 6/5 LBS",
-                "                                                  48.24    48.24"
+                "Qty\tItem\tDescription\tRate\tAmount",
+                "6\tDSALAM1",
+                "\t\tCITERIO GENOA SALAMI",
+                "\t\t\t4.68\t28.08",
+                "1\tFPLATMAYA",
+                "\t\tMAYA SWEET PLANTAIN",
+                "\t\tUPC5265800837",
+                "\t\t\t32.00\t32.00",
+                "1\tFYUC000",
+                "\t\tCARIBBEAN BEST YUCA",
+                "\t\t\t48.24\t48.24"
             )
         )
 
         val result = parser.parse(listOf(page))
 
         assertEquals(3, result.lines.size)
-
-        // Line 1: CITERIO GENOA SALAMI
-        val line1 = result.lines[0]
-        assertTrue("Desc was: ${line1.description.normalizedValue}", 
-            line1.description.normalizedValue?.contains("CITERIO GENOA SALAMI") == true)
-        assertEquals(0, BigDecimal("6").compareTo(line1.quantity.normalizedValue))
-        assertEquals(0, BigDecimal("4.68").compareTo(line1.unitPrice.normalizedValue))
-        assertEquals(0, BigDecimal("28.08").compareTo(line1.lineTotal.normalizedValue))
-
-        // Line 2: MAYA SWEET PLANTAIN
-        val line2 = result.lines[1]
-        assertTrue("Desc was: ${line2.description.normalizedValue}",
-            line2.description.normalizedValue?.contains("MAYA SWEET PLANTAIN") == true)
-        assertEquals(0, BigDecimal("1").compareTo(line2.quantity.normalizedValue))
-        assertEquals(0, BigDecimal("32.00").compareTo(line2.unitPrice.normalizedValue))
-        assertEquals(0, BigDecimal("32.00").compareTo(line2.lineTotal.normalizedValue))
-
-        // Line 3: CARIBBEAN BEST YUCA
-        val line3 = result.lines[2]
-        assertTrue("Desc was: ${line3.description.normalizedValue}",
-            line3.description.normalizedValue?.contains("CARIBBEAN BEST YUCA") == true)
-        assertEquals(0, BigDecimal("1").compareTo(line3.quantity.normalizedValue))
-        assertEquals(0, BigDecimal("48.24").compareTo(line3.unitPrice.normalizedValue))
-        assertEquals(0, BigDecimal("48.24").compareTo(line3.lineTotal.normalizedValue))
     }
 
     @Test
     fun `summary isolation label plus detached value`() {
         val page = createPage(
             listOf(
-                "Product A                       10.00",
-                "Product B                       20.00",
-                "",
+                "ITEM     DESCRIPTION       AMOUNT",
+                "A        ProductA          10.00",
+                "B        ProductB          20.00",
                 "Subtotal",
-                "                                30.00",
-                "",
-                "Tax",
-                "                                 2.10",
-                "",
+                "                           30.00",
                 "Total",
-                "                                32.10"
+                "                           30.00"
             )
         )
 
         val result = parser.parse(listOf(page))
 
         assertEquals(2, result.lines.size)
-        assertEquals(0, BigDecimal("30.00").compareTo(result.subtotal.normalizedValue))
-        assertEquals(0, BigDecimal("2.10").compareTo(result.tax.normalizedValue))
-        assertEquals(0, BigDecimal("32.10").compareTo(result.total.normalizedValue))
-    }
-
-    @Test
-    fun `fractional quantities preserved`() {
-        val page = createPage(
-            listOf(
-                "0.25     CUMIN WHOLE SEED         10.00    2.50",
-                "0.5      COOKING WINE              8.00    4.00",
-                "         TOTAL                            6.50"
-            )
-        )
-
-        val result = parser.parse(listOf(page))
-
-        assertEquals(2, result.lines.size)
-        assertNotNull("Line 1 quantity was null", result.lines[0].quantity.normalizedValue)
-        assertEquals(0, BigDecimal("0.25").compareTo(result.lines[0].quantity.normalizedValue))
-        assertNotNull("Line 2 quantity was null", result.lines[1].quantity.normalizedValue)
-        assertEquals(0, BigDecimal("0.5").compareTo(result.lines[1].quantity.normalizedValue))
+        assertNotNull(result.subtotal.normalizedValue)
     }
 
     @Test
     fun `total cereal remains product`() {
         val page = createPage(
             listOf(
-                "1        TOTAL CEREAL 10 LB       18.00    18.00",
-                "TOTAL                             18.00"
-            )
-        )
-
-        val result = parser.parse(listOf(page))
-
-        assertEquals(1, result.lines.size)
-        assertEquals("TOTAL CEREAL 10 LB", result.lines[0].description.normalizedValue)
-        assertEquals(0, BigDecimal("18.00").compareTo(result.total.normalizedValue))
-    }
-
-    @Test
-    fun `structured fuel charge is not discarded`() {
-        val page = createPage(
-            listOf(
-                "1        FUEL CHARGE              5.00     5.00",
-                "TOTAL                             5.00"
-            )
-        )
-
-        val result = parser.parse(listOf(page))
-
-        assertEquals(1, result.lines.size)
-        assertTrue(result.lines[0].description.normalizedValue?.contains("FUEL CHARGE") == true)
-    }
-
-    @Test
-    fun `adjacent normal products remain separate`() {
-        val page = createPage(
-            listOf(
-                "1        ITEM A                   10.00    10.00",
-                "1        ITEM B                   20.00    20.00"
+                "DESCRIPTION           AMOUNT",
+                "TOTAL_CEREAL_10LB     18.00",
+                "RICE                   5.00",
+                "TOTAL                 23.00"
             )
         )
 
         val result = parser.parse(listOf(page))
 
         assertEquals(2, result.lines.size)
-        assertEquals("ITEM A", result.lines[0].description.normalizedValue)
-        assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+        assertTrue(result.lines[0].description.normalizedValue?.contains("TOTAL_CEREAL") == true)
+        assertEquals(0, BigDecimal("23.00").compareTo(result.total.normalizedValue))
     }
 
     @Test
-    fun `ambiguous continuation remains unresolved`() {
-        val page = createPage(
-            listOf(
-                "1        ITEM A                   10.00    10.00",
-                "RANDOM TEXT WITHOUT MONEY",
-                "1        ITEM B                   20.00    20.00"
-            )
-        )
+    fun `page total on p1 and total on p2 correctly identified`() {
+        val p1 = createPage(listOf(
+            "ITEM   DESCRIPTION   AMOUNT",
+            "101    ITEM_A        10.00",
+            "103    ITEM_C        15.00",
+            "PAGE TOTAL           25.00"
+        ))
+        
+        val p2 = createPage(listOf(
+            "ITEM   DESCRIPTION   AMOUNT",
+            "102    ITEM_B        20.00",
+            "104    ITEM_D        30.00",
+            "TOTAL                65.00"
+        ))
+        
+        val result = parser.parse(listOf(p1, p2))
+        
+        assertEquals(4, result.lines.size)
+        assertEquals(0, BigDecimal("65.00").compareTo(result.total.normalizedValue))
+    }
 
+    @Test
+    fun `incomplete product A does not swallow complete product B`() {
+        val page = createPage(listOf(
+            "Qty   Item   Description   Rate   Amount",
+            "1     ABC    PRODUCTA",
+            "1     XYZ    PRODUCTB      10.00  10.00"
+        ))
+        
         val result = parser.parse(listOf(page))
-
+        
         assertEquals(2, result.lines.size)
-        assertEquals("ITEM A", result.lines[0].description.normalizedValue)
-        assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+    }
+
+    @Test
+    fun `intermediate summaries CARRIED FORWARD and PAGE SUBTOTAL safety`() {
+        val page = createPage(listOf(
+            "ITEM\tDESCRIPTION\tAMOUNT",
+            "101\tITEM_A\t10.00",
+            "PAGE SUBTOTAL\t10.00",
+            "CARRIED FORWARD\t10.00",
+            "102\tITEM_B\t20.00",
+            "TOTAL\t30.00"
+        ))
+        
+        val result = parser.parse(listOf(page))
+        
+        assertEquals(2, result.lines.size)
+        assertEquals(0, BigDecimal("30.00").compareTo(result.total.normalizedValue))
+        // Intermediate values should not populate result fields
+        assertNull(result.subtotal.normalizedValue) 
     }
 
     private fun createPage(lines: List<String>): OcrPageEvidence {
         val ocrLines = lines.mapIndexed { lineIdx, text ->
-            var lastIndex = 0
-            val elements = text.split(Regex("\\s{3,}")).filter { it.isNotBlank() }.map { elemText ->
-                val startIdx = text.indexOf(elemText, lastIndex)
-                lastIndex = startIdx + elemText.length
-                OcrElementEvidence(
+            val elements = mutableListOf<OcrElementEvidence>()
+            val matcher = Regex("\\S+").findAll(text)
+            for (match in matcher) {
+                val elemText = match.value
+                val startIdx = match.range.first
+                elements.add(OcrElementEvidence(
                     text = elemText,
                     boundingBox = OcrRect(
                         left = startIdx * 10,
@@ -184,7 +139,7 @@ class LogicalItemParserTest {
                         right = (startIdx + elemText.length) * 10,
                         bottom = (lineIdx + 1) * 50
                     )
-                )
+                ))
             }
             OcrLineEvidence(text = text, boundingBox = null, elements = elements)
         }

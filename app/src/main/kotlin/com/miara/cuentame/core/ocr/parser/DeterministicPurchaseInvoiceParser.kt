@@ -438,6 +438,13 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     internal fun isHeaderRow(row: Row): Boolean {
         if (row.tokens.count { isNumeric(it.text) } >= 3) return false
         val text = row.text.lowercase()
+        
+        // Exact token match is more robust than full-row regex for some OCR layouts.
+        val tokenTexts = row.tokens.map { it.text.lowercase().trimEnd(':', '.') }
+        
+        val headerWords = setOf("qty", "item", "description", "rate", "amount", "price", "total", "sku", "code", "cant", "precio", "importe")
+        if (tokenTexts.count { it in headerWords } >= 3) return true
+
         val semanticColumns = listOf(
             HeaderAlias.SKU,
             HeaderAlias.DESCRIPTION,
@@ -445,7 +452,13 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
             HeaderAlias.PACK,
             HeaderAlias.PRICE,
             HeaderAlias.AMOUNT
-        ).count { aliases -> aliases.any { alias -> Regex("\\b${Regex.escape(alias)}\\b").containsMatchIn(text) } }
+        ).count { aliases -> 
+            aliases.any { alias -> 
+                tokenTexts.any { it == alias } || 
+                text.contains(Regex("\\b${Regex.escape(alias)}\\b"))
+            }
+        }
+        
         return semanticColumns >= 2
     }
 
@@ -559,12 +572,14 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     }
 
     internal fun isNumeric(text: String): Boolean {
-        val sanitized = text.replace(Regex("[^0-9]"), "")
-        if (sanitized.isEmpty()) return false
+        val sanitized = text.replace(Regex("[^0-9,.-]"), "")
+        if (sanitized.isEmpty() || !sanitized.any { it.isDigit() }) return false
+        
+        // Alphanumeric SKUs like "DSALAM1" or "FYUC000" should not be considered strictly numeric.
+        val digits = text.count { it.isDigit() }
         val letters = text.count { it.isLetter() }
-        if (letters > text.length / 2) return false
-        val totalMeaningful = text.replace(Regex("[^0-9,.()\\- $]"), "").length
-        return totalMeaningful >= 1
+        
+        return digits > letters
     }
     
     private fun isMoneyLike(text: String): Boolean {
@@ -698,7 +713,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         val consumedRows = mutableSetOf<Int>()
         val totals = mutableMapOf<String, ParsedField<BigDecimal?>>()
         
-        val labelGroups = mapOf(
+        val finalLabelGroups = mapOf(
             "subtotal" to listOf("subtotal", "sub-total", "sub total"),
             "tax" to listOf("tax", "iva", "itbis", "impuesto"),
             "discount" to listOf("discount", "descuento"),
@@ -709,43 +724,85 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         for (i in rows.indices) {
             val row = rows[i]
             if (row.rowId in consumedRows) continue
-            val lowText = row.text.lowercase()
             
-            for ((key, labels) in labelGroups) {
+            // 1. Check for intermediate summaries first (isolated but not final)
+            if (isCredibleSummaryRow(row, INTERMEDIATE_SUMMARY_LABELS)) {
+                 // Intermediate total found. Isolate it so it doesn't become a product.
+                 consumeSummaryRow(row, rows, i, context, consumedRows)
+                 continue
+            }
+
+            // 2. Check for final summaries
+            for ((key, labels) in finalLabelGroups) {
                 if (totals.containsKey(key)) continue
                 
-                if (labels.any { lowText.contains(it) }) {
-                    var amount = amountFromRow(row, context)
-                    if (amount.normalizedValue != null) {
-                        // Check if it's potentially a product line with "TOTAL" in description
-                        // e.g. "1 TOTAL CEREAL 18.00 18.00"
-                        // If it has multiple numbers, it's probably not a summary row
-                        if (row.tokens.count { isNumeric(it.text) } >= 3) continue
-
+                if (isCredibleSummaryRow(row, labels.toSet())) {
+                    val amount = consumeSummaryRow(row, rows, i, context, consumedRows)
+                    if (amount != null) {
                         totals[key] = amount
-                        consumedRows.add(row.rowId)
                         break
-                    }
-                    
-                    // Lookahead for split summary
-                    if (row.tokens.none { isNumeric(it.text) }) {
-                        val nextRow = rows.getOrNull(i + 1)
-                        if (nextRow != null && nextRow.rowId !in consumedRows && nextRow.pageIndex == row.pageIndex) {
-                            amount = amountFromRow(nextRow, context)
-                            // Next row must be strictly an amount (no other text) for safe split isolation
-                            if (amount.normalizedValue != null && nextRow.tokens.size == 1) {
-                                totals[key] = amount
-                                consumedRows.add(row.rowId)
-                                consumedRows.add(nextRow.rowId)
-                                break
-                            }
-                        }
                     }
                 }
             }
         }
         
         return SummaryIsolationResult(totals, consumedRows)
+    }
+
+    private fun isCredibleSummaryRow(row: Row, labels: Set<String>): Boolean {
+        val words = row.tokens.filter { it.text.any(Char::isLetter) }
+        val labelText = words.joinToString(" ").lowercase().trim()
+        
+        if (labelText.isEmpty()) return false
+
+        // Match label strictly as whole words. 
+        val matchesLabel = labels.any { label -> 
+            labelText == label || labelText.endsWith(" $label") || labelText.startsWith("$label ") || labelText.contains(" $label ")
+        }
+        
+        if (!matchesLabel) return false
+        
+        val numericCount = row.tokens.count { isNumeric(it.text) }
+        
+        // A summary row should have exactly one amount (on the same row) or zero (if split).
+        if (numericCount >= 2) return false
+        
+        return true
+    }
+
+    private fun consumeSummaryRow(
+        row: Row,
+        allRows: List<Row>,
+        index: Int,
+        context: NumericContext,
+        consumedRows: MutableSet<Int>
+    ): ParsedField<BigDecimal?>? {
+        var amount = amountFromRow(row, context)
+        if (amount.normalizedValue != null) {
+            consumedRows.add(row.rowId)
+            return amount
+        }
+        
+        // Lookahead for split summary
+        if (row.tokens.none { isNumeric(it.text) }) {
+            var j = index + 1
+            while (j < allRows.size && j < index + 3) {
+                val nextRow = allRows[j]
+                if (nextRow.pageIndex != row.pageIndex) break
+                if (nextRow.rowId in consumedRows) { j++; continue }
+                if (nextRow.text.isBlank()) { j++; continue }
+
+                amount = amountFromRow(nextRow, context)
+                // Next row must be strictly an amount (no other text) for safe split isolation
+                if (amount.normalizedValue != null && nextRow.tokens.size == 1) {
+                    consumedRows.add(row.rowId)
+                    consumedRows.add(nextRow.rowId)
+                    return amount
+                }
+                break // Found non-empty row that isn't a valid split amount
+            }
+        }
+        return null
     }
 
     internal data class SummaryIsolationResult(
@@ -781,6 +838,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         }
             ?: return ParsedField(null, null, 0f)
         val value = parseBigDecimal(valueToken.text, context)
+        // println("DEBUG amountFromRow: row=${row.text} valueToken=${valueToken.text} value=$value context=${context.decimalSeparator}")
         return ParsedField(valueToken.text, value, if (value != null) 0.9f else 0.1f, row.tokens.map { it.evidenceRef })
     }
 
@@ -817,15 +875,18 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
         return try {
             val normalized = if (context.decimalSeparator == ',') {
                 // Comma-based: 1.234,56 -> 1234.56
-                // If there's only one dot/comma, we need to decide if it's decimal or grouping.
-                // context.decimalSeparator tells us what to expect for the decimal.
-                sanitized.replace(".", "").replace(",", ".")
+                if (sanitized.count { it == ',' } == 1 && sanitized.count { it == '.' } > 0) {
+                     sanitized.replace(".", "").replace(",", ".")
+                } else if (sanitized.count { it == ',' } == 1) {
+                     sanitized.replace(",", ".")
+                } else {
+                     sanitized.replace(".", "")
+                }
             } else {
                 // Dot-based: 1,234.56 -> 1234.56
                 sanitized.replace(",", "")
             }
-            val final = if (text.contains("(") && text.contains(")")) "-$normalized" else normalized
-            BigDecimal(final)
+            if (normalized.any { it.isDigit() }) BigDecimal(normalized) else null
         } catch (_: Exception) {
             null
         }
@@ -914,12 +975,12 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     )
 
     private object HeaderAlias {
-        val QTY = listOf("qty", "quantity", "cant", "cantidad", "unidades")
-        val PRICE = listOf("price", "unit price", "precio", "cost", "unit cost", "rate")
-        val AMOUNT = listOf("amount", "total", "importe", "ext", "extension")
-        val SKU = listOf("item", "code", "sku", "código", "articulo", "artículo")
-        val DESCRIPTION = listOf("description", "descripción", "desc")
-        val PACK = listOf("pack", "size", "empaque", "paquete")
+        val QTY = listOf("qty", "quantity", "cant", "cantidad", "unidades", "qnt", "qnty")
+        val PRICE = listOf("price", "unit price", "precio", "cost", "unit cost", "rate", "p. unit")
+        val AMOUNT = listOf("amount", "total", "importe", "ext", "extension", "monto", "net")
+        val SKU = listOf("item", "code", "sku", "código", "articulo", "artículo", "no.", "number")
+        val DESCRIPTION = listOf("description", "descripción", "desc", "producto", "nombre")
+        val PACK = listOf("pack", "size", "empaque", "paquete", "medida", "u/m")
     }
 
     private data class TotalsResult(
