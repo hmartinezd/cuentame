@@ -84,7 +84,7 @@ class MenuBackupRoundTripTest {
         assertThat(restoredRecipe.cashDiscountBehavior).isEqualTo("NONE")
         assertThat(restoredRecipe.commercialRevision).isEqualTo(3)
         assertThat(restoredRecipe.consumptionRevision).isEqualTo(4)
-        assertThat(restoredSnapshot.menus.single().publicationRevision).isEqualTo(0)
+        assertThat(restoredSnapshot.menus.single().publicationRevision).isEqualTo(1)
         assertThat(restoredSnapshot.menus.single().normalizedName).isEqualTo("dinner")
         assertThat(restoredSnapshot.menuCategories.single().menuId).isEqualTo("menu-1")
         assertThat(restoredSnapshot.menuPlacements.single().menuRecipeId).isEqualTo(originalRecipe.id)
@@ -134,7 +134,7 @@ class MenuBackupRoundTripTest {
             createdAt = 100,
             updatedAt = 100
         ))
-        database.menuCatalogDao().insertMenu(MenuEntity("menu-1",restId.value,"Dinner","dinner","Main",BigDecimal("5.00"),0,null,100,100))
+        database.menuCatalogDao().insertMenu(MenuEntity("menu-1",restId.value,"Dinner","dinner","Main",BigDecimal("5.00"),1,null,100,100))
         database.menuCatalogDao().insertCategory(MenuCategoryEntity("category-1","menu-1","Mains","mains",0))
         database.menuCatalogDao().insertPlacement(MenuPlacementEntity("placement-1","menu-1","category-1",recipeId,0))
         database.menuPublicationDao().insertPublication(MenuPublicationEntity("publication-1",restId.value,"menu-1",1,"Dinner","Main",BigDecimal("5.00"),"USD",200))

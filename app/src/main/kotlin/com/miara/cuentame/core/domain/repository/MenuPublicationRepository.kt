@@ -21,5 +21,6 @@ sealed class MenuPublicationException(message: String) : Exception(message) {
 interface MenuPublicationRepository {
     fun observePublications(menuId: MenuId): Flow<List<MenuPublication>>
     fun observePublication(publicationId: MenuPublicationId): Flow<MenuPublicationSnapshot?>
+    suspend fun getPublication(publicationId: MenuPublicationId): MenuPublicationSnapshot?
     suspend fun publish(menuId: MenuId): MenuPublicationId
 }

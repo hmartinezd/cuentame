@@ -5,6 +5,7 @@ import com.miara.cuentame.core.backup.model.*
 import com.miara.cuentame.core.database.backup.BackupSnapshot
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
+import com.miara.cuentame.core.common.decimal.toCanonicalDecimalString
 
 object BackupMapper {
 
@@ -501,10 +502,7 @@ internal fun PurchaseInvoiceLineMatchEntity.toDto() = PurchaseInvoiceLineMatchBa
     confirmedAt = confirmedAt
 )
 
-private fun java.math.BigDecimal.toNormalizedString(): String {
-    return if (this.compareTo(java.math.BigDecimal.ZERO) == 0) "0"
-    else this.stripTrailingZeros().toPlainString()
-}
+private fun java.math.BigDecimal.toNormalizedString(): String = toCanonicalDecimalString()
 
 
 fun RestaurantBackupDto.toEntity() = RestaurantEntity(

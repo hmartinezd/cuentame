@@ -1226,4 +1226,9 @@
     <string name="catalog_publish_error_price">%1$s does not have a selling price. Set its price before publishing.</string>
     <string name="catalog_publish_error_catalog">The menu contains an invalid catalog relationship. Correct it before publishing.</string>
     <string name="catalog_publish_error_save">The publication could not be saved. No revision was created.</string>
+    <string name="catalog_export">Export</string>
+    <string name="catalog_export_success">Menu package exported.</string>
+    <string name="catalog_export_error_not_found">This publication is no longer available.</string>
+    <string name="catalog_export_error_malformed">This publication cannot be exported because its snapshot is invalid.</string>
+    <string name="catalog_export_error_write">The menu package could not be written.</string>
 </resources>

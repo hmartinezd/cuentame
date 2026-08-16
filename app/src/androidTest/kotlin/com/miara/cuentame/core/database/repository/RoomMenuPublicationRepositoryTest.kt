@@ -7,6 +7,8 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.domain.repository.*
 import com.miara.cuentame.core.model.menu.CashDiscountBehavior
+import com.miara.cuentame.core.model.menupackage.MenuPackageFactory
+import com.miara.cuentame.core.model.menupackage.MenuPackageJsonCodec
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
@@ -27,6 +29,7 @@ class RoomMenuPublicationRepositoryTest {
     @Test fun publish_snapshotsImmutableState_directComponents_andAllocatesRevisions()=runBlocking{
         seed(price=BigDecimal("13"))
         val firstId=publications.publish(menuId);val first=publications.observePublication(firstId).first()!!
+        val firstExport=MenuPackageJsonCodec.encode(MenuPackageFactory.create(first))
         assertThat(first.publication.publicationRevision).isEqualTo(1)
         assertThat(first.publication.menuNameSnapshot).isEqualTo("Dinner")
         assertThat(first.publication.currencyCodeSnapshot).isEqualTo("USD")
@@ -45,10 +48,12 @@ class RoomMenuPublicationRepositoryTest {
         db.menuRecipeDao().updateRecipe(db.menuRecipeDao().getRecipe("recipe")!!.copy(name="Big Burger",normalizedName="big burger",sellingPrice=BigDecimal("15"),cashDiscountBehavior=CashDiscountBehavior.NONE,commercialRevision=4,consumptionRevision=5))
         db.menuRecipeDao().upsertComponent(db.menuRecipeDao().getComponent("component")!!.copy(quantityEntered=BigDecimal("4"),quantityBase=BigDecimal("4"),sortOrder=10))
         val secondId=publications.publish(menuId);val second=publications.observePublication(secondId).first()!!;val unchanged=publications.observePublication(firstId).first()!!
+        val unchangedExport=MenuPackageJsonCodec.encode(MenuPackageFactory.create(unchanged));val secondExport=MenuPackageJsonCodec.encode(MenuPackageFactory.create(second))
         assertThat(second.publication.publicationRevision).isEqualTo(2);assertThat(second.items.single().sellingPriceSnapshot.compareTo(BigDecimal("15"))).isEqualTo(0)
         assertThat(unchanged.publication.menuNameSnapshot).isEqualTo("Dinner");assertThat(unchanged.categories.single().nameSnapshot).isEqualTo("Entrees");assertThat(unchanged.items.single().sellingPriceSnapshot.compareTo(BigDecimal("13"))).isEqualTo(0);assertThat(unchanged.components.single().quantityEnteredSnapshot.compareTo(BigDecimal("2"))).isEqualTo(0)
         assertThat(db.menuCatalogDao().getMenu(menuId.value)!!.publicationRevision).isEqualTo(2)
         assertThat(publications.observePublications(menuId).first().map{it.publicationRevision}).containsExactly(2L,1L).inOrder()
+        assertThat(unchangedExport).isEqualTo(firstExport);assertThat(secondExport).isNotEqualTo(firstExport)
     }
 
     @Test fun missingPrice_failureIsAtomic()=runBlocking{

@@ -29,6 +29,11 @@ class RoomMenuPublicationRepository @Inject constructor(
             p?.let { MenuPublicationSnapshot(it.domain(),c.map(MenuPublicationCategoryEntity::domain),i.map(MenuPublicationItemEntity::domain),x.map(MenuPublicationItemComponentEntity::domain)) }
         }
 
+    override suspend fun getPublication(publicationId:MenuPublicationId):MenuPublicationSnapshot?=database.withTransaction{
+        val p=publicationDao.getPublication(publicationId.value)?:return@withTransaction null
+        MenuPublicationSnapshot(p.domain(),publicationDao.getCategories(p.id).map(MenuPublicationCategoryEntity::domain),publicationDao.getItems(p.id).map(MenuPublicationItemEntity::domain),publicationDao.getComponents(p.id).map(MenuPublicationItemComponentEntity::domain))
+    }
+
     override suspend fun publish(menuId:MenuId):MenuPublicationId = try {
         database.withTransaction {
             val menu=catalogDao.getMenu(menuId.value)?:throw MenuPublicationException.MenuNotFound()

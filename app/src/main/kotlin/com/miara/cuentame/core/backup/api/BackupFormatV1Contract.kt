@@ -34,42 +34,7 @@ object BackupFormatV1Contract {
         "WASTE_EVENT"
     )
 
-    val EXPECTED_TABLES = setOf(
-        "restaurants",
-        "inventory_areas",
-        "ingredient_categories",
-        "units",
-        "ingredients",
-        "ingredient_unit_options",
-        "suppliers",
-        "purchase_receipts",
-        "purchase_lines",
-        "stock_counts",
-        "stock_count_areas",
-        "stock_count_lines",
-        "stock_count_item_order",
-        "waste_events",
-        "inventory_movements",
-        "inventory_balance_projections",
-        "ingredient_cost_projections",
-        "preparation_recipes",
-        "preparation_recipe_components",
-        "production_batches",
-        "production_batch_components",
-        "purchase_invoice_ocr_results",
-        "purchase_invoice_ocr_pages",
-        "purchase_invoice_parse_results",
-        "purchase_invoice_parsed_lines",
-        "supplier_item_mappings",
-        "purchase_invoice_line_matches",
-        "purchase_invoice_draft_applications",
-        "purchase_invoice_line_origins",
-        "menu_recipes",
-        "menu_recipe_components",
-        "menus",
-        "menu_categories",
-        "menu_placements"
-    )
+    val EXPECTED_TABLES: Set<String> get() = expectedTablesForSchema(DATABASE_SCHEMA_VERSION)
 
     fun expectedTablesForSchema(schemaVersion: Int): Set<String> {
         val base = setOf(
