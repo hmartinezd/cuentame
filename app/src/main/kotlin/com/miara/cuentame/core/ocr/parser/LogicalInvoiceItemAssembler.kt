@@ -59,9 +59,7 @@ internal object LogicalInvoiceItemAssembler {
             }
             
             val followedByMoney = nextRow != null && 
-                isStrictlyComplementaryMoneyRow(listOf(row), nextRow, layout) && 
-                !startsNewItem(nextRow, layout) &&
-                !parser.isHeaderRow(row)
+                isCredibleMoneyContinuation(listOf(row), nextRow, layout)
             
             if (!hasMoneyOrQty && !followedByMoney) continue
 
@@ -151,6 +149,13 @@ internal object LogicalInvoiceItemAssembler {
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
+        
+        // Same-page requirement
+        if (currentGroup.first().pageIndex != nextRow.pageIndex) return false
+        
+        // Headers are never money continuations
+        if (parser.isHeaderRow(nextRow)) return false
+
         if (!isStrictlyComplementaryMoneyRow(currentGroup, nextRow, layout)) return false
 
         val nextHasQty = nextRow.tokens.any { 
@@ -163,6 +168,7 @@ internal object LogicalInvoiceItemAssembler {
         // Ensure no product identity tokens in this row
         if (isPotentialIdentityRow(nextRow, layout)) return false
 
+        // Ensure this row doesn't start a new logical item on its own
         if (startsNewItem(nextRow, layout)) return false
 
         return true

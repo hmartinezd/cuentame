@@ -350,6 +350,55 @@ class DeterministicPurchaseInvoiceParserTest {
         assertEquals(result1.confidence, result2.confidence)
     }
 
+    @Test
+    fun `new product row does not validate previous product description continuation`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "Qty   Item   Description    Rate    Amount",
+            "1     ABC    CHICKEN        10.00",
+            "             RANDOM TEXT",
+            "1     XYZ    RICE                    20.00"
+        ))))
+
+        // Expected: 2 products
+        assertEquals(2, result.lines.size)
+
+        val item1 = result.lines[0]
+        assertEquals("ABC", item1.vendorCode.normalizedValue)
+        assertEquals("CHICKEN", item1.description.normalizedValue)
+        assertEquals(BigDecimal("1"), item1.quantity.normalizedValue)
+        assertEquals(BigDecimal("10.00"), item1.unitPrice.normalizedValue)
+        assertNull(item1.lineTotal.normalizedValue)
+
+        val item2 = result.lines[1]
+        assertEquals("XYZ", item2.vendorCode.normalizedValue)
+        assertEquals("RICE", item2.description.normalizedValue)
+        assertEquals(BigDecimal("1"), item2.quantity.normalizedValue)
+        assertEquals(BigDecimal("20.00"), item2.lineTotal.normalizedValue)
+        assertNull(item2.unitPrice.normalizedValue)
+
+        // Explicitly assert ABC description does not contain RANDOM TEXT
+        assertFalse("ABC description should not contain RANDOM TEXT", 
+            item1.description.normalizedValue?.contains("RANDOM TEXT") == true)
+    }
+
+    @Test
+    fun `positive sandwich case continues to work`() {
+        val result = parser.parse(listOf(createPage(listOf(
+            "Qty   Item   Description    Rate    Amount",
+            "1     ABC    CHICKEN        10.00",
+            "             BREAST",
+            "                                     10.00"
+        ))))
+
+        assertEquals(1, result.lines.size)
+        val item = result.lines[0]
+        assertEquals("ABC", item.vendorCode.normalizedValue)
+        assertEquals("CHICKEN BREAST", item.description.normalizedValue)
+        assertEquals(BigDecimal("1"), item.quantity.normalizedValue)
+        assertEquals(BigDecimal("10.00"), item.unitPrice.normalizedValue)
+        assertEquals(BigDecimal("10.00"), item.lineTotal.normalizedValue)
+    }
+
     private fun createPage(lines: List<String>): OcrPageEvidence {
         val ocrLines = lines.mapIndexed { lineIdx, text ->
             var lastIndex = 0
