@@ -99,7 +99,7 @@ internal object LogicalInvoiceItemAssembler {
                     break 
                 }
 
-                if (isDescriptionContinuation(currentGroup.last(), nextCandidate, layout, rows.getOrNull(j + 1))) {
+                if (isDescriptionContinuation(currentGroup, nextCandidate, layout, rows.getOrNull(j + 1))) {
                      currentGroup.add(nextCandidate)
                      consumedIndices.add(j)
                      j++
@@ -143,22 +143,68 @@ internal object LogicalInvoiceItemAssembler {
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
         val parser = DeterministicPurchaseInvoiceParser()
-        val nextHasMoney = nextRow.tokens.any { t ->
-            val type = layout.getColumnType(t.centerX)
-            (type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) &&
-                parser.isNumeric(t.text)
-        }
-        if (!nextHasMoney) return false
-        
-        val nextHasQty = nextRow.tokens.any { layout.getColumnType(it.centerX) == DeterministicPurchaseInvoiceParser.ColumnType.Quantity && parser.isNumeric(it.text) }
+        val missing = missingMoneyColumns(currentGroup, layout)
+        if (missing.isEmpty()) return false
 
-        // If the next row looks like a new item start, we only swallow it if it
-        // provides money we are missing AND doesn't have its own quantity.
-        if (startsNewItem(nextRow, layout)) {
-            return !hasMoney(currentGroup, layout) && !nextHasQty
+        val nextMoney = getMoneyColumnsInRow(nextRow, layout)
+        if (nextMoney.isEmpty()) return false
+
+        // Continuation only if it fills a missing field and doesn't duplicate an existing one.
+        val contributesNew = nextMoney.any { it in missing }
+        if (!contributesNew) return false
+
+        val nextHasQty = nextRow.tokens.any { 
+            layout.getColumnType(it.centerX) == DeterministicPurchaseInvoiceParser.ColumnType.Quantity && 
+                parser.isNumeric(it.text) 
         }
+
+        // startsNewItem(nextRow) is checked by caller before calling this.
+        // Safety: even if not technically a new item, if it has its own quantity, it's likely not a continuation.
+        if (nextHasQty) return false
         
+        // Ensure no product identity tokens in this row
+        if (isPotentialIdentityRow(nextRow, layout)) return false
+
         return true
+    }
+
+    private fun missingMoneyColumns(
+        group: List<Row>,
+        layout: DeterministicPurchaseInvoiceParser.PageLayout
+    ): Set<DeterministicPurchaseInvoiceParser.ColumnType> {
+        val present = mutableSetOf<DeterministicPurchaseInvoiceParser.ColumnType>()
+        val parser = DeterministicPurchaseInvoiceParser()
+        for (row in group) {
+            for (t in row.tokens) {
+                val type = layout.getColumnType(t.centerX)
+                if ((type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || 
+                        type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) && 
+                    parser.isNumeric(t.text)) {
+                    present.add(type)
+                }
+            }
+        }
+        val missing = mutableSetOf<DeterministicPurchaseInvoiceParser.ColumnType>()
+        if (DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice !in present) missing.add(DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice)
+        if (DeterministicPurchaseInvoiceParser.ColumnType.LineTotal !in present) missing.add(DeterministicPurchaseInvoiceParser.ColumnType.LineTotal)
+        return missing
+    }
+
+    private fun getMoneyColumnsInRow(
+        row: Row,
+        layout: DeterministicPurchaseInvoiceParser.PageLayout
+    ): Set<DeterministicPurchaseInvoiceParser.ColumnType> {
+        val parser = DeterministicPurchaseInvoiceParser()
+        val types = mutableSetOf<DeterministicPurchaseInvoiceParser.ColumnType>()
+        for (t in row.tokens) {
+            val type = layout.getColumnType(t.centerX)
+            if ((type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || 
+                    type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) && 
+                parser.isNumeric(t.text)) {
+                types.add(type)
+            }
+        }
+        return types
     }
 
     private fun hasMoney(group: List<Row>, layout: DeterministicPurchaseInvoiceParser.PageLayout): Boolean {
@@ -177,22 +223,27 @@ internal object LogicalInvoiceItemAssembler {
         nextRow: Row,
         layout: DeterministicPurchaseInvoiceParser.PageLayout
     ): Boolean {
-        if (hasMoney(currentGroup, layout)) return false
-        val parser = DeterministicPurchaseInvoiceParser()
-        return nextRow.tokens.any { t ->
-            val type = layout.getColumnType(t.centerX)
-            (type == DeterministicPurchaseInvoiceParser.ColumnType.UnitPrice || type == DeterministicPurchaseInvoiceParser.ColumnType.LineTotal) &&
-                parser.isNumeric(t.text)
-        }
+        val missing = missingMoneyColumns(currentGroup, layout)
+        if (missing.isEmpty()) return false
+        val nextMoney = getMoneyColumnsInRow(nextRow, layout)
+        return nextMoney.any { it in missing }
     }
 
     private fun isDescriptionContinuation(
-        previous: Row,
+        currentGroup: List<Row>,
         next: Row,
         layout: DeterministicPurchaseInvoiceParser.PageLayout,
         following: Row?
     ): Boolean {
+        val previous = currentGroup.last()
         val parser = DeterministicPurchaseInvoiceParser()
+
+        // If the current item already has identity AND money, it's complete.
+        // It should not absorb random description text.
+        if (isPotentialIdentityRow(currentGroup.first(), layout) && hasMoney(currentGroup, layout)) {
+            return false
+        }
+
         // A description continuation should not contain multiple numeric tokens (likely a new product)
         if (next.tokens.count { parser.isNumeric(it.text) } >= 2) return false
         

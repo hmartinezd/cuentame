@@ -18,7 +18,7 @@ class LogicalItemParserTest {
                 "\t\tCITERIO GENOA SALAMI 3/6lb",
                 "\t\t\t4.68\t28.08",
                 "1\tFPLATMAYA",
-                "\t\tMAYA SWEET PLANTAIN",
+                "\t\tMAYA SWEET PLANTAIN 24 LB",
                 "\t\tUPC5265800837",
                 "\t\t\t32.00\t32.00",
                 "1\tFYUC000",
@@ -43,6 +43,7 @@ class LogicalItemParserTest {
         val line2 = result.lines[1]
         assertEquals("FPLATMAYA", line2.vendorCode.normalizedValue)
         assertTrue(line2.description.normalizedValue?.contains("MAYA SWEET PLANTAIN") == true)
+        assertEquals("24 LB", line2.packageText.normalizedValue)
         assertEquals(0, BigDecimal("1").compareTo(line2.quantity.normalizedValue))
         assertEquals(0, BigDecimal("32.00").compareTo(line2.unitPrice.normalizedValue))
         assertEquals(0, BigDecimal("32.00").compareTo(line2.lineTotal.normalizedValue))
@@ -214,6 +215,87 @@ class LogicalItemParserTest {
         assertEquals(2, result.lines.size)
         assertEquals(0, BigDecimal("0.25").compareTo(result.lines[0].quantity.normalizedValue))
         assertEquals(0, BigDecimal("0.5").compareTo(result.lines[1].quantity.normalizedValue))
+    }
+
+    @Test
+    fun `complete product plus money-only orphan`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tPRODUCT A\t10.00\t10.00",
+            "\t\t\t\t5.00",
+            "1\tXYZ\tPRODUCT B\t20.00\t20.00"
+        ))
+
+        val result = parser.parse(listOf(page))
+
+        assertEquals(2, result.lines.size)
+        val lineA = result.lines.find { it.vendorCode.normalizedValue == "ABC" }
+        val lineB = result.lines.find { it.vendorCode.normalizedValue == "XYZ" }
+
+        assertNotNull(lineA)
+        assertNotNull(lineB)
+
+        assertEquals(0, BigDecimal("10.00").compareTo(lineA!!.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("10.00").compareTo(lineA.lineTotal.normalizedValue))
+
+        assertEquals(0, BigDecimal("20.00").compareTo(lineB!!.unitPrice.normalizedValue))
+        assertEquals(0, BigDecimal("20.00").compareTo(lineB.lineTotal.normalizedValue))
+    }
+
+    @Test
+    fun `complete product plus random text orphan`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tCHICKEN\t10.00\t10.00",
+            "\t\tRANDOM TEXT",
+            "1\tXYZ\tRICE\t20.00\t20.00"
+        ))
+
+        val result = parser.parse(listOf(page))
+
+        assertEquals(2, result.lines.size)
+        val lineA = result.lines.find { it.description.normalizedValue?.contains("CHICKEN") == true }
+        val lineB = result.lines.find { it.description.normalizedValue?.contains("RICE") == true }
+
+        assertNotNull(lineA)
+        assertNotNull(lineB)
+
+        assertFalse(lineA!!.description.normalizedValue?.contains("RANDOM TEXT") == true)
+        assertTrue(lineA.description.normalizedValue == "CHICKEN")
+    }
+
+    @Test
+    fun `adjacent complete products`() {
+        val page = createPage(listOf(
+            "Qty\tItem\tDescription\tRate\tAmount",
+            "1\tABC\tITEM A\t10.00\t10.00",
+            "1\tXYZ\tITEM B\t20.00\t20.00"
+        ))
+
+        val result = parser.parse(listOf(page))
+
+        assertEquals(2, result.lines.size)
+        assertEquals("ITEM A", result.lines[0].description.normalizedValue)
+        assertEquals("ITEM B", result.lines[1].description.normalizedValue)
+    }
+
+    @Test
+    fun `page subtotal and carried forward ignored as products`() {
+        val page = createPage(listOf(
+            "DESCRIPTION\tAMOUNT",
+            "ITEM A\t10.00",
+            "PAGE SUBTOTAL\t10.00",
+            "CARRIED FORWARD\t10.00",
+            "ITEM B\t20.00",
+            "TOTAL\t30.00"
+        ))
+
+        val result = parser.parse(listOf(page))
+
+        assertEquals(2, result.lines.size)
+        assertTrue(result.lines.any { it.description.normalizedValue == "ITEM A" })
+        assertTrue(result.lines.any { it.description.normalizedValue == "ITEM B" })
+        assertEquals(0, BigDecimal("30.00").compareTo(result.total.normalizedValue))
     }
 
     private fun createPage(lines: List<String>): OcrPageEvidence {
