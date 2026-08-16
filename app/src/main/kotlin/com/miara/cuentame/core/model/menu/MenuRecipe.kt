@@ -5,7 +5,9 @@ import java.math.BigDecimal
 import java.time.Instant
 
 data class MenuRecipe(val id: MenuRecipeId, val restaurantId: RestaurantId, val name: String, val normalizedName: String,
-    val sellingPrice: BigDecimal?, val notes: String?, val archivedAt: Instant?, val createdAt: Instant, val updatedAt: Instant)
+    val sellingPrice: BigDecimal?, val notes: String?, val cashDiscountBehavior: CashDiscountBehavior,
+    val commercialRevision: Long, val consumptionRevision: Long, val archivedAt: Instant?,
+    val createdAt: Instant, val updatedAt: Instant)
 data class MenuRecipeComponent(val id: MenuRecipeComponentId, val menuRecipeId: MenuRecipeId, val ingredientId: IngredientId,
     val ingredientUnitOptionId: IngredientUnitOptionId, val quantityEntered: BigDecimal, val quantityBase: BigDecimal,
     val sortOrder: Int, val createdAt: Instant, val updatedAt: Instant)

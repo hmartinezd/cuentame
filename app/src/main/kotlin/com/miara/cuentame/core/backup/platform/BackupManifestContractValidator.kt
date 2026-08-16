@@ -250,6 +250,13 @@ object BackupManifestContractValidator {
                 return BackupRestoreFailure.ManifestMismatch
             }
         }
+        if (manifest.databaseSchemaVersion >= 14) {
+            actualCounts["menus"] = snapshot.menus.size
+            actualCounts["menu_categories"] = snapshot.menuCategories.size
+            actualCounts["menu_placements"] = snapshot.menuPlacements.size
+        } else if (snapshot.menus.isNotEmpty() || snapshot.menuCategories.isNotEmpty() || snapshot.menuPlacements.isNotEmpty()) {
+            return BackupRestoreFailure.ManifestMismatch
+        }
 
         for ((table, metadata) in manifest.tableMetadata) {
             val actual = actualCounts[table] ?: return BackupRestoreFailure.ManifestMismatch

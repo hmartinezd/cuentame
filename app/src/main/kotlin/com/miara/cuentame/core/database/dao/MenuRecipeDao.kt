@@ -19,7 +19,7 @@ interface MenuRecipeDao {
     @Query("SELECT * FROM menu_recipe_components WHERE id=:id") suspend fun getComponent(id: String): MenuRecipeComponentEntity?
     @Query("SELECT COUNT(*) FROM menu_recipe_components WHERE menuRecipeId=:recipeId AND ingredientId=:ingredientId AND id!=:excludeId")
     suspend fun componentCount(recipeId: String, ingredientId: String, excludeId: String): Int
-    @Query("DELETE FROM menu_recipe_components WHERE id=:componentId AND menuRecipeId=:recipeId") suspend fun deleteComponent(recipeId: String, componentId: String)
+    @Query("DELETE FROM menu_recipe_components WHERE id=:componentId AND menuRecipeId=:recipeId") suspend fun deleteComponent(recipeId: String, componentId: String): Int
     @Query("UPDATE menu_recipes SET archivedAt=:archivedAt,updatedAt=:updatedAt WHERE id=:id") suspend fun setArchived(id: String, archivedAt: Long?, updatedAt: Long)
     @Query("SELECT COUNT(*) FROM menu_recipes WHERE restaurantId=:restaurantId AND normalizedName=:normalizedName AND archivedAt IS NULL AND id!=:excludeId") suspend fun activeNameCount(restaurantId:String,normalizedName:String,excludeId:String):Int
 }

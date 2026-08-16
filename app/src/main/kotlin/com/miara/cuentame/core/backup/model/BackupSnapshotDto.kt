@@ -34,7 +34,10 @@ data class BackupSnapshotDto(
     val purchaseInvoiceLineOrigins: List<PurchaseInvoiceLineOriginBackupDto> = emptyList(),
     val stockCountItemOrder: List<StockCountItemOrderBackupDto> = emptyList(),
     val menuRecipes: List<MenuRecipeBackupDto> = emptyList(),
-    val menuRecipeComponents: List<MenuRecipeComponentBackupDto> = emptyList()
+    val menuRecipeComponents: List<MenuRecipeComponentBackupDto> = emptyList(),
+    val menus: List<MenuBackupDto> = emptyList(),
+    val menuCategories: List<MenuCategoryBackupDto> = emptyList(),
+    val menuPlacements: List<MenuPlacementBackupDto> = emptyList()
 )
 
 @Serializable
@@ -45,10 +48,18 @@ data class MenuRecipeBackupDto(
     val normalizedName: String,
     val sellingPrice: String?,
     val notes: String?,
+    val cashDiscountBehavior: String = "APPLY_DEFAULT",
+    val commercialRevision: Long = 0,
+    val consumptionRevision: Long = 0,
     val archivedAt: Long?,
     val createdAt: Long,
     val updatedAt: Long
 )
+
+@Serializable data class MenuBackupDto(val id:String,val restaurantId:String,val name:String,val normalizedName:String,
+    val description:String?,val defaultCashDiscountPercent:String,val publicationRevision:Long=0,val archivedAt:Long?,val createdAt:Long,val updatedAt:Long)
+@Serializable data class MenuCategoryBackupDto(val id:String,val menuId:String,val name:String,val normalizedName:String,val sortOrder:Int)
+@Serializable data class MenuPlacementBackupDto(val id:String,val menuId:String,val categoryId:String,val menuRecipeId:String,val sortOrder:Int)
 
 @Serializable
 data class MenuRecipeComponentBackupDto(

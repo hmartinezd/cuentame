@@ -34,6 +34,9 @@ class RestoreDatabaseApplierTest {
         coEvery { restoreDao.insertIngredientUnitOptions(any()) } just Runs
         coEvery { restoreDao.insertMenuRecipes(any()) } just Runs
         coEvery { restoreDao.insertMenuRecipeComponents(any()) } just Runs
+        coEvery { restoreDao.insertMenus(any()) } just Runs
+        coEvery { restoreDao.insertMenuCategories(any()) } just Runs
+        coEvery { restoreDao.insertMenuPlacements(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipes(any()) } just Runs
         coEvery { restoreDao.insertPreparationRecipeComponents(any()) } just Runs
         coEvery { restoreDao.insertProductionBatches(any()) } just Runs
@@ -88,6 +91,9 @@ class RestoreDatabaseApplierTest {
             restoreDao.insertIngredientUnitOptions(any())
             restoreDao.insertMenuRecipes(any())
             restoreDao.insertMenuRecipeComponents(any())
+            restoreDao.insertMenus(any())
+            restoreDao.insertMenuCategories(any())
+            restoreDao.insertMenuPlacements(any())
             restoreDao.insertPreparationRecipes(any())
             restoreDao.insertPreparationRecipeComponents(any())
             restoreDao.insertProductionBatches(any())

@@ -39,6 +39,8 @@ fun createManifestForSnapshot(
         "preparation_recipe_components" to snapshot.preparationRecipeComponents.size,
         "production_batches" to snapshot.productionBatches.size,
         "production_batch_components" to snapshot.productionBatchComponents.size
+        ,"menu_recipes" to snapshot.menuRecipes.size,"menu_recipe_components" to snapshot.menuRecipeComponents.size,
+        "menus" to snapshot.menus.size,"menu_categories" to snapshot.menuCategories.size,"menu_placements" to snapshot.menuPlacements.size
     )
 
     for (table in expectedTables) {

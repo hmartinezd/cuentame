@@ -14,6 +14,7 @@ import com.miara.cuentame.core.database.dao.InventoryMovementDao
 import com.miara.cuentame.core.database.dao.InventoryProjectionDao
 import com.miara.cuentame.core.database.dao.PreparationRecipeDao
 import com.miara.cuentame.core.database.dao.MenuRecipeDao
+import com.miara.cuentame.core.database.dao.MenuCatalogDao
 import com.miara.cuentame.core.database.dao.ProductionBatchDao
 import com.miara.cuentame.core.database.dao.PurchaseOcrDao
 import com.miara.cuentame.core.database.dao.PurchaseParseDao
@@ -94,6 +95,9 @@ object DatabaseModule {
 
     @Provides
     fun provideIngredientDao(db: RestaurantInventoryDatabase): IngredientDao = db.ingredientDao()
+
+    @Provides
+    fun provideMenuCatalogDao(db: RestaurantInventoryDatabase): MenuCatalogDao = db.menuCatalogDao()
 
     @Provides
     fun provideIngredientUnitOptionDao(db: RestaurantInventoryDatabase): IngredientUnitOptionDao = db.ingredientUnitOptionDao()

@@ -2,6 +2,7 @@ package com.miara.cuentame.core.database.entity
 
 import androidx.room.*
 import java.math.BigDecimal
+import com.miara.cuentame.core.model.menu.CashDiscountBehavior
 
 @Entity(
     tableName = "menu_recipes",
@@ -15,6 +16,9 @@ data class MenuRecipeEntity(
     val normalizedName: String,
     val sellingPrice: BigDecimal?,
     val notes: String?,
+    val cashDiscountBehavior: CashDiscountBehavior = CashDiscountBehavior.APPLY_DEFAULT,
+    val commercialRevision: Long = 0,
+    val consumptionRevision: Long = 0,
     val archivedAt: Long?,
     val createdAt: Long,
     val updatedAt: Long

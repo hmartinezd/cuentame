@@ -49,7 +49,10 @@ object BackupMapper {
             purchaseInvoiceDraftApplications = snapshot.purchaseInvoiceDraftApplications.map { it.toDto() }.sortedBy { it.id },
             purchaseInvoiceLineOrigins = snapshot.purchaseInvoiceLineOrigins.map { it.toDto() }.sortedBy { it.purchaseLineId },
             menuRecipes = snapshot.menuRecipes.map { it.toDto() }.sortedBy { it.id },
-            menuRecipeComponents = snapshot.menuRecipeComponents.map { it.toDto() }.sortedBy { it.id }
+            menuRecipeComponents = snapshot.menuRecipeComponents.map { it.toDto() }.sortedBy { it.id },
+            menus = snapshot.menus.map { it.toDto() }.sortedBy { it.id },
+            menuCategories = snapshot.menuCategories.map { it.toDto() }.sortedBy { it.id },
+            menuPlacements = snapshot.menuPlacements.map { it.toDto() }.sortedBy { it.id }
         )
     }
 }
@@ -85,10 +88,17 @@ internal fun MenuRecipeEntity.toDto() = MenuRecipeBackupDto(
     normalizedName = normalizedName,
     sellingPrice = sellingPrice?.toNormalizedString(),
     notes = notes,
+    cashDiscountBehavior = cashDiscountBehavior.name,
+    commercialRevision = commercialRevision,
+    consumptionRevision = consumptionRevision,
     archivedAt = archivedAt,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
+
+internal fun MenuEntity.toDto() = MenuBackupDto(id,restaurantId,name,normalizedName,description,defaultCashDiscountPercent.toNormalizedString(),publicationRevision,archivedAt,createdAt,updatedAt)
+internal fun MenuCategoryEntity.toDto() = MenuCategoryBackupDto(id,menuId,name,normalizedName,sortOrder)
+internal fun MenuPlacementEntity.toDto() = MenuPlacementBackupDto(id,menuId,categoryId,menuRecipeId,sortOrder)
 
 internal fun MenuRecipeComponentEntity.toDto() = MenuRecipeComponentBackupDto(
     id = id,
@@ -163,6 +173,10 @@ internal fun IngredientEntity.toDto() = IngredientBackupDto(
     deletedAt = deletedAt,
     parLevelBase = parLevelBase?.toNormalizedString()
 )
+
+fun MenuBackupDto.toEntity() = MenuEntity(id,restaurantId,name,normalizedName,description,java.math.BigDecimal(defaultCashDiscountPercent),publicationRevision,archivedAt,createdAt,updatedAt)
+fun MenuCategoryBackupDto.toEntity() = MenuCategoryEntity(id,menuId,name,normalizedName,sortOrder)
+fun MenuPlacementBackupDto.toEntity() = MenuPlacementEntity(id,menuId,categoryId,menuRecipeId,sortOrder)
 
 internal fun IngredientUnitOptionEntity.toDto() = IngredientUnitOptionBackupDto(
     id = id,
@@ -883,6 +897,9 @@ fun MenuRecipeBackupDto.toEntity() = MenuRecipeEntity(
     normalizedName = normalizedName,
     sellingPrice = sellingPrice?.let { java.math.BigDecimal(it) },
     notes = notes,
+    cashDiscountBehavior = com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(cashDiscountBehavior),
+    commercialRevision = commercialRevision,
+    consumptionRevision = consumptionRevision,
     archivedAt = archivedAt,
     createdAt = createdAt,
     updatedAt = updatedAt

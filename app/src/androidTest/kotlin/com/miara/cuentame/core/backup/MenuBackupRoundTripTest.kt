@@ -9,6 +9,7 @@ import com.miara.cuentame.core.database.RestaurantInventoryDatabase
 import com.miara.cuentame.core.database.entity.*
 import com.miara.cuentame.core.model.restaurant.Restaurant
 import com.miara.cuentame.core.backup.platform.toEntity
+import com.miara.cuentame.core.model.menu.CashDiscountBehavior
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
@@ -67,12 +68,22 @@ class MenuBackupRoundTripTest {
         
         assertThat(restoredSnapshot.menuRecipes).hasSize(1)
         assertThat(restoredSnapshot.menuRecipeComponents).hasSize(1)
+        assertThat(restoredSnapshot.menus).hasSize(1)
+        assertThat(restoredSnapshot.menuCategories).hasSize(1)
+        assertThat(restoredSnapshot.menuPlacements).hasSize(1)
         
         val originalRecipe = plan.snapshotDto.menuRecipes[0]
         val restoredRecipe = restoredSnapshot.menuRecipes[0]
         assertThat(restoredRecipe.id).isEqualTo(originalRecipe.id)
         assertThat(restoredRecipe.name).isEqualTo(originalRecipe.name)
         assertThat(restoredRecipe.sellingPrice).isEqualTo(originalRecipe.sellingPrice)
+        assertThat(restoredRecipe.cashDiscountBehavior).isEqualTo("NONE")
+        assertThat(restoredRecipe.commercialRevision).isEqualTo(3)
+        assertThat(restoredRecipe.consumptionRevision).isEqualTo(4)
+        assertThat(restoredSnapshot.menus.single().publicationRevision).isEqualTo(0)
+        assertThat(restoredSnapshot.menus.single().normalizedName).isEqualTo("dinner")
+        assertThat(restoredSnapshot.menuCategories.single().menuId).isEqualTo("menu-1")
+        assertThat(restoredSnapshot.menuPlacements.single().menuRecipeId).isEqualTo(originalRecipe.id)
         
         val originalComp = plan.snapshotDto.menuRecipeComponents[0]
         val restoredComp = restoredSnapshot.menuRecipeComponents[0]
@@ -98,6 +109,9 @@ class MenuBackupRoundTripTest {
             normalizedName = "test dish",
             sellingPrice = BigDecimal("15.99"),
             notes = "Delicious",
+            cashDiscountBehavior = CashDiscountBehavior.NONE,
+            commercialRevision = 3,
+            consumptionRevision = 4,
             archivedAt = null,
             createdAt = 100,
             updatedAt = 100
@@ -114,5 +128,8 @@ class MenuBackupRoundTripTest {
             createdAt = 100,
             updatedAt = 100
         ))
+        database.menuCatalogDao().insertMenu(MenuEntity("menu-1",restId.value,"Dinner","dinner","Main",BigDecimal("5.00"),0,null,100,100))
+        database.menuCatalogDao().insertCategory(MenuCategoryEntity("category-1","menu-1","Mains","mains",0))
+        database.menuCatalogDao().insertPlacement(MenuPlacementEntity("placement-1","menu-1","category-1",recipeId,0))
     }
 }

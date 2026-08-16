@@ -17,6 +17,7 @@ import com.miara.cuentame.core.database.repository.RoomWasteRepository
 import com.miara.cuentame.core.database.repository.RoomProductionBatchRepository
 import com.miara.cuentame.core.database.repository.RoomPreparationCostRepository
 import com.miara.cuentame.core.database.repository.RoomMenuRecipeRepository
+import com.miara.cuentame.core.database.repository.RoomMenuCatalogRepository
 import com.miara.cuentame.core.database.repository.RoomMenuCostRepository
 import com.miara.cuentame.core.database.repository.RoomInventoryActivityRepository
 import com.miara.cuentame.core.database.repository.RoomSupplierItemMappingRepository
@@ -25,6 +26,7 @@ import com.miara.cuentame.core.database.repository.RoomPriceIntelligenceReposito
 import com.miara.cuentame.core.domain.repository.ProductionBatchRepository
 import com.miara.cuentame.core.domain.repository.PreparationCostRepository
 import com.miara.cuentame.core.domain.repository.MenuRecipeRepository
+import com.miara.cuentame.core.domain.repository.MenuCatalogRepository
 import com.miara.cuentame.core.domain.repository.MenuCostRepository
 import com.miara.cuentame.core.domain.repository.InventoryActivityRepository
 import com.miara.cuentame.core.domain.repository.SupplierItemMappingRepository
@@ -114,6 +116,9 @@ abstract class RepositoryModule {
 
     @Binds @Singleton
     abstract fun bindMenuRecipeRepository(repo: RoomMenuRecipeRepository): MenuRecipeRepository
+
+    @Binds @Singleton
+    abstract fun bindMenuCatalogRepository(repo: RoomMenuCatalogRepository): MenuCatalogRepository
 
     @Binds @Singleton
     abstract fun bindMenuCostRepository(repo: RoomMenuCostRepository): MenuCostRepository

@@ -33,5 +33,8 @@ data class BackupSnapshot(
     val purchaseInvoiceLineOrigins: List<PurchaseInvoiceLineOriginEntity> = emptyList(),
     val stockCountItemOrder: List<StockCountItemOrderEntity> = emptyList(),
     val menuRecipes: List<MenuRecipeEntity> = emptyList(),
-    val menuRecipeComponents: List<MenuRecipeComponentEntity> = emptyList()
+    val menuRecipeComponents: List<MenuRecipeComponentEntity> = emptyList(),
+    val menus: List<MenuEntity> = emptyList(),
+    val menuCategories: List<MenuCategoryEntity> = emptyList(),
+    val menuPlacements: List<MenuPlacementEntity> = emptyList()
 )

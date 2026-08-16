@@ -350,6 +350,11 @@ class BackupCreationPlanner @Inject constructor(
             tables["menu_recipes"] = TableMetadata(dto.menuRecipes.size, false)
             tables["menu_recipe_components"] = TableMetadata(dto.menuRecipeComponents.size, false)
         }
+        if (appVersionProvider.databaseSchemaVersion >= 14) {
+            tables["menus"] = TableMetadata(dto.menus.size, false)
+            tables["menu_categories"] = TableMetadata(dto.menuCategories.size, false)
+            tables["menu_placements"] = TableMetadata(dto.menuPlacements.size, false)
+        }
 
         return tables.entries.sortedBy { it.key }.associate { it.key to it.value }
     }

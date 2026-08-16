@@ -9,6 +9,9 @@ import com.miara.cuentame.core.database.entity.*
 
 @Dao
 interface RestoreDao {
+    @Query("DELETE FROM menu_placements") suspend fun deleteAllMenuPlacements()
+    @Query("DELETE FROM menu_categories") suspend fun deleteAllMenuCategories()
+    @Query("DELETE FROM menus") suspend fun deleteAllMenus()
 
     @Query("DELETE FROM stock_count_item_order")
     suspend fun deleteAllStockCountItemOrder()
@@ -195,6 +198,9 @@ interface RestoreDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMenuRecipeComponents(entities: List<MenuRecipeComponentEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenus(entities:List<MenuEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuCategories(entities:List<MenuCategoryEntity>)
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertMenuPlacements(entities:List<MenuPlacementEntity>)
 
     @Transaction
     suspend fun clearAllInOrder() {
@@ -215,6 +221,9 @@ interface RestoreDao {
         deleteAllPurchaseInvoiceOcrResults()
         deleteAllPurchaseReceipts()
         deleteAllWasteEvents()
+        deleteAllMenuPlacements()
+        deleteAllMenuCategories()
+        deleteAllMenus()
         deleteAllMenuRecipeComponents()
         deleteAllMenuRecipes()
         deleteAllProductionBatchComponents()

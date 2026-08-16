@@ -21,6 +21,7 @@ interface MenuRecipeRepository {
     fun observeComponents(id: MenuRecipeId): Flow<List<MenuRecipeComponent>>
     suspend fun create(restaurantId: RestaurantId, name: String, sellingPrice: BigDecimal?, notes: String?): MenuRecipeId
     suspend fun update(id: MenuRecipeId, name: String, sellingPrice: BigDecimal?, notes: String?)
+    suspend fun setCashDiscountBehavior(id: MenuRecipeId, behavior: CashDiscountBehavior)
     suspend fun saveComponent(recipeId: MenuRecipeId, componentId: MenuRecipeComponentId?, ingredientId: IngredientId,
         optionId: IngredientUnitOptionId, quantityEntered: BigDecimal, sortOrder: Int): MenuRecipeComponentId
     suspend fun removeComponent(recipeId: MenuRecipeId, componentId: MenuRecipeComponentId)

@@ -62,6 +62,7 @@ object BackupSnapshotIntegrityValidator {
             validateStagedMatches(dto, ctx)?.let { throw it }
             validateMaterialization(dto, ctx)?.let { throw it }
             validateMenuRecipes(dto, ctx)?.let { throw it }
+            validateMenus(dto, ctx)?.let { throw it }
 
             return Result.success(Unit)
         } catch (e: BackupSnapshotIntegrityException) {
@@ -141,6 +142,8 @@ object BackupSnapshotIntegrityValidator {
         val menuRecipeById = dto.menuRecipes.associateBy { it.id }
         val menuRecipeComponentById = dto.menuRecipeComponents.associateBy { it.id }
         val componentsByMenuRecipeId = dto.menuRecipeComponents.groupBy { it.menuRecipeId }
+        val menuById = dto.menus.associateBy { it.id }
+        val menuCategoryById = dto.menuCategories.associateBy { it.id }
     }
 
     // ── sub-validators ────────────────────────────────────────────────────────────
@@ -193,6 +196,9 @@ object BackupSnapshotIntegrityValidator {
         check(dto.purchaseInvoiceLineOrigins, { it.purchaseLineId }, "purchase_invoice_line_origins")?.let { return it }
         check(dto.menuRecipes, { it.id }, "menu_recipes")?.let { return it }
         check(dto.menuRecipeComponents, { it.id }, "menu_recipe_components")?.let { return it }
+        check(dto.menus, { it.id }, "menus")?.let { return it }
+        check(dto.menuCategories, { it.id }, "menu_categories")?.let { return it }
+        check(dto.menuPlacements, { it.id }, "menu_placements")?.let { return it }
 
         // Balance projection composite keys
         val balanceKeys = dto.inventoryBalanceProjections.map { Triple(it.restaurantId, it.ingredientId, it.areaId) }
@@ -265,6 +271,7 @@ object BackupSnapshotIntegrityValidator {
             }) return err(RESTAURANT_ISOLATION_FAILURE, "Transitive isolation error in purchase_invoice_draft_applications")
         
         if (dto.menuRecipes.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menu_recipes")
+        if (dto.menus.any { it.restaurantId != restaurantId }) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menus")
 
         return null
     }
@@ -1984,6 +1991,8 @@ object BackupSnapshotIntegrityValidator {
 
     private fun validateMenuRecipes(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
         for (recipe in dto.menuRecipes) {
+            if (recipe.commercialRevision < 0 || recipe.consumptionRevision < 0) return err(INVALID_NUMERIC_RANGE, "Menu recipe revisions must be non-negative")
+            if (runCatching { com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(recipe.cashDiscountBehavior) }.isFailure) return err(INVALID_MENU_STRUCTURE, "Invalid cash discount behavior")
             // Timestamps
             if (recipe.createdAt > recipe.updatedAt) return err(INVALID_TIMESTAMP_ORDER, "menu_recipes: createdAt must be <= updatedAt")
             
@@ -2025,6 +2034,30 @@ object BackupSnapshotIntegrityValidator {
                     return err(INVALID_NUMERIC_RANGE, "quantityBase mismatch in menu component")
                 }
             }
+        }
+        return null
+    }
+
+    private fun validateMenus(dto: BackupSnapshotDto, ctx: ValidationContext): BackupSnapshotIntegrityException? {
+        val categoryNames = mutableSetOf<Pair<String,String>>()
+        dto.menus.forEach { menu ->
+            if (menu.restaurantId != ctx.restaurantId) return err(RESTAURANT_ISOLATION_FAILURE, "Isolation error in menus")
+            if (menu.publicationRevision < 0) return err(INVALID_NUMERIC_RANGE, "Menu publication revision must be non-negative")
+            val discount = runCatching { BigDecimal(menu.defaultCashDiscountPercent) }.getOrNull()
+                ?: return err(INVALID_NUMERIC_RANGE, "Invalid menu discount")
+            if (discount < BigDecimal.ZERO || discount >= BigDecimal("100")) return err(INVALID_NUMERIC_RANGE, "Invalid menu discount")
+        }
+        dto.menuCategories.forEach { category ->
+            if (ctx.menuById[category.menuId] == null) return err(BROKEN_FOREIGN_KEY, "Broken FK: menu category to menu")
+            if (!categoryNames.add(category.menuId to category.normalizedName)) return err(INVALID_MENU_STRUCTURE, "Duplicate category name")
+        }
+        val placements = mutableSetOf<Pair<String,String>>()
+        dto.menuPlacements.forEach { placement ->
+            val menu = ctx.menuById[placement.menuId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: placement to menu")
+            val category = ctx.menuCategoryById[placement.categoryId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: placement to category")
+            val recipe = ctx.menuRecipeById[placement.menuRecipeId] ?: return err(BROKEN_FOREIGN_KEY, "Broken FK: placement to menu recipe")
+            if (category.menuId != menu.id || recipe.restaurantId != menu.restaurantId) return err(RELATIONSHIP_MISMATCH, "Invalid menu placement ownership")
+            if (!placements.add(menu.id to recipe.id)) return err(INVALID_MENU_STRUCTURE, "Duplicate menu recipe placement")
         }
         return null
     }

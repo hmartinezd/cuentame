@@ -42,7 +42,8 @@ interface BackupDao {
             purchaseInvoiceDraftApplications = getPurchaseInvoiceDraftApplications(restaurantId),
             purchaseInvoiceLineOrigins = getPurchaseInvoiceLineOrigins(restaurantId),
             menuRecipes = getMenuRecipes(restaurantId),
-            menuRecipeComponents = getMenuRecipeComponents(restaurantId)
+            menuRecipeComponents = getMenuRecipeComponents(restaurantId),
+            menus = getMenus(restaurantId), menuCategories = getMenuCategories(restaurantId), menuPlacements = getMenuPlacements(restaurantId)
         )
     }
 
@@ -218,6 +219,10 @@ interface BackupDao {
     """)
     suspend fun getMenuRecipeComponents(restaurantId: String): List<MenuRecipeComponentEntity>
 
+    @Query("SELECT * FROM menus WHERE restaurantId=:restaurantId ORDER BY id") suspend fun getMenus(restaurantId:String):List<MenuEntity>
+    @Query("SELECT c.* FROM menu_categories c JOIN menus m ON m.id=c.menuId WHERE m.restaurantId=:restaurantId ORDER BY c.id") suspend fun getMenuCategories(restaurantId:String):List<MenuCategoryEntity>
+    @Query("SELECT p.* FROM menu_placements p JOIN menus m ON m.id=p.menuId WHERE m.restaurantId=:restaurantId ORDER BY p.id") suspend fun getMenuPlacements(restaurantId:String):List<MenuPlacementEntity>
+
     @Transaction
     suspend fun createGlobalSnapshot(): BackupSnapshot {
         return BackupSnapshot(
@@ -251,7 +256,7 @@ interface BackupDao {
             purchaseInvoiceDraftApplications = getAllPurchaseInvoiceDraftApplications(),
             purchaseInvoiceLineOrigins = getAllPurchaseInvoiceLineOrigins(),
             menuRecipes = getAllMenuRecipes(),
-            menuRecipeComponents = getAllMenuRecipeComponents()
+            menuRecipeComponents = getAllMenuRecipeComponents(), menus=getAllMenus(), menuCategories=getAllMenuCategories(), menuPlacements=getAllMenuPlacements()
         )
     }
 
@@ -344,4 +349,7 @@ interface BackupDao {
 
     @Query("SELECT * FROM menu_recipe_components")
     suspend fun getAllMenuRecipeComponents(): List<MenuRecipeComponentEntity>
+    @Query("SELECT * FROM menus") suspend fun getAllMenus():List<MenuEntity>
+    @Query("SELECT * FROM menu_categories") suspend fun getAllMenuCategories():List<MenuCategoryEntity>
+    @Query("SELECT * FROM menu_placements") suspend fun getAllMenuPlacements():List<MenuPlacementEntity>
 }

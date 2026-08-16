@@ -322,6 +322,9 @@ object BackupTestFixtures {
                 "stock_count_item_order" to TableMetadata(0, false),
                 "menu_recipes" to TableMetadata(snapshotWithAttachment.menuRecipes.size, false),
                 "menu_recipe_components" to TableMetadata(snapshotWithAttachment.menuRecipeComponents.size, false),
+                "menus" to TableMetadata(snapshotWithAttachment.menus.size, false),
+                "menu_categories" to TableMetadata(snapshotWithAttachment.menuCategories.size, false),
+                "menu_placements" to TableMetadata(snapshotWithAttachment.menuPlacements.size, false),
                 "waste_events" to TableMetadata(0, false),
                 "purchase_invoice_ocr_results" to TableMetadata(0, false),
                 "purchase_invoice_ocr_pages" to TableMetadata(0, false),
@@ -330,9 +333,7 @@ object BackupTestFixtures {
                 "supplier_item_mappings" to TableMetadata(0, false),
                 "purchase_invoice_line_matches" to TableMetadata(0, false),
                 "purchase_invoice_draft_applications" to TableMetadata(0, false),
-                "purchase_invoice_line_origins" to TableMetadata(0, false),
-                "menu_recipes" to TableMetadata(snapshotWithAttachment.menuRecipes.size, false),
-                "menu_recipe_components" to TableMetadata(snapshotWithAttachment.menuRecipeComponents.size, false)
+                "purchase_invoice_line_origins" to TableMetadata(0, false)
             ).entries.sortedBy { it.key }.associate { it.key to it.value },
             attachments = listOf(
                 BackupAttachmentMetadata(

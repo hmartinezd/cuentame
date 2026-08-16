@@ -3,6 +3,7 @@ package com.miara.cuentame.core.database.converter
 import androidx.room.TypeConverter
 import com.miara.cuentame.core.model.purchase.InvoiceLineMatchStatus
 import com.miara.cuentame.core.model.supplier.SupplierItemMappingKeyType
+import com.miara.cuentame.core.model.menu.CashDiscountBehavior
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -46,4 +47,7 @@ class RoomTypeConverters {
     fun toInvoiceLineMatchStatus(value: String?): InvoiceLineMatchStatus? {
         return value?.let { InvoiceLineMatchStatus.valueOf(it) }
     }
+
+    @TypeConverter fun fromCashDiscountBehavior(value: CashDiscountBehavior?): String? = value?.name
+    @TypeConverter fun toCashDiscountBehavior(value: String?): CashDiscountBehavior? = value?.let(CashDiscountBehavior::valueOf)
 }
