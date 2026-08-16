@@ -33,10 +33,16 @@ class MenuCatalogDetailViewModelTest {
     private val recipeFlow = MutableStateFlow<List<MenuRecipe>>(emptyList())
     private val restaurantFlow = MutableStateFlow<Restaurant?>(restaurant())
     private var includeArchivedRequested: Boolean? = null
+    private var menuObservationCount = 0
+    private var failMenuObservation = false
 
     private val catalogs = object : MenuCatalogRepository {
         override fun observeMenus(restaurantId: RestaurantId, includeArchived: Boolean) = flowOf(emptyList<Menu>())
-        override fun observeMenu(id: MenuId) = menuFlow
+        override fun observeMenu(id: MenuId): Flow<Menu?> = flow {
+            menuObservationCount++
+            if (failMenuObservation) throw IllegalStateException("load failed")
+            emitAll(menuFlow)
+        }
         override fun observeCategories(menuId: MenuId) = categoryFlow
         override fun observePlacements(menuId: MenuId) = placementFlow
         override suspend fun createMenu(restaurantId: RestaurantId, name: String, description: String?, defaultCashDiscountPercent: BigDecimal) = menuId
@@ -115,6 +121,24 @@ class MenuCatalogDetailViewModelTest {
         assertThat(viewModel.state.value.loadError).isTrue()
         assertThat(viewModel.state.value.menu).isNull()
         assertThat(viewModel.state.value.currencyCode).isEmpty()
+        collection.cancel()
+    }
+
+    @Test fun `retry observes content again and loads after initial failure`() = runTest {
+        failMenuObservation = true
+        val viewModel = viewModel()
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+        assertThat(viewModel.state.value.loadError).isTrue()
+        assertThat(menuObservationCount).isEqualTo(1)
+
+        failMenuObservation = false
+        viewModel.retry()
+        runCurrent()
+
+        assertThat(menuObservationCount).isEqualTo(2)
+        assertThat(viewModel.state.value.loadError).isFalse()
+        assertThat(viewModel.state.value.menu).isEqualTo(menu())
         collection.cancel()
     }
 

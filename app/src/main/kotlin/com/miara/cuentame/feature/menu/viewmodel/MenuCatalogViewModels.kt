@@ -62,15 +62,16 @@ data class MenuCatalogDetailState(val loading:Boolean=true,val menu:Menu?=null,v
 
 @HiltViewModel @OptIn(ExperimentalCoroutinesApi::class)
 class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,private val catalogs:MenuCatalogRepository,private val recipes:MenuRecipeRepository,private val restaurants:RestaurantRepository,private val publications:MenuPublicationRepository,private val packageExporter:MenuPackageExporter):ViewModel(){
-    private val id=MenuId(requireNotNull(saved["menuId"])); private val op=MutableStateFlow(MenuCatalogDetailState(loading=false));private val publicationOp=MutableStateFlow(PublicationOperationState());private val exportOp=MutableStateFlow(ExportOperationState());private val _exportEvents=MutableSharedFlow<MenuExportEvent>(extraBufferCapacity=1);val exportEvents=_exportEvents.asSharedFlow()
-    private val content=catalogs.observeMenu(id).flatMapLatest { menu -> if(menu==null) flowOf(MenuCatalogDetailState(false,loadError=true)) else combine(catalogs.observeCategories(id),catalogs.observePlacements(id),recipes.observeRecipes(menu.restaurantId,true),restaurants.observeRestaurant()){categories,placements,allRecipes,restaurant ->
+    private val id=MenuId(requireNotNull(saved["menuId"])); private val retry=MutableStateFlow(0);private val op=MutableStateFlow(MenuCatalogDetailState(loading=false));private val publicationOp=MutableStateFlow(PublicationOperationState());private val exportOp=MutableStateFlow(ExportOperationState());private val _exportEvents=MutableSharedFlow<MenuExportEvent>(extraBufferCapacity=1);val exportEvents=_exportEvents.asSharedFlow()
+    private val content=retry.flatMapLatest { catalogs.observeMenu(id).flatMapLatest { menu -> if(menu==null) flowOf(MenuCatalogDetailState(false,loadError=true)) else combine(catalogs.observeCategories(id),catalogs.observePlacements(id),recipes.observeRecipes(menu.restaurantId,true),restaurants.observeRestaurant()){categories,placements,allRecipes,restaurant ->
         if(restaurant?.id!=menu.restaurantId) return@combine MenuCatalogDetailState(false,loadError=true)
         val byId=allRecipes.associateBy{it.id}; val placed=placements.map{it.menuRecipeId}.toSet()
         val projected=categories.map{cat->MenuCategoryUiModel(cat,placements.filter{it.categoryId==cat.id}.map{p->MenuPlacementUiModel(p,checkNotNull(byId[p.menuRecipeId]){"Menu placement references a missing MenuRecipe: ${p.menuRecipeId.value}"})})}
         MenuCatalogDetailState(false,menu,projected,allRecipes.filter{it.archivedAt==null&&it.id !in placed},restaurant.currencyCode)
-    }}.catch{emit(MenuCatalogDetailState(false,loadError=true))}
+    }}.catch{emit(MenuCatalogDetailState(false,loadError=true))} }
     val state=combine(content,op,publications.observePublications(id),publicationOp,exportOp){c,o,history,p,x->c.copy(busy=o.busy||p.busy||x.busy,error=o.error,publications=history,publicationError=p.error,publishedRevision=p.publishedRevision,exportError=x.error,exportSucceeded=x.succeeded)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),MenuCatalogDetailState())
     fun clearError(){op.value=op.value.copy(error=null)}
+    fun retry(){retry.value++}
     private fun run(block:suspend()->Unit){if(op.value.busy)return;viewModelScope.launch{op.value=op.value.copy(busy=true,error=null);try{block();op.value=op.value.copy(busy=false)}catch(e:CancellationException){throw e}catch(e:Exception){op.value=op.value.copy(busy=false,error=e.catalogUiError())}}}
     fun updateMenu(name:String,description:String,discount:String){val pct=discount.trim().toBigDecimalOrNull();if(name.isBlank()||pct==null||pct<BigDecimal.ZERO||pct>=BigDecimal("100")){op.value=op.value.copy(error=MenuCatalogUiError.INVALID_VALUES);return};run{catalogs.updateMenu(id,name,description.trim().ifBlank{null},pct)}}
     fun toggleArchived() { val menu=state.value.menu?:return;run{catalogs.setArchived(id,menu.archivedAt==null)} }

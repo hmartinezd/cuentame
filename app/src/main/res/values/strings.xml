@@ -1069,6 +1069,7 @@
   <string name="historical_output_cost_format">Historical output cost: %1$s / %2$s</string>
     <string name="menu_items_title">Menu items</string>
     <string name="menu_item_title">Menu item</string>
+    <string name="menu_detail_load_failed">Could not load this menu item. Try again.</string>
     <string name="menu_create_title">Create menu item</string>
     <string name="menu_empty">No menu items yet</string>
     <string name="menu_show_archived">Show archived</string>

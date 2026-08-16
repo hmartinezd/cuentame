@@ -126,15 +126,18 @@ class MenuDetailViewModel @Inject constructor(
     private val ingredientRepository: IngredientRepository
 ) : ViewModel() {
     private val id = MenuRecipeId(requireNotNull(saved["menuRecipeId"]))
+    private val retry = MutableStateFlow(0)
     private val editor = MutableStateFlow(ComponentEditorState())
     private val operations = MutableStateFlow(MenuDetailState(loading = false))
-    private val content = recipes.observeRecipe(id).flatMapLatest { recipe ->
+    private val content = retry.flatMapLatest { recipes.observeRecipe(id).flatMapLatest { recipe ->
         if (recipe == null) flowOf(MenuDetailState(false, error = true)) else combine(costs.observeCost(id), recipes.observeComponents(id), ingredientRepository.observeIngredients(recipe.restaurantId, false)) { cost, components, ingredients ->
             MenuDetailState(false, recipe, cost, components, ingredients, cost == null)
         }
-    }.catch { emit(MenuDetailState(false, error = true)) }
+    }.catch { emit(MenuDetailState(false, error = true)) } }
     val state = combine(content, editor, operations) { c, e, o -> c.copy(editor = e, isSavingInfo = o.isSavingInfo, isArchiving = o.isArchiving, isRemovingComponent = o.isRemovingComponent, infoError = o.infoError, infoSaveSucceeded = o.infoSaveSucceeded) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MenuDetailState())
+
+    fun retry() { retry.value++ }
 
     fun openComponent(existing: MenuRecipeComponent?) {
         val ingredientId = existing?.ingredientId

@@ -1060,6 +1060,7 @@
   <string name="historical_output_cost_format">Costo histórico de salida: %1$s / %2$s</string>
     <string name="menu_items_title">Platos del menú</string>
     <string name="menu_item_title">Plato del menú</string>
+    <string name="menu_detail_load_failed">No se pudo cargar este plato del menú. Inténtalo de nuevo.</string>
     <string name="menu_create_title">Crear plato del menú</string>
     <string name="menu_empty">Aún no hay platos del menú</string>
     <string name="menu_show_archived">Mostrar archivados</string>
