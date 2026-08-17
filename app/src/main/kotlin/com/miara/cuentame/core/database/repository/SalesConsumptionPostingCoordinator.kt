@@ -258,12 +258,22 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
         val byId = originals.associateBy { it.id }
         reversals.forEach { reverse ->
             val original = byId[reverse.reversalOfMovementId] ?: fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
-            if (reverse.sourceDocumentId != sourceId || reverse.sourceOperationId != InventoryMovementOperationIds.reversal(original.id) ||
+            if (reverse.movementType != InventoryMovementType.REVERSAL.name ||
+                reverse.sourceDocumentType != SourceDocumentType.SALES_TRANSACTION.name || reverse.restaurantId != original.restaurantId ||
+                reverse.sourceDocumentId != sourceId || reverse.sourceDocumentId != original.sourceDocumentId || reverse.reversalOfMovementId != original.id ||
+                reverse.effectiveAt < original.effectiveAt || reverse.createdAt < original.createdAt ||
+                reverse.sourceOperationId != InventoryMovementOperationIds.reversal(original.id) ||
                 reverse.ingredientId != original.ingredientId || reverse.areaId != original.areaId || reverse.sourceLineId != original.sourceLineId ||
                 BigDecimal(reverse.quantityBaseSigned).compareTo(BigDecimal(original.quantityBaseSigned).negate()) != 0 ||
-                reverse.unitCostBaseSnapshot != original.unitCostBaseSnapshot || reverse.totalValueSnapshot != original.totalValueSnapshot?.let { BigDecimal(it).negate().toPlainString() })
+                !sameDecimal(reverse.unitCostBaseSnapshot, original.unitCostBaseSnapshot) ||
+                !sameDecimal(reverse.totalValueSnapshot, original.totalValueSnapshot?.let { BigDecimal(it).negate().toPlainString() }))
                 fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
         }
+    }
+
+    private fun sameDecimal(left: String?, right: String?): Boolean = when {
+        left == null || right == null -> left == right
+        else -> runCatching { BigDecimal(left).compareTo(BigDecimal(right)) == 0 }.getOrDefault(false)
     }
 
     private suspend fun rebuild(rows: List<InventoryMovementEntity>) = rows.map { it.ingredientId }.distinct().forEach {

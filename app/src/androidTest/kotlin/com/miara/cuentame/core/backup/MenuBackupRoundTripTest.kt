@@ -95,6 +95,8 @@ class MenuBackupRoundTripTest {
         assertThat(restoredComp.quantityBase).isEqualTo(originalComp.quantityBase)
         assertThat(restoredSnapshot.menuPublications.single().currencyCodeSnapshot).isEqualTo("USD")
         assertThat(restoredSnapshot.menuPublicationItems.single().sellingPriceSnapshot).isEqualTo("15.99")
+        assertThat(restoredSnapshot.menuPublicationItemComponents.single().inventoryAreaIdSnapshot)
+            .isEqualTo(plan.snapshotDto.menuPublicationItemComponents.single().inventoryAreaIdSnapshot)
     }
 
     private suspend fun seedDatabaseWithMenuRecipes() {
