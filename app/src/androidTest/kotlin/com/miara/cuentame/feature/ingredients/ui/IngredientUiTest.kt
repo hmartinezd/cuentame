@@ -188,6 +188,20 @@ class IngredientUiTest {
         }
     }
 
+    @Test
+    fun inventory_search_keeps_typed_text_visible() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            waitForHome()
+            composeTestRule.onNodeWithTag("nav_inventory", useUnmergedTree = true).performClick()
+            composeTestRule.waitUntil(60_000) {
+                composeTestRule.onAllNodesWithTag("ingredient_search_field").fetchSemanticsNodes().isNotEmpty()
+            }
+
+            composeTestRule.onNodeWithTag("ingredient_search_field").performTextInput("Chicken")
+            composeTestRule.onNodeWithTag("ingredient_search_field").assertTextContains("Chicken")
+        }
+    }
+
     private fun waitForHome() {
         composeTestRule.waitForIdle()
         composeTestRule.waitUntil(60000) {

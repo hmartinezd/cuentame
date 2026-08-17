@@ -106,6 +106,8 @@ class IngredientListViewModelTest {
             assertThat(item.ingredients).hasSize(2)
             
             viewModel.onSearchQueryChanged("  chicken   breast ")
+            runCurrent()
+            assertThat(awaitItem().searchQuery).isEqualTo("  chicken   breast ")
             advanceTimeBy(301)
             val filtered = awaitItem().ingredients
             assertThat(filtered).hasSize(1)
@@ -117,20 +119,16 @@ class IngredientListViewModelTest {
     fun `search filters ingredients case-insensitive`() = runTest {
         val ing1 = createIngredient("Chicken")
         ingredientsFlow.value = listOf(ing1)
-        
-        viewModel.uiState.test {
-            // Skip initial loading
-            var item = awaitItem()
-            if (item.isLoading) {
-                advanceTimeBy(301)
-                item = awaitItem()
-            }
-            assertThat(item.ingredients).hasSize(1)
-            
-            viewModel.onSearchQueryChanged("CHICKEN")
-            advanceTimeBy(301)
-            assertThat(awaitItem().ingredients).hasSize(1)
-        }
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        assertThat(viewModel.uiState.value.ingredients).hasSize(1)
+
+        viewModel.onSearchQueryChanged("CHICKEN")
+        runCurrent()
+        assertThat(viewModel.uiState.value.searchQuery).isEqualTo("CHICKEN")
+        advanceTimeBy(301)
+        assertThat(viewModel.uiState.value.ingredients.map { it.name }).containsExactly("Chicken")
+        job.cancel()
     }
 
     @Test
@@ -159,6 +157,75 @@ class IngredientListViewModelTest {
             assertThat(uncategorized).hasSize(1)
             assertThat(uncategorized.first().name).isEqualTo("Beef")
         }
+    }
+
+    @Test
+    fun `raw search query updates immediately`() = runTest {
+        ingredientsFlow.value = listOf(createIngredient("Chicken"))
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        runCurrent()
+
+        viewModel.onSearchQueryChanged("c")
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.searchQuery).isEqualTo("c")
+        job.cancel()
+    }
+
+    @Test
+    fun `multiple keystrokes remain immediately observable`() = runTest {
+        ingredientsFlow.value = listOf(createIngredient("Chicken"))
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        runCurrent()
+
+        listOf("c", "ch", "chi", "chic").forEach { query ->
+            viewModel.onSearchQueryChanged(query)
+            runCurrent()
+            assertThat(viewModel.uiState.value.searchQuery).isEqualTo(query)
+        }
+
+        job.cancel()
+    }
+
+    @Test
+    fun `search input is immediate while filtering remains debounced`() = runTest {
+        ingredientsFlow.value = listOf(createIngredient("Chicken"), createIngredient("Beef"))
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        runCurrent()
+
+        viewModel.onSearchQueryChanged("chicken")
+        runCurrent()
+        assertThat(viewModel.uiState.value.searchQuery).isEqualTo("chicken")
+        assertThat(viewModel.uiState.value.ingredients).hasSize(2)
+
+        advanceTimeBy(301)
+        runCurrent()
+        assertThat(viewModel.uiState.value.ingredients.map { it.name }).containsExactly("Chicken")
+        job.cancel()
+    }
+
+    @Test
+    fun `clearing search is immediate and restores results after debounce`() = runTest {
+        ingredientsFlow.value = listOf(createIngredient("Chicken"), createIngredient("Beef"))
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        viewModel.onSearchQueryChanged("chicken")
+        advanceTimeBy(301)
+        runCurrent()
+        assertThat(viewModel.uiState.value.ingredients).hasSize(1)
+
+        viewModel.onSearchQueryChanged("")
+        runCurrent()
+        assertThat(viewModel.uiState.value.searchQuery).isEmpty()
+        assertThat(viewModel.uiState.value.ingredients).hasSize(1)
+
+        advanceTimeBy(301)
+        runCurrent()
+        assertThat(viewModel.uiState.value.ingredients).hasSize(2)
+        job.cancel()
     }
 
     @Test

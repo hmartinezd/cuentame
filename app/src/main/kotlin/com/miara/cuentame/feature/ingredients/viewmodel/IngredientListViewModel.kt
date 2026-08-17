@@ -55,7 +55,7 @@ class IngredientListViewModel @Inject constructor(
         .filterNotNull()
         .map { it.id }
 
-    val uiState: StateFlow<IngredientListUiState> = combine(
+    private val filteredUiState: StateFlow<IngredientListUiState> = combine(
         combine(restaurantIdFlow, _showArchived) { rid, archived -> rid to archived }
             .flatMapLatest { (rid, archived) -> observeIngredientsUseCase(rid, archived) },
         observeIngredientCategoriesUseCase(),
@@ -76,12 +76,23 @@ class IngredientListViewModel @Inject constructor(
         
         IngredientListUiState(
             isLoading = false,
-            searchQuery = _searchQuery.value,
+            searchQuery = query,
             categoryFilter = categoryFilter,
             showArchived = showArchived,
             ingredients = filtered,
             categories = categories
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = IngredientListUiState()
+    )
+
+    val uiState: StateFlow<IngredientListUiState> = combine(
+        filteredUiState,
+        _searchQuery
+    ) { filteredState, rawQuery ->
+        filteredState.copy(searchQuery = rawQuery)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

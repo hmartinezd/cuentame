@@ -187,7 +187,8 @@ fun SearchAndFilterBar(
             onValueChange = onQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("ingredient_search_field"),
             placeholder = { Text(stringResource(R.string.search_ingredients)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
