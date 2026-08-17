@@ -1223,4 +1223,12 @@
     <string name="sales_duplicate_status">Ya importado</string><string name="sales_attention_status">Requiere atención</string><string name="sales_error_status">Importación fallida</string><string name="sales_import_problem">No se pudieron importar las ventas</string>
     <string name="sales_import_load_error">No se pudo cargar esta importación de ventas.</string><string name="sales_transaction_load_error">No se pudo cargar esta transacción.</string><string name="sales_transaction_overview">Resumen de la transacción</string><string name="sales_sale_lines">Líneas de venta</string>
     <string name="sales_export_id">ID de exportación</string><string name="sales_sha256">SHA-256</string><string name="sales_menu_id">ID del menú</string><string name="sales_quantity_price">%1$s × %2$s</string><string name="sales_net_value">%1$s neto</string>
+    <string name="inventory_activity_sales_consumption">Consumo por ventas</string>
+    <string name="catalog_publish_error_ingredient_area">%1$s necesita un área de inventario predeterminada antes de publicar este menú.</string>
+    <string name="sales_inventory_impact">Impacto en inventario</string>
+    <string name="sales_inventory_updating">Actualizando inventario…</string>
+    <string name="sales_inventory_updated">El inventario coincide con el estado actual de las ventas.</string>
+    <string name="sales_inventory_no_effect">Estas transacciones no tienen efecto en inventario.</string>
+    <string name="sales_inventory_attention">Algunas ventas no se pudieron aplicar al inventario.</string>
+    <string name="sales_inventory_retry">Reintentar actualización</string>
 </resources>

@@ -2,6 +2,11 @@ package com.miara.cuentame.core.model.inventory
 
 object InventoryMovementOperationIds {
 
+    private fun part(value: String): String = "${value.length}:$value"
+
+    fun salesConsumption(saleLineId: String, publicationComponentId: String): String =
+        "sales-consumption:${part(saleLineId)}:${part(publicationComponentId)}"
+
     fun purchasePost(
         receiptId: String,
         lineId: String

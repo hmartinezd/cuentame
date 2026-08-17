@@ -42,6 +42,7 @@ enum class InventoryMovementType {
     REVERSAL,
     PRODUCTION_CONSUMPTION,
     PRODUCTION_OUTPUT,
+    SALES_CONSUMPTION,
     UNKNOWN
 }
 
@@ -51,5 +52,6 @@ enum class SourceDocumentType {
     WASTE_EVENT,
     MANUAL,
     PRODUCTION_BATCH,
+    SALES_TRANSACTION,
     UNKNOWN
 }

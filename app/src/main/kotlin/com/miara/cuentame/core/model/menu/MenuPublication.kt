@@ -44,6 +44,7 @@ data class MenuPublicationItemComponent(
     val sourceMenuRecipeComponentId: MenuRecipeComponentId,
     val ingredientId: IngredientId,
     val ingredientUnitOptionId: IngredientUnitOptionId,
+    val inventoryAreaIdSnapshot: InventoryAreaId,
     val quantityEnteredSnapshot: BigDecimal,
     val quantityBaseSnapshot: BigDecimal,
     val sortOrder: Int

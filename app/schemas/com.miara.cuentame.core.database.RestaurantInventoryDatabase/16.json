@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 16,
-    "identityHash": "3f7bf083efcf2ca197ea3a2089e6053b",
+    "identityHash": "7404237d9350220812751bb0fce931ec",
     "entities": [
       {
         "tableName": "restaurants",
@@ -3396,7 +3396,7 @@
       },
       {
         "tableName": "menu_publication_item_components",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `publicationItemId` TEXT NOT NULL, `sourceMenuRecipeComponentId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `ingredientUnitOptionId` TEXT NOT NULL, `quantityEnteredSnapshot` TEXT NOT NULL, `quantityBaseSnapshot` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`publicationItemId`) REFERENCES `menu_publication_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `publicationItemId` TEXT NOT NULL, `sourceMenuRecipeComponentId` TEXT NOT NULL, `ingredientId` TEXT NOT NULL, `ingredientUnitOptionId` TEXT NOT NULL, `inventoryAreaIdSnapshot` TEXT NOT NULL, `quantityEnteredSnapshot` TEXT NOT NULL, `quantityBaseSnapshot` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`publicationItemId`) REFERENCES `menu_publication_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -3425,6 +3425,12 @@
           {
             "fieldPath": "ingredientUnitOptionId",
             "columnName": "ingredientUnitOptionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inventoryAreaIdSnapshot",
+            "columnName": "inventoryAreaIdSnapshot",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -5488,7 +5494,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3f7bf083efcf2ca197ea3a2089e6053b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7404237d9350220812751bb0fce931ec')"
     ]
   }
 }

@@ -8,6 +8,7 @@ import com.miara.cuentame.core.model.backup.BackupManifest
 import com.miara.cuentame.core.model.ingredient.PreparationRecipeStatus
 import com.miara.cuentame.core.model.inventory.*
 import com.miara.cuentame.core.model.purchase.MatchIntegrityPolicy
+import com.miara.cuentame.core.model.salesimport.SalesTransactionSourceIdentity
 import java.math.BigDecimal
 
 import com.miara.cuentame.core.domain.service.HistoricalInventoryCostCalculationResult
@@ -927,6 +928,29 @@ object BackupSnapshotIntegrityValidator {
                         return err(RELATIONSHIP_MISMATCH, "Ingredient/area mismatch in production output movement")
                     }
                 }
+                InventoryMovementType.SALES_CONSUMPTION -> {
+                    if (docType != SourceDocumentType.SALES_TRANSACTION || moveQty >= BigDecimal.ZERO) {
+                        return err(INVALID_MOVEMENT_GRAPH, "SALES_CONSUMPTION must be a negative SALES_TRANSACTION movement")
+                    }
+                    val transaction = dto.importedSaleTransactions.firstOrNull {
+                        SalesTransactionSourceIdentity.encode(it.terminalId, it.transactionId) == move.sourceDocumentId
+                    } ?: return err(BROKEN_FOREIGN_KEY, "Sales movement transaction not found")
+                    if (transaction.restaurantId != move.restaurantId || move.effectiveAt != transaction.closedAt) {
+                        return err(RELATIONSHIP_MISMATCH, "Sales movement transaction relationship mismatch")
+                    }
+                    val lineId = move.sourceLineId ?: return err(INVALID_MOVEMENT_GRAPH, "Sales movement requires sourceLineId")
+                    val line = dto.importedSaleLines.firstOrNull { it.terminalId == transaction.terminalId && it.saleLineId == lineId && it.transactionId == transaction.transactionId }
+                        ?: return err(BROKEN_FOREIGN_KEY, "Sales movement line not found")
+                    val item = dto.menuPublicationItems.firstOrNull { it.publicationId == transaction.menuPackageId && it.menuRecipeId == line.sellableItemId }
+                        ?: return err(BROKEN_FOREIGN_KEY, "Sales movement publication item not found")
+                    val component = dto.menuPublicationItemComponents.firstOrNull {
+                        it.publicationItemId == item.id && InventoryMovementOperationIds.salesConsumption(line.saleLineId, it.id) == move.sourceOperationId
+                    } ?: return err(RELATIONSHIP_MISMATCH, "Sales movement publication component not found")
+                    val expected = BigDecimal(line.quantity).multiply(BigDecimal(component.quantityBaseSnapshot)).negate()
+                    if (component.ingredientId != move.ingredientId || component.inventoryAreaIdSnapshot != move.areaId || expected.compareTo(moveQty) != 0) {
+                        return err(RELATIONSHIP_MISMATCH, "Sales movement does not match immutable publication consumption")
+                    }
+                }
                 InventoryMovementType.REVERSAL -> {
                     val targetId = move.reversalOfMovementId
                         ?: return err(INVALID_REVERSAL, "REVERSAL movement requires non-null reversalOfMovementId")
@@ -1009,6 +1033,9 @@ object BackupSnapshotIntegrityValidator {
                         SourceDocumentType.WASTE_EVENT -> ctx.wasteById[original.sourceDocumentId]?.status
                         SourceDocumentType.STOCK_COUNT -> ctx.countById[original.sourceDocumentId]?.status
                         SourceDocumentType.PRODUCTION_BATCH -> ctx.batchById[original.sourceDocumentId]?.status
+                        SourceDocumentType.SALES_TRANSACTION -> dto.importedSaleTransactions.firstOrNull {
+                            SalesTransactionSourceIdentity.encode(it.terminalId, it.transactionId) == original.sourceDocumentId
+                        }?.status
                         SourceDocumentType.MANUAL -> null
                         SourceDocumentType.UNKNOWN -> null
                     }
@@ -2199,7 +2226,7 @@ object BackupSnapshotIntegrityValidator {
         }
         dto.menuPublicationCategories.forEach{c->if(publications[c.publicationId]==null||c.sourceMenuCategoryId.isBlank()||c.nameSnapshot.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication category");if(c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication category order");if(!sourceCategories.add(c.publicationId to c.sourceMenuCategoryId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication category")}
         dto.menuPublicationItems.forEach{i->val p=publications[i.publicationId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item parent");val c=categories[i.publicationCategoryId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item category");if(c.publicationId!=p.id)return err(RELATIONSHIP_MISMATCH,"Publication item category mismatch");if(i.sourceMenuPlacementId.isBlank()||i.menuRecipeId.isBlank()||i.displayNameSnapshot.isBlank())return err(INVALID_MENU_STRUCTURE,"Invalid publication item");val price=runCatching{BigDecimal(i.sellingPriceSnapshot)}.getOrNull()?:return err(INVALID_NUMERIC_RANGE,"Invalid publication item price");if(price<BigDecimal.ZERO||i.commercialRevision<0||i.consumptionRevision<0||i.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication item numeric value");if(runCatching{com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(i.cashDiscountBehaviorSnapshot)}.isFailure)return err(INVALID_MENU_STRUCTURE,"Invalid publication cash behavior");if(!sourcePlacements.add(i.publicationId to i.sourceMenuPlacementId)||!recipes.add(i.publicationId to i.menuRecipeId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication item")}
-        dto.menuPublicationItemComponents.forEach{c->if(items[c.publicationItemId]==null||c.sourceMenuRecipeComponentId.isBlank()||c.ingredientId.isBlank()||c.ingredientUnitOptionId.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val entered=runCatching{BigDecimal(c.quantityEnteredSnapshot)}.getOrNull();val base=runCatching{BigDecimal(c.quantityBaseSnapshot)}.getOrNull();if(entered==null||base==null||entered<=BigDecimal.ZERO||base<=BigDecimal.ZERO||c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication component quantity");if(!sourceComponents.add(c.publicationItemId to c.sourceMenuRecipeComponentId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication component")}
+        dto.menuPublicationItemComponents.forEach{c->val item=items[c.publicationItemId]?:return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val publication=publications[item.publicationId]?:return err(BROKEN_FOREIGN_KEY,"Invalid publication component parent");val area=ctx.areaById[c.inventoryAreaIdSnapshot]?:return err(BROKEN_FOREIGN_KEY,"Publication component area not found");if(c.inventoryAreaIdSnapshot.isBlank()||area.restaurantId!=publication.restaurantId)return err(RESTAURANT_ISOLATION_FAILURE,"Invalid publication component area ownership");if(c.sourceMenuRecipeComponentId.isBlank()||c.ingredientId.isBlank()||c.ingredientUnitOptionId.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val entered=runCatching{BigDecimal(c.quantityEnteredSnapshot)}.getOrNull();val base=runCatching{BigDecimal(c.quantityBaseSnapshot)}.getOrNull();if(entered==null||base==null||entered<=BigDecimal.ZERO||base<=BigDecimal.ZERO||c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication component quantity");if(!sourceComponents.add(c.publicationItemId to c.sourceMenuRecipeComponentId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication component")}
         return null
     }
 

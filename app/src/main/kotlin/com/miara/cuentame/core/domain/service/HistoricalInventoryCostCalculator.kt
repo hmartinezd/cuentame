@@ -135,7 +135,8 @@ class HistoricalInventoryCostCalculator @Inject constructor() {
                 InventoryMovementType.WASTE,
                 InventoryMovementType.COUNT_ADJUSTMENT,
                 InventoryMovementType.MANUAL_ADJUSTMENT,
-                InventoryMovementType.PRODUCTION_CONSUMPTION -> {
+                InventoryMovementType.PRODUCTION_CONSUMPTION,
+                InventoryMovementType.SALES_CONSUMPTION -> {
                     currentTotalQuantity = currentTotalQuantity.add(move.quantityBaseSigned)
                 }
                 InventoryMovementType.REVERSAL -> {

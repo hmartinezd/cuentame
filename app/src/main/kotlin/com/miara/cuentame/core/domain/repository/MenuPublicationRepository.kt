@@ -13,6 +13,10 @@ sealed class MenuPublicationException(message: String) : Exception(message) {
     class NoItems : MenuPublicationException("Menu has no items")
     class ItemArchived(val itemName: String) : MenuPublicationException("$itemName is archived")
     class ItemPriceMissing(val itemName: String) : MenuPublicationException("$itemName has no selling price")
+    class ComponentIngredientNotFound(val ingredientName: String = "Ingredient") : MenuPublicationException("$ingredientName was not found")
+    class ComponentIngredientOwnershipMismatch(val ingredientName: String) : MenuPublicationException("$ingredientName belongs to another restaurant")
+    class ComponentDefaultAreaMissing(val ingredientName: String) : MenuPublicationException("$ingredientName needs a default inventory area")
+    class ComponentAreaInvalid(val ingredientName: String) : MenuPublicationException("$ingredientName has an invalid default inventory area")
     class BrokenCatalogRelationship : MenuPublicationException("Menu catalog relationship is broken")
     class OwnershipMismatch : MenuPublicationException("Menu catalog ownership mismatch")
     class PersistenceFailure(cause: Throwable) : MenuPublicationException("Publication could not be saved") { init { initCause(cause) } }

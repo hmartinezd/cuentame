@@ -59,6 +59,7 @@ fun InventoryMovementType.toInventoryActivityCategory(): InventoryActivityCatego
     InventoryMovementType.COUNT_ADJUSTMENT -> InventoryActivityCategory.STOCK_COUNT
     InventoryMovementType.PRODUCTION_CONSUMPTION -> InventoryActivityCategory.PRODUCTION_CONSUMPTION
     InventoryMovementType.PRODUCTION_OUTPUT -> InventoryActivityCategory.PRODUCTION_OUTPUT
+    InventoryMovementType.SALES_CONSUMPTION -> InventoryActivityCategory.SALES_CONSUMPTION
     InventoryMovementType.REVERSAL -> InventoryActivityCategory.REVERSAL
     InventoryMovementType.MANUAL_ADJUSTMENT -> InventoryActivityCategory.OTHER
     InventoryMovementType.OPENING_BALANCE -> InventoryActivityCategory.OTHER
@@ -94,6 +95,7 @@ enum class InventoryActivityCategory {
     STOCK_COUNT,
     PRODUCTION_CONSUMPTION,
     PRODUCTION_OUTPUT,
+    SALES_CONSUMPTION,
     REVERSAL,
     OTHER,
     UNKNOWN

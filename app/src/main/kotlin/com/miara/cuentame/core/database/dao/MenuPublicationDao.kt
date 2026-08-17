@@ -12,6 +12,7 @@ interface MenuPublicationDao {
     fun observePublications(menuId:String):Flow<List<MenuPublicationEntity>>
     @Query("SELECT * FROM menu_publications WHERE id=:id") fun observePublication(id:String):Flow<MenuPublicationEntity?>
     @Query("SELECT * FROM menu_publications WHERE id=:id") suspend fun getPublication(id:String):MenuPublicationEntity?
+    @Query("SELECT * FROM menu_publications WHERE sourceMenuId=:menuId AND publicationRevision=:revision LIMIT 1") suspend fun getByMenuRevision(menuId:String,revision:Long):MenuPublicationEntity?
     @Query("SELECT * FROM menu_publication_categories WHERE publicationId=:id ORDER BY sortOrder, sourceMenuCategoryId") fun observeCategories(id:String):Flow<List<MenuPublicationCategoryEntity>>
     @Query("SELECT * FROM menu_publication_categories WHERE publicationId=:id ORDER BY sortOrder, sourceMenuCategoryId") suspend fun getCategories(id:String):List<MenuPublicationCategoryEntity>
     @Query("SELECT * FROM menu_publication_items WHERE publicationId=:id ORDER BY sortOrder, sourceMenuPlacementId") fun observeItems(id:String):Flow<List<MenuPublicationItemEntity>>

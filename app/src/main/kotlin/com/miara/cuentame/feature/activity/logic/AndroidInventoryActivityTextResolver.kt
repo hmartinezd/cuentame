@@ -19,6 +19,7 @@ class AndroidInventoryActivityTextResolver @Inject constructor(
         InventoryActivityCategory.STOCK_COUNT -> context.getString(R.string.inventory_activity_stock_count)
         InventoryActivityCategory.PRODUCTION_CONSUMPTION -> context.getString(R.string.inventory_activity_production_consumption)
         InventoryActivityCategory.PRODUCTION_OUTPUT -> context.getString(R.string.inventory_activity_production_output)
+        InventoryActivityCategory.SALES_CONSUMPTION -> context.getString(R.string.inventory_activity_sales_consumption)
         InventoryActivityCategory.REVERSAL -> context.getString(R.string.inventory_activity_reversal)
         InventoryActivityCategory.OTHER -> context.getString(R.string.inventory_activity_other)
         InventoryActivityCategory.UNKNOWN -> context.getString(R.string.unknown_inventory_activity)

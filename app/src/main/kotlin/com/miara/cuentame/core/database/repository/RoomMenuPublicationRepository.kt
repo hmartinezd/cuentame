@@ -20,7 +20,9 @@ class RoomMenuPublicationRepository @Inject constructor(
     private val publicationDao:MenuPublicationDao,
     private val catalogDao:MenuCatalogDao,
     private val recipeDao:MenuRecipeDao,
-    private val restaurantDao:RestaurantDao
+    private val restaurantDao:RestaurantDao,
+    private val ingredientDao:IngredientDao,
+    private val inventoryAreaDao:InventoryAreaDao
 ):MenuPublicationRepository {
     override fun observePublications(menuId:MenuId)=publicationDao.observePublications(menuId.value).map { it.map(MenuPublicationEntity::domain) }
 
@@ -58,7 +60,17 @@ class RoomMenuPublicationRepository @Inject constructor(
             publicationDao.insertCategories(categories.map{MenuPublicationCategoryEntity(categorySnapshotIds.getValue(it.id).value,id.value,it.id,it.name,it.sortOrder)})
             val itemRows=recipes.map{(placement,recipe)->MenuPublicationItemEntity(UUID.randomUUID().toString(),id.value,categorySnapshotIds.getValue(placement.categoryId).value,placement.id,recipe.id,recipe.name,checkNotNull(recipe.sellingPrice),recipe.cashDiscountBehavior,recipe.commercialRevision,recipe.consumptionRevision,placement.sortOrder)}
             publicationDao.insertItems(itemRows)
-            val components=recipes.zip(itemRows).flatMap{(source,item)->recipeDao.getComponents(source.second.id).map{component->MenuPublicationItemComponentEntity(UUID.randomUUID().toString(),item.id,component.id,component.ingredientId,component.ingredientUnitOptionId,component.quantityEntered,component.quantityBase,component.sortOrder)}}
+            val components=recipes.zip(itemRows).flatMap{(source,item)->recipeDao.getComponents(source.second.id).map{component->
+                val ingredient=ingredientDao.getById(component.ingredientId)
+                    ?:throw MenuPublicationException.ComponentIngredientNotFound()
+                if(ingredient.restaurantId!=menu.restaurantId)throw MenuPublicationException.ComponentIngredientOwnershipMismatch(ingredient.name)
+                val areaId=ingredient.defaultAreaId
+                    ?:throw MenuPublicationException.ComponentDefaultAreaMissing(ingredient.name)
+                val area=inventoryAreaDao.getById(areaId)
+                    ?:throw MenuPublicationException.ComponentAreaInvalid(ingredient.name)
+                if(area.restaurantId!=menu.restaurantId)throw MenuPublicationException.ComponentAreaInvalid(ingredient.name)
+                MenuPublicationItemComponentEntity(UUID.randomUUID().toString(),item.id,component.id,component.ingredientId,component.ingredientUnitOptionId,area.id,component.quantityEntered,component.quantityBase,component.sortOrder)
+            }}
             if(components.isNotEmpty())publicationDao.insertComponents(components)
             if(catalogDao.advancePublicationRevision(menu.id,menu.publicationRevision,revision,now)!=1)throw MenuPublicationException.PersistenceFailure(IllegalStateException("Concurrent publication revision allocation"))
             id
@@ -69,4 +81,4 @@ class RoomMenuPublicationRepository @Inject constructor(
 private fun MenuPublicationEntity.domain()=MenuPublication(MenuPublicationId(id),RestaurantId(restaurantId),MenuId(sourceMenuId),publicationRevision,menuNameSnapshot,menuDescriptionSnapshot,defaultCashDiscountPercentSnapshot,currencyCodeSnapshot,Instant.ofEpochMilli(publishedAt))
 private fun MenuPublicationCategoryEntity.domain()=MenuPublicationCategory(MenuPublicationCategoryId(id),MenuPublicationId(publicationId),MenuCategoryId(sourceMenuCategoryId),nameSnapshot,sortOrder)
 private fun MenuPublicationItemEntity.domain()=MenuPublicationItem(MenuPublicationItemId(id),MenuPublicationId(publicationId),MenuPublicationCategoryId(publicationCategoryId),MenuPlacementId(sourceMenuPlacementId),MenuRecipeId(menuRecipeId),displayNameSnapshot,sellingPriceSnapshot,cashDiscountBehaviorSnapshot,commercialRevision,consumptionRevision,sortOrder)
-private fun MenuPublicationItemComponentEntity.domain()=MenuPublicationItemComponent(MenuPublicationItemComponentId(id),MenuPublicationItemId(publicationItemId),MenuRecipeComponentId(sourceMenuRecipeComponentId),IngredientId(ingredientId),IngredientUnitOptionId(ingredientUnitOptionId),quantityEnteredSnapshot,quantityBaseSnapshot,sortOrder)
+private fun MenuPublicationItemComponentEntity.domain()=MenuPublicationItemComponent(MenuPublicationItemComponentId(id),MenuPublicationItemId(publicationItemId),MenuRecipeComponentId(sourceMenuRecipeComponentId),IngredientId(ingredientId),IngredientUnitOptionId(ingredientUnitOptionId),InventoryAreaId(inventoryAreaIdSnapshot),quantityEnteredSnapshot,quantityBaseSnapshot,sortOrder)
