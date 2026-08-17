@@ -52,6 +52,7 @@ object BackupSnapshotIntegrityValidator {
             validateNumericFields(dto)?.let { throw it }
             validateDocumentTimestamps(dto)?.let { throw it }
             validateMovementGraph(dto, ctx)?.let { throw it }
+            validateSalesMovementGraphs(dto)?.let { throw it }
             validateDocumentLifecycle(dto)?.let { throw it }
             validateBalanceProjections(dto)?.let { throw it }
             validateCostProjections(dto, ctx)?.let { throw it }
@@ -2227,6 +2228,47 @@ object BackupSnapshotIntegrityValidator {
         dto.menuPublicationCategories.forEach{c->if(publications[c.publicationId]==null||c.sourceMenuCategoryId.isBlank()||c.nameSnapshot.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication category");if(c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication category order");if(!sourceCategories.add(c.publicationId to c.sourceMenuCategoryId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication category")}
         dto.menuPublicationItems.forEach{i->val p=publications[i.publicationId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item parent");val c=categories[i.publicationCategoryId]?:return err(BROKEN_FOREIGN_KEY,"Broken publication item category");if(c.publicationId!=p.id)return err(RELATIONSHIP_MISMATCH,"Publication item category mismatch");if(i.sourceMenuPlacementId.isBlank()||i.menuRecipeId.isBlank()||i.displayNameSnapshot.isBlank())return err(INVALID_MENU_STRUCTURE,"Invalid publication item");val price=runCatching{BigDecimal(i.sellingPriceSnapshot)}.getOrNull()?:return err(INVALID_NUMERIC_RANGE,"Invalid publication item price");if(price<BigDecimal.ZERO||i.commercialRevision<0||i.consumptionRevision<0||i.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication item numeric value");if(runCatching{com.miara.cuentame.core.model.menu.CashDiscountBehavior.valueOf(i.cashDiscountBehaviorSnapshot)}.isFailure)return err(INVALID_MENU_STRUCTURE,"Invalid publication cash behavior");if(!sourcePlacements.add(i.publicationId to i.sourceMenuPlacementId)||!recipes.add(i.publicationId to i.menuRecipeId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication item")}
         dto.menuPublicationItemComponents.forEach{c->val item=items[c.publicationItemId]?:return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val publication=publications[item.publicationId]?:return err(BROKEN_FOREIGN_KEY,"Invalid publication component parent");val area=ctx.areaById[c.inventoryAreaIdSnapshot]?:return err(BROKEN_FOREIGN_KEY,"Publication component area not found");if(c.inventoryAreaIdSnapshot.isBlank()||area.restaurantId!=publication.restaurantId)return err(RESTAURANT_ISOLATION_FAILURE,"Invalid publication component area ownership");if(c.sourceMenuRecipeComponentId.isBlank()||c.ingredientId.isBlank()||c.ingredientUnitOptionId.isBlank())return err(BROKEN_FOREIGN_KEY,"Invalid publication component");val entered=runCatching{BigDecimal(c.quantityEnteredSnapshot)}.getOrNull();val base=runCatching{BigDecimal(c.quantityBaseSnapshot)}.getOrNull();if(entered==null||base==null||entered<=BigDecimal.ZERO||base<=BigDecimal.ZERO||c.sortOrder<0)return err(INVALID_NUMERIC_RANGE,"Invalid publication component quantity");if(!sourceComponents.add(c.publicationItemId to c.sourceMenuRecipeComponentId))return err(INVALID_MENU_STRUCTURE,"Duplicate publication component")}
+        return null
+    }
+
+    private fun validateSalesMovementGraphs(dto: BackupSnapshotDto): BackupSnapshotIntegrityException? {
+        val itemsByPublicationAndRecipe = dto.menuPublicationItems.associateBy { it.publicationId to it.menuRecipeId }
+        val componentsByItem = dto.menuPublicationItemComponents.groupBy { it.publicationItemId }
+        val linesByTransaction = dto.importedSaleLines.groupBy { it.terminalId to it.transactionId }
+        for (transaction in dto.importedSaleTransactions) {
+            val sourceId = SalesTransactionSourceIdentity.encode(transaction.terminalId, transaction.transactionId)
+            val sourceRows = dto.inventoryMovements.filter {
+                it.sourceDocumentType == SourceDocumentType.SALES_TRANSACTION.name && it.sourceDocumentId == sourceId
+            }
+            val originals = sourceRows.filter { it.movementType == InventoryMovementType.SALES_CONSUMPTION.name }
+            val reversals = sourceRows.filter { it.movementType == InventoryMovementType.REVERSAL.name }
+            if (sourceRows.size != originals.size + reversals.size) return err(INVALID_MOVEMENT_GRAPH, "Unexpected Sales transaction movement type")
+
+            val expectedOperations = mutableSetOf<String>()
+            for (line in linesByTransaction[transaction.terminalId to transaction.transactionId].orEmpty()) {
+                val item = itemsByPublicationAndRecipe[transaction.menuPackageId to line.sellableItemId]
+                    ?: return err(BROKEN_FOREIGN_KEY, "Sales line publication item not found")
+                for (component in componentsByItem[item.id].orEmpty()) {
+                    expectedOperations += InventoryMovementOperationIds.salesConsumption(line.saleLineId, component.id)
+                }
+            }
+            if (originals.isNotEmpty()) {
+                val actualOperations = originals.map { it.sourceOperationId }
+                if (actualOperations.size != actualOperations.toSet().size || actualOperations.toSet() != expectedOperations) {
+                    return err(INVALID_MOVEMENT_GRAPH, "Incomplete Sales consumption movement graph")
+                }
+            }
+            when (transaction.status) {
+                "COMPLETED" -> if (reversals.isNotEmpty()) return err(INVALID_MOVEMENT_GRAPH, "Completed Sales transaction has reversals")
+                "VOIDED" -> if (reversals.isNotEmpty()) {
+                    if (originals.isEmpty() || reversals.size != originals.size ||
+                        reversals.mapNotNull { it.reversalOfMovementId }.toSet() != originals.map { it.id }.toSet()) {
+                        return err(INVALID_MOVEMENT_GRAPH, "Incomplete Sales reversal movement graph")
+                    }
+                }
+                else -> return err(INVALID_MOVEMENT_GRAPH, "Invalid Sales transaction status")
+            }
+        }
         return null
     }
 

@@ -13,6 +13,7 @@ import java.math.BigDecimal
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 enum class SalesConsumptionFailureCode {
     TRANSACTION_NOT_FOUND, PUBLICATION_NOT_FOUND, PUBLICATION_MISMATCH,
@@ -33,6 +34,25 @@ data class SalesConsumptionImportResult(
     val results: Map<Pair<String, String>, SalesConsumptionTransactionResult>
 )
 
+enum class SalesConsumptionAlignment {
+    ALIGNED, NO_EFFECT, NEEDS_RECONCILIATION, HISTORY_CONFLICT, INVALID_SOURCE
+}
+
+data class SalesConsumptionImportAlignment(
+    val alignments: Map<Pair<String, String>, SalesConsumptionAlignment>
+)
+
+private data class ExpectedSalesConsumption(
+    val restaurantId: String,
+    val ingredientId: String,
+    val areaId: String,
+    val quantityBaseSigned: BigDecimal,
+    val effectiveAt: Long,
+    val sourceDocumentId: String,
+    val sourceOperationId: String,
+    val sourceLineId: String
+)
+
 private class SalesConsumptionException(val code: SalesConsumptionFailureCode) : RuntimeException()
 
 @Singleton
@@ -49,18 +69,46 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
     private val timeProvider: TimeProvider
 ) {
     suspend fun reconcileImport(exportId: String): SalesConsumptionImportResult {
+        try {
+            val transactions = salesDao.getTransactionsForImport(exportId)
+            return SalesConsumptionImportResult(transactions.associate { transaction ->
+                (transaction.terminalId to transaction.transactionId) to
+                    reconcileTransaction(transaction.terminalId, transaction.transactionId)
+            })
+        } catch (e: CancellationException) {
+            throw e
+        }
+    }
+
+    suspend fun inspectImport(exportId: String): SalesConsumptionImportAlignment {
         val transactions = salesDao.getTransactionsForImport(exportId)
-        return SalesConsumptionImportResult(transactions.associate { transaction ->
+        return SalesConsumptionImportAlignment(transactions.associate { transaction ->
             (transaction.terminalId to transaction.transactionId) to
-                reconcileTransaction(transaction.terminalId, transaction.transactionId)
+                inspectTransaction(transaction.terminalId, transaction.transactionId)
         })
     }
+
+    suspend fun inspectTransaction(terminalId: String, transactionId: String): SalesConsumptionAlignment =
+        try {
+            inspect(terminalId, transactionId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (failure: SalesConsumptionException) {
+            when (failure.code) {
+                SalesConsumptionFailureCode.HISTORY_CONFLICT -> SalesConsumptionAlignment.HISTORY_CONFLICT
+                else -> SalesConsumptionAlignment.INVALID_SOURCE
+            }
+        } catch (_: Exception) {
+            SalesConsumptionAlignment.INVALID_SOURCE
+        }
 
     suspend fun reconcileTransaction(terminalId: String, transactionId: String): SalesConsumptionTransactionResult =
         try {
             database.withTransaction { reconcileAtomic(terminalId, transactionId) }
         } catch (failure: SalesConsumptionException) {
             SalesConsumptionTransactionResult.Failed(failure.code)
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             SalesConsumptionTransactionResult.Failed(SalesConsumptionFailureCode.PERSISTENCE_FAILURE)
         }
@@ -78,16 +126,17 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
             return SalesConsumptionTransactionResult.NoEffect
         }
 
-        val expected = expectedMovements(transaction, sourceId)
-        validateOriginals(originals, expected)
+        val expectedSpec = expectedConsumption(transaction, sourceId)
+        validateOriginalsAgainstSpec(originals, expectedSpec)
         validateReversals(originals, reversals, sourceId)
 
         return when (transaction.status) {
             "COMPLETED" -> {
                 if (reversals.isNotEmpty()) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
                 if (originals.isNotEmpty()) SalesConsumptionTransactionResult.AlreadyAligned
-                else if (expected.isEmpty()) SalesConsumptionTransactionResult.NoEffect
+                else if (expectedSpec.isEmpty()) SalesConsumptionTransactionResult.NoEffect
                 else {
+                    val expected = createMovements(expectedSpec)
                     movementDao.insertAll(expected)
                     rebuild(expected)
                     SalesConsumptionTransactionResult.Applied
@@ -120,7 +169,34 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun expectedMovements(transaction: ImportedSaleTransactionEntity, sourceId: String): List<InventoryMovementEntity> {
+    private suspend fun inspect(terminalId: String, transactionId: String): SalesConsumptionAlignment {
+        val transaction = salesDao.getTransaction(terminalId, transactionId)
+            ?: fail(SalesConsumptionFailureCode.TRANSACTION_NOT_FOUND)
+        val sourceId = SalesTransactionSourceIdentity.encode(terminalId, transactionId)
+        val existing = movementDao.getBySourceDocument(SourceDocumentType.SALES_TRANSACTION.name, sourceId)
+        val originals = existing.filter { it.movementType == InventoryMovementType.SALES_CONSUMPTION.name }
+        val reversals = existing.filter { it.movementType == InventoryMovementType.REVERSAL.name }
+        if (existing.size != originals.size + reversals.size) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
+        val expected = expectedConsumption(transaction, sourceId)
+        validateOriginalsAgainstSpec(originals, expected)
+        validateReversals(originals, reversals, sourceId)
+        return when (transaction.status) {
+            "COMPLETED" -> when {
+                reversals.isNotEmpty() -> SalesConsumptionAlignment.HISTORY_CONFLICT
+                originals.isEmpty() && expected.isEmpty() -> SalesConsumptionAlignment.NO_EFFECT
+                originals.isEmpty() -> SalesConsumptionAlignment.NEEDS_RECONCILIATION
+                else -> SalesConsumptionAlignment.ALIGNED
+            }
+            "VOIDED" -> when {
+                originals.isEmpty() && reversals.isEmpty() -> SalesConsumptionAlignment.NO_EFFECT
+                reversals.isEmpty() -> SalesConsumptionAlignment.NEEDS_RECONCILIATION
+                else -> SalesConsumptionAlignment.ALIGNED
+            }
+            else -> SalesConsumptionAlignment.HISTORY_CONFLICT
+        }
+    }
+
+    private suspend fun expectedConsumption(transaction: ImportedSaleTransactionEntity, sourceId: String): List<ExpectedSalesConsumption> {
         val publication = publicationDao.getPublication(transaction.menuPackageId)
             ?: fail(SalesConsumptionFailureCode.PUBLICATION_NOT_FOUND)
         if (publication.restaurantId != transaction.restaurantId || publication.sourceMenuId != transaction.menuId ||
@@ -128,8 +204,7 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
         val items = publicationDao.getItems(publication.id).associateBy { it.menuRecipeId }
         val components = publicationDao.getComponents(publication.id).groupBy { it.publicationItemId }
         val lines = salesDao.getLines(transaction.terminalId, transaction.transactionId)
-        val now = timeProvider.now().toEpochMilli()
-        val result = mutableListOf<InventoryMovementEntity>()
+        val result = mutableListOf<ExpectedSalesConsumption>()
         for (line in lines) {
             val item = items[line.sellableItemId] ?: fail(SalesConsumptionFailureCode.PUBLICATION_ITEM_NOT_FOUND)
             if (line.consumptionRevision != item.consumptionRevision) fail(SalesConsumptionFailureCode.CONSUMPTION_REVISION_MISMATCH)
@@ -139,34 +214,46 @@ class SalesConsumptionPostingCoordinator @Inject constructor(
                 val ingredient = ingredientDao.getById(component.ingredientId) ?: fail(SalesConsumptionFailureCode.INGREDIENT_NOT_FOUND)
                 val area = areaDao.getById(component.inventoryAreaIdSnapshot) ?: fail(SalesConsumptionFailureCode.AREA_NOT_FOUND)
                 if (ingredient.restaurantId != transaction.restaurantId || area.restaurantId != transaction.restaurantId) fail(SalesConsumptionFailureCode.OWNERSHIP_MISMATCH)
-                val snapshot = snapshotService.calculateAt(RestaurantId(transaction.restaurantId), IngredientId(component.ingredientId), InventoryAreaId(component.inventoryAreaIdSnapshot), Instant.ofEpochMilli(transaction.closedAt))
-                val unitCost = snapshot.ingredientAverageCostBase
-                result += InventoryMovementEntity(
-                    idGenerator.newId(), transaction.restaurantId, component.ingredientId, component.inventoryAreaIdSnapshot,
-                    InventoryMovementType.SALES_CONSUMPTION.name, quantity.negate().toPlainString(),
-                    unitCost?.toPlainString(), unitCost?.let { quantity.multiply(it).negate().toPlainString() },
-                    transaction.closedAt, SourceDocumentType.SALES_TRANSACTION.name, sourceId,
-                    InventoryMovementOperationIds.salesConsumption(line.saleLineId, component.id), line.saleLineId,
-                    null, now
+                result += ExpectedSalesConsumption(
+                    transaction.restaurantId, component.ingredientId, component.inventoryAreaIdSnapshot,
+                    quantity.negate(), transaction.closedAt, sourceId,
+                    InventoryMovementOperationIds.salesConsumption(line.saleLineId, component.id), line.saleLineId
                 )
             }
         }
         return result
     }
 
-    private fun validateOriginals(actual: List<InventoryMovementEntity>, expected: List<InventoryMovementEntity>) {
+    private suspend fun createMovements(expected: List<ExpectedSalesConsumption>): List<InventoryMovementEntity> {
+        val now = timeProvider.now().toEpochMilli()
+        return expected.map { spec ->
+            val snapshot = snapshotService.calculateAt(RestaurantId(spec.restaurantId), IngredientId(spec.ingredientId), InventoryAreaId(spec.areaId), Instant.ofEpochMilli(spec.effectiveAt))
+            val unitCost = snapshot.ingredientAverageCostBase
+            InventoryMovementEntity(
+                idGenerator.newId(), spec.restaurantId, spec.ingredientId, spec.areaId,
+                InventoryMovementType.SALES_CONSUMPTION.name, spec.quantityBaseSigned.toPlainString(),
+                unitCost?.toPlainString(), unitCost?.let { spec.quantityBaseSigned.multiply(it).toPlainString() },
+                spec.effectiveAt, SourceDocumentType.SALES_TRANSACTION.name, spec.sourceDocumentId,
+                spec.sourceOperationId, spec.sourceLineId, null, now
+            )
+        }
+    }
+
+    private fun validateOriginalsAgainstSpec(actual: List<InventoryMovementEntity>, expected: List<ExpectedSalesConsumption>) {
         if (actual.isEmpty()) return
         val expectedByOperation = expected.associateBy { it.sourceOperationId }
         if (actual.size != expected.size || actual.map { it.sourceOperationId }.toSet().size != actual.size) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
         actual.forEach { row ->
             val wanted = expectedByOperation[row.sourceOperationId] ?: fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
             if (row.restaurantId != wanted.restaurantId || row.ingredientId != wanted.ingredientId || row.areaId != wanted.areaId ||
-                BigDecimal(row.quantityBaseSigned).compareTo(BigDecimal(wanted.quantityBaseSigned)) != 0 || row.sourceLineId != wanted.sourceLineId ||
+                row.sourceDocumentType != SourceDocumentType.SALES_TRANSACTION.name || row.sourceDocumentId != wanted.sourceDocumentId ||
+                BigDecimal(row.quantityBaseSigned).compareTo(wanted.quantityBaseSigned) != 0 || row.sourceLineId != wanted.sourceLineId ||
                 row.effectiveAt != wanted.effectiveAt || row.reversalOfMovementId != null) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
         }
     }
 
     private fun validateReversals(originals: List<InventoryMovementEntity>, reversals: List<InventoryMovementEntity>, sourceId: String) {
+        if (reversals.isNotEmpty() && reversals.size != originals.size) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
         if (reversals.mapNotNull { it.reversalOfMovementId }.toSet().size != reversals.size) fail(SalesConsumptionFailureCode.HISTORY_CONFLICT)
         val byId = originals.associateBy { it.id }
         reversals.forEach { reverse ->

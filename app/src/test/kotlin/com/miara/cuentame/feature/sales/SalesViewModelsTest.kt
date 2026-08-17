@@ -3,8 +3,14 @@ package com.miara.cuentame.feature.sales
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.core.domain.repository.SalesImportRepository
+import com.miara.cuentame.core.database.repository.SalesConsumptionAlignment
+import com.miara.cuentame.core.database.repository.SalesConsumptionImportAlignment
+import com.miara.cuentame.core.database.repository.SalesConsumptionImportResult
+import com.miara.cuentame.core.database.repository.SalesConsumptionPostingCoordinator
+import com.miara.cuentame.core.database.repository.SalesConsumptionTransactionResult
 import com.miara.cuentame.core.model.salesimport.*
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +39,25 @@ class SalesViewModelsTest {
  @Test fun `import detail loads successfully`()=runTest {val detail=SalesImportDetail(anImport(),listOf(transaction()));coEvery{repository.getImport("export") } returns detail;val vm=SalesImportDetailViewModel(SavedStateHandle(mapOf("exportId" to "export")),repository);runCurrent();assertThat(vm.state.value.detail).isEqualTo(detail);assertThat(vm.state.value.error).isFalse()}
  @Test fun `missing import becomes error instead of infinite loading`()=runTest {coEvery{repository.getImport("export") } returns null;val vm=SalesImportDetailViewModel(SavedStateHandle(mapOf("exportId" to "export")),repository);runCurrent();assertThat(vm.state.value.loading).isFalse();assertThat(vm.state.value.detail).isNull();assertThat(vm.state.value.error).isTrue()}
  @Test fun `import detail retries after failure`()=runTest {val detail=SalesImportDetail(anImport(),emptyList());coEvery{repository.getImport("export") } throws IllegalStateException() andThen detail;val vm=SalesImportDetailViewModel(SavedStateHandle(mapOf("exportId" to "export")),repository);runCurrent();assertThat(vm.state.value.error).isTrue();vm.retry();runCurrent();assertThat(vm.state.value.detail).isEqualTo(detail)}
+ @Test fun `opening import detail only inspects and reports attention`()=runTest {
+  val consumption=mockk<SalesConsumptionPostingCoordinator>();val detail=SalesImportDetail(anImport(),listOf(transaction()))
+  coEvery{repository.getImport("export") } returns detail
+  coEvery{consumption.inspectImport("export") } returns SalesConsumptionImportAlignment(mapOf(("terminal" to "transaction") to SalesConsumptionAlignment.NEEDS_RECONCILIATION))
+  val vm=SalesImportDetailViewModel(SavedStateHandle(mapOf("exportId" to "export")),repository,consumption);runCurrent()
+  assertThat(vm.state.value.inventoryImpact).isEqualTo(InventoryImpactState.NEEDS_ATTENTION)
+  coVerify(exactly=1){consumption.inspectImport("export")};coVerify(exactly=0){consumption.reconcileImport(any())}
+ }
+ @Test fun `inventory retry reconciles then derives final state from inspection`()=runTest {
+  val consumption=mockk<SalesConsumptionPostingCoordinator>();val detail=SalesImportDetail(anImport(),listOf(transaction()))
+  coEvery{repository.getImport("export") } returns detail
+  coEvery{consumption.inspectImport("export") } returnsMany listOf(
+   SalesConsumptionImportAlignment(mapOf(("terminal" to "transaction") to SalesConsumptionAlignment.NEEDS_RECONCILIATION)),
+   SalesConsumptionImportAlignment(mapOf(("terminal" to "transaction") to SalesConsumptionAlignment.ALIGNED)))
+  coEvery{consumption.reconcileImport("export") } returns SalesConsumptionImportResult(mapOf(("terminal" to "transaction") to SalesConsumptionTransactionResult.Applied))
+  val vm=SalesImportDetailViewModel(SavedStateHandle(mapOf("exportId" to "export")),repository,consumption);runCurrent();vm.retryInventory();runCurrent()
+  assertThat(vm.state.value.inventoryImpact).isEqualTo(InventoryImpactState.UPDATED)
+  coVerify(exactly=1){consumption.reconcileImport("export")};coVerify(exactly=2){consumption.inspectImport("export")}
+ }
  @Test fun `missing transaction becomes error instead of infinite loading`()=runTest {coEvery{repository.getTransaction("terminal","transaction") } returns null;val vm=transactionVm();runCurrent();assertThat(vm.state.value.loading).isFalse();assertThat(vm.state.value.error).isTrue()}
  @Test fun `transaction repository failure becomes error`()=runTest {coEvery{repository.getTransaction("terminal","transaction") } throws IllegalStateException();val vm=transactionVm();runCurrent();assertThat(vm.state.value.error).isTrue()}
  @Test fun `transaction detail retries and succeeds`()=runTest {val detail=transaction();coEvery{repository.getTransaction("terminal","transaction") } returns null andThen detail;val vm=transactionVm();runCurrent();vm.retry();runCurrent();assertThat(vm.state.value.detail).isEqualTo(detail);assertThat(vm.state.value.error).isFalse()}

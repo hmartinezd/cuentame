@@ -100,6 +100,7 @@ class MenuBackupRoundTripTest {
     private suspend fun seedDatabaseWithMenuRecipes() {
         database.restaurantDao().insert(RestaurantEntity(restId.value, "Menu Test", "USD", "en-US", 0, 0, null))
         database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+        database.inventoryAreaDao().upsert(InventoryAreaEntity("area-menu-1", restId.value, "Kitchen", "kitchen", 0, true, 100, 100, null))
         
         val ing1 = "ing-menu-1"
         database.ingredientDao().insert(IngredientEntity(ing1, restId.value, "Ing 1", "ing 1", null, "u1", null, null, null, null, true, 100, 100, null))
@@ -140,6 +141,6 @@ class MenuBackupRoundTripTest {
         database.menuPublicationDao().insertPublication(MenuPublicationEntity("publication-1",restId.value,"menu-1",1,"Dinner","Main",BigDecimal("5.00"),"USD",200))
         database.menuPublicationDao().insertCategories(listOf(MenuPublicationCategoryEntity("publication-category-1","publication-1","category-1","Mains",0)))
         database.menuPublicationDao().insertItems(listOf(MenuPublicationItemEntity("publication-item-1","publication-1","publication-category-1","placement-1",recipeId,"Test Dish",BigDecimal("15.99"),CashDiscountBehavior.NONE,3,4,0)))
-        database.menuPublicationDao().insertComponents(listOf(MenuPublicationItemComponentEntity("publication-component-1","publication-item-1","menu-comp-1",ing1,opt1,BigDecimal("2.5"),BigDecimal("2.5"),0)))
+        database.menuPublicationDao().insertComponents(listOf(MenuPublicationItemComponentEntity("publication-component-1","publication-item-1","menu-comp-1",ing1,opt1,"area-menu-1",BigDecimal("2.5"),BigDecimal("2.5"),0)))
     }
 }
