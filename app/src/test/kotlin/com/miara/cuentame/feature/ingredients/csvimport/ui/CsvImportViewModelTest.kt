@@ -74,7 +74,7 @@ class CsvImportViewModelTest {
         every { restaurant.id } returns restaurantId
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
         
-        val table = sourceTable(listOf("Item", "UOM"), listOf("Chicken", "lbs"))
+        val table = validSourceTable("Chicken" to "lbs")
         every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(table)
         
         val doc = CsvIngredientImportDocument(emptyList())
@@ -98,6 +98,7 @@ class CsvImportViewModelTest {
         every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(table)
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        assertThat(viewModel.uiState.value.document).isNull()
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -141,7 +142,7 @@ class CsvImportViewModelTest {
         ))
         
         // Use manual update to set document
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(validSourceTable())
         coEvery { importService.processCsv(any(), any()) } returns doc
         viewModel.loadCsv(ByteArrayInputStream("".toByteArray()))
         testDispatcher.scheduler.advanceUntilIdle()
@@ -177,24 +178,27 @@ class CsvImportViewModelTest {
 
     @Test
     fun `restaurant unavailable clears parsing state`() = runTest {
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        val table = validSourceTable()
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(table)
         coEvery { restaurantRepository.getRestaurant() } returns null
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.isParsing).isFalse()
+        assertThat(viewModel.uiState.value.sourceTable).isEqualTo(table)
+        assertThat(viewModel.uiState.value.columnMapping!!.isValid).isTrue()
+        assertThat(viewModel.uiState.value.document).isNull()
         assertThat(viewModel.uiState.value.importResult)
             .isEqualTo(ImportResult.Failure(ImportFailure.RestaurantUnavailable))
     }
 
     @Test
-    fun `typed parser warning reaches UI and header-only document cannot confirm`() = runTest {
-        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
-        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val warning = CsvParser.CsvParserWarning.UnknownColumn("legacy")
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList(), listOf(warning))
+    fun `header-only valid mapped source creates empty preview that cannot commit`() = runTest {
+        stubRestaurant()
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(
+            sourceTable(listOf("Item", "UOM"))
+        )
         coEvery { importService.processCsv(any(), emptyList()) } returns CsvIngredientImportDocument(emptyList())
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
@@ -202,9 +206,9 @@ class CsvImportViewModelTest {
         viewModel.confirmImport()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertThat(viewModel.uiState.value.parserWarnings).containsExactly(warning)
+        assertThat(viewModel.uiState.value.columnMapping!!.isValid).isTrue()
         assertThat(viewModel.uiState.value.document?.rows).isEmpty()
-        io.mockk.coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
+        coVerify(exactly = 0) { importRepository.commitImport(any(), any()) }
     }
 
     @Test
@@ -212,21 +216,24 @@ class CsvImportViewModelTest {
         val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
         every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val rowsA = listOf(mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato"))
+        val tableA = validSourceTable()
+        val rowsA = canonicalRows("Tomato" to "lb")
         val docA = CsvIngredientImportDocument(listOf(
             CsvIngredientImportRow(2, rowsA.single(), null, emptyList(), CsvImportRowStatus.READY, true)
         ))
         every { csvParser.parse(any()) } returnsMany listOf(
-            CsvParser.ParseResult.Success(rowsA),
+            CsvParser.ParseResult.Success(tableA),
             CsvParser.ParseResult.Error(CsvParser.ParseErrorType.MALFORMED_CSV)
         )
         coEvery { importService.processCsv(any(), any()) } returns docA
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        assertThat(viewModel.uiState.value.document).isNull()
         testDispatcher.scheduler.advanceUntilIdle()
         assertThat(viewModel.uiState.value.document).isEqualTo(docA)
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        assertThat(viewModel.uiState.value.document).isNull()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.confirmImport()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -237,40 +244,21 @@ class CsvImportViewModelTest {
     }
 
     @Test
-    fun `new valid file replaces parser warnings`() = runTest {
-        val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
-        every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
-        coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val warning = CsvParser.CsvParserWarning.UnknownColumn("legacy")
-        every { csvParser.parse(any()) } returnsMany listOf(
-            CsvParser.ParseResult.Success(emptyList(), listOf(warning)),
-            CsvParser.ParseResult.Success(emptyList())
-        )
-        coEvery { importService.processCsv(any(), any()) } returns CsvIngredientImportDocument(emptyList())
-
-        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertThat(viewModel.uiState.value.parserWarnings).containsExactly(warning)
-        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertThat(viewModel.uiState.value.parserWarnings).isEmpty()
-    }
-
-    @Test
     fun `StateChanged remains visible until refresh replaces preview and preserves selections`() = runTest {
         val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
         val restaurantId = com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
         every { restaurant.id } returns restaurantId
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val rawRows = listOf(mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato"), mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Onion"))
+        val rawRows = canonicalRows("Tomato" to "lb", "Onion" to "lb")
         val initial = CsvIngredientImportDocument(rawRows.mapIndexed { index, raw ->
             CsvIngredientImportRow(index + 2, raw, null, emptyList(), CsvImportRowStatus.READY, true)
         })
         val refreshed = CsvIngredientImportDocument(rawRows.mapIndexed { index, raw ->
             CsvIngredientImportRow(index + 2, raw, null, emptyList(), CsvImportRowStatus.READY, true)
         })
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(rawRows)
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(
+            validSourceTable("Tomato" to "lb", "Onion" to "lb")
+        )
         coEvery { importService.processCsv(any(), any()) } returnsMany listOf(initial, refreshed)
         coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Failure(ImportFailure.StateChanged)
 
@@ -296,10 +284,10 @@ class CsvImportViewModelTest {
         val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
         every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val raw = mapOf(CsvParser.HEADER_INGREDIENT_NAME to "Tomato")
+        val raw = canonicalRows("Tomato" to "lb").single()
         val initial = CsvIngredientImportDocument(listOf(CsvIngredientImportRow(2, raw, null, emptyList(), CsvImportRowStatus.READY, true)))
         val refreshed = CsvIngredientImportDocument(listOf(CsvIngredientImportRow(2, raw, null, emptyList(), CsvImportRowStatus.ERROR, true)))
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(listOf(raw))
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(validSourceTable())
         coEvery { importService.processCsv(any(), any()) } returnsMany listOf(initial, refreshed)
         coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Failure(ImportFailure.StateChanged)
 
@@ -321,9 +309,12 @@ class CsvImportViewModelTest {
         val restaurant = mockk<com.miara.cuentame.core.model.restaurant.Restaurant>()
         every { restaurant.id } returns com.miara.cuentame.core.common.ids.RestaurantId("rest-1")
         coEvery { restaurantRepository.getRestaurant() } returns restaurant
-        val errorRow = CsvIngredientImportRow(2, emptyMap(), null, emptyList(), CsvImportRowStatus.ERROR, true)
-        val readyRow = CsvIngredientImportRow(3, emptyMap(), null, emptyList(), CsvImportRowStatus.READY, true)
-        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(emptyList())
+        val rawRows = canonicalRows("Bad" to "lb", "Good" to "lb")
+        val errorRow = CsvIngredientImportRow(2, rawRows[0], null, emptyList(), CsvImportRowStatus.ERROR, true)
+        val readyRow = CsvIngredientImportRow(3, rawRows[1], null, emptyList(), CsvImportRowStatus.READY, true)
+        every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(
+            validSourceTable("Bad" to "lb", "Good" to "lb")
+        )
         coEvery { importService.processCsv(any(), any()) } returns CsvIngredientImportDocument(listOf(errorRow, readyRow))
         coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Success(1, 0, 0, 0, 1)
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
@@ -348,8 +339,8 @@ class CsvImportViewModelTest {
     @Test
     fun `slower File A preview cannot overwrite File B`() = runTest {
         stubRestaurant()
-        val tableA = sourceTable(listOf("Item", "UOM"), listOf("File A", "lb"))
-        val tableB = sourceTable(listOf("Item", "UOM"), listOf("File B", "lb"))
+        val tableA = validSourceTable("File A" to "lb")
+        val tableB = validSourceTable("File B" to "lb")
         val docA = documentNamed("File A")
         val docB = documentNamed("File B")
         val releaseA = CompletableDeferred<Unit>()
@@ -410,7 +401,7 @@ class CsvImportViewModelTest {
     @Test
     fun `change mapping preserves parsed source and mapping and can preview again`() = runTest {
         stubRestaurant()
-        val table = sourceTable(listOf("Item", "UOM"), listOf("Chicken", "lb"))
+        val table = validSourceTable("Chicken" to "lb")
         val first = documentNamed("first")
         val second = documentNamed("second")
         every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(table)
@@ -431,9 +422,100 @@ class CsvImportViewModelTest {
         io.mockk.verify(exactly = 1) { csvParser.parse(any()) }
     }
 
+    @Test
+    fun `stale refresh cannot overwrite newly loaded file`() = runTest {
+        stubRestaurant()
+        val tableA = validSourceTable("File A" to "lb")
+        val tableB = validSourceTable("File B" to "lb")
+        val docA = documentNamed("File A")
+        val refreshedA = documentNamed("Refreshed A")
+        val docB = documentNamed("File B")
+        val releaseRefreshA = CompletableDeferred<Unit>()
+        var fileACalls = 0
+        every { csvParser.parse(any()) } returnsMany listOf(
+            CsvParser.ParseResult.Success(tableA), CsvParser.ParseResult.Success(tableB)
+        )
+        coEvery { importService.processCsv(any(), any()) } coAnswers {
+            when (secondArg<List<Map<String, String>>>().single()[CsvParser.HEADER_INGREDIENT_NAME]) {
+                "File A" -> if (fileACalls++ == 0) docA else {
+                    releaseRefreshA.await()
+                    refreshedA
+                }
+                else -> docB
+            }
+        }
+        coEvery { importRepository.commitImport(any(), any()) } returns
+            ImportResult.Failure(ImportFailure.StateChanged)
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmImport()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.refreshPreview()
+        testDispatcher.scheduler.runCurrent()
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.runCurrent()
+        assertThat(viewModel.uiState.value.document).isEqualTo(docB)
+
+        releaseRefreshA.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(viewModel.uiState.value.sourceTable).isEqualTo(tableB)
+        assertThat(viewModel.uiState.value.columnMapping!!.isValid).isTrue()
+        assertThat(viewModel.uiState.value.document).isEqualTo(docB)
+        assertThat(viewModel.uiState.value.importResult).isNull()
+    }
+
+    @Test
+    fun `stale row update cannot overwrite newly loaded file`() = runTest {
+        stubRestaurant()
+        val tableA = validSourceTable("File A" to "lb")
+        val tableB = validSourceTable("File B" to "lb")
+        val docA = documentNamed("File A")
+        val updatedA = documentNamed("Updated A")
+        val docB = documentNamed("File B")
+        val releaseUpdateA = CompletableDeferred<Unit>()
+        every { csvParser.parse(any()) } returnsMany listOf(
+            CsvParser.ParseResult.Success(tableA), CsvParser.ParseResult.Success(tableB)
+        )
+        coEvery { importService.processCsv(any(), any()) } coAnswers {
+            when (secondArg<List<Map<String, String>>>().single()[CsvParser.HEADER_INGREDIENT_NAME]) {
+                "Edited A" -> {
+                    releaseUpdateA.await()
+                    updatedA
+                }
+                "File A" -> docA
+                else -> docB
+            }
+        }
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.updateRow(docA.rows.single().copy(rawData = canonicalRows("Edited A" to "lb").single()))
+        testDispatcher.scheduler.runCurrent()
+
+        viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
+        testDispatcher.scheduler.runCurrent()
+        assertThat(viewModel.uiState.value.document).isEqualTo(docB)
+
+        releaseUpdateA.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(viewModel.uiState.value.sourceTable).isEqualTo(tableB)
+        assertThat(viewModel.uiState.value.columnMapping!!.isValid).isTrue()
+        assertThat(viewModel.uiState.value.document).isEqualTo(docB)
+    }
+
     private fun sourceTable(headers: List<String>, vararg rows: List<String>) = CsvSourceTable(
         headers.mapIndexed { index, header -> CsvSourceColumn(index, header) }, rows.toList()
     )
+
+    private fun validSourceTable(vararg rows: Pair<String, String> = arrayOf("Tomato" to "lb")) =
+        sourceTable(listOf("Item", "UOM"), *rows.map { (name, unit) -> listOf(name, unit) }.toTypedArray())
+
+    private fun canonicalRows(vararg rows: Pair<String, String>) = rows.map { (name, unit) -> mapOf(
+        CsvParser.HEADER_INGREDIENT_NAME to name,
+        CsvParser.HEADER_BASE_UNIT to unit
+    ) }
 
     private fun documentNamed(name: String) = CsvIngredientImportDocument(listOf(
         CsvIngredientImportRow(2, mapOf(CsvParser.HEADER_INGREDIENT_NAME to name), null, emptyList(), CsvImportRowStatus.READY, true)

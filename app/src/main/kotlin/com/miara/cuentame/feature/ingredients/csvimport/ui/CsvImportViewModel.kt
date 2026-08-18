@@ -58,6 +58,7 @@ class CsvImportViewModel @Inject constructor(
                 columnMapping = null,
                 parserWarnings = emptyList(),
                 isParsing = true,
+                isRefreshing = false,
                 parseError = null,
                 importResult = null
             )
@@ -112,6 +113,7 @@ class CsvImportViewModel @Inject constructor(
     }
 
     fun changeMapping() {
+        loadGeneration.incrementAndGet()
         _uiState.update { it.copy(document = null, importResult = null) }
     }
 
@@ -137,11 +139,15 @@ class CsvImportViewModel @Inject constructor(
     fun refreshPreview() {
         val staleDocument = _uiState.value.document ?: return
         if (_uiState.value.importResult != ImportResult.Failure(ImportFailure.StateChanged)) return
+        val generation = loadGeneration.get()
         viewModelScope.launch {
+            if (generation != loadGeneration.get()) return@launch
             _uiState.update { it.copy(isRefreshing = true) }
             try {
                 val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+                if (generation != loadGeneration.get()) return@launch
                 val refreshed = importService.processCsv(restaurant.id, staleDocument.rows.map { it.rawData })
+                if (generation != loadGeneration.get()) return@launch
                 val selections = staleDocument.rows.associate { it.rowNumber to it.isIncluded }
                 val rows = refreshed.rows.map { row ->
                     row.copy(isIncluded = selections[row.rowNumber] ?: row.isIncluded)
@@ -152,7 +158,9 @@ class CsvImportViewModel @Inject constructor(
             } catch (_: Exception) {
                 // Keep StateChanged visible until a refresh succeeds.
             } finally {
-                _uiState.update { it.copy(isRefreshing = false) }
+                if (generation == loadGeneration.get()) {
+                    _uiState.update { it.copy(isRefreshing = false) }
+                }
             }
         }
     }
@@ -170,8 +178,10 @@ class CsvImportViewModel @Inject constructor(
     }
 
     fun updateRow(updatedRow: CsvIngredientImportRow) {
+        val generation = loadGeneration.get()
         viewModelScope.launch {
             val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+            if (generation != loadGeneration.get()) return@launch
             val doc = _uiState.value.document ?: return@launch
             
             val updatedRawRows = doc.rows.map { row ->
@@ -179,13 +189,16 @@ class CsvImportViewModel @Inject constructor(
             }
             
             val newDoc = importService.processCsv(restaurant.id, updatedRawRows)
+            if (generation != loadGeneration.get()) return@launch
             
             val finalRows = newDoc.rows.map { newRow ->
                 val oldRow = doc.rows.find { it.rowNumber == newRow.rowNumber }
                 newRow.copy(isIncluded = oldRow?.isIncluded ?: true)
             }
             
-            _uiState.update { it.copy(document = newDoc.copy(rows = finalRows)) }
+            if (generation == loadGeneration.get()) {
+                _uiState.update { it.copy(document = newDoc.copy(rows = finalRows)) }
+            }
         }
     }
 
