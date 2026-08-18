@@ -35,6 +35,8 @@ class MenuCatalogDetailViewModelTest {
     private var includeArchivedRequested: Boolean? = null
     private var menuObservationCount = 0
     private var failMenuObservation = false
+    private var failPlacement = false
+    private var createdRecipeId: MenuRecipeId? = null
 
     private val catalogs = object : MenuCatalogRepository {
         override fun observeMenus(restaurantId: RestaurantId, includeArchived: Boolean) = flowOf(emptyList<Menu>())
@@ -51,7 +53,10 @@ class MenuCatalogDetailViewModelTest {
         override suspend fun saveCategory(menuId: MenuId, categoryId: MenuCategoryId?, name: String, sortOrder: Int) = this@MenuCatalogDetailViewModelTest.categoryId
         override suspend fun removeCategory(menuId: MenuId, categoryId: MenuCategoryId) = Unit
         override suspend fun reorderCategories(menuId: MenuId, orderedCategoryIds: List<MenuCategoryId>) = Unit
-        override suspend fun savePlacement(menuId: MenuId, placementId: MenuPlacementId?, categoryId: MenuCategoryId, menuRecipeId: MenuRecipeId, sortOrder: Int) = MenuPlacementId("new")
+        override suspend fun savePlacement(menuId: MenuId, placementId: MenuPlacementId?, categoryId: MenuCategoryId, menuRecipeId: MenuRecipeId, sortOrder: Int): MenuPlacementId {
+            if (failPlacement) error("placement failed")
+            return MenuPlacementId("new")
+        }
         override suspend fun removePlacement(menuId: MenuId, placementId: MenuPlacementId) = Unit
         override suspend fun reorderPlacements(menuId: MenuId, orderedPlacementIds: List<MenuPlacementId>) = Unit
     }
@@ -59,7 +64,7 @@ class MenuCatalogDetailViewModelTest {
         override fun observeRecipes(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<MenuRecipe>> { includeArchivedRequested = includeArchived; return recipeFlow }
         override fun observeRecipe(id: MenuRecipeId) = flowOf<MenuRecipe?>(null)
         override fun observeComponents(id: MenuRecipeId) = flowOf(emptyList<MenuRecipeComponent>())
-        override suspend fun create(restaurantId: RestaurantId, name: String, sellingPrice: BigDecimal?, notes: String?) = MenuRecipeId("new")
+        override suspend fun create(restaurantId: RestaurantId, name: String, sellingPrice: BigDecimal?, notes: String?): MenuRecipeId = MenuRecipeId("new").also { createdRecipeId = it }
         override suspend fun update(id: MenuRecipeId, name: String, sellingPrice: BigDecimal?, notes: String?) = Unit
         override suspend fun setCashDiscountBehavior(id: MenuRecipeId, behavior: CashDiscountBehavior) = Unit
         override suspend fun saveComponent(recipeId: MenuRecipeId, componentId: MenuRecipeComponentId?, ingredientId: IngredientId, optionId: IngredientUnitOptionId, quantityEntered: BigDecimal, sortOrder: Int) = MenuRecipeComponentId("new")
@@ -139,6 +144,35 @@ class MenuCatalogDetailViewModelTest {
         assertThat(menuObservationCount).isEqualTo(2)
         assertThat(viewModel.state.value.loadError).isFalse()
         assertThat(viewModel.state.value.menu).isEqualTo(menu())
+        collection.cancel()
+    }
+
+    @Test fun `create and add item exposes created id after placement succeeds`() = runTest {
+        val viewModel = viewModel()
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+
+        viewModel.createAndAddItem(categoryFlow.value.single(), "Soup", "12.50")
+        advanceUntilIdle()
+
+        assertThat(createdRecipeId).isEqualTo(MenuRecipeId("new"))
+        assertThat(viewModel.state.value.createdMenuItemId).isEqualTo(MenuRecipeId("new"))
+        assertThat(viewModel.state.value.error).isNull()
+        collection.cancel()
+    }
+
+    @Test fun `placement failure keeps created item and reports error`() = runTest {
+        failPlacement = true
+        val viewModel = viewModel()
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
+        runCurrent()
+
+        viewModel.createAndAddItem(categoryFlow.value.single(), "Soup", "")
+        advanceUntilIdle()
+
+        assertThat(createdRecipeId).isEqualTo(MenuRecipeId("new"))
+        assertThat(viewModel.state.value.createdMenuItemId).isNull()
+        assertThat(viewModel.state.value.error).isEqualTo(MenuCatalogUiError.PLACEMENT_FAILED)
         collection.cancel()
     }
 

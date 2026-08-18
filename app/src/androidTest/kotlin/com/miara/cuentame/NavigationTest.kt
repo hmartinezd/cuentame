@@ -84,7 +84,7 @@ class NavigationTest {
             }
             composeTestRule.onNodeWithTag("settings_screen").assertIsDisplayed()
             
-            composeTestRule.onNodeWithTag("settings_back_button").performClick()
+            composeTestRule.onNodeWithTag("settings_back").performClick()
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }

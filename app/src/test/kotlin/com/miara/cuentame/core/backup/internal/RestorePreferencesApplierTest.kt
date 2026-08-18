@@ -23,10 +23,11 @@ class RestorePreferencesApplierTest {
 
     @Test
     fun `apply sets all preference values`() = runTest {
-        val dto = BackupPreferencesDto("DARK", false, "es-US")
+        val dto = BackupPreferencesDto("DARK", false, "es-US", menuManagementEnabled = false)
         coEvery { repository.setThemeMode(any()) } just Runs
         coEvery { repository.setDynamicColorEnabled(any()) } just Runs
         coEvery { repository.setAppLocaleTag(any()) } just Runs
+        coEvery { repository.setMenuManagementEnabled(any()) } just Runs
         
         applier.apply(dto)
         
@@ -34,6 +35,7 @@ class RestorePreferencesApplierTest {
             repository.setThemeMode(ThemeMode.DARK)
             repository.setDynamicColorEnabled(false)
             repository.setAppLocaleTag("es-US")
+            repository.setMenuManagementEnabled(false)
         }
     }
 
@@ -43,13 +45,14 @@ class RestorePreferencesApplierTest {
             onboardingCompleted = true,
             themeMode = ThemeMode.LIGHT,
             dynamicColorEnabled = true,
-            appLocaleTag = "en-US"
+            appLocaleTag = "en-US",
+            menuManagementEnabled = false
         )
         every { repository.observePreferences() } returns flowOf(prefs)
         
         val result = applier.captureRollback()
         
-        val expected = BackupPreferencesDto("LIGHT", true, "en-US")
+        val expected = BackupPreferencesDto("LIGHT", true, "en-US", menuManagementEnabled = false)
         assertThat(result).isEqualTo(expected)
     }
 
@@ -106,6 +109,7 @@ class RestorePreferencesApplierTest {
             repository.setThemeMode(any())
             repository.setDynamicColorEnabled(any())
             repository.setAppLocaleTag(any())
+            repository.setMenuManagementEnabled(any())
         }
     }
 }

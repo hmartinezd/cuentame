@@ -1167,6 +1167,10 @@
     <string name="catalog_add_to">Add item to %1$s</string>
     <string name="catalog_search_items">Search Menu Items</string>
     <string name="catalog_no_available_items">No matching Menu Items are available.</string>
+    <string name="catalog_create_menu_item">Create new Menu Item</string>
+    <string name="catalog_no_existing_items">No existing Menu Items yet.</string>
+    <string name="catalog_create_item_in">Create Menu Item in %1$s</string>
+    <string name="catalog_error_placement_failed">The Menu Item was created, but it could not be added to this category. You can add it as an existing item.</string>
     <string name="catalog_move">Move to…</string>
     <string name="catalog_remove">Remove</string>
     <string name="catalog_move_item">Move %1$s to…</string>

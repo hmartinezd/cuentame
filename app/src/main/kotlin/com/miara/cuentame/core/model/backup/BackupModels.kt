@@ -47,7 +47,8 @@ data class BackupAttachmentReference(
 data class BackupPreferencesDto(
     val themeMode: String,
     val dynamicColorEnabled: Boolean,
-    val appLocaleTag: String
+    val appLocaleTag: String,
+    val menuManagementEnabled: Boolean = true
 )
 
 /**

@@ -17,7 +17,8 @@ class DataStoreBackupPreferencesSource @Inject constructor(
         return BackupPreferencesDto(
             themeMode = prefs.themeMode.name,
             dynamicColorEnabled = prefs.dynamicColorEnabled,
-            appLocaleTag = prefs.appLocaleTag
+            appLocaleTag = prefs.appLocaleTag,
+            menuManagementEnabled = prefs.menuManagementEnabled
         )
     }
 }

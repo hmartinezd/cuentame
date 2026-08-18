@@ -39,6 +39,7 @@ class RestorePreferencesApplier @Inject constructor(
         preferencesRepository.setThemeMode(themeMode)
         preferencesRepository.setDynamicColorEnabled(dto.dynamicColorEnabled)
         preferencesRepository.setAppLocaleTag(dto.appLocaleTag)
+        preferencesRepository.setMenuManagementEnabled(dto.menuManagementEnabled)
     }
 
     suspend fun readCurrent(): BackupPreferencesDto {
@@ -46,7 +47,8 @@ class RestorePreferencesApplier @Inject constructor(
         return BackupPreferencesDto(
             themeMode = prefs.themeMode.name,
             dynamicColorEnabled = prefs.dynamicColorEnabled,
-            appLocaleTag = prefs.appLocaleTag
+            appLocaleTag = prefs.appLocaleTag,
+            menuManagementEnabled = prefs.menuManagementEnabled
         )
     }
 

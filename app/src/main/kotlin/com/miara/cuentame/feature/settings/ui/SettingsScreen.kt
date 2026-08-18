@@ -15,7 +15,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Backup
@@ -58,7 +57,6 @@ import com.miara.cuentame.feature.settings.viewmodel.SettingsViewModel
 
 @Composable
 fun SettingsRoute(
-    onBack: () -> Unit,
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
@@ -186,8 +184,7 @@ fun SettingsRoute(
         onNavigateToAreas = onNavigateToAreas,
         onNavigateToCategories = onNavigateToCategories,
         onNavigateToRestaurant = onNavigateToRestaurant,
-        onNavigateToSuppliers = onNavigateToSuppliers,
-        onBackClick = onBack
+        onNavigateToSuppliers = onNavigateToSuppliers
     )
 }
 
@@ -220,30 +217,13 @@ fun SettingsScreen(
     onNavigateToAreas: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToRestaurant: () -> Unit,
-    onNavigateToSuppliers: () -> Unit,
-    onBackClick: () -> Unit
+    onNavigateToSuppliers: () -> Unit
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.testTag("settings_screen"),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.nav_settings)) },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.testTag("settings_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back)
-                        )
-                    }
-                }
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
