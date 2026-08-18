@@ -61,6 +61,44 @@ class OnboardingUiTest {
     }
 
     @Test
+    fun onboarding_languageChange_isLiveAndPreservesRestaurantName() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("onboarding_setup_button", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("onboarding_setup_button", useUnmergedTree = true).performClick()
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithTag("onboarding_restaurant_name", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithTag("onboarding_restaurant_name", useUnmergedTree = true)
+                .performTextInput("La Taqueria")
+
+            composeTestRule.onNodeWithTag("onboarding_language_selector", useUnmergedTree = true)
+                .performClick()
+            composeTestRule.onNodeWithText("Español", useUnmergedTree = true).performClick()
+
+            composeTestRule.waitUntil(30000) {
+                composeTestRule.onAllNodesWithText("Detalles del Restaurante", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            composeTestRule.onNodeWithText("Detalles del Restaurante", useUnmergedTree = true)
+                .assertIsDisplayed()
+            composeTestRule.onNodeWithTag("onboarding_restaurant_name", useUnmergedTree = true)
+                .assertTextContains("La Taqueria")
+
+            runBlocking {
+                val prefs = appPreferencesRepository.observePreferences().first()
+                assertThat(prefs.onboardingCompleted).isFalse()
+                assertThat(prefs.appLocaleTag).isEqualTo("es-US")
+                assertThat(appPreferencesRepository.loadOnboardingDraft()?.restaurantName)
+                    .isEqualTo("La Taqueria")
+            }
+        }
+    }
+
+    @Test
     fun onboarding_fullFlow_persistsRestaurantAndNavigatesToHome() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeTestRule.waitForIdle()

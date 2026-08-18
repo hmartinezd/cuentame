@@ -97,6 +97,10 @@ object TestStorageModule {
     @Provides
     fun provideMenuRecipeDao(db: RestaurantInventoryDatabase) = db.menuRecipeDao()
     @Provides
+    fun provideMenuCatalogDao(db: RestaurantInventoryDatabase) = db.menuCatalogDao()
+    @Provides
+    fun provideMenuPublicationDao(db: RestaurantInventoryDatabase) = db.menuPublicationDao()
+    @Provides
     fun provideProductionBatchDao(db: RestaurantInventoryDatabase) = db.productionBatchDao()
     @Provides
     fun providePurchaseOcrDao(db: RestaurantInventoryDatabase) = db.purchaseOcrDao()
@@ -112,6 +116,8 @@ object TestStorageModule {
     fun provideBackupDao(db: RestaurantInventoryDatabase) = db.backupDao()
     @Provides
     fun provideRestoreDao(db: RestaurantInventoryDatabase) = db.restoreDao()
+    @Provides
+    fun provideSalesImportDao(db: RestaurantInventoryDatabase) = db.salesImportDao()
 
     @Provides
     fun provideDetailedReportsRepository(

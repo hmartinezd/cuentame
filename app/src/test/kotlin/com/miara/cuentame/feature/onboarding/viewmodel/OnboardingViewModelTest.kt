@@ -35,13 +35,20 @@ class OnboardingViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private var draftValue: OnboardingDraft? = null
     private var shouldFailSave = false
+    private var shouldFailLocaleUpdate = false
+    private var localeTagValue = AppPreferences.DEFAULT.appLocaleTag
+    private val persistenceCalls = mutableListOf<String>()
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = MutableStateFlow(AppPreferences.DEFAULT)
         override suspend fun setOnboardingCompleted(completed: Boolean) {}
         override suspend fun setThemeMode(mode: ThemeMode) {}
         override suspend fun setDynamicColorEnabled(enabled: Boolean) {}
-        override suspend fun setAppLocaleTag(localeTag: String) {}
+        override suspend fun setAppLocaleTag(localeTag: String) {
+            persistenceCalls += "locale:$localeTag"
+            if (shouldFailLocaleUpdate) throw IllegalStateException("sensitive storage failure")
+            localeTagValue = localeTag
+        }
         override suspend fun setAutoBackupEnabled(enabled: Boolean) {}
         override suspend fun updateAutoBackupStatus(
             successTimestamp: Long?,
@@ -51,6 +58,7 @@ class OnboardingViewModelTest {
         override suspend fun loadOnboardingDraft(): OnboardingDraft? = draftValue
         override suspend fun saveOnboardingDraft(draft: OnboardingDraft) {
             if (shouldFailSave) throw ValidationError.OnboardingDraftSaveFailed
+            persistenceCalls += "draft:${draft.localeTag}"
             draftValue = draft 
         }
         override suspend fun clearOnboardingDraft() { draftValue = null }
@@ -137,6 +145,38 @@ class OnboardingViewModelTest {
         
         val area = viewModel.uiState.value.areas.find { it.id == areaId }!!
         assertThat(draftValue?.areas?.find { it.id == areaId }?.isSelected).isEqualTo(area.isSelected)
+    }
+
+    @Test
+    fun `selecting locale updates state then persists draft before preference`() = runTest {
+        runCurrent()
+        viewModel.onRestaurantNameChanged("La Taqueria")
+        viewModel.onLocaleSelected("es-US")
+
+        assertThat(viewModel.uiState.value.localeTag).isEqualTo("es-US")
+        runCurrent()
+
+        assertThat(draftValue?.restaurantName).isEqualTo("La Taqueria")
+        assertThat(draftValue?.localeTag).isEqualTo("es-US")
+        assertThat(localeTagValue).isEqualTo("es-US")
+        assertThat(persistenceCalls.takeLast(2)).containsExactly(
+            "draft:es-US",
+            "locale:es-US"
+        ).inOrder()
+    }
+
+    @Test
+    fun `locale preference failure preserves state and surfaces safe error`() = runTest {
+        runCurrent()
+        shouldFailLocaleUpdate = true
+
+        viewModel.onLocaleSelected("es-US")
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.localeTag).isEqualTo("es-US")
+        assertThat(draftValue?.localeTag).isEqualTo("es-US")
+        assertThat(viewModel.uiState.value.draftSaveError)
+            .isEqualTo(ValidationError.OnboardingDraftSaveFailed)
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.miara.cuentame.core.domain.repository.SetupAreaInput
 import com.miara.cuentame.core.domain.repository.SetupCategoryInput
 import com.miara.cuentame.core.domain.usecase.CompleteOnboardingUseCase
 import com.miara.cuentame.core.domain.usecase.LocalSetupValidator
+import com.miara.cuentame.core.domain.validation.ValidationError
 import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import com.miara.cuentame.core.model.onboarding.OnboardingDraft
 import com.miara.cuentame.core.model.onboarding.OnboardingItemDraft
@@ -20,6 +21,7 @@ import com.miara.cuentame.core.model.onboarding.OnboardingTemplates
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +75,8 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             val draft = try {
                 preferencesRepository.loadOnboardingDraft()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 null
             }
@@ -165,7 +169,24 @@ class OnboardingViewModel @Inject constructor(
 
     fun onLocaleSelected(tag: String) {
         _uiState.update { it.copy(localeTag = tag) }
-        scheduleImmediateSave()
+        pendingDebouncedSaveJob?.cancel()
+        viewModelScope.launch {
+            try {
+                // Persist every field before changing the application locale. Updating the
+                // preference can recreate the Activity and cancel this ViewModel immediately.
+                flushDraft()
+                preferencesRepository.setAppLocaleTag(tag)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isDraftSaving = false,
+                        draftSaveError = ValidationError.OnboardingDraftSaveFailed
+                    )
+                }
+            }
+        }
     }
 
     fun onToggleItem(isArea: Boolean, id: String) {
@@ -275,6 +296,8 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 flushDraft()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _events.send(OnboardingEvent.ShowError(e))
             }
@@ -340,6 +363,8 @@ class OnboardingViewModel @Inject constructor(
                     _uiState.update { it.copy(isSubmitting = false) }
                     _events.send(OnboardingEvent.ShowError(result.error))
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSubmitting = false) }
                 _events.send(OnboardingEvent.ShowError(e))
@@ -409,6 +434,8 @@ class OnboardingViewModel @Inject constructor(
             try {
                 preferencesRepository.saveOnboardingDraft(draft)
                 _uiState.update { it.copy(isDraftSaving = false, draftSaveError = null) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isDraftSaving = false, draftSaveError = e) }
                 if (rethrow) throw e

@@ -318,7 +318,10 @@ fun RestaurantStep(
                 readOnly = true,
                 label = { Text(stringResource(R.string.onboarding_field_language)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = langExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+                    .testTag("onboarding_language_selector")
             )
             ExposedDropdownMenu(
                 expanded = langExpanded,
