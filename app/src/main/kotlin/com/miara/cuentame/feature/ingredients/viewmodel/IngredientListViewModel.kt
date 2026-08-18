@@ -38,6 +38,7 @@ data class IngredientListUiState(
     val searchQuery: String = "",
     val categoryFilter: IngredientCategoryFilter = IngredientCategoryFilter.All,
     val showArchived: Boolean = false,
+    val hasAnyIngredients: Boolean = false,
     val ingredients: List<Ingredient> = emptyList(),
     val categories: List<IngredientCategory> = emptyList(),
     val sampleCatalogResult: StarterCatalogSeedResult? = null,
@@ -51,10 +52,7 @@ class IngredientListViewModel @Inject constructor(
     private val observeIngredientsUseCase: ObserveIngredientsUseCase,
     private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
     private val restaurantRepository: RestaurantRepository,
-    private val starterCatalogSeeder: StarterCatalogSeeder = object : StarterCatalogSeeder {
-        override suspend fun seedNewRestaurant(restaurantId: String, catalog: com.miara.cuentame.core.model.catalog.StarterCatalogDefinition) =
-            com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
-    }
+    private val starterCatalogSeeder: StarterCatalogSeeder
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -68,13 +66,16 @@ class IngredientListViewModel @Inject constructor(
         .map { it.id }
 
     private val filteredUiState: StateFlow<IngredientListUiState> = combine(
-        combine(restaurantIdFlow, _showArchived) { rid, archived -> rid to archived }
-            .flatMapLatest { (rid, archived) -> observeIngredientsUseCase(rid, archived) },
+        combine(
+            combine(restaurantIdFlow, _showArchived) { rid, archived -> rid to archived }
+                .flatMapLatest { (rid, archived) -> observeIngredientsUseCase(rid, archived) },
+            restaurantIdFlow.flatMapLatest { rid -> observeIngredientsUseCase(rid, includeArchived = true) }
+        ) { visibleIngredients, catalogIngredients -> visibleIngredients to catalogIngredients.isNotEmpty() },
         observeIngredientCategoriesUseCase(),
         _searchQuery.debounce(300),
         _categoryFilter,
         _showArchived
-    ) { ingredients, categories, query, categoryFilter, showArchived ->
+    ) { (ingredients, hasAnyIngredients), categories, query, categoryFilter, showArchived ->
         val normalizedQuery = query.normalizeName()
         val filtered = ingredients.filter { ingredient ->
             val matchesQuery = normalizedQuery.isEmpty() || ingredient.normalizedName.contains(normalizedQuery)
@@ -91,6 +92,7 @@ class IngredientListViewModel @Inject constructor(
             searchQuery = query,
             categoryFilter = categoryFilter,
             showArchived = showArchived,
+            hasAnyIngredients = hasAnyIngredients,
             ingredients = filtered,
             categories = categories
         )
@@ -127,9 +129,9 @@ class IngredientListViewModel @Inject constructor(
 
     fun addSampleCatalog() = viewModelScope.launch {
         if (_isAddingSampleCatalog.value) return@launch
-        val restaurant = restaurantRepository.getRestaurant() ?: return@launch
         _isAddingSampleCatalog.value = true
         try {
+            val restaurant = restaurantRepository.getRestaurant() ?: return@launch
             _sampleCatalogResult.value = starterCatalogSeeder.seedNewRestaurant(restaurant.id.value, CubanFoodiesStarterCatalog.definition)
         } finally {
             _isAddingSampleCatalog.value = false

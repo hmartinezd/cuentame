@@ -15,10 +15,15 @@ import com.miara.cuentame.core.domain.usecase.ObserveIngredientsUseCase
 import com.miara.cuentame.core.domain.repository.IngredientRepository
 import com.miara.cuentame.core.domain.repository.IngredientCategoryRepository
 import com.miara.cuentame.core.domain.repository.RestaurantRepository
+import com.miara.cuentame.core.domain.service.StarterCatalogSeedFailure
+import com.miara.cuentame.core.domain.service.StarterCatalogSeedResult
+import com.miara.cuentame.core.domain.service.StarterCatalogSeeder
+import com.miara.cuentame.core.model.catalog.StarterCatalogDefinition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -74,6 +79,20 @@ class IngredientListViewModelTest {
         override suspend fun save(restaurant: Restaurant) {}
     }
 
+    private class FakeStarterCatalogSeeder : StarterCatalogSeeder {
+        var calls = 0
+        var result: StarterCatalogSeedResult = StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
+        var gate: CompletableDeferred<Unit>? = null
+
+        override suspend fun seedNewRestaurant(restaurantId: String, catalog: StarterCatalogDefinition): StarterCatalogSeedResult {
+            calls++
+            gate?.await()
+            return result
+        }
+    }
+
+    private lateinit var starterCatalogSeeder: FakeStarterCatalogSeeder
+
     private lateinit var viewModel: IngredientListViewModel
 
     @Before
@@ -82,7 +101,8 @@ class IngredientListViewModelTest {
         val observeIngredientsUseCase = ObserveIngredientsUseCase(fakeIngredientRepository)
         val observeCategoriesUseCase = ObserveIngredientCategoriesUseCase(fakeCategoryRepository)
         restaurantFlow.value = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
-        viewModel = IngredientListViewModel(observeIngredientsUseCase, observeCategoriesUseCase, fakeRestaurantRepository)
+        starterCatalogSeeder = FakeStarterCatalogSeeder()
+        viewModel = IngredientListViewModel(observeIngredientsUseCase, observeCategoriesUseCase, fakeRestaurantRepository, starterCatalogSeeder)
     }
 
     @After
@@ -241,7 +261,8 @@ class IngredientListViewModelTest {
         val vm = IngredientListViewModel(
             ObserveIngredientsUseCase(customRepo),
             ObserveIngredientCategoriesUseCase(fakeCategoryRepository),
-            fakeRestaurantRepository
+            fakeRestaurantRepository,
+            FakeStarterCatalogSeeder()
         )
         
         // Trigger collection to activate flatMapLatest
@@ -256,6 +277,89 @@ class IngredientListViewModelTest {
         runCurrent()
         assertThat(observedIncludeArchived).isFalse()
         
+        job.cancel()
+    }
+
+    @Test
+    fun `no search matches keeps established catalog signal true`() = runTest {
+        ingredientsFlow.value = listOf(createIngredient("Chicken"), createIngredient("Beef"))
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        viewModel.onSearchQueryChanged("lobster")
+        advanceTimeBy(301)
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.ingredients).isEmpty()
+        assertThat(viewModel.uiState.value.hasAnyIngredients).isTrue()
+        job.cancel()
+    }
+
+    @Test
+    fun `true empty catalog remains empty regardless of filters`() = runTest {
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        viewModel.onCategoryFilterChanged(IngredientCategoryFilter.Category(IngredientCategoryId("missing")))
+        viewModel.onShowArchivedToggled(true)
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.hasAnyIngredients).isFalse()
+        job.cancel()
+    }
+
+    @Test
+    fun `archived-only catalog is not treated as first run`() = runTest {
+        val archived = createIngredient("Old Chicken").copy(isActive = false)
+        val repo = object : IngredientRepository by fakeIngredientRepository {
+            override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> =
+                MutableStateFlow(if (includeArchived) listOf(archived) else emptyList())
+        }
+        val vm = IngredientListViewModel(
+            ObserveIngredientsUseCase(repo), ObserveIngredientCategoriesUseCase(fakeCategoryRepository),
+            fakeRestaurantRepository, FakeStarterCatalogSeeder()
+        )
+        val job = launch { vm.uiState.collect {} }
+        advanceTimeBy(301)
+        runCurrent()
+
+        assertThat(vm.uiState.value.ingredients).isEmpty()
+        assertThat(vm.uiState.value.hasAnyIngredients).isTrue()
+        job.cancel()
+    }
+
+    @Test
+    fun `sample catalog request is single flight and publishes success`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        starterCatalogSeeder.gate = gate
+        val job = launch { viewModel.uiState.collect {} }
+        viewModel.addSampleCatalog()
+        runCurrent()
+        assertThat(viewModel.uiState.value.isAddingSampleCatalog).isTrue()
+        viewModel.addSampleCatalog()
+        runCurrent()
+        assertThat(starterCatalogSeeder.calls).isEqualTo(1)
+
+        gate.complete(Unit)
+        runCurrent()
+        assertThat(viewModel.uiState.value.sampleCatalogResult).isInstanceOf(StarterCatalogSeedResult.Success::class.java)
+        assertThat(viewModel.uiState.value.isAddingSampleCatalog).isFalse()
+        viewModel.clearSampleCatalogResult()
+        runCurrent()
+        assertThat(viewModel.uiState.value.sampleCatalogResult).isNull()
+        job.cancel()
+    }
+
+    @Test
+    fun `sample catalog failure is published and busy resets`() = runTest {
+        starterCatalogSeeder.result = StarterCatalogSeedResult.Failure(
+            StarterCatalogSeedFailure.DatabaseError(IllegalStateException("private detail"))
+        )
+        val job = launch { viewModel.uiState.collect {} }
+        viewModel.addSampleCatalog()
+        runCurrent()
+
+        assertThat(starterCatalogSeeder.calls).isEqualTo(1)
+        assertThat(viewModel.uiState.value.sampleCatalogResult).isInstanceOf(StarterCatalogSeedResult.Failure::class.java)
+        assertThat(viewModel.uiState.value.isAddingSampleCatalog).isFalse()
         job.cancel()
     }
 

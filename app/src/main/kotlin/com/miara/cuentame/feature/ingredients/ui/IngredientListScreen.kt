@@ -90,7 +90,7 @@ fun IngredientListRoute(
         title = { Text(stringResource(R.string.sample_catalog_confirm_title)) },
         text = { Text(stringResource(R.string.sample_catalog_confirm_body)) },
         dismissButton = { TextButton(onClick = { confirmSample = false }) { Text(stringResource(R.string.action_cancel)) } },
-        confirmButton = { Button(onClick = { confirmSample = false; viewModel.addSampleCatalog() }) { Text(stringResource(R.string.sample_catalog_confirm_action)) } }
+        confirmButton = { Button(onClick = { confirmSample = false; viewModel.addSampleCatalog() }, enabled = !uiState.isAddingSampleCatalog) { Text(stringResource(R.string.sample_catalog_confirm_action)) } }
     )
 }
 
@@ -161,7 +161,7 @@ fun IngredientListScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else if (uiState.ingredients.isEmpty()) {
+            } else if (!uiState.hasAnyIngredients) {
                 Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.weight(1f))
                     Text(text = stringResource(R.string.no_ingredients_yet), style = MaterialTheme.typography.headlineSmall)
@@ -169,9 +169,39 @@ fun IngredientListScreen(
                     Button(onClick = onImportCsv, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_existing_csv)) }
                     OutlinedButton(onClick = onAddIngredient, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.add_ingredient_manually)) }
                     TextButton(onClick = onUseSampleCatalog, enabled = !uiState.isAddingSampleCatalog) { Text(stringResource(R.string.use_sample_catalog)) }
+                    if (uiState.isAddingSampleCatalog) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.sample_catalog_adding))
+                        }
+                    }
                     val result = uiState.sampleCatalogResult
                     if (result is com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success) {
                         Text(stringResource(R.string.sample_catalog_result, result.ingredientsInserted, result.ingredientsSkipped, result.categoriesInserted, result.categoriesReused, result.unitOptionsInserted))
+                    } else if (result is com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Failure) {
+                        Text(stringResource(R.string.sample_catalog_failure), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = onUseSampleCatalog, enabled = !uiState.isAddingSampleCatalog) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            } else if (uiState.ingredients.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        stringResource(if (uiState.searchQuery.isNotBlank()) R.string.no_ingredients_match_search else R.string.no_ingredients_match_filters),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    if (uiState.searchQuery.isNotBlank()) {
+                        TextButton(onClick = { onSearchQueryChanged("") }) { Text(stringResource(R.string.clear_search)) }
+                    }
+                    if (uiState.categoryFilter !is IngredientCategoryFilter.All) {
+                        TextButton(onClick = { onCategoryFilterChanged(IngredientCategoryFilter.All) }) { Text(stringResource(R.string.clear_filters)) }
                     }
                     Spacer(Modifier.weight(1f))
                 }

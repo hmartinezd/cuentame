@@ -50,7 +50,7 @@ class CsvImportServiceTest {
         every { supplierRepository.observeSuppliers(any(), any()) } returns flowOf(emptyList())
         coEvery { mappingRepository.getAllMappings(any()) } returns emptyList()
         
-        val lb = UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("lb"), "lb", "Pound", UnitDimension.MASS, BigDecimal.ONE, true, 0)
+        val lb = UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("mass_lb"), "Pound", "lb", UnitDimension.MASS, BigDecimal.ONE, true, 0)
         every { unitRepository.observeAll() } returns flowOf(listOf(lb))
     }
 
@@ -75,7 +75,7 @@ class CsvImportServiceTest {
         val rawRows = listOf(
             mapOf(
                 CsvParser.HEADER_INGREDIENT_NAME to "Tomato",
-                CsvParser.HEADER_BASE_UNIT to "unknown"
+                CsvParser.HEADER_BASE_UNIT to "crate"
             )
         )
         
@@ -83,6 +83,37 @@ class CsvImportServiceTest {
         
         assertThat(result.rows[0].status).isEqualTo(CsvImportRowStatus.ERROR)
         assertThat(result.rows[0].issues.map { it.code }).contains(CsvImportIssueCode.UNKNOWN_UNIT)
+    }
+
+    @Test
+    fun `stable system unit ids resolve supported import aliases`() = runTest {
+        val units = listOf(
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("mass_lb"), "Pound", "lb", UnitDimension.MASS, BigDecimal.ONE, true, 0),
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("mass_oz"), "Ounce", "oz", UnitDimension.MASS, BigDecimal.ONE, true, 1),
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("mass_kg"), "Kilogram", "kg", UnitDimension.MASS, BigDecimal.ONE, true, 2),
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("volume_ml"), "Milliliter", "ml", UnitDimension.VOLUME, BigDecimal.ONE, true, 3),
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("volume_gallon_us"), "US Gallon", "gal", UnitDimension.VOLUME, BigDecimal.ONE, true, 4),
+            UnitOfMeasure(com.miara.cuentame.core.common.ids.UnitId("count_each"), "Each", "ea", UnitDimension.COUNT, BigDecimal.ONE, true, 5)
+        )
+        every { unitRepository.observeAll() } returns flowOf(units)
+        val aliases = mapOf(
+            "mass_lb" to listOf("lb", "lbs", "pound", "pounds"),
+            "mass_oz" to listOf("oz", "ounce", "ounces"),
+            "mass_kg" to listOf("kg", "kgs", "kilogram", "kilograms"),
+            "volume_ml" to listOf("ml", "milliliter", "milliliters"),
+            "volume_gallon_us" to listOf("gal", "gallon", "gallons"),
+            "count_each" to listOf("ea", "each", "piece", "pieces")
+        )
+
+        aliases.forEach { (expectedId, values) ->
+            values.forEach { value ->
+                val document = service.processCsv(restaurantId, listOf(mapOf(
+                    CsvParser.HEADER_INGREDIENT_NAME to "Item-$expectedId-$value",
+                    CsvParser.HEADER_BASE_UNIT to value
+                )))
+                assertThat(document.rows.single().normalizedData?.resolvedBaseUnitId?.value).isEqualTo(expectedId)
+            }
+        }
     }
 
     @Test

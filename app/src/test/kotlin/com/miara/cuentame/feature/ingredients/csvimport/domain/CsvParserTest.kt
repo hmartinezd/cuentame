@@ -120,8 +120,10 @@ class CsvParserTest {
 
     @Test
     fun `arbitrary headers parse without warnings`() {
-        val result = parser.parse(ByteArrayInputStream("ingredient_name,base_unit,foo\nTomato,lb,x".toByteArray())) as CsvParser.ParseResult.Success
+        val result = parser.parse(ByteArrayInputStream("Item,Department,UOM,Vendor,Cost\nChicken,Meat,lbs,Sysco,2.45".toByteArray())) as CsvParser.ParseResult.Success
         assertThat(result.warnings).isEmpty()
+        assertThat(result.table.columns.map { it.header }).containsExactly("Item", "Department", "UOM", "Vendor", "Cost").inOrder()
+        assertThat(result.table.rows.single()).containsExactly("Chicken", "Meat", "lbs", "Sysco", "2.45").inOrder()
     }
 
     @Test

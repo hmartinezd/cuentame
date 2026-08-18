@@ -77,7 +77,7 @@ class CsvImportViewModel @Inject constructor(
                         try {
                             val mapping = IngredientColumnMapper.suggest(parseResult.table)
                             _uiState.update { it.copy(sourceTable = parseResult.table, columnMapping = mapping, parserWarnings = parseResult.warnings) }
-                            if (mapping.isValid) generatePreview()
+                            if (mapping.isValid) generatePreview(generation)
                         } catch (e: CancellationException) {
                             throw e
                         } catch (_: Exception) {
@@ -97,6 +97,7 @@ class CsvImportViewModel @Inject constructor(
     }
 
     fun updateMapping(sourceIndex: Int, target: IngredientImportField?) {
+        loadGeneration.incrementAndGet()
         _uiState.update { state ->
             val current = state.columnMapping ?: return@update state
             state.copy(columnMapping = IngredientColumnMapper.update(current, sourceIndex, target), document = null)
@@ -104,25 +105,33 @@ class CsvImportViewModel @Inject constructor(
     }
 
     fun previewMappedCsv() {
-        if (_uiState.value.columnMapping?.isValid == true) viewModelScope.launch { generatePreview() }
+        if (_uiState.value.columnMapping?.isValid == true) {
+            val generation = loadGeneration.incrementAndGet()
+            viewModelScope.launch { generatePreview(generation) }
+        }
     }
 
     fun changeMapping() {
         _uiState.update { it.copy(document = null, importResult = null) }
     }
 
-    private suspend fun generatePreview() {
+    private suspend fun generatePreview(generation: Long) {
         val state = _uiState.value
         val table = state.sourceTable ?: return
         val mapping = state.columnMapping ?: return
         if (!mapping.isValid) return
         val restaurant = restaurantRepository.getRestaurant()
+        if (generation != loadGeneration.get()) return
         if (restaurant == null) {
-            _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
+            if (generation == loadGeneration.get()) {
+                _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
+            }
             return
         }
         val document = importService.processCsv(restaurant.id, IngredientColumnMapper.toCanonicalRows(table, mapping))
-        _uiState.update { it.copy(document = document) }
+        if (generation == loadGeneration.get()) {
+            _uiState.update { it.copy(document = document) }
+        }
     }
 
     fun refreshPreview() {
