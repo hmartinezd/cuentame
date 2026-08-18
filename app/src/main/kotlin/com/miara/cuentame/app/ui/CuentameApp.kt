@@ -67,6 +67,7 @@ fun CuentameApp(
 ) {
     val startState by viewModel.startState.collectAsStateWithLifecycle()
     val recoveryState by viewModel.recoveryState.collectAsStateWithLifecycle()
+    val preferencesState by viewModel.preferencesState.collectAsStateWithLifecycle()
 
     when {
         recoveryState is RestoreStartupState.NotStarted || recoveryState is RestoreStartupState.Recovering -> {
@@ -84,7 +85,11 @@ fun CuentameApp(
                     OnboardingFlow()
                 }
                 AppStartState.Ready -> {
-                    MainAppContent(windowSizeClass = windowSizeClass)
+                    MainAppContent(
+                        windowSizeClass = windowSizeClass,
+                        menuManagementEnabled = (preferencesState as? AppPreferencesState.Ready)
+                            ?.preferences?.menuManagementEnabled ?: true
+                    )
                 }
             }
         }
@@ -138,6 +143,7 @@ fun OnboardingFlow() {
 @Composable
 fun MainAppContent(
     windowSizeClass: WindowSizeClass,
+    menuManagementEnabled: Boolean = true,
     navController: NavHostController = rememberNavController()
 ) {
     val isCompact = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
@@ -254,6 +260,7 @@ fun MainAppContent(
             CuentameNavHost(
                 navController = navController,
                 onBackClick = { navController.popBackStack() },
+                menuManagementEnabled = menuManagementEnabled,
                 modifier = Modifier.fillMaxSize()
             )
         }

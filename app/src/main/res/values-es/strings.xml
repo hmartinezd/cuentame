@@ -31,6 +31,14 @@
     <string name="onboarding_restaurant_title">Detalles del Restaurante</string>
     <string name="onboarding_restaurant_desc">Cuéntenos un poco sobre su negocio.</string>
     <string name="onboarding_field_name">Nombre del Restaurante</string>
+    <string name="settings_modules">Módulos</string>
+    <string name="inventory_management">Gestión de inventario</string>
+    <string name="menu_management">Gestión de menús</string>
+    <string name="menu_management_module_desc">Menús, categorías y platos del menú</string>
+    <string name="module_required">Obligatorio</string>
+    <string name="module_on">Activado</string>
+    <string name="catalog_menu_name">Nombre del menú</string>
+    <string name="category_name">Nombre de la categoría</string>
     <string name="onboarding_field_currency">Moneda</string>
     <string name="onboarding_field_language">Idioma de la Aplicación</string>
     <string name="onboarding_currency_note">La moneda se utiliza para calcular el valor total del inventario.</string>

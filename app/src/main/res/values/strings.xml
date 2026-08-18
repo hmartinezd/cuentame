@@ -117,6 +117,12 @@
     <string name="settings_about">About</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_dynamic_color">Dynamic Color</string>
+    <string name="settings_modules">Modules</string>
+    <string name="inventory_management">Inventory Management</string>
+    <string name="menu_management">Menu Management</string>
+    <string name="menu_management_module_desc">Menus, categories, and menu items</string>
+    <string name="module_required">Required</string>
+    <string name="module_on">On</string>
     <string name="theme_system">System Default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
@@ -1084,6 +1090,8 @@
     <string name="menu_item_overview">Item overview</string>
     <string name="menu_recipe_components">Recipe / components</string>
     <string name="menu_name">Menu item name</string>
+    <string name="catalog_menu_name">Menu Name</string>
+    <string name="category_name">Category Name</string>
     <string name="menu_selling_price">Selling price</string>
     <string name="menu_selling_not_set">Selling price not set</string>
     <string name="menu_basic_info">Basic info</string>

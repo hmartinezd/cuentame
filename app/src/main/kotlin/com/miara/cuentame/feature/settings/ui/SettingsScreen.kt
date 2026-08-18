@@ -162,6 +162,7 @@ fun SettingsRoute(
     SettingsScreen(
         themeMode = preferences.themeMode,
         dynamicColorEnabled = preferences.dynamicColorEnabled,
+        menuManagementEnabled = preferences.menuManagementEnabled,
         appLocaleTag = preferences.appLocaleTag,
         isSaving = isSaving,
         backupUiState = backupUiState,
@@ -170,6 +171,7 @@ fun SettingsRoute(
         snackbarHostState = snackbarHostState,
         onThemeChanged = viewModel::setThemeMode,
         onDynamicColorToggled = viewModel::setDynamicColorEnabled,
+        onMenuManagementToggled = viewModel::setMenuManagementEnabled,
         onLocaleChanged = { viewModel.setAppLocaleTag(it.languageTag) },
         onCreateBackup = backupViewModel::onCreateBackupRequested,
         onToggleAutoBackup = backupViewModel::onToggleAutoBackup,
@@ -194,6 +196,7 @@ fun SettingsRoute(
 fun SettingsScreen(
     themeMode: ThemeMode,
     dynamicColorEnabled: Boolean,
+    menuManagementEnabled: Boolean,
     appLocaleTag: String,
     isSaving: Boolean,
     backupUiState: BackupUiState,
@@ -202,6 +205,7 @@ fun SettingsScreen(
     snackbarHostState: SnackbarHostState,
     onThemeChanged: (ThemeMode) -> Unit,
     onDynamicColorToggled: (Boolean) -> Unit,
+    onMenuManagementToggled: (Boolean) -> Unit,
     onLocaleChanged: (SupportedAppLocale) -> Unit,
     onCreateBackup: () -> Unit,
     onToggleAutoBackup: (Boolean) -> Unit,
@@ -272,6 +276,25 @@ fun SettingsScreen(
                 icon = Icons.Default.Store,
                 onClick = onNavigateToSuppliers,
                 modifier = Modifier.testTag("settings_item_SUPPLIERS")
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SettingsHeader(stringResource(R.string.settings_modules))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.inventory_management)) },
+                supportingContent = { Text(stringResource(R.string.module_required)) },
+                trailingContent = { Text(stringResource(R.string.module_on)) }
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.menu_management)) },
+                supportingContent = { Text(stringResource(R.string.menu_management_module_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = menuManagementEnabled,
+                        onCheckedChange = onMenuManagementToggled,
+                        modifier = Modifier.testTag("menu_management_switch")
+                    )
+                }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

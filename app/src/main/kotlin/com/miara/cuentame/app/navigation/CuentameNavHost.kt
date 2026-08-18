@@ -27,6 +27,7 @@ import com.miara.cuentame.feature.sales.salesGraph
 fun CuentameNavHost(
     navController: NavHostController,
     onBackClick: () -> Unit,
+    menuManagementEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     startDestination: String = TopLevelDestination.HOME.route
 ) {
@@ -46,7 +47,7 @@ fun CuentameNavHost(
         priceIntelligenceGraph(navController)
         settingsGraph(navController, onBackClick)
         preparationsGraph(navController, onBackClick)
-        menuGraph(navController, onBackClick)
+        menuGraph(navController, onBackClick, menuManagementEnabled)
         productionGraph(navController, onBackClick)
         areasGraph(navController, onBackClick)
         categoriesGraph()

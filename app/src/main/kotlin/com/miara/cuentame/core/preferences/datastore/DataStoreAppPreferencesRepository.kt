@@ -32,6 +32,7 @@ class DataStoreAppPreferencesRepository @Inject constructor(
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
+        val MENU_MANAGEMENT_ENABLED = booleanPreferencesKey("menu_management_enabled")
         val APP_LOCALE_TAG = stringPreferencesKey("app_locale_tag")
         val ONBOARDING_DRAFT = stringPreferencesKey("onboarding_draft")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
@@ -61,7 +62,8 @@ class DataStoreAppPreferencesRepository @Inject constructor(
                 autoBackupEnabled = preferences[Keys.AUTO_BACKUP_ENABLED] ?: true,
                 lastAutoBackupSuccessTimestamp = preferences[Keys.LAST_AUTO_BACKUP_SUCCESS],
                 lastAutoBackupAttemptTimestamp = preferences[Keys.LAST_AUTO_BACKUP_ATTEMPT],
-                lastAutoBackupResult = preferences[Keys.LAST_AUTO_BACKUP_RESULT]
+                lastAutoBackupResult = preferences[Keys.LAST_AUTO_BACKUP_RESULT],
+                menuManagementEnabled = preferences[Keys.MENU_MANAGEMENT_ENABLED] ?: true
             )
         }
 
@@ -75,6 +77,10 @@ class DataStoreAppPreferencesRepository @Inject constructor(
 
     override suspend fun setDynamicColorEnabled(enabled: Boolean) {
         dataStore.edit { it[Keys.DYNAMIC_COLOR_ENABLED] = enabled }
+    }
+
+    override suspend fun setMenuManagementEnabled(enabled: Boolean) {
+        dataStore.edit { it[Keys.MENU_MANAGEMENT_ENABLED] = enabled }
     }
 
     override suspend fun setAppLocaleTag(localeTag: String) {

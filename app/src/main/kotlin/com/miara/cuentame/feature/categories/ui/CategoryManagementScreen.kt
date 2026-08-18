@@ -183,7 +183,7 @@ fun CategoryManagementScreen(
                 OutlinedTextField(
                     value = editName,
                     onValueChange = { editName = it },
-                    label = { Text(stringResource(R.string.onboarding_field_name)) },
+                    label = { Text(stringResource(R.string.category_name)) },
                     enabled = !uiState.isSaving
                 )
             },

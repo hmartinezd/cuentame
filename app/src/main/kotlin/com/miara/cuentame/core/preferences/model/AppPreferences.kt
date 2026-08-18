@@ -8,7 +8,8 @@ data class AppPreferences(
     val autoBackupEnabled: Boolean,
     val lastAutoBackupSuccessTimestamp: Long?,
     val lastAutoBackupAttemptTimestamp: Long?,
-    val lastAutoBackupResult: String?
+    val lastAutoBackupResult: String?,
+    val menuManagementEnabled: Boolean = true
 ) {
     companion object {
         val DEFAULT = AppPreferences(
@@ -21,7 +22,8 @@ data class AppPreferences(
             autoBackupEnabled = true, // Safety feature enabled by default
             lastAutoBackupSuccessTimestamp = null,
             lastAutoBackupAttemptTimestamp = null,
-            lastAutoBackupResult = null
+            lastAutoBackupResult = null,
+            menuManagementEnabled = true
         )
     }
 }

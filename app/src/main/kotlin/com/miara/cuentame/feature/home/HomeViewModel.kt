@@ -12,6 +12,7 @@ import com.miara.cuentame.core.common.ids.InventoryAreaId
 import com.miara.cuentame.core.model.dashboard.*
 import com.miara.cuentame.core.presentation.dashboard.DashboardMetricUiModel
 import com.miara.cuentame.core.presentation.dashboard.MetricComparisonState
+import com.miara.cuentame.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -32,7 +33,8 @@ sealed interface HomeScreenState {
         val dashboard: DashboardUiModel,
         val setup: SetupReadinessUiModel = SetupReadinessUiModel(emptyList(), 0, 0, emptyList(), false),
         val isRefreshing: Boolean = false,
-        val refreshError: Boolean = false
+        val refreshError: Boolean = false,
+        val menuManagementEnabled: Boolean = true
     ) : HomeScreenState
     data class Error(
         val selectedRange: DashboardDateRange,
@@ -47,7 +49,8 @@ class HomeViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository,
     private val ingredientRepository: IngredientRepository = EmptyIngredientRepository,
     private val inventoryAreaRepository: InventoryAreaRepository = EmptyAreaRepository,
-    private val stockCountRepository: StockCountRepository = EmptyStockCountRepository
+    private val stockCountRepository: StockCountRepository = EmptyStockCountRepository,
+    private val preferencesRepository: AppPreferencesRepository? = null
 ) : ViewModel() {
 
     private val _selectedRange = MutableStateFlow(DashboardDateRange.LAST_30_DAYS)
@@ -69,8 +72,9 @@ class HomeViewModel @Inject constructor(
                 dashboardRepository.observeDashboard(restaurant.id, range),
                 ingredientRepository.observeIngredients(restaurant.id, false),
                 inventoryAreaRepository.observeActiveAreas(),
-                stockCountRepository.observeHasCompletedCount(restaurant.id)
-            ) { snapshot, ingredients, areas, hasCompletedCount ->
+                stockCountRepository.observeHasCompletedCount(restaurant.id),
+                preferencesRepository?.observePreferences() ?: flowOf(com.miara.cuentame.core.preferences.model.AppPreferences.DEFAULT)
+            ) { snapshot, ingredients, areas, hasCompletedCount, preferences ->
                     val activeAreaIds = areas.map { it.id }.toSet()
                     HomeScreenState.Ready(
                         restaurantId = restaurant.id,
@@ -88,7 +92,8 @@ class HomeViewModel @Inject constructor(
                                 .filter { it.defaultAreaId == null || it.defaultAreaId !in activeAreaIds }
                                 .map { it.id },
                             hasCompletedInitialCount = hasCompletedCount
-                        )
+                        ),
+                        menuManagementEnabled = preferences.menuManagementEnabled
                     ) as HomeScreenState
                 }
                 .onStart {

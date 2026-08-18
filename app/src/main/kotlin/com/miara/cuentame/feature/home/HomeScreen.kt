@@ -338,8 +338,8 @@ private fun DashboardContent(
                 onViewWasteHistory = onViewWaste,
                 onViewActivity = onViewActivity,
                 onViewPreparations = onViewPreparations,
-                onViewMenuItems = onViewMenuItems,
                 onViewMenus = onViewMenus,
+                menuManagementEnabled = state.menuManagementEnabled,
                 onViewProduction = onViewProduction,
                 onViewReorder = onViewReorder,
                 onViewSales = onViewSales
@@ -698,26 +698,31 @@ private fun QuickActionsSection(
     onViewWasteHistory: () -> Unit,
     onViewActivity: () -> Unit,
     onViewPreparations: () -> Unit,
-    onViewMenuItems: () -> Unit,
     onViewMenus: () -> Unit,
+    menuManagementEnabled: Boolean,
     onViewProduction: () -> Unit,
     onViewReorder: () -> Unit,
     onViewSales: () -> Unit
 ) {
-    val actions = listOf(
+    val actions = buildList {
+        addAll(listOf(
         QuickActionSpec(Icons.Default.Delete, stringResource(R.string.log_waste_action), "log_waste_button", onLogWaste),
         QuickActionSpec(Icons.Default.History, stringResource(R.string.waste_history), "view_waste_button", onViewWasteHistory),
         QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.new_purchase_action), "new_purchase_button", onNewPurchase),
         QuickActionSpec(Icons.Default.Straighten, stringResource(R.string.start_count_action), "start_count_button", onStartCount),
         QuickActionSpec(Icons.Default.SoupKitchen, stringResource(R.string.preparation_recipes), "open_preparation_recipes_button", onViewPreparations),
         QuickActionSpec(Icons.Default.PrecisionManufacturing, stringResource(R.string.production_batches), "open_production_batches_button", onViewProduction),
-        QuickActionSpec(Icons.Default.MenuBook, stringResource(R.string.catalog_menus), "open_menus_button", onViewMenus),
-        QuickActionSpec(Icons.Default.Restaurant, stringResource(R.string.menu_items_title), "open_menu_items_button", onViewMenuItems),
+        ))
+        if (menuManagementEnabled) {
+            add(QuickActionSpec(Icons.Default.MenuBook, stringResource(R.string.menu_management), "open_menu_management_button", onViewMenus))
+        }
+        addAll(listOf(
         QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.reorder_assistance), "reorder_assistance_button", onViewReorder),
         QuickActionSpec(Icons.Default.History, stringResource(R.string.inventory_activity_title), "open_inventory_activity_button", onViewActivity),
         QuickActionSpec(Icons.Default.BarChart, stringResource(R.string.view_reports_action), "view_reports_button", onViewReports),
         QuickActionSpec(Icons.Default.ShoppingCart, stringResource(R.string.sales_title), "open_sales_button", onViewSales),
-    )
+        ))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
         actions.chunked(columns).forEach { rowActions ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {

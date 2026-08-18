@@ -56,6 +56,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setMenuManagementEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            try { preferencesRepository.setMenuManagementEnabled(enabled) }
+            catch (e: Exception) { _error.value = e }
+        }
+    }
+
     fun setAppLocaleTag(tag: String) {
         if (_isSaving.value) return
         val locale = SupportedAppLocale.fromLanguageTag(tag) ?: return

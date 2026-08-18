@@ -10,6 +10,7 @@ interface AppPreferencesRepository {
     suspend fun setOnboardingCompleted(completed: Boolean)
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setDynamicColorEnabled(enabled: Boolean)
+    suspend fun setMenuManagementEnabled(enabled: Boolean) { }
     suspend fun setAppLocaleTag(localeTag: String)
 
     suspend fun setAutoBackupEnabled(enabled: Boolean)
