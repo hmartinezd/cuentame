@@ -57,8 +57,12 @@ class CsvParser @Inject constructor() {
 
             constructor(rows: List<Map<String, String>>, warnings: List<CsvParserWarning> = emptyList()) : this(
                 CsvSourceTable(
-                    rows.firstOrNull()?.keys?.mapIndexed { index, header -> CsvSourceColumn(index, header) }.orEmpty(),
-                    rows.map { row -> row.values.toList() }
+                    (linkedSetOf(HEADER_INGREDIENT_NAME, HEADER_BASE_UNIT) + rows.firstOrNull()?.keys.orEmpty())
+                        .mapIndexed { index, header -> CsvSourceColumn(index, header) },
+                    rows.map { row ->
+                        (linkedSetOf(HEADER_INGREDIENT_NAME, HEADER_BASE_UNIT) + rows.firstOrNull()?.keys.orEmpty())
+                            .map { header -> row[header].orEmpty() }
+                    }
                 ), warnings
             )
         }

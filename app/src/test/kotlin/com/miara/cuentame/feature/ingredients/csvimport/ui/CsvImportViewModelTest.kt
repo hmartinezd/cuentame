@@ -175,7 +175,7 @@ class CsvImportViewModelTest {
             CsvParser.ParseResult.Success(rowsA),
             CsvParser.ParseResult.Error(CsvParser.ParseErrorType.MALFORMED_CSV)
         )
-        coEvery { importService.processCsv(any(), rowsA) } returns docA
+        coEvery { importService.processCsv(any(), any()) } returns docA
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
         testDispatcher.scheduler.advanceUntilIdle()
@@ -226,7 +226,7 @@ class CsvImportViewModelTest {
             CsvIngredientImportRow(index + 2, raw, null, emptyList(), CsvImportRowStatus.READY, true)
         })
         every { csvParser.parse(any()) } returns CsvParser.ParseResult.Success(rawRows)
-        coEvery { importService.processCsv(any(), rawRows) } returnsMany listOf(initial, refreshed)
+        coEvery { importService.processCsv(any(), any()) } returnsMany listOf(initial, refreshed)
         coEvery { importRepository.commitImport(any(), any()) } returns ImportResult.Failure(ImportFailure.StateChanged)
 
         viewModel.loadCsv(ByteArrayInputStream(byteArrayOf()))
@@ -241,7 +241,7 @@ class CsvImportViewModelTest {
         viewModel.refreshPreview()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 2) { importService.processCsv(restaurantId, rawRows) }
+        coVerify(exactly = 2) { importService.processCsv(restaurantId, any()) }
         assertThat(viewModel.uiState.value.document?.rows?.single { it.rowNumber == 3 }?.isIncluded).isFalse()
         assertThat(viewModel.uiState.value.importResult).isNull()
     }

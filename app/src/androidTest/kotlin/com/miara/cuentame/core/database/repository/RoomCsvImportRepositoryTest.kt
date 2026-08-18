@@ -19,6 +19,7 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.NormalizedIngredi
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportService
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
+import com.miara.cuentame.feature.ingredients.csvimport.domain.IngredientColumnMapper
 import com.miara.cuentame.core.ocr.parser.matching.InventoryNormalization
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.flow.first
@@ -65,7 +66,8 @@ class RoomCsvImportRepositoryTest {
             db.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(restId.value, "R", "USD", "en-US", 0L, 0L, null))
             db.unitDao().insertSeedUnits(listOf(
                 com.miara.cuentame.core.database.entity.UnitEntity("u1", "Pound", "lb", "MASS", BigDecimal.ONE, true, 0),
-                com.miara.cuentame.core.database.entity.UnitEntity("u2", "Ounce", "oz", "MASS", BigDecimal("0.0625"), true, 1)
+                com.miara.cuentame.core.database.entity.UnitEntity("u2", "Ounce", "oz", "MASS", BigDecimal("0.0625"), true, 1),
+                com.miara.cuentame.core.database.entity.UnitEntity("mass_lb", "Pound", "lb", "MASS", BigDecimal.ONE, true, 2)
             ))
         }
         importService = CsvImportService(
@@ -339,6 +341,75 @@ class RoomCsvImportRepositoryTest {
         assertThat(db.ingredientCostProjectionDao().getAll().all { it.averageUnitCostBase == "1.25" }).isTrue()
         val mappings = db.supplierItemMappingDao().getAllMappingsSync(restId.value)
         assertThat(mappings.all { it.unitOptionId != null && it.inventoryAreaId == "dry-area" }).isTrue()
+    }
+
+    @Test
+    fun realisticArbitraryHeaderCsv_mapsPreviewsWithoutWrites_thenCommitsExactly() = runBlocking {
+        val csv = """Item,Department,UOM,Pack,Pack Qty,Vendor,Item #,Cost
+Chicken Breast,Meat,lbs,Case,40,Sysco,12345,2.45
+Roma Tomatoes,Produce,lb,Case,25,FreshPoint,ABC12,1.30"""
+        val parsed = CsvParser().parse(ByteArrayInputStream(csv.toByteArray())) as CsvParser.ParseResult.Success
+        val mapping = IngredientColumnMapper.suggest(parsed.table)
+        assertThat(mapping.isValid).isTrue()
+
+        val document = importService.processCsv(restId, IngredientColumnMapper.toCanonicalRows(parsed.table, mapping))
+
+        assertThat(document.rows).hasSize(2)
+        assertThat(document.rows.all { it.status != CsvImportRowStatus.ERROR }).isTrue()
+        assertThat(document.rows.map { it.normalizedData!!.resolvedBaseUnitId!!.value })
+            .containsExactly("mass_lb", "mass_lb")
+        assertThat(tableCount("ingredient_categories")).isEqualTo(0)
+        assertThat(tableCount("suppliers")).isEqualTo(0)
+
+        assertThat(repository.commitImport(restId, document)).isInstanceOf(ImportResult.Success::class.java)
+
+        val ingredients = db.ingredientDao().getActiveIngredients(restId.value).associateBy { it.name }
+        assertThat(ingredients.keys).containsExactly("Chicken Breast", "Roma Tomatoes")
+        assertThat(ingredients.values.all { it.baseUnitId == "mass_lb" }).isTrue()
+        assertThat(db.ingredientCategoryDao().getAllCategoriesForRestaurant(restId.value).map { it.name })
+            .containsExactly("Meat", "Produce")
+        assertThat(db.supplierDao().observeAllSuppliers(restId.value).first().map { it.name })
+            .containsExactly("Sysco", "FreshPoint")
+        val mappings = db.supplierItemMappingDao().getAllMappingsSync(restId.value).associateBy { it.sourceVendorCode }
+        assertThat(mappings.keys).containsExactly("12345", "ABC12")
+        assertThat(db.ingredientUnitOptionDao().getActiveOptions(ingredients.getValue("Chicken Breast").id)
+            .single { it.isDefaultPurchase }.factorToBase).isEqualTo(BigDecimal("40"))
+        assertThat(db.ingredientUnitOptionDao().getActiveOptions(ingredients.getValue("Roma Tomatoes").id)
+            .single { it.isDefaultPurchase }.factorToBase).isEqualTo(BigDecimal("25"))
+        val costs = db.ingredientCostProjectionDao().getAll().associateBy { it.ingredientId }
+        assertThat(costs.getValue(ingredients.getValue("Chicken Breast").id).averageUnitCostBase).isEqualTo("2.45")
+        assertThat(costs.getValue(ingredients.getValue("Roma Tomatoes").id).averageUnitCostBase).isEqualTo("1.30")
+    }
+
+    @Test
+    fun defaultArea_reusesActiveAreas_andUnknownAreaDoesNotCreateOne() = runBlocking {
+        listOf("Walk-in", "Dry Storage").forEachIndexed { index, name ->
+            db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(
+                "area-$index", restId.value, name, name.lowercase(), index, true, 0, 0, null
+            ))
+        }
+        val knownRows = listOf("Walk-in", "Dry Storage").mapIndexed { index, area -> mapOf(
+            CsvParser.HEADER_INGREDIENT_NAME to "Item $index",
+            CsvParser.HEADER_BASE_UNIT to "lb",
+            CsvParser.HEADER_DEFAULT_AREA to area
+        ) }
+        val knownDocument = importService.processCsv(restId, knownRows)
+
+        assertThat(knownDocument.rows.map { it.normalizedData!!.resolvedDefaultAreaId!!.value })
+            .containsExactly("area-0", "area-1").inOrder()
+        assertThat(repository.commitImport(restId, knownDocument)).isInstanceOf(ImportResult.Success::class.java)
+        assertThat(db.ingredientDao().getActiveIngredients(restId.value).map { it.defaultAreaId })
+            .containsExactly("area-0", "area-1")
+
+        val unknown = importService.processCsv(restId, listOf(mapOf(
+            CsvParser.HEADER_INGREDIENT_NAME to "Garage Item",
+            CsvParser.HEADER_BASE_UNIT to "lb",
+            CsvParser.HEADER_DEFAULT_AREA to "Garage"
+        )))
+        assertThat(unknown.rows.single().issues.map { it.code })
+            .contains(com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportIssueCode.UNKNOWN_AREA)
+        assertThat(db.inventoryAreaDao().getActiveAreasSync(restId.value).map { it.name })
+            .containsExactly("Walk-in", "Dry Storage")
     }
 
     private fun tableCount(table: String): Int =

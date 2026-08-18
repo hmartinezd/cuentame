@@ -83,10 +83,12 @@ class IngredientListViewModelTest {
         var calls = 0
         var result: StarterCatalogSeedResult = StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
         var gate: CompletableDeferred<Unit>? = null
+        var exception: Exception? = null
 
         override suspend fun seedNewRestaurant(restaurantId: String, catalog: StarterCatalogDefinition): StarterCatalogSeedResult {
             calls++
             gate?.await()
+            exception?.let { throw it }
             return result
         }
     }
@@ -349,6 +351,16 @@ class IngredientListViewModelTest {
     }
 
     @Test
+    fun `opening inventory does not seed sample catalog`() = runTest {
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(301)
+        runCurrent()
+
+        assertThat(starterCatalogSeeder.calls).isEqualTo(0)
+        job.cancel()
+    }
+
+    @Test
     fun `sample catalog failure is published and busy resets`() = runTest {
         starterCatalogSeeder.result = StarterCatalogSeedResult.Failure(
             StarterCatalogSeedFailure.DatabaseError(IllegalStateException("private detail"))
@@ -359,6 +371,21 @@ class IngredientListViewModelTest {
 
         assertThat(starterCatalogSeeder.calls).isEqualTo(1)
         assertThat(viewModel.uiState.value.sampleCatalogResult).isInstanceOf(StarterCatalogSeedResult.Failure::class.java)
+        assertThat(viewModel.uiState.value.isAddingSampleCatalog).isFalse()
+        job.cancel()
+    }
+
+    @Test
+    fun `unexpected sample catalog exception becomes safe failure and busy resets`() = runTest {
+        starterCatalogSeeder.exception = IllegalStateException("private detail")
+        val job = launch { viewModel.uiState.collect {} }
+
+        viewModel.addSampleCatalog()
+        runCurrent()
+
+        assertThat(starterCatalogSeeder.calls).isEqualTo(1)
+        assertThat(viewModel.uiState.value.sampleCatalogResult)
+            .isInstanceOf(StarterCatalogSeedResult.Failure::class.java)
         assertThat(viewModel.uiState.value.isAddingSampleCatalog).isFalse()
         job.cancel()
     }

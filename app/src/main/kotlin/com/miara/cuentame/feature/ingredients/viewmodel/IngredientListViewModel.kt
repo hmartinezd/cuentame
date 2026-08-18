@@ -11,10 +11,12 @@ import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
 import com.miara.cuentame.core.domain.service.StarterCatalogSeeder
 import com.miara.cuentame.core.domain.service.StarterCatalogSeedResult
+import com.miara.cuentame.core.domain.service.StarterCatalogSeedFailure
 import com.miara.cuentame.core.model.catalog.CubanFoodiesStarterCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -133,6 +135,12 @@ class IngredientListViewModel @Inject constructor(
         try {
             val restaurant = restaurantRepository.getRestaurant() ?: return@launch
             _sampleCatalogResult.value = starterCatalogSeeder.seedNewRestaurant(restaurant.id.value, CubanFoodiesStarterCatalog.definition)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _sampleCatalogResult.value = StarterCatalogSeedResult.Failure(
+                StarterCatalogSeedFailure.DatabaseError(e)
+            )
         } finally {
             _isAddingSampleCatalog.value = false
         }

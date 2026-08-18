@@ -5,7 +5,7 @@ enum class IngredientImportField(
     val required: Boolean = false,
     val aliases: Set<String> = emptySet()
 ) {
-    INGREDIENT_NAME("ingredient_name", true, setOf("ingredient", "item", "item_name", "product", "product_name")),
+    INGREDIENT_NAME("ingredient_name", true, setOf("name", "ingredient", "item", "item_name", "product", "product_name")),
     SKU("sku"),
     CATEGORY("category", aliases = setOf("department", "group")),
     BASE_UNIT("base_unit", true, setOf("unit", "uom", "base_uom", "unit_of_measure")),

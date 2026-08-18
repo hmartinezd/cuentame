@@ -7,7 +7,9 @@ import com.google.common.truth.Truth.assertThat
 import com.miara.cuentame.MainActivity
 import com.miara.cuentame.core.database.dao.IngredientCategoryDao
 import com.miara.cuentame.core.database.dao.IngredientDao
+import com.miara.cuentame.core.database.dao.InventoryAreaDao
 import com.miara.cuentame.core.database.dao.RestaurantDao
+import com.miara.cuentame.core.database.dao.UnitDao
 import com.miara.cuentame.test.TestStateManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -39,6 +41,12 @@ class StarterCatalogOnboardingIntegrationTest {
     @Inject
     lateinit var categoryDao: IngredientCategoryDao
 
+    @Inject
+    lateinit var inventoryAreaDao: InventoryAreaDao
+
+    @Inject
+    lateinit var unitDao: UnitDao
+
     @Before
     fun setup() {
         hiltRule.inject()
@@ -51,7 +59,7 @@ class StarterCatalogOnboardingIntegrationTest {
     }
 
     @Test
-    fun onboarding_seedsStarterCatalogForNewRestaurant() {
+    fun cleanOnboarding_createsSetupDataButNoIngredients() {
         ActivityScenario.launch(MainActivity::class.java).use {
             // 1. Welcome step
             composeTestRule.waitUntil(30000) {
@@ -89,15 +97,15 @@ class StarterCatalogOnboardingIntegrationTest {
                 composeTestRule.onAllNodesWithTag("home_screen", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // Verify Seed
+            // System reference/setup data is created, but restaurant ingredient data is opt-in.
             runBlocking {
                 val restaurant = restaurantDao.getRestaurant()
-                android.util.Log.d("StarterCatalogTest", "Found restaurant: $restaurant")
                 if (restaurant != null) {
                     val ingredients = ingredientDao.getAllIngredients(restaurant.id)
-                    android.util.Log.d("StarterCatalogTest", "Found ingredients: ${ingredients.size}")
-                    assertThat(ingredients).hasSize(89)
-                    // ...
+                    assertThat(inventoryAreaDao.getActiveAreasSync(restaurant.id)).isNotEmpty()
+                    assertThat(categoryDao.getAllCategoriesForRestaurant(restaurant.id)).isEmpty()
+                    assertThat(unitDao.countSeededUnits()).isGreaterThan(0)
+                    assertThat(ingredients).isEmpty()
                 } else {
                     error("Restaurant not found after onboarding!")
                 }
