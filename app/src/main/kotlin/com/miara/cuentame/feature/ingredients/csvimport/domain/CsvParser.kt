@@ -25,20 +25,20 @@ class CsvParser @Inject constructor() {
         }.readAll(stream)
         if (cells.isEmpty()) return ParseResult.Error(ParseErrorType.EMPTY_FILE)
 
-        val headers = cells.first().map { it.trim().lowercase() }
+        val headers = cells.first().map { it.trim() }
         if (headers.all { it.isBlank() }) return ParseResult.Error(ParseErrorType.EMPTY_FILE)
         if (headers.size != headers.toSet().size) return ParseResult.Error(ParseErrorType.DUPLICATE_HEADERS)
-        if (!headers.containsAll(REQUIRED_HEADERS)) return ParseResult.Error(ParseErrorType.MISSING_HEADERS)
 
         val dataRows = cells.drop(1)
         if (dataRows.size > MAX_ROWS) return ParseResult.Error(ParseErrorType.TOO_MANY_ROWS)
 
         if (dataRows.any { it.size > headers.size }) return ParseResult.Error(ParseErrorType.MALFORMED_CSV)
-        val rows = dataRows.map { values ->
-            headers.mapIndexed { index, header -> header to values.getOrElse(index) { "" } }.toMap()
-        }
-        val warnings = headers.filterNot(CANONICAL_HEADERS::contains).distinct().map { CsvParserWarning.UnknownColumn(it) }
-        ParseResult.Success(rows, warnings)
+        ParseResult.Success(
+            CsvSourceTable(
+                columns = headers.mapIndexed { index, header -> CsvSourceColumn(index, header) },
+                rows = dataRows.map { values -> headers.indices.map { index -> values.getOrElse(index) { "" } } }
+            )
+        )
     } catch (_: LimitExceededException) {
         ParseResult.Error(ParseErrorType.FILE_TOO_LARGE)
     } catch (_: IOException) {
@@ -49,12 +49,25 @@ class CsvParser @Inject constructor() {
     }
 
     sealed class ParseResult {
-        data class Success(val rows: List<Map<String, String>>, val warnings: List<CsvParserWarning> = emptyList()) : ParseResult()
+        data class Success(val table: CsvSourceTable, val warnings: List<CsvParserWarning> = emptyList()) : ParseResult() {
+            @Deprecated("Map source columns explicitly")
+            val rows: List<Map<String, String>> get() = table.rows.map { row ->
+                table.columns.associate { it.header.trim().lowercase() to row.getOrElse(it.index) { "" } }
+            }
+
+            constructor(rows: List<Map<String, String>>, warnings: List<CsvParserWarning> = emptyList()) : this(
+                CsvSourceTable(
+                    rows.firstOrNull()?.keys?.mapIndexed { index, header -> CsvSourceColumn(index, header) }.orEmpty(),
+                    rows.map { row -> row.values.toList() }
+                ), warnings
+            )
+        }
         data class Error(val type: ParseErrorType, val message: String? = null) : ParseResult()
     }
 
-    enum class ParseErrorType { FILE_TOO_LARGE, TOO_MANY_ROWS, EMPTY_FILE, MISSING_HEADERS, DUPLICATE_HEADERS, MALFORMED_CSV, READ_FAILURE }
+    enum class ParseErrorType { FILE_TOO_LARGE, TOO_MANY_ROWS, EMPTY_FILE, @Deprecated("Header mapping is handled after parsing") MISSING_HEADERS, DUPLICATE_HEADERS, MALFORMED_CSV, READ_FAILURE }
     sealed interface CsvParserWarning {
+        @Deprecated("Unknown source columns are expected")
         data class UnknownColumn(val column: String) : CsvParserWarning
     }
 
@@ -73,8 +86,6 @@ class CsvParser @Inject constructor() {
         const val HEADER_VENDOR_CODE = "vendor_item_code"
         const val HEADER_CURRENT_COST = "current_cost_per_base_unit"
         const val HEADER_REORDER_POINT = "reorder_point_base"
-        private val REQUIRED_HEADERS = listOf(HEADER_INGREDIENT_NAME, HEADER_BASE_UNIT)
-        private val CANONICAL_HEADERS = listOf(HEADER_INGREDIENT_NAME, HEADER_SKU, HEADER_CATEGORY, HEADER_BASE_UNIT, HEADER_COUNT_UNIT, HEADER_PURCHASE_PACKAGE, HEADER_PACKAGE_CONVERSION, HEADER_DEFAULT_AREA, HEADER_SUPPLIER, HEADER_VENDOR_CODE, HEADER_CURRENT_COST, HEADER_REORDER_POINT)
     }
 
     private class LimitedInputStream(private val inner: InputStream, private val limit: Long) : InputStream() {

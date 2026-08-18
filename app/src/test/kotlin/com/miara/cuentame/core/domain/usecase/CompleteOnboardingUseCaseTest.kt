@@ -23,6 +23,7 @@ class CompleteOnboardingUseCaseTest {
     private val preferencesFlow = MutableStateFlow(AppPreferences.DEFAULT)
     private var setupResult: LocalSetupResult = LocalSetupResult.Success
     private var restaurantValue: Restaurant? = null
+    private var seedCalls = 0
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = preferencesFlow
@@ -70,6 +71,7 @@ class CompleteOnboardingUseCaseTest {
 
     private val fakeStarterCatalogSeeder = object : StarterCatalogSeeder {
         override suspend fun seedNewRestaurant(restaurantId: String, catalog: StarterCatalogDefinition): StarterCatalogSeedResult {
+            seedCalls++
             return StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
         }
     }
@@ -88,6 +90,7 @@ class CompleteOnboardingUseCaseTest {
         assertThat(result).isEqualTo(LocalSetupResult.Success)
         assertThat(preferencesFlow.value.onboardingCompleted).isTrue()
         assertThat(preferencesFlow.value.appLocaleTag).isEqualTo("es-US")
+        assertThat(seedCalls).isEqualTo(0)
     }
 
     @Test
@@ -111,5 +114,6 @@ class CompleteOnboardingUseCaseTest {
         assertThat(result).isEqualTo(LocalSetupResult.AlreadyCompleted)
         assertThat(preferencesFlow.value.onboardingCompleted).isTrue()
         assertThat(preferencesFlow.value.appLocaleTag).isEqualTo("es-US")
+        assertThat(seedCalls).isEqualTo(0)
     }
 }

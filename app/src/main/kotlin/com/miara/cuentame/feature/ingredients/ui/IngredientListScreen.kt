@@ -37,6 +37,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +71,7 @@ fun IngredientListRoute(
     viewModel: IngredientListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var confirmSample by remember { mutableStateOf(false) }
     
     IngredientListScreen(
         uiState = uiState,
@@ -78,7 +82,15 @@ fun IngredientListRoute(
         onImportCsv = onImportCsv,
         onIngredientClick = onIngredientClick,
         onManagePreparations = onManagePreparations,
-        onReorder = onReorder
+        onReorder = onReorder,
+        onUseSampleCatalog = { confirmSample = true }
+    )
+    if (confirmSample) AlertDialog(
+        onDismissRequest = { confirmSample = false },
+        title = { Text(stringResource(R.string.sample_catalog_confirm_title)) },
+        text = { Text(stringResource(R.string.sample_catalog_confirm_body)) },
+        dismissButton = { TextButton(onClick = { confirmSample = false }) { Text(stringResource(R.string.action_cancel)) } },
+        confirmButton = { Button(onClick = { confirmSample = false; viewModel.addSampleCatalog() }) { Text(stringResource(R.string.sample_catalog_confirm_action)) } }
     )
 }
 
@@ -93,7 +105,8 @@ fun IngredientListScreen(
     onImportCsv: () -> Unit,
     onIngredientClick: (IngredientId) -> Unit,
     onManagePreparations: () -> Unit,
-    onReorder: () -> Unit = {}
+    onReorder: () -> Unit = {},
+    onUseSampleCatalog: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier.testTag("ingredient_list_screen"),
@@ -149,8 +162,18 @@ fun IngredientListScreen(
                     CircularProgressIndicator()
                 }
             } else if (uiState.ingredients.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = stringResource(R.string.no_ingredients))
+                Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.weight(1f))
+                    Text(text = stringResource(R.string.no_ingredients_yet), style = MaterialTheme.typography.headlineSmall)
+                    Text(text = stringResource(R.string.no_ingredients_guidance), modifier = Modifier.padding(vertical = 12.dp))
+                    Button(onClick = onImportCsv, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_existing_csv)) }
+                    OutlinedButton(onClick = onAddIngredient, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.add_ingredient_manually)) }
+                    TextButton(onClick = onUseSampleCatalog, enabled = !uiState.isAddingSampleCatalog) { Text(stringResource(R.string.use_sample_catalog)) }
+                    val result = uiState.sampleCatalogResult
+                    if (result is com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success) {
+                        Text(stringResource(R.string.sample_catalog_result, result.ingredientsInserted, result.ingredientsSkipped, result.categoriesInserted, result.categoriesReused, result.unitOptionsInserted))
+                    }
+                    Spacer(Modifier.weight(1f))
                 }
             } else {
                 LazyColumn(modifier = Modifier.testTag("ingredient_list")) {

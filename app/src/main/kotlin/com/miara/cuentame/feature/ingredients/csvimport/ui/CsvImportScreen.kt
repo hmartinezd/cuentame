@@ -33,6 +33,7 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportIssueSev
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportIssueCode
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
+import com.miara.cuentame.feature.ingredients.csvimport.domain.IngredientImportField
 
 enum class CsvImportRowFilter {
     ALL, READY, WARNING, ERROR, SKIPPED
@@ -81,6 +82,9 @@ fun CsvImportRoute(
         onDone = onViewIngredients,
         onResetResult = viewModel::resetImportResult,
         onRefreshPreview = viewModel::refreshPreview
+        ,onUpdateMapping = viewModel::updateMapping
+        ,onPreviewMapping = viewModel::previewMappedCsv
+        ,onChangeMapping = viewModel::changeMapping
     )
 
     if (editingRow != null) {
@@ -108,6 +112,9 @@ fun CsvImportScreen(
     onDone: () -> Unit,
     onResetResult: () -> Unit,
     onRefreshPreview: () -> Unit
+    ,onUpdateMapping: (Int, IngredientImportField?) -> Unit
+    ,onPreviewMapping: () -> Unit
+    ,onChangeMapping: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -135,6 +142,9 @@ fun CsvImportScreen(
                 uiState.isParsing -> {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
+                uiState.sourceTable != null && uiState.document == null -> {
+                    ColumnMappingContent(uiState, onUpdateMapping, onPreviewMapping)
+                }
                 uiState.document == null -> {
                     EmptyState(
                         onChooseFile = onChooseFile,
@@ -145,11 +155,11 @@ fun CsvImportScreen(
                 else -> {
                     ImportPreviewContent(
                         document = uiState.document,
-                        parserWarnings = uiState.parserWarnings,
                         isCommitting = uiState.isCommitting,
                         onToggleSelection = onToggleSelection,
                         onEditRow = onEditRow,
-                        onConfirm = onConfirm
+                        onConfirm = onConfirm,
+                        onChangeMapping = onChangeMapping
                     )
                 }
             }
@@ -198,11 +208,11 @@ fun EmptyState(onChooseFile: () -> Unit, onDownloadTemplate: () -> Unit, error: 
 @Composable
 fun ImportPreviewContent(
     document: CsvIngredientImportDocument,
-    parserWarnings: List<CsvParser.CsvParserWarning>,
     isCommitting: Boolean,
     onToggleSelection: (Int) -> Unit,
     onEditRow: (CsvIngredientImportRow) -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    onChangeMapping: () -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf(CsvImportRowFilter.ALL) }
     
@@ -219,11 +229,8 @@ fun ImportPreviewContent(
     val hasErrors = document.rows.any { it.isIncluded && it.status == CsvImportRowStatus.ERROR }
     
     Column(modifier = Modifier.fillMaxSize()) {
-        parserWarnings.forEach { warning ->
-            val message = when (warning) {
-                is CsvParser.CsvParserWarning.UnknownColumn -> stringResource(R.string.import_unknown_column, warning.column)
-            }
-            Text(message, modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.tertiary)
+        TextButton(onClick = onChangeMapping, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(stringResource(R.string.import_change_mapping))
         }
         if (document.rows.isEmpty()) Text(stringResource(R.string.import_no_data_rows), modifier = Modifier.padding(16.dp))
         ImportSummaryHeader(document, selectedFilter, onFilterSelected = { selectedFilter = it })
@@ -256,6 +263,74 @@ fun ImportPreviewContent(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColumnMappingContent(
+    uiState: CsvImportUiState,
+    onUpdateMapping: (Int, IngredientImportField?) -> Unit,
+    onPreview: () -> Unit
+) {
+    val table = uiState.sourceTable ?: return
+    val mapping = uiState.columnMapping ?: return
+    Column(Modifier.fillMaxSize()) {
+        Text(stringResource(R.string.import_map_columns), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        Text(stringResource(R.string.import_map_columns_help), modifier = Modifier.padding(horizontal = 16.dp))
+        LazyColumn(Modifier.weight(1f)) {
+            items(table.columns, key = { it.index }) { column ->
+                var expanded by remember { mutableStateOf(false) }
+                val target = mapping.sourceToTarget[column.index]
+                ListItem(
+                    headlineContent = { Text(column.header) },
+                    supportingContent = {
+                        val samples = table.samples(column.index).joinToString(" • ")
+                        if (samples.isNotEmpty()) Text(samples, maxLines = 2)
+                    },
+                    trailingContent = {
+                        Box {
+                            OutlinedButton(onClick = { expanded = true }) {
+                                Text(target?.let { fieldLabel(it) } ?: stringResource(R.string.import_ignore))
+                            }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.import_ignore)) }, onClick = {
+                                    onUpdateMapping(column.index, null); expanded = false
+                                })
+                                IngredientImportField.entries.forEach { field ->
+                                    DropdownMenuItem(text = { Text(fieldLabel(field)) }, onClick = {
+                                        onUpdateMapping(column.index, field); expanded = false
+                                    })
+                                }
+                            }
+                        }
+                    }
+                )
+                HorizontalDivider()
+            }
+        }
+        mapping.missingRequiredFields.forEach { field ->
+            Text(stringResource(R.string.import_required_mapping_missing, fieldLabel(field)), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        Button(onClick = onPreview, enabled = mapping.isValid, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(stringResource(R.string.import_preview_action))
+        }
+    }
+}
+
+@Composable
+private fun fieldLabel(field: IngredientImportField): String = when (field) {
+    IngredientImportField.INGREDIENT_NAME -> stringResource(R.string.import_field_ingredient_name)
+    IngredientImportField.SKU -> stringResource(R.string.import_field_sku)
+    IngredientImportField.CATEGORY -> stringResource(R.string.import_field_category)
+    IngredientImportField.BASE_UNIT -> stringResource(R.string.import_field_base_unit)
+    IngredientImportField.COUNT_UNIT -> stringResource(R.string.import_field_count_unit)
+    IngredientImportField.PURCHASE_PACKAGE -> stringResource(R.string.import_field_purchase_package)
+    IngredientImportField.PACKAGE_CONVERSION_FACTOR -> stringResource(R.string.import_field_package_conversion)
+    IngredientImportField.DEFAULT_AREA -> stringResource(R.string.import_field_default_area)
+    IngredientImportField.SUPPLIER -> stringResource(R.string.import_field_supplier)
+    IngredientImportField.VENDOR_ITEM_CODE -> stringResource(R.string.import_field_vendor_code)
+    IngredientImportField.CURRENT_COST_PER_BASE_UNIT -> stringResource(R.string.import_field_current_cost)
+    IngredientImportField.REORDER_POINT_BASE -> stringResource(R.string.import_field_reorder_point)
 }
 
 @Composable

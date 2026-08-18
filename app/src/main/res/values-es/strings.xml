@@ -1231,4 +1231,11 @@
     <string name="sales_inventory_no_effect">Estas transacciones no tienen efecto en inventario.</string>
     <string name="sales_inventory_attention">Algunas ventas no se pudieron aplicar al inventario.</string>
     <string name="sales_inventory_retry">Reintentar actualización</string>
+    <string name="import_map_columns">Asignar columnas</string>
+    <string name="import_map_columns_help">Revisa cómo se importarán las columnas de tu hoja. Los campos obligatorios deben estar asignados.</string>
+    <string name="import_ignore">Ignorar</string>
+    <string name="import_change_mapping">Cambiar asignación de columnas</string>
+    <string name="import_required_mapping_missing">Obligatorio: asigna %1$s</string>
+    <string name="import_preview_action">Vista previa</string>
+    <string name="no_ingredients_yet">Aún no hay ingredientes</string><string name="no_ingredients_guidance">Importa tu lista de ingredientes o añade el primero.</string><string name="import_existing_csv">Importar CSV existente</string><string name="add_ingredient_manually">Añadir ingrediente manualmente</string><string name="use_sample_catalog">Usar catálogo de ingredientes de muestra</string><string name="sample_catalog_confirm_title">¿Añadir ingredientes de muestra?</string><string name="sample_catalog_confirm_body">Esto añade un conjunto inicial de ingredientes y categorías comunes. Puedes editarlos o archivarlos después.</string><string name="sample_catalog_confirm_action">Añadir catálogo de muestra</string><string name="sample_catalog_result">%1$d ingredientes creados, %2$d omitidos · %3$d categorías creadas, %4$d reutilizadas · %5$d opciones de unidad creadas</string>
 </resources>

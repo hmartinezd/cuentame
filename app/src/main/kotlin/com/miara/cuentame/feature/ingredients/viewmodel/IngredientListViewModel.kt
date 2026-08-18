@@ -9,6 +9,9 @@ import com.miara.cuentame.core.domain.usecase.ObserveIngredientCategoriesUseCase
 import com.miara.cuentame.core.domain.usecase.ObserveIngredientsUseCase
 import com.miara.cuentame.core.model.ingredient.Ingredient
 import com.miara.cuentame.core.model.ingredient.IngredientCategory
+import com.miara.cuentame.core.domain.service.StarterCatalogSeeder
+import com.miara.cuentame.core.domain.service.StarterCatalogSeedResult
+import com.miara.cuentame.core.model.catalog.CubanFoodiesStarterCatalog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface IngredientCategoryFilter {
@@ -36,6 +40,8 @@ data class IngredientListUiState(
     val showArchived: Boolean = false,
     val ingredients: List<Ingredient> = emptyList(),
     val categories: List<IngredientCategory> = emptyList(),
+    val sampleCatalogResult: StarterCatalogSeedResult? = null,
+    val isAddingSampleCatalog: Boolean = false,
     val error: Throwable? = null
 )
 
@@ -44,12 +50,18 @@ data class IngredientListUiState(
 class IngredientListViewModel @Inject constructor(
     private val observeIngredientsUseCase: ObserveIngredientsUseCase,
     private val observeIngredientCategoriesUseCase: ObserveIngredientCategoriesUseCase,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val starterCatalogSeeder: StarterCatalogSeeder = object : StarterCatalogSeeder {
+        override suspend fun seedNewRestaurant(restaurantId: String, catalog: com.miara.cuentame.core.model.catalog.StarterCatalogDefinition) =
+            com.miara.cuentame.core.domain.service.StarterCatalogSeedResult.Success(0, 0, 0, 0, 0)
+    }
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     private val _categoryFilter = MutableStateFlow<IngredientCategoryFilter>(IngredientCategoryFilter.All)
     private val _showArchived = MutableStateFlow(false)
+    private val _sampleCatalogResult = MutableStateFlow<StarterCatalogSeedResult?>(null)
+    private val _isAddingSampleCatalog = MutableStateFlow(false)
 
     private val restaurantIdFlow = restaurantRepository.observeRestaurant()
         .filterNotNull()
@@ -90,9 +102,11 @@ class IngredientListViewModel @Inject constructor(
 
     val uiState: StateFlow<IngredientListUiState> = combine(
         filteredUiState,
-        _searchQuery
-    ) { filteredState, rawQuery ->
-        filteredState.copy(searchQuery = rawQuery)
+        _searchQuery,
+        _sampleCatalogResult,
+        _isAddingSampleCatalog
+    ) { filteredState, rawQuery, sampleResult, addingSample ->
+        filteredState.copy(searchQuery = rawQuery, sampleCatalogResult = sampleResult, isAddingSampleCatalog = addingSample)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -110,4 +124,17 @@ class IngredientListViewModel @Inject constructor(
     fun onShowArchivedToggled(show: Boolean) {
         _showArchived.value = show
     }
+
+    fun addSampleCatalog() = viewModelScope.launch {
+        if (_isAddingSampleCatalog.value) return@launch
+        val restaurant = restaurantRepository.getRestaurant() ?: return@launch
+        _isAddingSampleCatalog.value = true
+        try {
+            _sampleCatalogResult.value = starterCatalogSeeder.seedNewRestaurant(restaurant.id.value, CubanFoodiesStarterCatalog.definition)
+        } finally {
+            _isAddingSampleCatalog.value = false
+        }
+    }
+
+    fun clearSampleCatalogResult() { _sampleCatalogResult.value = null }
 }

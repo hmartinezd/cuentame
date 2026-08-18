@@ -119,9 +119,9 @@ class CsvParserTest {
     }
 
     @Test
-    fun `unknown column warning is typed`() {
+    fun `arbitrary headers parse without warnings`() {
         val result = parser.parse(ByteArrayInputStream("ingredient_name,base_unit,foo\nTomato,lb,x".toByteArray())) as CsvParser.ParseResult.Success
-        assertThat(result.warnings).containsExactly(CsvParser.CsvParserWarning.UnknownColumn("foo"))
+        assertThat(result.warnings).isEmpty()
     }
 
     @Test

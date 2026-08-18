@@ -58,7 +58,7 @@ class CsvImportService @Inject constructor(
         
         // Ambiguous Unit Resolution: map normalized name/symbol to list of matching units
         val unitsLookup = systemUnits.flatMap { unit ->
-            listOf(unit.symbol.normalizeName() to unit, unit.name.normalizeName() to unit)
+            (listOf(unit.symbol, unit.name) + UnitImportAliases.aliasesFor(unit.id.value)).map { it.normalizeName() to unit }
         }.groupBy({ it.first }, { it.second })
 
         // Track duplicates within CSV
@@ -329,4 +329,24 @@ class CsvImportService @Inject constructor(
             status = status
         )
     }
+}
+
+private object UnitImportAliases {
+    private val aliases = mapOf(
+        "mass_g" to setOf("g", "gram", "grams"),
+        "mass_kg" to setOf("kg", "kgs", "kilogram", "kilograms", "kilo", "kilos"),
+        "mass_oz" to setOf("oz", "ounce", "ounces"),
+        "mass_lb" to setOf("lb", "lbs", "pound", "pounds"),
+        "volume_ml" to setOf("ml", "milliliter", "milliliters"),
+        "volume_l" to setOf("l", "liter", "liters", "litre", "litres"),
+        "volume_tsp_us" to setOf("tsp", "teaspoon", "teaspoons"),
+        "volume_tbsp_us" to setOf("tbsp", "tablespoon", "tablespoons"),
+        "volume_fl_oz_us" to setOf("fl oz", "floz", "fluid ounce", "fluid ounces"),
+        "volume_cup_us" to setOf("cup", "cups"),
+        "volume_pint_us" to setOf("pt", "pint", "pints"),
+        "volume_quart_us" to setOf("qt", "quart", "quarts"),
+        "volume_gallon_us" to setOf("gal", "gallon", "gallons"),
+        "count_each" to setOf("ea", "each", "piece", "pieces", "unit", "units")
+    )
+    fun aliasesFor(unitId: String): Set<String> = aliases[unitId].orEmpty()
 }

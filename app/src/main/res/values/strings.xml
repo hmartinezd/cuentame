@@ -1272,4 +1272,11 @@
     <string name="sales_inventory_no_effect">These transactions have no inventory effect.</string>
     <string name="sales_inventory_attention">Some sales could not be applied to inventory.</string>
     <string name="sales_inventory_retry">Retry inventory update</string>
+    <string name="import_map_columns">Map columns</string>
+    <string name="import_map_columns_help">Review how your spreadsheet columns will be imported. Required fields must be mapped.</string>
+    <string name="import_ignore">Ignore</string>
+    <string name="import_change_mapping">Change column mapping</string>
+    <string name="import_required_mapping_missing">Required: map %1$s</string>
+    <string name="import_preview_action">Preview import</string>
+    <string name="no_ingredients_yet">No ingredients yet</string><string name="no_ingredients_guidance">Import your existing ingredient list or add your first ingredient.</string><string name="import_existing_csv">Import existing CSV</string><string name="add_ingredient_manually">Add ingredient manually</string><string name="use_sample_catalog">Use sample ingredient catalog</string><string name="sample_catalog_confirm_title">Add sample ingredients?</string><string name="sample_catalog_confirm_body">This adds a starter set of common restaurant ingredients and categories. You can edit or archive them afterward.</string><string name="sample_catalog_confirm_action">Add sample catalog</string><string name="sample_catalog_result">%1$d ingredients created, %2$d skipped · %3$d categories created, %4$d reused · %5$d unit options created</string>
 </resources>

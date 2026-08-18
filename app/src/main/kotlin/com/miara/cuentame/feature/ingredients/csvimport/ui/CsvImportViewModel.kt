@@ -12,6 +12,10 @@ import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportService
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvImportRowStatus
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvParser
 import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvTemplateGenerator
+import com.miara.cuentame.feature.ingredients.csvimport.domain.CsvSourceTable
+import com.miara.cuentame.feature.ingredients.csvimport.domain.IngredientColumnMapper
+import com.miara.cuentame.feature.ingredients.csvimport.domain.IngredientColumnMapping
+import com.miara.cuentame.feature.ingredients.csvimport.domain.IngredientImportField
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +54,11 @@ class CsvImportViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 document = null,
+                sourceTable = null,
+                columnMapping = null,
+                parserWarnings = emptyList(),
                 isParsing = true,
                 parseError = null,
-                parserWarnings = emptyList(),
                 importResult = null
             )
         }
@@ -69,15 +75,9 @@ class CsvImportViewModel @Inject constructor(
                 when (parseResult) {
                     is CsvParser.ParseResult.Success -> {
                         try {
-                            val restaurant = restaurantRepository.getRestaurant()
-                            if (restaurant == null) {
-                                _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
-                                return@launch
-                            }
-                            val document = importService.processCsv(restaurant.id, parseResult.rows)
-                            if (generation == loadGeneration.get()) {
-                                _uiState.update { it.copy(document = document, parserWarnings = parseResult.warnings) }
-                            }
+                            val mapping = IngredientColumnMapper.suggest(parseResult.table)
+                            _uiState.update { it.copy(sourceTable = parseResult.table, columnMapping = mapping, parserWarnings = parseResult.warnings) }
+                            if (mapping.isValid) generatePreview()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (_: Exception) {
@@ -94,6 +94,35 @@ class CsvImportViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun updateMapping(sourceIndex: Int, target: IngredientImportField?) {
+        _uiState.update { state ->
+            val current = state.columnMapping ?: return@update state
+            state.copy(columnMapping = IngredientColumnMapper.update(current, sourceIndex, target), document = null)
+        }
+    }
+
+    fun previewMappedCsv() {
+        if (_uiState.value.columnMapping?.isValid == true) viewModelScope.launch { generatePreview() }
+    }
+
+    fun changeMapping() {
+        _uiState.update { it.copy(document = null, importResult = null) }
+    }
+
+    private suspend fun generatePreview() {
+        val state = _uiState.value
+        val table = state.sourceTable ?: return
+        val mapping = state.columnMapping ?: return
+        if (!mapping.isValid) return
+        val restaurant = restaurantRepository.getRestaurant()
+        if (restaurant == null) {
+            _uiState.update { it.copy(importResult = ImportResult.Failure(ImportFailure.RestaurantUnavailable)) }
+            return
+        }
+        val document = importService.processCsv(restaurant.id, IngredientColumnMapper.toCanonicalRows(table, mapping))
+        _uiState.update { it.copy(document = document) }
     }
 
     fun refreshPreview() {
@@ -200,9 +229,12 @@ class CsvImportViewModel @Inject constructor(
 
 data class CsvImportUiState(
     val document: CsvIngredientImportDocument? = null,
+    val sourceTable: CsvSourceTable? = null,
+    val columnMapping: IngredientColumnMapping? = null,
+    @Deprecated("Unknown source columns are handled by mapping")
+    val parserWarnings: List<CsvParser.CsvParserWarning> = emptyList(),
     val isParsing: Boolean = false,
     val parseError: CsvParser.ParseErrorType? = null,
-    val parserWarnings: List<CsvParser.CsvParserWarning> = emptyList(),
     val isRefreshing: Boolean = false,
     val isCommitting: Boolean = false,
     val importResult: ImportResult? = null
