@@ -378,7 +378,7 @@ Roma Tomatoes,Produce,lb,Case,25,FreshPoint,ABC12,1.30"""
     }
 
     @Test
-    fun defaultArea_reusesActiveAreas_andUnknownAreaDoesNotCreateOne() = runBlocking {
+    fun defaultArea_reusesActiveAreas_andUnknownAreaDoesNotCreateOne() = runBlocking<Unit> {
         listOf("Walk-in", "Dry Storage").forEachIndexed { index, name ->
             db.inventoryAreaDao().upsert(com.miara.cuentame.core.database.entity.InventoryAreaEntity(
                 "area-$index", restId.value, name, name.lowercase(), index, true, 0, 0, null

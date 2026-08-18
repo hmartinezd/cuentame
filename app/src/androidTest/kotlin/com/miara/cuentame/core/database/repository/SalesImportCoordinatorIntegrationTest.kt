@@ -75,7 +75,7 @@ class SalesImportCoordinatorIntegrationTest {
         assertThat(database.salesImportDao().getImport("export-b")).isNull()
     }
 
-    @Test fun overlappingExports_deduplicateCanonicalTransaction_andKeepBothReferences()=runBlocking {
+    @Test fun overlappingExports_deduplicateCanonicalTransaction_andKeepBothReferences()=runBlocking<Unit> {
         val first=export().copy(transactions=listOf(transaction("transaction-1","line-1"),transaction("transaction-2","line-2")))
         val second=export("export-b","2026-08-16T19:01:00Z").copy(transactions=listOf(transaction("transaction-2","line-2"),transaction("transaction-3","line-3")))
         import(first);import(second)
@@ -103,7 +103,10 @@ class SalesImportCoordinatorIntegrationTest {
         assertFailure(coordinator.prepare(restaurantId,ByteArray(MAX_SALES_EXPORT_BYTES+1)),SalesImportFailureCode.FILE_TOO_LARGE)
         assertFailure(coordinator.prepare(restaurantId,byteArrayOf(0xC3.toByte(),0x28)),SalesImportFailureCode.INVALID_UTF8)
         assertFailure(coordinator.prepare(restaurantId,"{".toByteArray()),SalesImportFailureCode.INVALID_JSON)
-        assertFailure(coordinator.prepare(restaurantId,bytes(export().copy(terminalId=""))),SalesImportFailureCode.INVALID_SALES_EXPORT)
+        val semanticallyInvalid = SalesExportJsonCodec.encode(export())
+            .replace("\"terminalId\": \"terminal\"", "\"terminalId\": \"\"")
+            .toByteArray()
+        assertFailure(coordinator.prepare(restaurantId,semanticallyInvalid),SalesImportFailureCode.INVALID_SALES_EXPORT)
         assertThat(database.salesImportDao().getImport("export-a")).isNull()
     }
 
@@ -136,7 +139,7 @@ class SalesImportCoordinatorIntegrationTest {
             assertThat(reversalOfMovementId).isNull()
             assertThat(unitCostBaseSnapshot).isNull();assertThat(totalValueSnapshot).isNull()
         }
-        assertThat(database.inventoryProjectionDao().getBalance("ingredient","walk-in")!!.quantityBase).isEqualTo(BigDecimal("-4"))
+        assertThat(database.inventoryProjectionDao().getBalance("ingredient","walk-in")!!.quantityBase).isEqualTo("-4")
         assertThat(consumptionCoordinator.reconcileImport("export-a").results.values.single()).isEqualTo(SalesConsumptionTransactionResult.AlreadyAligned)
         assertThat(inventoryMovementCount()).isEqualTo(1)
     }

@@ -818,6 +818,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
     ): ParsedField<BigDecimal?> {
         for (row in rows) {
             val lowText = row.text.lowercase()
+            if (INTERMEDIATE_SUMMARY_LABELS.any(lowText::contains)) continue
             val matched = if (isRegex) {
                 labels.any { Regex(it).containsMatchIn(lowText) }
             } else {

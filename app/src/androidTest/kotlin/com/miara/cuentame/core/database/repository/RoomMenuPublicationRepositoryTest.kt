@@ -87,7 +87,7 @@ class RoomMenuPublicationRepositoryTest {
         assertThat(db.menuCatalogDao().getMenu(menuId.value)!!.publicationRevision).isEqualTo(0);assertThat(publications.observePublications(menuId).first()).isEmpty()
     }
 
-    @Test fun preparationRecipe_isNotRecursivelyExpanded()=runBlocking{
+    @Test fun preparationRecipe_isNotRecursivelyExpanded()=runBlocking<Unit>{
         seed(price=BigDecimal("13"))
         db.ingredientDao().insert(IngredientEntity("raw","restaurant-publication","Raw","raw",null,"unit",null,null,null,null,true,1,1,null))
         db.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity("raw-option","raw","Unit","unit",null,BigDecimal.ONE,true,true,true,true,1,1,null))

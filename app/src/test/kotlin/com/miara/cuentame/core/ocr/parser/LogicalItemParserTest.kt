@@ -108,12 +108,12 @@ class LogicalItemParserTest {
     @Test
     fun `intermediate summaries CARRIED FORWARD and PAGE SUBTOTAL safety`() {
         val page = createPage(listOf(
-            "ITEM\tDESCRIPTION\tAMOUNT",
-            "101\tITEM_A\t10.00",
-            "PAGE SUBTOTAL\t10.00",
-            "CARRIED FORWARD\t10.00",
-            "102\tITEM_B\t20.00",
-            "TOTAL\t30.00"
+            "ITEM   DESCRIPTION   AMOUNT",
+            "101    ITEM_A        10.00",
+            "PAGE SUBTOTAL        10.00",
+            "CARRIED FORWARD      10.00",
+            "102    ITEM_B        20.00",
+            "TOTAL                30.00"
         ))
         
         val result = parser.parse(listOf(page))
