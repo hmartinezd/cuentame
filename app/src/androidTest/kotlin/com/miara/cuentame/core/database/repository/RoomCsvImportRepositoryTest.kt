@@ -64,11 +64,7 @@ class RoomCsvImportRepositoryTest {
         )
         runBlocking {
             db.restaurantDao().insert(com.miara.cuentame.core.database.entity.RestaurantEntity(restId.value, "R", "USD", "en-US", 0L, 0L, null))
-            db.unitDao().insertSeedUnits(listOf(
-                com.miara.cuentame.core.database.entity.UnitEntity("u1", "Pound", "lb", "MASS", BigDecimal.ONE, true, 0),
-                com.miara.cuentame.core.database.entity.UnitEntity("u2", "Ounce", "oz", "MASS", BigDecimal("0.0625"), true, 1),
-                com.miara.cuentame.core.database.entity.UnitEntity("mass_lb", "Pound", "lb", "MASS", BigDecimal.ONE, true, 2)
-            ))
+            db.unitDao().insertSeedUnits(com.miara.cuentame.core.database.seed.UnitSeeds.ALL_UNITS)
         }
         importService = CsvImportService(
             RoomIngredientRepository(
@@ -103,7 +99,7 @@ class RoomCsvImportRepositoryTest {
                 categoryName = "Produce",
                 resolvedCategoryId = null,
                 baseUnitName = "lb",
-                resolvedBaseUnitId = UnitId("u1"),
+                resolvedBaseUnitId = UnitId("mass_lb"),
                 countUnitName = null,
                 resolvedCountUnitId = null,
                 purchasePackageName = "Case",
@@ -150,7 +146,7 @@ class RoomCsvImportRepositoryTest {
                 categoryName = null,
                 resolvedCategoryId = null,
                 baseUnitName = "lb",
-                resolvedBaseUnitId = UnitId("u1"),
+                resolvedBaseUnitId = UnitId("mass_lb"),
                 countUnitName = null,
                 resolvedCountUnitId = null,
                 purchasePackageName = null,
@@ -246,7 +242,7 @@ class RoomCsvImportRepositoryTest {
                     categoryName = "Category ${i % 5}",
                     resolvedCategoryId = null,
                     baseUnitName = "lb",
-                    resolvedBaseUnitId = UnitId("u1"),
+                    resolvedBaseUnitId = UnitId("mass_lb"),
                     countUnitName = null,
                     resolvedCountUnitId = null,
                     purchasePackageName = "Pack $i",
