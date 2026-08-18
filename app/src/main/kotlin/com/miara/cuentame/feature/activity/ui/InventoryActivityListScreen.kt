@@ -48,6 +48,8 @@ import java.time.format.FormatStyle
 @Composable
 fun InventoryActivityListRoute(
     onBack: () -> Unit,
+    onPurchases: () -> Unit = {},
+    showTopBar: Boolean = true,
     onActivityDetail: (InventoryMovementId) -> Unit,
     viewModel: InventoryActivityListViewModel = hiltViewModel()
 ) {
@@ -60,6 +62,8 @@ fun InventoryActivityListRoute(
         onSearchQueryChange = viewModel::onSearchQueryChange,
         onFilterChange = viewModel::onFilterChange,
         onBackClick = onBack,
+        onPurchasesClick = onPurchases,
+        showTopBar = showTopBar,
         onActivityClick = onActivityDetail,
         onRetry = viewModel::onRetry,
         onResetFilters = viewModel::resetFilters
@@ -74,6 +78,8 @@ fun InventoryActivityListScreen(
     onSearchQueryChange: (String) -> Unit,
     onFilterChange: (InventoryActivityFilters) -> Unit,
     onBackClick: () -> Unit,
+    onPurchasesClick: () -> Unit = {},
+    showTopBar: Boolean = true,
     onActivityClick: (InventoryMovementId) -> Unit,
     onRetry: () -> Unit,
     onResetFilters: () -> Unit
@@ -83,6 +89,7 @@ fun InventoryActivityListScreen(
     Scaffold(
         modifier = Modifier.testTag("inventory_activity_screen"),
         topBar = {
+          if (showTopBar) {
             TopAppBar(
                 title = { Text(stringResource(R.string.inventory_activity_title)) },
                 navigationIcon = {
@@ -107,20 +114,34 @@ fun InventoryActivityListScreen(
                     }
                 }
             )
+          }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag("inventory_activity_search"),
-                placeholder = { Text(stringResource(R.string.inventory_activity_search_hint)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier.weight(1f).testTag("inventory_activity_search"),
+                    placeholder = { Text(stringResource(R.string.inventory_activity_search_hint)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true
+                )
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onPurchasesClick, modifier = Modifier.testTag("activity_purchases")) {
+                    Icon(Icons.Default.History, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.purchases))
+                }
+                if (!showTopBar) {
+                    IconButton(onClick = { showFilters = true }, modifier = Modifier.testTag("inventory_activity_filters")) {
+                        Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.inventory_activity_filter_title))
+                    }
+                }
+            }
 
             if (uiState is InventoryActivityListScreenState.Ready) {
                 ActiveFiltersRow(

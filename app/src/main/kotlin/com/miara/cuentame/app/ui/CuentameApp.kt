@@ -383,6 +383,10 @@ private fun navigateToTopLevelDestination(
     navController: NavHostController,
     topLevelDestination: TopLevelDestination
 ) {
+    if (topLevelDestination == TopLevelDestination.HOME) {
+        navController.popBackStack(TopLevelDestination.HOME.route, inclusive = false)
+        return
+    }
     val topLevelNavOptions = navOptions {
         popUpTo(navController.graph.findStartDestination().id) {
             saveState = true

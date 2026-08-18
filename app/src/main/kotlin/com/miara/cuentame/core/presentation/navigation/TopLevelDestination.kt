@@ -52,8 +52,8 @@ enum class TopLevelDestination(
         unselectedIcon = Icons.Outlined.History,
         iconTextId = R.string.nav_activity,
         titleTextId = R.string.nav_activity,
-        route = "purchases",
-        testTag = "nav_purchases"
+        route = "activity",
+        testTag = "nav_activity"
     ),
     REPORTS(
         selectedIcon = Icons.Default.Restore,

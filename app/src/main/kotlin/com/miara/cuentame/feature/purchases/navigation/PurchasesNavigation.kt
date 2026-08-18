@@ -19,7 +19,7 @@ import com.miara.cuentame.feature.purchases.ui.ReviewDetectedInvoiceRoute
 import com.miara.cuentame.feature.purchases.ui.RawOcrViewerScreen
 
 fun NavGraphBuilder.purchasesGraph(navController: NavHostController) {
-    composable(route = TopLevelDestination.ACTIVITY.route) {
+    composable(route = "purchases") {
         PurchaseListRoute(
             onBack = { navController.popBackStack() },
             onAddPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },

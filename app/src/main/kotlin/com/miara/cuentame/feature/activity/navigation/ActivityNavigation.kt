@@ -10,6 +10,7 @@ import androidx.navigation.navArgument
 import com.miara.cuentame.core.model.inventory.InventoryActivitySourceTarget
 import com.miara.cuentame.core.presentation.navigation.AppRoutes
 import com.miara.cuentame.core.presentation.navigation.Destination
+import com.miara.cuentame.core.presentation.navigation.TopLevelDestination
 import com.miara.cuentame.feature.activity.logic.LocalInventoryActivityTextResolver
 import com.miara.cuentame.feature.activity.ui.InventoryActivityDetailRoute
 import com.miara.cuentame.feature.activity.ui.InventoryActivityListRoute
@@ -17,6 +18,21 @@ import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityDetailView
 import com.miara.cuentame.feature.activity.viewmodel.InventoryActivityListViewModel
 
 fun NavGraphBuilder.activityGraph(navController: NavHostController) {
+    composable(route = TopLevelDestination.ACTIVITY.route) {
+        val viewModel = hiltViewModel<InventoryActivityListViewModel>()
+        CompositionLocalProvider(LocalInventoryActivityTextResolver provides viewModel.textResolver) {
+            InventoryActivityListRoute(
+                viewModel = viewModel,
+                showTopBar = false,
+                onBack = {},
+                onPurchases = { navController.navigate("purchases") },
+                onActivityDetail = { movementId ->
+                    navController.navigate(AppRoutes.inventoryActivityDetail(movementId))
+                }
+            )
+        }
+    }
+
     composable(
         route = Destination.INVENTORY_ACTIVITY.route,
         arguments = listOf(
@@ -39,6 +55,7 @@ fun NavGraphBuilder.activityGraph(navController: NavHostController) {
             InventoryActivityListRoute(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onPurchases = { navController.navigate("purchases") },
                 onActivityDetail = { movementId ->
                     navController.navigate(AppRoutes.inventoryActivityDetail(movementId))
                 }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -172,15 +171,22 @@ fun IngredientFormScreen(
                 CircularProgressIndicator()
             }
         } else {
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .adaptiveContentWidth(maxWidth = 720.dp)
+                    .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .verticalScroll(rememberScrollState())
+                    .testTag("ingredient_form_scroll_page"),
+                contentAlignment = Alignment.TopCenter
             ) {
+              Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .adaptiveContentWidth(maxWidth = 720.dp)
+                    .padding(16.dp)
+                    .testTag("ingredient_form_content"),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+              ) {
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = onNameChanged,
@@ -280,6 +286,7 @@ fun IngredientFormScreen(
                     }
                     Text(stringResource(R.string.action_save))
                 }
+              }
             }
         }
     }
