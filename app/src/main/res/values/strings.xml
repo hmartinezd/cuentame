@@ -1262,6 +1262,21 @@
     <string name="catalog_export_error_not_found">This publication is no longer available.</string>
     <string name="catalog_export_error_malformed">This publication cannot be exported because its snapshot is invalid.</string>
     <string name="catalog_export_error_write">The menu package could not be written.</string>
+    <string name="catalog_share">Share</string>
+    <string name="catalog_share_title">Share menu package</string>
+    <string name="catalog_publish_to_export">Publish the menu first to create an exportable version.</string>
+    <string name="menu_basic_information">Basic information</string>
+    <string name="menu_item_name">Menu Item Name</string>
+    <string name="menu_save_item">Save Item</string>
+    <string name="menu_cash_use_default_percent">Use menu default (%1$s%%)</string>
+    <string name="menu_no_ingredients">No ingredients are available yet.</string>
+    <string name="menu_no_ingredients_body">Create or import ingredients before adding recipe components. Recipe components are required for inventory consumption and food-cost calculations.</string>
+    <string name="menu_go_inventory">Go to Inventory</string>
+    <string name="menu_import_ingredients">Import Ingredients</string>
+    <string name="menu_recipe_not_configured">Recipe not configured</string>
+    <string name="menu_recipe_not_configured_body">Until components are added, food cost cannot be fully calculated and sales cannot correctly deduct ingredient inventory for this item.</string>
+    <string name="menu_create_recovery">The menu item was saved, but it could not be added to this category. Return to the menu and add the saved item from the existing-item picker.</string>
+    <string name="menu_inventory_area_required">Inventory area required</string>
     <string name="sales_title">Sales</string><string name="sales_import">Import sales</string><string name="sales_history">Sales history</string>
     <string name="sales_empty">No sales imported yet.</string><string name="sales_empty_body">Import a sales file from your Sales Terminal to begin building sales history.</string>
     <string name="sales_terminal">Terminal: %1$s</string><string name="sales_revision">Revision %1$d</string><string name="sales_imported">Imported %1$s</string>

@@ -17,7 +17,7 @@ import javax.inject.Inject
 
 enum class MenuOperationError { NAME_REQUIRED, PRICE_MALFORMED, PRICE_NEGATIVE, DUPLICATE_NAME, DUPLICATE_COMPONENT, INVALID_QUANTITY, UNIT_REQUIRED, UNIT_MISMATCH, UNIT_INACTIVE, OWNERSHIP, SAVE_FAILED }
 
-private fun Throwable.presentationError() = when (this) {
+internal fun Throwable.presentationError() = when (this) {
     is MenuRecipeValidationException.InvalidName -> MenuOperationError.NAME_REQUIRED
     is MenuRecipeValidationException.InvalidSellingPrice -> MenuOperationError.PRICE_NEGATIVE
     is MenuRecipeValidationException.DuplicateName -> MenuOperationError.DUPLICATE_NAME

@@ -16,6 +16,14 @@ object ShareHelper {
         content: String,
         mimeType: String,
         title: String
+    ): Result<Unit> = shareFile(context, filename, content.toByteArray(Charsets.UTF_8), mimeType, title)
+
+    fun shareFile(
+        context: Context,
+        filename: String,
+        content: ByteArray,
+        mimeType: String,
+        title: String
     ): Result<Unit> = runCatching {
         val cacheDir = File(context.cacheDir, "exports")
         if (!cacheDir.exists()) {
@@ -26,7 +34,7 @@ object ShareHelper {
         cacheDir.listFiles()?.forEach { it.delete() }
 
         val file = File(cacheDir, filename)
-        file.writeText(content)
+        file.writeBytes(content)
 
         val uri = FileProvider.getUriForFile(
             context,

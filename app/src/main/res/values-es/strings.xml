@@ -1217,6 +1217,21 @@
     <string name="catalog_export_error_not_found">Esta publicación ya no está disponible.</string>
     <string name="catalog_export_error_malformed">Esta publicación no se puede exportar porque su instantánea no es válida.</string>
     <string name="catalog_export_error_write">No se pudo escribir el paquete de menú.</string>
+    <string name="catalog_share">Compartir</string>
+    <string name="catalog_share_title">Compartir paquete de menú</string>
+    <string name="catalog_publish_to_export">Publica el menú primero para crear una versión exportable.</string>
+    <string name="menu_basic_information">Información básica</string>
+    <string name="menu_item_name">Nombre del artículo del menú</string>
+    <string name="menu_save_item">Guardar artículo</string>
+    <string name="menu_cash_use_default_percent">Usar valor predeterminado del menú (%1$s%%)</string>
+    <string name="menu_no_ingredients">Todavía no hay ingredientes disponibles.</string>
+    <string name="menu_no_ingredients_body">Crea o importa ingredientes antes de agregar componentes. Los componentes son necesarios para el consumo de inventario y los cálculos de costo de alimentos.</string>
+    <string name="menu_go_inventory">Ir a Inventario</string>
+    <string name="menu_import_ingredients">Importar ingredientes</string>
+    <string name="menu_recipe_not_configured">Receta no configurada</string>
+    <string name="menu_recipe_not_configured_body">Hasta que agregues componentes, no se podrá calcular por completo el costo de alimentos ni descontar correctamente el inventario al registrar ventas.</string>
+    <string name="menu_create_recovery">El artículo se guardó, pero no se pudo agregar a esta categoría. Regresa al menú y agrega el artículo guardado desde la lista de artículos existentes.</string>
+    <string name="menu_inventory_area_required">Se requiere un área de inventario</string>
     <string name="sales_title">Ventas</string><string name="sales_import">Importar ventas</string><string name="sales_history">Historial de ventas</string>
     <string name="sales_empty">Aún no hay ventas importadas.</string><string name="sales_empty_body">Importa un archivo de tu terminal de ventas para comenzar el historial.</string>
     <string name="sales_terminal">Terminal: %1$s</string><string name="sales_revision">Revisión %1$d</string><string name="sales_imported">Importado %1$s</string>

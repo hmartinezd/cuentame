@@ -57,6 +57,7 @@ enum class Destination(val route: String) {
     MENU_RECIPE_DETAIL("menu-items/{menuRecipeId}"),
     MENU_CATALOG_LIST("menus"),
     MENU_CATALOG_DETAIL("menus/{menuId}"),
+    MENU_ITEM_CREATE("menus/{menuId}/categories/{categoryId}/items/create"),
 
     PRODUCTION_BATCH_LIST("production/batches"),
     PRODUCTION_BATCH_CREATE("production/batches/create?recipeId={recipeId}"),
