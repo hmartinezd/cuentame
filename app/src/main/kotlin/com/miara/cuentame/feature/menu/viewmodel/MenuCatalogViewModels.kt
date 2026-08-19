@@ -58,7 +58,7 @@ data class MenuCategoryUiModel(val category:MenuCategory,val items:List<MenuPlac
 sealed interface MenuPublicationUiError { data object MenuArchived:MenuPublicationUiError;data object MenuEmpty:MenuPublicationUiError;data object NoItems:MenuPublicationUiError;data class ItemArchived(val name:String):MenuPublicationUiError;data class ItemPriceMissing(val name:String):MenuPublicationUiError;data class IngredientAreaMissing(val name:String):MenuPublicationUiError;data object CatalogBroken:MenuPublicationUiError;data object Ownership:MenuPublicationUiError;data object SaveFailed:MenuPublicationUiError }
 enum class MenuExportUiError { PUBLICATION_NOT_FOUND,MALFORMED_PACKAGE,WRITE_FAILED }
 sealed interface MenuExportEvent { data class CreateDocument(val export:MenuPackageExport):MenuExportEvent; data class SharePackage(val export:MenuPackageExport):MenuExportEvent }
-data class MenuCatalogDetailState(val loading:Boolean=true,val menu:Menu?=null,val categories:List<MenuCategoryUiModel> = emptyList(),val availableItems:List<MenuRecipe> = emptyList(),val currencyCode:String="",val loadError:Boolean=false,val busy:Boolean=false,val error:MenuCatalogUiError?=null,val createdMenuItemId:MenuRecipeId?=null,val publications:List<MenuPublication> = emptyList(),val publicationError:MenuPublicationUiError?=null,val publishedRevision:Long?=null,val exportError:MenuExportUiError?=null,val exportSucceeded:Boolean=false)
+data class MenuCatalogDetailState(val loading:Boolean=true,val menu:Menu?=null,val categories:List<MenuCategoryUiModel> = emptyList(),val availableItems:List<MenuRecipe> = emptyList(),val currencyCode:String="",val loadError:Boolean=false,val busy:Boolean=false,val error:MenuCatalogUiError?=null,val publications:List<MenuPublication> = emptyList(),val publicationError:MenuPublicationUiError?=null,val publishedRevision:Long?=null,val exportError:MenuExportUiError?=null,val exportSucceeded:Boolean=false)
 
 @HiltViewModel @OptIn(ExperimentalCoroutinesApi::class)
 class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,private val catalogs:MenuCatalogRepository,private val recipes:MenuRecipeRepository,private val restaurants:RestaurantRepository,private val publications:MenuPublicationRepository,private val packageExporter:MenuPackageExporter):ViewModel(){
@@ -69,9 +69,8 @@ class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,priv
         val projected=categories.map{cat->MenuCategoryUiModel(cat,placements.filter{it.categoryId==cat.id}.map{p->MenuPlacementUiModel(p,checkNotNull(byId[p.menuRecipeId]){"Menu placement references a missing MenuRecipe: ${p.menuRecipeId.value}"})})}
         MenuCatalogDetailState(false,menu,projected,allRecipes.filter{it.archivedAt==null&&it.id !in placed},restaurant.currencyCode)
     }}.catch{emit(MenuCatalogDetailState(false,loadError=true))} }
-    val state=combine(content,op,publications.observePublications(id),publicationOp,exportOp){c,o,history,p,x->c.copy(busy=o.busy||p.busy||x.busy,error=o.error,createdMenuItemId=o.createdMenuItemId,publications=history,publicationError=p.error,publishedRevision=p.publishedRevision,exportError=x.error,exportSucceeded=x.succeeded)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),MenuCatalogDetailState())
+    val state=combine(content,op,publications.observePublications(id),publicationOp,exportOp){c,o,history,p,x->c.copy(busy=o.busy||p.busy||x.busy,error=o.error,publications=history,publicationError=p.error,publishedRevision=p.publishedRevision,exportError=x.error,exportSucceeded=x.succeeded)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),MenuCatalogDetailState())
     fun clearError(){op.value=op.value.copy(error=null)}
-    fun consumeCreatedMenuItem(){op.value=op.value.copy(createdMenuItemId=null)}
     fun retry(){retry.value++}
     private fun run(block:suspend()->Unit){if(op.value.busy)return;viewModelScope.launch{op.value=op.value.copy(busy=true,error=null);try{block();op.value=op.value.copy(busy=false)}catch(e:CancellationException){throw e}catch(e:Exception){op.value=op.value.copy(busy=false,error=e.catalogUiError())}}}
     fun updateMenu(name:String,description:String,discount:String){val pct=discount.trim().toBigDecimalOrNull();if(name.isBlank()||pct==null||pct<BigDecimal.ZERO||pct>=BigDecimal("100")){op.value=op.value.copy(error=MenuCatalogUiError.INVALID_VALUES);return};run{catalogs.updateMenu(id,name,description.trim().ifBlank{null},pct)}}
@@ -79,26 +78,6 @@ class MenuCatalogDetailViewModel @Inject constructor(saved:SavedStateHandle,priv
     fun saveCategory(existing:MenuCategory?,name:String)=run{catalogs.saveCategory(id,existing?.id,name,existing?.sortOrder?:((state.value.categories.maxOfOrNull{it.category.sortOrder}?:-10)+10))}
     fun removeCategory(category:MenuCategory)=run{catalogs.removeCategory(id,category.id)}
     fun addItem(category:MenuCategory,recipe:MenuRecipe)=run{catalogs.savePlacement(id,null,category.id,recipe.id,(state.value.categories.flatMap{it.items}.maxOfOrNull{it.placement.sortOrder}?:-10)+10)}
-    fun createAndAddItem(category:MenuCategory,name:String,priceText:String){
-        if(op.value.busy)return
-        val price=if(priceText.isBlank())null else priceText.trim().toBigDecimalOrNull()
-        if(name.isBlank()||(priceText.isNotBlank()&&(price==null||price<BigDecimal.ZERO))){op.value=op.value.copy(error=MenuCatalogUiError.INVALID_VALUES);return}
-        viewModelScope.launch{
-            op.value=op.value.copy(busy=true,error=null,createdMenuItemId=null)
-            try{
-                val restaurant=restaurants.getRestaurant()?:throw MenuRecipeValidationException.OwnershipMismatch()
-                val recipeId=recipes.create(restaurant.id,name,price,null)
-                try{
-                    val sortOrder=(state.value.categories.flatMap{it.items}.maxOfOrNull{it.placement.sortOrder}?:-10)+10
-                    catalogs.savePlacement(id,null,category.id,recipeId,sortOrder)
-                    op.value=op.value.copy(busy=false,createdMenuItemId=recipeId)
-                }catch(e:CancellationException){throw e}catch(e:Exception){
-                    // The recipe remains reusable and will appear in the existing-item picker.
-                    op.value=op.value.copy(busy=false,error=MenuCatalogUiError.PLACEMENT_FAILED)
-                }
-            }catch(e:CancellationException){throw e}catch(e:Exception){op.value=op.value.copy(busy=false,error=e.catalogUiError())}
-        }
-    }
     fun removeItem(item:MenuPlacementUiModel)=run{catalogs.removePlacement(id,item.placement.id)}
     fun moveItem(item:MenuPlacementUiModel,to:MenuCategory)=run{catalogs.savePlacement(id,item.placement.id,to.id,item.recipe.id,item.placement.sortOrder)}
     fun moveCategory(index:Int,delta:Int){val ordered=state.value.categories.map{it.category.id}.toMutableList();val target=index+delta;if(target !in ordered.indices)return;val v=ordered.removeAt(index);ordered.add(target,v);run{catalogs.reorderCategories(id,ordered)}}

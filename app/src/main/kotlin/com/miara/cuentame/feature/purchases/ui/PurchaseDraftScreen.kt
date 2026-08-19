@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -244,13 +246,13 @@ fun PurchaseDraftScreen(
                 CircularProgressIndicator()
             }
         } else {
+          BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+            val horizontalPadding = maxOf(16.dp, (maxWidth - 920.dp) / 2)
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .adaptiveContentWidth(maxWidth = 920.dp)
-                    .padding(padding)
-                    .padding(16.dp)
+                    .fillMaxSize()
                     .testTag("purchase_draft_list")
+                ,contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 16.dp)
             ) {
                 item {
                     PurchaseHeaderSection(
@@ -356,6 +358,7 @@ fun PurchaseDraftScreen(
                     }
                 }
             }
+          }
         }
     }
 

@@ -16,6 +16,7 @@ import java.math.BigDecimal
 import javax.inject.Inject
 
 data class DraftMenuComponent(
+    val draftId: String,
     val ingredientId: IngredientId,
     val ingredientName: String,
     val unitOptionId: IngredientUnitOptionId,
@@ -31,11 +32,11 @@ data class CreateMenuItemState(
     val ingredients: List<Ingredient> = emptyList(),
     val components: List<DraftMenuComponent> = emptyList(),
     val editor: ComponentEditorState = ComponentEditorState(),
+    val editingComponentId: String? = null,
     val cashDiscountBehavior: CashDiscountBehavior = CashDiscountBehavior.APPLY_DEFAULT,
     val saving: Boolean = false,
     val saved: Boolean = false,
     val error: MenuOperationError? = null,
-    val placementRecoveryNeeded: Boolean = false
 )
 
 @HiltViewModel
@@ -43,7 +44,7 @@ data class CreateMenuItemState(
 class CreateMenuItemViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val catalogs: MenuCatalogRepository,
-    private val recipes: MenuRecipeRepository,
+    private val creation: MenuItemCreationRepository,
     private val ingredientsRepository: IngredientRepository
 ) : ViewModel() {
     private val menuId = MenuId(requireNotNull(savedStateHandle["menuId"]))
@@ -59,17 +60,18 @@ class CreateMenuItemViewModel @Inject constructor(
     }.catch { emit(CreateMenuItemState(loading = false, error = MenuOperationError.SAVE_FAILED)) }
 
     val state = combine(content, draft) { c, d -> c.copy(
-        components = d.components, editor = d.editor, cashDiscountBehavior = d.cashDiscountBehavior,
+        components = d.components, editor = d.editor, editingComponentId = d.editingComponentId, cashDiscountBehavior = d.cashDiscountBehavior,
         saving = d.saving, saved = d.saved, error = d.error ?: c.error,
-        placementRecoveryNeeded = d.placementRecoveryNeeded
     ) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CreateMenuItemState())
 
     fun setCashDiscountBehavior(value: CashDiscountBehavior) { draft.value = draft.value.copy(cashDiscountBehavior = value, error = null) }
     fun openComponent(component: DraftMenuComponent? = null) {
-        draft.value = draft.value.copy(editor = ComponentEditorState(isOpen = true, selectedIngredientId = component?.ingredientId, selectedUnitOptionId = component?.unitOptionId, quantity = component?.quantity?.toPlainString().orEmpty()))
+        draft.value = draft.value.copy(editingComponentId = component?.draftId, editor = ComponentEditorState(isOpen = true,
+            existing = component?.let { com.miara.cuentame.core.model.menu.MenuRecipeComponent(MenuRecipeComponentId(it.draftId), MenuRecipeId("draft"), it.ingredientId, it.unitOptionId, it.quantity, it.quantity, 0, java.time.Instant.EPOCH, java.time.Instant.EPOCH) },
+            selectedIngredientId = component?.ingredientId, selectedUnitOptionId = component?.unitOptionId, quantity = component?.quantity?.toPlainString().orEmpty()))
         component?.let { loadUnits(it.ingredientId, it.unitOptionId) }
     }
-    fun dismissComponent() { if (!draft.value.editor.isSaving) draft.value = draft.value.copy(editor = ComponentEditorState()) }
+    fun dismissComponent() { if (!draft.value.editor.isSaving) draft.value = draft.value.copy(editor = ComponentEditorState(), editingComponentId = null) }
     fun selectIngredient(id: IngredientId) {
         draft.value = draft.value.copy(editor = draft.value.editor.copy(selectedIngredientId = id, availableUnitOptions = emptyList(), selectedUnitOptionId = null, error = null))
         loadUnits(id, null)
@@ -92,11 +94,13 @@ class CreateMenuItemViewModel @Inject constructor(
         val optionId = editor.selectedUnitOptionId ?: run { draft.value = draft.value.copy(editor = editor.copy(error = MenuOperationError.UNIT_REQUIRED)); return }
         val quantity = editor.quantity.toBigDecimalOrNull()
         if (quantity == null || quantity <= BigDecimal.ZERO) { draft.value = draft.value.copy(editor = editor.copy(error = MenuOperationError.INVALID_QUANTITY)); return }
-        val replacing = draft.value.components.indexOfFirst { it.ingredientId == ingredientId }
-        if (replacing >= 0) { draft.value = draft.value.copy(editor = editor.copy(error = MenuOperationError.DUPLICATE_COMPONENT)); return }
+        val editingId = draft.value.editingComponentId
+        if (draft.value.components.any { it.ingredientId == ingredientId && it.draftId != editingId }) { draft.value = draft.value.copy(editor = editor.copy(error = MenuOperationError.DUPLICATE_COMPONENT)); return }
         val ingredient = state.value.ingredients.firstOrNull { it.id == ingredientId } ?: return
         val option = editor.availableUnitOptions.firstOrNull { it.id == optionId } ?: return
-        draft.value = draft.value.copy(components = draft.value.components + DraftMenuComponent(ingredientId, ingredient.name, optionId, option.shortLabel, quantity), editor = ComponentEditorState())
+        val component = DraftMenuComponent(editingId ?: java.util.UUID.randomUUID().toString(), ingredientId, ingredient.name, optionId, option.shortLabel, quantity)
+        val updated = if (editingId == null) draft.value.components + component else draft.value.components.map { if (it.draftId == editingId) component else it }
+        draft.value = draft.value.copy(components = updated, editor = ComponentEditorState(), editingComponentId = null)
     }
     fun removeComponent(component: DraftMenuComponent) { draft.value = draft.value.copy(components = draft.value.components - component) }
 
@@ -106,18 +110,13 @@ class CreateMenuItemViewModel @Inject constructor(
         val error = when { name.isBlank() -> MenuOperationError.NAME_REQUIRED; priceText.isNotBlank() && price == null -> MenuOperationError.PRICE_MALFORMED; price != null && price < BigDecimal.ZERO -> MenuOperationError.PRICE_NEGATIVE; else -> null }
         if (error != null) { draft.value = draft.value.copy(error = error); return }
         viewModelScope.launch {
-            draft.value = draft.value.copy(saving = true, error = null, placementRecoveryNeeded = false)
-            var created: MenuRecipeId? = null
+            draft.value = draft.value.copy(saving = true, error = null)
             try {
-                val menu = catalogs.observeMenu(menuId).first() ?: throw MenuRecipeValidationException.OwnershipMismatch()
-                created = recipes.create(menu.restaurantId, name, price, null)
-                if (draft.value.cashDiscountBehavior == CashDiscountBehavior.NONE) recipes.setCashDiscountBehavior(created, CashDiscountBehavior.NONE)
-                draft.value.components.forEachIndexed { index, component -> recipes.saveComponent(created, null, component.ingredientId, component.unitOptionId, component.quantity, index) }
-                val placements = catalogs.observePlacements(menuId).first()
-                catalogs.savePlacement(menuId, null, categoryId, created, (placements.maxOfOrNull { it.sortOrder } ?: -10) + 10)
+                creation.create(NewMenuItem(menuId, categoryId, name, price, draft.value.cashDiscountBehavior,
+                    draft.value.components.map { NewMenuItemComponent(it.ingredientId, it.unitOptionId, it.quantity) }))
                 draft.value = draft.value.copy(saving = false, saved = true)
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                draft.value = draft.value.copy(saving = false, error = e.presentationError(), placementRecoveryNeeded = created != null)
+                draft.value = draft.value.copy(saving = false, error = e.presentationError())
             }
         }
     }

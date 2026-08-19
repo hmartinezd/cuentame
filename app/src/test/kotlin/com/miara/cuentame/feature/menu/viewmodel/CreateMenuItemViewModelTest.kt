@@ -11,6 +11,7 @@ import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -28,7 +29,7 @@ class CreateMenuItemViewModelTest {
     private val ingredientId = IngredientId("ingredient")
     private val optionId = IngredientUnitOptionId("option")
     private val catalogs = mockk<MenuCatalogRepository>()
-    private val recipes = mockk<MenuRecipeRepository>()
+    private val creation = mockk<MenuItemCreationRepository>()
     private val ingredients = mockk<IngredientRepository>()
 
     @Before fun setUp() {
@@ -38,24 +39,22 @@ class CreateMenuItemViewModelTest {
         every { catalogs.observePlacements(menuId) } returns flowOf(emptyList())
         every { ingredients.observeIngredients(restaurantId, false) } returns flowOf(listOf(ingredient()))
         coEvery { ingredients.getUnitOptions(ingredientId, false) } returns listOf(option())
-        coEvery { recipes.create(any(), any(), any(), any()) } returns MenuRecipeId("created")
-        coEvery { recipes.setCashDiscountBehavior(any(), any()) } just Runs
-        coEvery { recipes.saveComponent(any(), any(), any(), any(), any(), any()) } returns MenuRecipeComponentId("component")
-        coEvery { catalogs.savePlacement(any(), any(), any(), any(), any()) } returns MenuPlacementId("placement")
+        coEvery { creation.create(any()) } returns MenuRecipeId("created")
     }
     @After fun tearDown() { Dispatchers.resetMain() }
 
     @Test fun `save persists commercial settings components and originating placement`() = runTest {
         val vm = viewModel(); val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }; runCurrent()
         vm.setCashDiscountBehavior(CashDiscountBehavior.NONE)
-        vm.openComponent(); vm.selectIngredient(ingredientId); advanceUntilIdle(); vm.updateQuantity("6"); vm.saveComponent()
+        vm.openComponent(); vm.selectIngredient(ingredientId); advanceUntilIdle(); vm.updateQuantity("6"); vm.saveComponent(); advanceUntilIdle()
         vm.save("Chicken", "18.50"); advanceUntilIdle()
 
         assertThat(vm.state.value.saved).isTrue()
         assertThat(vm.state.value.defaultDiscountPercent.compareTo(BigDecimal("3"))).isEqualTo(0)
-        coVerify(exactly = 1) { recipes.setCashDiscountBehavior(MenuRecipeId("created"), CashDiscountBehavior.NONE) }
-        coVerify(exactly = 1) { recipes.saveComponent(MenuRecipeId("created"), null, ingredientId, optionId, BigDecimal("6"), 0) }
-        coVerify(exactly = 1) { catalogs.savePlacement(menuId, null, categoryId, MenuRecipeId("created"), 0) }
+        coVerify(exactly = 1) { creation.create(match { request ->
+            request.menuId == menuId && request.categoryId == categoryId && request.cashDiscountBehavior == CashDiscountBehavior.NONE &&
+                request.components.single().quantity.compareTo(BigDecimal("6")) == 0
+        }) }
         job.cancel()
     }
 
@@ -65,7 +64,7 @@ class CreateMenuItemViewModelTest {
         assertThat(vm.state.value.ingredients).isEmpty()
         vm.save("Soup", "9"); advanceUntilIdle()
         assertThat(vm.state.value.saved).isTrue()
-        coVerify(exactly = 0) { recipes.saveComponent(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { creation.create(match { it.components.isEmpty() }) }
         job.cancel()
     }
 
@@ -78,17 +77,27 @@ class CreateMenuItemViewModelTest {
         job.cancel()
     }
 
-    @Test fun `placement failure keeps persisted recipe and shows recovery`() = runTest {
-        coEvery { catalogs.savePlacement(any(), any(), any(), any(), any()) } throws IllegalStateException("failed")
+    @Test fun `atomic creation failure remains retryable without local recovery state`() = runTest {
+        coEvery { creation.create(any()) } throws IllegalStateException("failed")
         val vm = viewModel(); val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }; runCurrent()
         vm.save("Soup", "9"); advanceUntilIdle()
         assertThat(vm.state.value.saved).isFalse()
-        assertThat(vm.state.value.placementRecoveryNeeded).isTrue()
-        coVerify(exactly = 1) { recipes.create(restaurantId, "Soup", BigDecimal("9"), null) }
+        assertThat(vm.state.value.error).isEqualTo(MenuOperationError.SAVE_FAILED)
+        coVerify(exactly = 1) { creation.create(any()) }
         job.cancel()
     }
 
-    private fun viewModel() = CreateMenuItemViewModel(SavedStateHandle(mapOf("menuId" to menuId.value, "categoryId" to categoryId.value)), catalogs, recipes, ingredients)
+    @Test fun `editing a draft component updates it without triggering duplicate validation`() = runTest {
+        val vm = viewModel(); val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }; runCurrent()
+        vm.openComponent(); vm.selectIngredient(ingredientId); advanceUntilIdle(); vm.updateQuantity("6"); vm.saveComponent()
+        val component = vm.state.first { it.components.size == 1 }.components.single()
+        vm.openComponent(component); advanceUntilIdle(); vm.updateQuantity("8"); vm.saveComponent(); advanceUntilIdle()
+        assertThat(vm.state.value.components).hasSize(1)
+        assertThat(vm.state.value.components.single().quantity.compareTo(BigDecimal("8"))).isEqualTo(0)
+        job.cancel()
+    }
+
+    private fun viewModel() = CreateMenuItemViewModel(SavedStateHandle(mapOf("menuId" to menuId.value, "categoryId" to categoryId.value)), catalogs, creation, ingredients)
     private fun ingredient() = Ingredient(ingredientId, restaurantId, "Chicken", "chicken", baseUnitId = UnitId("oz"), isActive = true, createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH)
     private fun option() = IngredientUnitOption(optionId, ingredientId, "Ounce", "oz", UnitId("oz"), BigDecimal.ONE, true, true, false, true, Instant.EPOCH, Instant.EPOCH)
 }

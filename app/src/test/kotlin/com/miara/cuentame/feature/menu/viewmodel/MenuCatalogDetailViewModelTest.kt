@@ -147,35 +147,6 @@ class MenuCatalogDetailViewModelTest {
         collection.cancel()
     }
 
-    @Test fun `create and add item exposes created id after placement succeeds`() = runTest {
-        val viewModel = viewModel()
-        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
-        runCurrent()
-
-        viewModel.createAndAddItem(categoryFlow.value.single(), "Soup", "12.50")
-        advanceUntilIdle()
-
-        assertThat(createdRecipeId).isEqualTo(MenuRecipeId("new"))
-        assertThat(viewModel.state.value.createdMenuItemId).isEqualTo(MenuRecipeId("new"))
-        assertThat(viewModel.state.value.error).isNull()
-        collection.cancel()
-    }
-
-    @Test fun `placement failure keeps created item and reports error`() = runTest {
-        failPlacement = true
-        val viewModel = viewModel()
-        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect() }
-        runCurrent()
-
-        viewModel.createAndAddItem(categoryFlow.value.single(), "Soup", "")
-        advanceUntilIdle()
-
-        assertThat(createdRecipeId).isEqualTo(MenuRecipeId("new"))
-        assertThat(viewModel.state.value.createdMenuItemId).isNull()
-        assertThat(viewModel.state.value.error).isEqualTo(MenuCatalogUiError.PLACEMENT_FAILED)
-        collection.cancel()
-    }
-
     private fun viewModel() = MenuCatalogDetailViewModel(SavedStateHandle(mapOf("menuId" to menuId.value)), catalogs, recipes, restaurants, publications, com.miara.cuentame.core.domain.service.MenuPackageExporter(publications))
     private fun menu() = Menu(menuId, restaurantId, "Dinner", "dinner", null, BigDecimal.ZERO, 0, null, now, now)
     private fun restaurant(id: RestaurantId = restaurantId, currency: String = "USD") = Restaurant(id, "R", currency, "en-US", now, now, null)

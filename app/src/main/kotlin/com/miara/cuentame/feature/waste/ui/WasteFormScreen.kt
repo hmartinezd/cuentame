@@ -210,15 +210,20 @@ fun WasteFormScreen(
                 }
             }
             is WasteFormScreenState.Ready -> {
-                Column(
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                  Column(
                     modifier = Modifier
                         .fillMaxHeight()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 16.dp)
                         .adaptiveContentWidth(maxWidth = 720.dp)
-                        .padding(padding)
-                        .padding(16.dp)
-                        .verticalScroll(scrollState),
+                        .padding(vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                  ) {
                     // Ingredient Selector
                     var ingredientExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
@@ -498,6 +503,7 @@ fun WasteFormScreen(
                         }
                         Text(stringResource(R.string.action_save))
                     }
+                  }
                 }
             }
         }
