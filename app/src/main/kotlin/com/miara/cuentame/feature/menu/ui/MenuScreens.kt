@@ -36,12 +36,103 @@ import com.miara.cuentame.feature.menu.viewmodel.*
 @Composable private fun MenuRecipeRow(r:MenuRecipe,c:MenuRecipeCost?,onOpen:(MenuRecipeId)->Unit){AppCard(Modifier.fillMaxWidth().clickable{onOpen(r.id)}){Column(Modifier.padding(AppSpacing.md),verticalArrangement=Arrangement.spacedBy(AppSpacing.sm)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.Top){Text(r.name,style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f));Text(r.sellingPrice?.let{Formatters.formatCurrency(it,c?.currencyCode?:"USD")}?:stringResource(R.string.menu_selling_not_set),style=MaterialTheme.typography.titleMedium)};Row(horizontalArrangement=Arrangement.spacedBy(AppSpacing.sm)){c?.let{AppStatusChip(stringResource(when(it.status){MenuRecipeCostStatus.FULLY_COSTED->R.string.menu_fully_costed;MenuRecipeCostStatus.PARTIALLY_COSTED->R.string.menu_partially_costed_status;MenuRecipeCostStatus.UNCOSTED->R.string.menu_uncosted_status}),when(it.status){MenuRecipeCostStatus.FULLY_COSTED->StatusTone.SUCCESS;MenuRecipeCostStatus.PARTIALLY_COSTED->StatusTone.WARNING;MenuRecipeCostStatus.UNCOSTED->StatusTone.NEUTRAL})};if(r.archivedAt!=null)AppStatusChip(stringResource(R.string.menu_archived_status),StatusTone.NEUTRAL)};CostSummary(c)}}}
 @Composable private fun CostSummary(c:MenuRecipeCost?){if(c==null)return;Text(when(c.status){MenuRecipeCostStatus.FULLY_COSTED->stringResource(R.string.menu_plate_and_food_cost,Formatters.formatCurrency(c.currentPlateCost!!,c.currencyCode),c.sellingMetrics.foodCostPercent?.let(Formatters::formatPercent)?:stringResource(R.string.menu_unavailable));MenuRecipeCostStatus.PARTIALLY_COSTED->stringResource(R.string.menu_partially_costed,c.costedComponentCount,c.componentCount);MenuRecipeCostStatus.UNCOSTED->stringResource(R.string.menu_uncosted)},style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
 
-@OptIn(ExperimentalMaterial3Api::class) @Composable fun MenuDetailRoute(onBack:()->Unit,vm:MenuDetailViewModel=hiltViewModel()){
- val s by vm.state.collectAsStateWithLifecycle();var edit by remember{mutableStateOf(false)};val r=s.recipe;val c=s.cost
- LaunchedEffect(s.infoSaveSucceeded){if(s.infoSaveSucceeded){edit=false;vm.consumeInfoSaveSuccess()}}
- Scaffold(topBar={TopAppBar(title={Text(r?.name?:stringResource(R.string.menu_item_title))},navigationIcon={TextButton(onClick=onBack){Text(stringResource(R.string.action_back))}},actions={if(r!=null)TextButton(onClick={edit=true;vm.clearInfoError()}){Text(stringResource(R.string.action_edit))}})}){p->if(s.loading)Box(Modifier.fillMaxSize().padding(p),contentAlignment=Alignment.Center){CircularProgressIndicator()}else if(s.error||r==null||c==null)Box(Modifier.fillMaxSize().padding(p).padding(AppSpacing.lg),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(AppSpacing.md)){Text(stringResource(R.string.menu_detail_load_failed),style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant);Button(onClick=vm::retry){Text(stringResource(R.string.action_retry_desc))}}}else LazyColumn(Modifier.padding(p).adaptiveContentWidth(960.dp).padding(AppSpacing.md).testTag("menu_detail"),verticalArrangement=Arrangement.spacedBy(AppSpacing.lg)){item{AppSectionHeader(stringResource(R.string.menu_item_overview));AppCard(Modifier.fillMaxWidth()){Column(Modifier.padding(AppSpacing.md),verticalArrangement=Arrangement.spacedBy(AppSpacing.sm)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(r.name,style=MaterialTheme.typography.titleLarge);if(r.archivedAt!=null)AppStatusChip(stringResource(R.string.menu_archived_status),StatusTone.NEUTRAL)};Text(r.sellingPrice?.let{Formatters.formatCurrency(it,c.currencyCode)}?:stringResource(R.string.menu_selling_not_set),style=MaterialTheme.typography.headlineSmall);Text(stringResource(R.string.menu_cash_discount),style=MaterialTheme.typography.titleSmall);CashChoice(r.cashDiscountBehavior==CashDiscountBehavior.APPLY_DEFAULT,stringResource(R.string.menu_cash_use_default),!s.isSavingInfo){vm.setCashDiscountBehavior(CashDiscountBehavior.APPLY_DEFAULT)};CashChoice(r.cashDiscountBehavior==CashDiscountBehavior.NONE,stringResource(R.string.menu_cash_none),!s.isSavingInfo){vm.setCashDiscountBehavior(CashDiscountBehavior.NONE)};TextButton(onClick=vm::archive,enabled=!s.isArchiving){Text(if(r.archivedAt==null)stringResource(R.string.menu_archive) else stringResource(R.string.menu_restore))};s.infoError?.let{Text(operationErrorLabel(it),color=MaterialTheme.colorScheme.error)}}}};item{AppSectionHeader(stringResource(R.string.menu_cost_profitability));AppCard(Modifier.fillMaxWidth()){Column(Modifier.padding(AppSpacing.md),verticalArrangement=Arrangement.spacedBy(AppSpacing.sm)){CostStatus(c);CostDetail(c)}}};item{AppSectionHeader(stringResource(R.string.menu_recipe_components),trailing={AppPrimaryButton(onClick={vm.openComponent(null)},modifier=Modifier.testTag("menu_add_component")){Icon(Icons.Default.Add,null);Spacer(Modifier.width(AppSpacing.sm));Text(stringResource(R.string.menu_add_component))}})};items(c.components){x->AppCard(Modifier.fillMaxWidth().clickable{s.components.firstOrNull{it.id==x.componentId}?.let(vm::openComponent)}){Column(Modifier.padding(AppSpacing.md),verticalArrangement=Arrangement.spacedBy(AppSpacing.xs)){Text(x.ingredientName,style=MaterialTheme.typography.titleMedium);Text("${Formatters.formatQuantity(x.quantityEntered)} ${x.enteredUnitLabel.orEmpty()}");when(x.source){MenuCostSource.ACTIVE_PREPARATION_RECIPE->Text(stringResource(R.string.cost_source_preparation),color=MaterialTheme.colorScheme.onSurfaceVariant);MenuCostSource.INGREDIENT_AVERAGE_COST->Text(stringResource(R.string.cost_source_average),color=MaterialTheme.colorScheme.onSurfaceVariant);null->Unit};Text(x.currentCost?.let{Formatters.formatCurrency(it,c.currencyCode)}?:missingLabel(x.missingReason))}}}}}
- if(edit&&r!=null)MenuEditDialog(stringResource(R.string.action_edit),r.name,r.sellingPrice?.toPlainString().orEmpty(),s.isSavingInfo,s.infoError,{vm.clearInfoError();edit=false},vm::save)
- if(s.editor.isOpen)ComponentDialog(s.editor,s.ingredients,vm::dismissComponent,vm::selectIngredient,vm::selectUnit,vm::updateComponentQuantity,vm::saveComponent,if(s.editor.existing!=null)vm::removeComponent else null,s.isRemovingComponent)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MenuDetailRoute(onBack: () -> Unit, vm: MenuDetailViewModel = hiltViewModel()) {
+    val s by vm.state.collectAsStateWithLifecycle()
+    var edit by remember { mutableStateOf(false) }
+    val r = s.recipe
+    val c = s.cost
+    LaunchedEffect(s.infoSaveSucceeded) {
+        if (s.infoSaveSucceeded) {
+            edit = false
+            vm.consumeInfoSaveSuccess()
+        }
+    }
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(r?.name ?: stringResource(R.string.menu_item_title)) },
+            navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) } },
+            actions = { if (r != null) TextButton(onClick = { edit = true; vm.clearInfoError() }) { Text(stringResource(R.string.action_edit)) } }
+        )
+    }) { padding ->
+        when {
+            s.loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            s.error || r == null || c == null -> Box(Modifier.fillMaxSize().padding(padding).padding(AppSpacing.lg), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+                    Text(stringResource(R.string.menu_detail_load_failed), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = vm::retry) { Text(stringResource(R.string.action_retry_desc)) }
+                }
+            }
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(padding).testTag("menu_detail_scroll_page"),
+                contentPadding = PaddingValues(vertical = AppSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
+            ) {
+                item {
+                    MenuDetailContent {
+                        AppSectionHeader(stringResource(R.string.menu_item_overview))
+                        AppCard(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(AppSpacing.md), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(r.name, style = MaterialTheme.typography.titleLarge)
+                                    if (r.archivedAt != null) AppStatusChip(stringResource(R.string.menu_archived_status), StatusTone.NEUTRAL)
+                                }
+                                Text(r.sellingPrice?.let { Formatters.formatCurrency(it, c.currencyCode) } ?: stringResource(R.string.menu_selling_not_set), style = MaterialTheme.typography.headlineSmall)
+                                Text(stringResource(R.string.menu_cash_discount), style = MaterialTheme.typography.titleSmall)
+                                CashChoice(r.cashDiscountBehavior == CashDiscountBehavior.APPLY_DEFAULT, stringResource(R.string.menu_cash_use_default), !s.isSavingInfo) { vm.setCashDiscountBehavior(CashDiscountBehavior.APPLY_DEFAULT) }
+                                CashChoice(r.cashDiscountBehavior == CashDiscountBehavior.NONE, stringResource(R.string.menu_cash_none), !s.isSavingInfo) { vm.setCashDiscountBehavior(CashDiscountBehavior.NONE) }
+                                TextButton(onClick = vm::archive, enabled = !s.isArchiving) { Text(if (r.archivedAt == null) stringResource(R.string.menu_archive) else stringResource(R.string.menu_restore)) }
+                                s.infoError?.let { Text(operationErrorLabel(it), color = MaterialTheme.colorScheme.error) }
+                            }
+                        }
+                    }
+                }
+                item {
+                    MenuDetailContent {
+                        AppSectionHeader(stringResource(R.string.menu_cost_profitability))
+                        AppCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(AppSpacing.md), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) { CostStatus(c); CostDetail(c) } }
+                    }
+                }
+                item {
+                    MenuDetailContent {
+                        AppSectionHeader(stringResource(R.string.menu_recipe_components), trailing = {
+                            AppPrimaryButton(onClick = { vm.openComponent(null) }, modifier = Modifier.testTag("menu_add_component")) {
+                                Icon(Icons.Default.Add, null); Spacer(Modifier.width(AppSpacing.sm)); Text(stringResource(R.string.menu_add_component))
+                            }
+                        })
+                    }
+                }
+                items(c.components) { component ->
+                    MenuDetailContent {
+                        AppCard(Modifier.fillMaxWidth().clickable { s.components.firstOrNull { it.id == component.componentId }?.let(vm::openComponent) }) {
+                            Column(Modifier.padding(AppSpacing.md), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                                Text(component.ingredientName, style = MaterialTheme.typography.titleMedium)
+                                Text("${Formatters.formatQuantity(component.quantityEntered)} ${component.enteredUnitLabel.orEmpty()}")
+                                when (component.source) {
+                                    MenuCostSource.ACTIVE_PREPARATION_RECIPE -> Text(stringResource(R.string.cost_source_preparation), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    MenuCostSource.INGREDIENT_AVERAGE_COST -> Text(stringResource(R.string.cost_source_average), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    null -> Unit
+                                }
+                                Text(component.currentCost?.let { Formatters.formatCurrency(it, c.currencyCode) } ?: missingLabel(component.missingReason))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (edit && r != null) MenuEditDialog(stringResource(R.string.action_edit), r.name, r.sellingPrice?.toPlainString().orEmpty(), s.isSavingInfo, s.infoError, { vm.clearInfoError(); edit = false }, vm::save)
+    if (s.editor.isOpen) ComponentDialog(s.editor, s.ingredients, vm::dismissComponent, vm::selectIngredient, vm::selectUnit, vm::updateComponentQuantity, vm::saveComponent, if (s.editor.existing != null) vm::removeComponent else null, s.isRemovingComponent)
+}
+
+@Composable
+private fun MenuDetailContent(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md).adaptiveContentWidth(960.dp).testTag("menu_detail_content"),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+        content = content
+    )
 }
 @Composable internal fun CashChoice(selected:Boolean,label:String,enabled:Boolean,onClick:()->Unit)=Row(Modifier.fillMaxWidth().clickable(enabled=enabled,onClick=onClick),verticalAlignment=Alignment.CenterVertically){RadioButton(selected=selected,onClick=onClick,enabled=enabled);Text(label)}
 @Composable private fun CostStatus(c:MenuRecipeCost)=AppStatusChip(stringResource(when(c.status){MenuRecipeCostStatus.FULLY_COSTED->R.string.menu_fully_costed;MenuRecipeCostStatus.PARTIALLY_COSTED->R.string.menu_partially_costed_status;MenuRecipeCostStatus.UNCOSTED->R.string.menu_uncosted_status}),when(c.status){MenuRecipeCostStatus.FULLY_COSTED->StatusTone.SUCCESS;MenuRecipeCostStatus.PARTIALLY_COSTED->StatusTone.WARNING;MenuRecipeCostStatus.UNCOSTED->StatusTone.NEUTRAL})

@@ -48,21 +48,14 @@ class PurchasesNavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 1. Open Purchases
-            composeTestRule.onNodeWithTag("nav_purchases").performClick()
-
-            composeTestRule.waitUntil(15000) {
-                composeTestRule.onAllNodes(hasTestTag("purchase_list")).fetchSemanticsNodes().isNotEmpty()
-            }
-
-            // 2. Tap Add FAB
-            composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
+            // Purchases are created from the Home quick action after the unified Activity navigation change.
+            composeTestRule.onNodeWithTag("new_purchase_button").performClick()
 
             composeTestRule.waitUntil(15000) {
                 composeTestRule.onAllNodes(hasTestTag("purchase_draft_screen")).fetchSemanticsNodes().isNotEmpty()
             }
 
-            // 3. Save Header (obtain draft)
+            // Save Header (obtain draft)
             composeTestRule.onNodeWithTag("purchase_invoice_input").performTextInput("INV-TEST-1")
             composeTestRule.onNodeWithTag("purchase_header_save").performClick()
 

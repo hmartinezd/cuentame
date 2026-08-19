@@ -100,18 +100,11 @@ class PurchaseUiTest {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             waitForHome()
 
-            // 1. Navigate to Purchases
-            composeTestRule.onNodeWithTag("nav_purchases", useUnmergedTree = true).performClick()
+            // Purchases are created from the Home quick action after the unified Activity navigation change.
+            composeTestRule.onNodeWithTag("new_purchase_button", useUnmergedTree = true).performClick()
             composeTestRule.waitForIdle()
             
-            // 2. Create Draft
-            composeTestRule.waitUntil(60000) {
-                composeTestRule.onAllNodesWithTag("add_purchase_fab").fetchSemanticsNodes().isNotEmpty()
-            }
-            composeTestRule.onNodeWithTag("add_purchase_fab").performClick()
-            composeTestRule.waitForIdle()
-            
-            // 3. Save Header
+            // Save Header
             composeTestRule.waitUntil(30000) {
                 composeTestRule.onAllNodesWithTag("purchase_invoice_input").fetchSemanticsNodes().isNotEmpty()
             }

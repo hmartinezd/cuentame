@@ -214,14 +214,16 @@ fun WasteFormScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
+                        .verticalScroll(scrollState)
+                        .testTag("waste_form_scroll_page"),
+                    contentAlignment = Alignment.TopCenter
                 ) {
                   Column(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
                         .adaptiveContentWidth(maxWidth = 720.dp)
-                        .padding(vertical = 16.dp),
+                        .padding(16.dp)
+                        .testTag("waste_form_content"),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                   ) {
                     // Ingredient Selector
