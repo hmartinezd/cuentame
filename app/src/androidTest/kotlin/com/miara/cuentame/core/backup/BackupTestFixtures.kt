@@ -1,6 +1,7 @@
 package com.miara.cuentame.core.backup
 
 import com.miara.cuentame.core.backup.model.*
+import com.miara.cuentame.core.backup.api.BackupFormatV1Contract
 import com.miara.cuentame.core.model.backup.BackupAttachmentMetadata
 import com.miara.cuentame.core.model.backup.BackupAttachmentReference
 import com.miara.cuentame.core.model.backup.BackupManifest
@@ -307,7 +308,7 @@ object BackupTestFixtures {
             restaurantName = "Test Rest",
             localeTag = "en-US",
             currencyCode = "USD",
-            tableMetadata = mapOf(
+            tableMetadata = completeTableMetadata(mapOf(
                 "restaurants" to TableMetadata(1, false),
                 "inventory_areas" to TableMetadata(1, false),
                 "units" to TableMetadata(1, false),
@@ -339,7 +340,7 @@ object BackupTestFixtures {
                 "menu_recipe_components" to TableMetadata(0, false),
                 "purchase_invoice_draft_applications" to TableMetadata(0, false),
                 "purchase_invoice_line_origins" to TableMetadata(0, false)
-            ).entries.sortedBy { it.key }.associate { it.key to it.value },
+            )),
             attachments = emptyList(),
             includedSections = listOf("data", "preferences", "attachments")
         )
@@ -427,7 +428,7 @@ object BackupTestFixtures {
             restaurantName = "Test Rest",
             localeTag = "en-US",
             currencyCode = "USD",
-            tableMetadata = mapOf(
+            tableMetadata = completeTableMetadata(mapOf(
                 "restaurants" to TableMetadata(1, false),
                 "inventory_areas" to TableMetadata(1, false),
                 "units" to TableMetadata(1, false),
@@ -459,7 +460,7 @@ object BackupTestFixtures {
                 "menu_recipe_components" to TableMetadata(0, false),
                 "purchase_invoice_draft_applications" to TableMetadata(0, false),
                 "purchase_invoice_line_origins" to TableMetadata(0, false)
-            ).entries.sortedBy { it.key }.associate { it.key to it.value },
+            )),
             attachments = listOf(
                 BackupAttachmentMetadata(
                     attachmentId = attachmentId,
@@ -648,4 +649,14 @@ object BackupTestFixtures {
         )
     }
 
+    private fun completeTableMetadata(
+        populated: Map<String, TableMetadata>
+    ): Map<String, TableMetadata> =
+        BackupFormatV1Contract.expectedTablesForSchema(DatabaseSchema.VERSION)
+            .associateWith { table ->
+                populated[table] ?: TableMetadata(
+                    entryCount = 0,
+                    isDerived = table in BackupFormatV1Contract.DERIVED_TABLES
+                )
+            }
 }
