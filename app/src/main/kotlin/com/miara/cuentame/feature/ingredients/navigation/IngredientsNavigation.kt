@@ -25,9 +25,7 @@ fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
     composable(route = Destination.INGREDIENT_IMPORT.route) {
         CsvImportRoute(
             onBack = { navController.popBackStack() },
-            onViewIngredients = {
-                navController.popBackStack(TopLevelDestination.INVENTORY.route, inclusive = false)
-            }
+            onViewIngredients = { navController.completeIngredientImport() }
         )
     }
     composable(
@@ -71,5 +69,16 @@ fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
                 onSaveSuccess = { navController.popBackStack() }
             )
         }
+    }
+}
+
+internal fun NavHostController.completeIngredientImport() {
+    if (popBackStack(TopLevelDestination.INVENTORY.route, inclusive = false)) return
+
+    navigate(TopLevelDestination.INVENTORY.route) {
+        popUpTo(Destination.INGREDIENT_IMPORT.route) {
+            inclusive = true
+        }
+        launchSingleTop = true
     }
 }
