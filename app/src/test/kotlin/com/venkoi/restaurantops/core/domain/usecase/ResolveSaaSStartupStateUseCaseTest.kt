@@ -13,6 +13,7 @@ import com.venkoi.restaurantops.core.domain.model.tenant.TenantBootstrapResult
 import com.venkoi.restaurantops.core.domain.repository.AuthRepository
 import com.venkoi.restaurantops.core.domain.repository.CompleteLocalSetupCommand
 import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRepository
+import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRevokedException
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
 import com.venkoi.restaurantops.core.domain.repository.RestaurantRepository
@@ -90,6 +91,15 @@ class ResolveSaaSStartupStateUseCaseTest {
         fixture.device.result = Result.failure(IllegalStateException("offline"))
 
         assertThat(fixture.resolve()).isEqualTo(SaaSStartupState.ReadyOffline)
+    }
+
+    @Test
+    fun `matching completed restaurant and confirmed device revocation is device revoked`() = runTest {
+        val fixture = fixture(signedIn(), localRestaurant(), true)
+        fixture.tenant.lookupResult = Result.success(listOf(access(LOCAL_ID)))
+        fixture.device.result = Result.failure(DeviceInstallationRevokedException())
+
+        assertThat(fixture.resolve()).isEqualTo(SaaSStartupState.DeviceRevoked)
     }
 
     @Test

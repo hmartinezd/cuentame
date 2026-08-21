@@ -6,6 +6,7 @@ import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import com.venkoi.restaurantops.core.domain.model.device.DeviceInstallation
 import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationOperationException
 import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRepository
+import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRevokedException
 import com.venkoi.restaurantops.core.domain.service.InstallationIdProvider
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -66,12 +67,14 @@ class SupabaseDeviceInstallationRepository @Inject constructor(
     }
 }
 
-private suspend inline fun <T> deviceInstallationOperation(
+internal suspend inline fun <T> deviceInstallationOperation(
     crossinline operation: suspend () -> T
 ): Result<T> = try {
     Result.success(operation())
 } catch (cancellation: CancellationException) {
     throw cancellation
+} catch (revoked: DeviceInstallationRevokedException) {
+    Result.failure(revoked)
 } catch (_: Exception) {
     Result.failure(DeviceInstallationOperationException())
 }

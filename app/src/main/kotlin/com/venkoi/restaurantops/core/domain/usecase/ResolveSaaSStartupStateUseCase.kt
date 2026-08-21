@@ -7,6 +7,7 @@ import com.venkoi.restaurantops.core.domain.model.startup.SaaSStartupState
 import com.venkoi.restaurantops.core.domain.model.tenant.RestaurantAccess
 import com.venkoi.restaurantops.core.domain.repository.AuthRepository
 import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRepository
+import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRevokedException
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.RestaurantRepository
 import com.venkoi.restaurantops.core.domain.repository.TenantRepository
@@ -90,12 +91,14 @@ class ResolveSaaSStartupStateUseCase @Inject constructor(
         user: AuthUser,
         restaurantAccess: RestaurantAccess,
         restaurantId: RestaurantId
-    ): SaaSStartupState = if (
-        deviceInstallationRepository.ensureCurrentDeviceRegistered(restaurantId).isSuccess
-    ) {
-        SaaSStartupState.ReadyOnline(user, restaurantAccess)
-    } else {
-        SaaSStartupState.ReadyOffline
+    ): SaaSStartupState {
+        val result = deviceInstallationRepository.ensureCurrentDeviceRegistered(restaurantId)
+        return when {
+            result.isSuccess -> SaaSStartupState.ReadyOnline(user, restaurantAccess)
+            result.exceptionOrNull() is DeviceInstallationRevokedException ->
+                SaaSStartupState.DeviceRevoked
+            else -> SaaSStartupState.ReadyOffline
+        }
     }
 
     private data class ResolutionInput(

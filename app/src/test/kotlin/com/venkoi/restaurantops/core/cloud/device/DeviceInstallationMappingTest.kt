@@ -4,7 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import com.venkoi.restaurantops.core.domain.model.device.DeviceInstallation
 import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRepository
+import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRevokedException
 import kotlin.coroutines.Continuation
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -23,9 +25,19 @@ class DeviceInstallationMappingTest {
 
     @Test
     fun `revoked matching device fails safely`() {
-        assertThrows(IllegalStateException::class.java) {
+        assertThrows(DeviceInstallationRevokedException::class.java) {
             activeDeviceOrThrow(deviceDto(revokedAt = "2026-08-21T12:00:00Z"))
         }
+    }
+
+    @Test
+    fun `repository boundary preserves confirmed revocation failure`() = runTest {
+        val result = deviceInstallationOperation {
+            activeDeviceOrThrow(deviceDto(revokedAt = "2026-08-21T12:00:00Z"))
+        }
+
+        assertThat(result.exceptionOrNull())
+            .isInstanceOf(DeviceInstallationRevokedException::class.java)
     }
 
     @Test

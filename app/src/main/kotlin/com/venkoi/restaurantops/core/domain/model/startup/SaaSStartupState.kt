@@ -16,6 +16,7 @@ sealed interface SaaSStartupState {
         val restaurantAccess: RestaurantAccess
     ) : SaaSStartupState
     data object ReadyOffline : SaaSStartupState
+    data object DeviceRevoked : SaaSStartupState
     data object NetworkRequired : SaaSStartupState
     data object TenantAccessMismatch : SaaSStartupState
     data object MultipleRestaurantsUnsupported : SaaSStartupState

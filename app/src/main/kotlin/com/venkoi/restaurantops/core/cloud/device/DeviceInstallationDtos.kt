@@ -2,6 +2,7 @@ package com.venkoi.restaurantops.core.cloud.device
 
 import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import com.venkoi.restaurantops.core.domain.model.device.DeviceInstallation
+import com.venkoi.restaurantops.core.domain.repository.DeviceInstallationRevokedException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -45,7 +46,7 @@ internal fun DeviceInstallationDto.toDomain(): DeviceInstallation = DeviceInstal
 )
 
 internal fun activeDeviceOrThrow(device: DeviceInstallationDto): DeviceInstallation {
-    check(device.revokedAt == null) { "Device installation is revoked" }
+    if (device.revokedAt != null) throw DeviceInstallationRevokedException()
     return device.toDomain()
 }
 

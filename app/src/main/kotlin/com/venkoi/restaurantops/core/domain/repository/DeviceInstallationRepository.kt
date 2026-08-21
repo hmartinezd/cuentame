@@ -9,4 +9,10 @@ interface DeviceInstallationRepository {
     ): Result<DeviceInstallation>
 }
 
-class DeviceInstallationOperationException : Exception("Device installation operation failed")
+open class DeviceInstallationOperationException(
+    message: String = "Device installation operation failed"
+) : Exception(message)
+
+class DeviceInstallationRevokedException : DeviceInstallationOperationException(
+    "Device installation is revoked"
+)
