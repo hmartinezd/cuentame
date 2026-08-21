@@ -9,6 +9,10 @@ import com.venkoi.restaurantops.core.database.entity.*
 
 @Dao
 interface RestoreDao {
+    @Query("DELETE FROM sync_outbox") suspend fun deleteAllSyncOutbox()
+    @Query("DELETE FROM sync_entity_metadata") suspend fun deleteAllSyncEntityMetadata()
+    @Query("DELETE FROM sync_cursors") suspend fun deleteAllSyncCursors()
+
     @Query("DELETE FROM sales_import_transaction_refs") suspend fun deleteAllSalesImportTransactionRefs()
     @Query("DELETE FROM imported_sale_lines") suspend fun deleteAllImportedSaleLines()
     @Query("DELETE FROM imported_sale_transactions") suspend fun deleteAllImportedSaleTransactions()
@@ -220,6 +224,10 @@ interface RestoreDao {
 
     @Transaction
     suspend fun clearAllInOrder() {
+        // Device-local synchronization state is never portable across a restore.
+        deleteAllSyncOutbox()
+        deleteAllSyncEntityMetadata()
+        deleteAllSyncCursors()
         deleteAllSalesImportTransactionRefs()
         deleteAllImportedSaleLines()
         deleteAllImportedSaleTransactions()
