@@ -7,6 +7,12 @@ import com.venkoi.restaurantops.core.database.entity.SyncOutboxEntity
 
 @Dao
 interface SyncOutboxDao {
+    @Query("SELECT * FROM sync_outbox ORDER BY localSequence ASC")
+    suspend fun getAll(): List<SyncOutboxEntity>
+
+    @Insert
+    suspend fun insertAll(operations: List<SyncOutboxEntity>)
+
     @Insert
     suspend fun insert(operation: SyncOutboxEntity): Long
 

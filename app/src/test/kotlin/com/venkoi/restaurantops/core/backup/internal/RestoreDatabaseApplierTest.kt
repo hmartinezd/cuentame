@@ -5,6 +5,9 @@ import androidx.room.withTransaction
 import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
 import com.venkoi.restaurantops.core.database.dao.BackupDao
 import com.venkoi.restaurantops.core.database.dao.RestoreDao
+import com.venkoi.restaurantops.core.database.dao.SyncCursorDao
+import com.venkoi.restaurantops.core.database.dao.SyncEntityMetadataDao
+import com.venkoi.restaurantops.core.database.dao.SyncOutboxDao
 import com.venkoi.restaurantops.core.backup.model.BackupSnapshotDto
 import com.venkoi.restaurantops.core.database.backup.BackupSnapshot
 import com.venkoi.restaurantops.core.model.backup.BackupManifest
@@ -18,11 +21,23 @@ class RestoreDatabaseApplierTest {
     private val database = mockk<RestaurantInventoryDatabase>()
     private val backupDao = mockk<BackupDao>()
     private val restoreDao = mockk<RestoreDao>()
+    private val syncMetadataDao = mockk<SyncEntityMetadataDao>()
+    private val syncCursorDao = mockk<SyncCursorDao>()
+    private val syncOutboxDao = mockk<SyncOutboxDao>()
     private lateinit var applier: RoomRestoreDatabaseApplier
 
     @Before
     fun setup() {
         mockkStatic("androidx.room.RoomDatabaseKt")
+        every { database.syncEntityMetadataDao() } returns syncMetadataDao
+        every { database.syncCursorDao() } returns syncCursorDao
+        every { database.syncOutboxDao() } returns syncOutboxDao
+        coEvery { syncMetadataDao.getAll() } returns emptyList()
+        coEvery { syncCursorDao.getAll() } returns emptyList()
+        coEvery { syncOutboxDao.getAll() } returns emptyList()
+        coEvery { syncMetadataDao.insertAll(any()) } just Runs
+        coEvery { syncCursorDao.insertAll(any()) } just Runs
+        coEvery { syncOutboxDao.insertAll(any()) } just Runs
         
         coEvery { restoreDao.clearAllInOrder() } just Runs
         coEvery { restoreDao.insertRestaurants(any()) } just Runs

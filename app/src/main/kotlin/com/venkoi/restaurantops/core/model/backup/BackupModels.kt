@@ -69,7 +69,38 @@ data class RestoreDatabaseRollbackSnapshot(
     val purchaseReceiptAttachmentDisplayNames: Map<String, String?>,
     val wasteEventAttachmentPaths: Map<String, String?>,
     val wasteEventAttachmentDisplayNames: Map<String, String?>,
-    val attachmentInventory: List<com.venkoi.restaurantops.core.backup.internal.RollbackAttachmentMetadata> = emptyList()
+    val attachmentInventory: List<com.venkoi.restaurantops.core.backup.internal.RollbackAttachmentMetadata> = emptyList(),
+    val syncEntityMetadata: List<RollbackSyncEntityMetadata> = emptyList(),
+    val syncCursors: List<RollbackSyncCursor> = emptyList(),
+    val syncOutbox: List<RollbackSyncOutboxOperation> = emptyList()
+)
+
+@Serializable
+data class RollbackSyncEntityMetadata(
+    val entityType: String,
+    val entityId: String,
+    val restaurantId: String,
+    val serverVersion: Long,
+    val changeSeq: Long
+)
+
+@Serializable
+data class RollbackSyncCursor(
+    val restaurantId: String,
+    val entityType: String,
+    val changeSeq: Long
+)
+
+@Serializable
+data class RollbackSyncOutboxOperation(
+    val localSequence: Long,
+    val operationId: String,
+    val restaurantId: String,
+    val entityType: String,
+    val entityId: String,
+    val baseServerVersion: Long,
+    val payloadJson: String,
+    val createdAt: Long
 )
 
 sealed interface BackupResult {

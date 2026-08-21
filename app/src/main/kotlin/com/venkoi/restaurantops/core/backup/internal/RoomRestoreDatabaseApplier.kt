@@ -12,6 +12,12 @@ import com.venkoi.restaurantops.core.database.entity.PurchaseReceiptEntity
 import com.venkoi.restaurantops.core.database.entity.WasteEventEntity
 import com.venkoi.restaurantops.core.model.backup.BackupManifest
 import com.venkoi.restaurantops.core.model.backup.RestoreDatabaseRollbackSnapshot
+import com.venkoi.restaurantops.core.model.backup.RollbackSyncCursor
+import com.venkoi.restaurantops.core.model.backup.RollbackSyncEntityMetadata
+import com.venkoi.restaurantops.core.model.backup.RollbackSyncOutboxOperation
+import com.venkoi.restaurantops.core.database.entity.SyncCursorEntity
+import com.venkoi.restaurantops.core.database.entity.SyncEntityMetadataEntity
+import com.venkoi.restaurantops.core.database.entity.SyncOutboxEntity
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +35,7 @@ class RoomRestoreDatabaseApplier @Inject constructor(
     }
 
     override suspend fun captureRollbackSnapshot(): RestoreDatabaseRollbackSnapshot {
-        try {
+        return database.withTransaction {
             val entitySnapshot = backupDao.createGlobalSnapshot()
             val dto = BackupMapper.mapToDto(entitySnapshot, emptyMap())
             
@@ -38,16 +44,17 @@ class RoomRestoreDatabaseApplier @Inject constructor(
             val wastePaths = entitySnapshot.wasteEvents.associate { it.id to it.attachmentPath }
             val wasteNames = entitySnapshot.wasteEvents.associate { it.id to it.attachmentDisplayName }
             
-            return RestoreDatabaseRollbackSnapshot(
+            RestoreDatabaseRollbackSnapshot(
                 snapshot = dto,
                 purchaseReceiptAttachmentPaths = purchasePaths,
                 purchaseReceiptAttachmentDisplayNames = purchaseNames,
                 wasteEventAttachmentPaths = wastePaths,
                 wasteEventAttachmentDisplayNames = wasteNames,
-                attachmentInventory = emptyList() // Will be populated by coordinator during capture
+                attachmentInventory = emptyList(), // Populated by coordinator during capture.
+                syncEntityMetadata = database.syncEntityMetadataDao().getAll().map { it.toRollbackDto() },
+                syncCursors = database.syncCursorDao().getAll().map { it.toRollbackDto() },
+                syncOutbox = database.syncOutboxDao().getAll().map { it.toRollbackDto() }
             )
-        } catch (e: Exception) {
-            throw e
         }
     }
 
@@ -84,6 +91,9 @@ class RoomRestoreDatabaseApplier @Inject constructor(
                 rollbackWastePaths = rollback.wasteEventAttachmentPaths,
                 rollbackWasteDisplayNames = rollback.wasteEventAttachmentDisplayNames
             )
+            database.syncEntityMetadataDao().insertAll(rollback.syncEntityMetadata.map { it.toEntity() })
+            database.syncCursorDao().insertAll(rollback.syncCursors.map { it.toEntity() })
+            database.syncOutboxDao().insertAll(rollback.syncOutbox.map { it.toEntity() })
             
             if (!verifyRollback(rollback)) {
                 throw IllegalStateException("Database verification failed after rollback")
@@ -255,9 +265,36 @@ class RoomRestoreDatabaseApplier @Inject constructor(
         val currentWastePaths = current.wasteEvents.associate { it.id to it.attachmentPath }
         val currentWasteNames = current.wasteEvents.associate { it.id to it.attachmentDisplayName }
         
-        return currentPurchasePaths == expected.purchaseReceiptAttachmentPaths &&
-               currentPurchaseNames == expected.purchaseReceiptAttachmentDisplayNames &&
-               currentWastePaths == expected.wasteEventAttachmentPaths &&
-               currentWasteNames == expected.wasteEventAttachmentDisplayNames
+        if (currentPurchasePaths != expected.purchaseReceiptAttachmentPaths ||
+            currentPurchaseNames != expected.purchaseReceiptAttachmentDisplayNames ||
+            currentWastePaths != expected.wasteEventAttachmentPaths ||
+            currentWasteNames != expected.wasteEventAttachmentDisplayNames
+        ) return false
+
+        return database.syncEntityMetadataDao().getAll().map { it.toRollbackDto() } == expected.syncEntityMetadata &&
+               database.syncCursorDao().getAll().map { it.toRollbackDto() } == expected.syncCursors &&
+               database.syncOutboxDao().getAll().map { it.toRollbackDto() } == expected.syncOutbox
     }
+
+    private fun SyncEntityMetadataEntity.toRollbackDto() = RollbackSyncEntityMetadata(
+        entityType, entityId, restaurantId, serverVersion, changeSeq
+    )
+
+    private fun RollbackSyncEntityMetadata.toEntity() = SyncEntityMetadataEntity(
+        entityType, entityId, restaurantId, serverVersion, changeSeq
+    )
+
+    private fun SyncCursorEntity.toRollbackDto() = RollbackSyncCursor(restaurantId, entityType, changeSeq)
+
+    private fun RollbackSyncCursor.toEntity() = SyncCursorEntity(restaurantId, entityType, changeSeq)
+
+    private fun SyncOutboxEntity.toRollbackDto() = RollbackSyncOutboxOperation(
+        localSequence, operationId, restaurantId, entityType, entityId,
+        baseServerVersion, payloadJson, createdAt
+    )
+
+    private fun RollbackSyncOutboxOperation.toEntity() = SyncOutboxEntity(
+        localSequence, operationId, restaurantId, entityType, entityId,
+        baseServerVersion, payloadJson, createdAt
+    )
 }
