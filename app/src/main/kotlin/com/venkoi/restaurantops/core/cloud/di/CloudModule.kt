@@ -1,6 +1,8 @@
 package com.venkoi.restaurantops.core.cloud.di
 
 import com.venkoi.restaurantops.BuildConfig
+import com.venkoi.restaurantops.core.cloud.sync.SupabaseInventoryAreaSyncRemoteDataSource
+import com.venkoi.restaurantops.core.database.sync.InventoryAreaSyncRemoteDataSource
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,4 +26,10 @@ object CloudModule {
         install(Auth)
         install(Postgrest)
     }
+
+    @Provides
+    @Singleton
+    fun provideInventoryAreaSyncRemoteDataSource(
+        implementation: SupabaseInventoryAreaSyncRemoteDataSource
+    ): InventoryAreaSyncRemoteDataSource = implementation
 }

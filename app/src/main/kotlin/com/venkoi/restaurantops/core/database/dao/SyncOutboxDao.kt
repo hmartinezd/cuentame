@@ -19,6 +19,12 @@ interface SyncOutboxDao {
     @Query("SELECT * FROM sync_outbox WHERE restaurantId = :restaurantId AND entityType = :entityType ORDER BY localSequence ASC LIMIT :limit")
     suspend fun getPending(restaurantId: String, entityType: String, limit: Int): List<SyncOutboxEntity>
 
+    @Query("SELECT * FROM sync_outbox WHERE localSequence = :localSequence")
+    suspend fun getByLocalSequence(localSequence: Long): SyncOutboxEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE restaurantId = :restaurantId AND entityType = :entityType)")
+    suspend fun hasPendingForRestaurant(restaurantId: String, entityType: String): Boolean
+
     @Query("SELECT * FROM sync_outbox WHERE entityType = :entityType AND entityId = :entityId ORDER BY localSequence ASC")
     suspend fun getForEntity(entityType: String, entityId: String): List<SyncOutboxEntity>
 
@@ -26,5 +32,17 @@ interface SyncOutboxDao {
     suspend fun hasPending(entityType: String, entityId: String): Boolean
 
     @Query("DELETE FROM sync_outbox WHERE operationId = :operationId")
-    suspend fun deleteByOperationId(operationId: String)
+    suspend fun deleteByOperationId(operationId: String): Int
+
+    @Query("""
+        UPDATE sync_outbox SET baseServerVersion = :newBaseServerVersion
+        WHERE entityType = :entityType AND entityId = :entityId
+          AND localSequence > :afterLocalSequence
+    """)
+    suspend fun updateBaseVersionForLaterEntityOperations(
+        entityType: String,
+        entityId: String,
+        afterLocalSequence: Long,
+        newBaseServerVersion: Long
+    )
 }
