@@ -61,6 +61,7 @@ import com.venkoi.restaurantops.core.domain.model.startup.SaaSStartupState
 import com.venkoi.restaurantops.feature.auth.AuthRoute
 import com.venkoi.restaurantops.feature.auth.AuthViewModel
 import com.venkoi.restaurantops.feature.onboarding.ui.OnboardingRoute
+import com.venkoi.restaurantops.feature.tenantsetup.TenantSetupRoute
 import com.venkoi.restaurantops.app.ui.theme.AppSpacing
 import com.venkoi.restaurantops.app.ui.theme.AppTheme
 
@@ -92,11 +93,7 @@ fun RestaurantOpsApp(
             menuManagementEnabled = (preferencesState as? AppPreferencesState.Ready)
                 ?.preferences?.menuManagementEnabled ?: true
         )
-        RootDestination.SETUP_REQUIRED -> StartupMessageContent(
-            title = stringResource(com.venkoi.restaurantops.R.string.saas_setup_required_title),
-            message = stringResource(com.venkoi.restaurantops.R.string.saas_setup_required_message),
-            tag = "saas_setup_required"
-        )
+        RootDestination.TENANT_SETUP -> TenantSetupRoute()
         RootDestination.NETWORK_REQUIRED -> StartupMessageContent(
             title = stringResource(com.venkoi.restaurantops.R.string.saas_network_required_title),
             message = stringResource(com.venkoi.restaurantops.R.string.saas_network_required_message),
@@ -122,7 +119,7 @@ fun RestaurantOpsApp(
 }
 
 internal enum class RootDestination {
-    LOADING, RECOVERY_REQUIRED, AUTH, ONBOARDING, CLOUD_LOCAL_SETUP, MAIN, SETUP_REQUIRED,
+    LOADING, RECOVERY_REQUIRED, AUTH, ONBOARDING, CLOUD_LOCAL_SETUP, MAIN, TENANT_SETUP,
     NETWORK_REQUIRED, DEVICE_REVOKED, TENANT_MISMATCH, MULTIPLE_UNSUPPORTED, ERROR
 }
 
@@ -141,7 +138,7 @@ internal fun resolveRootDestination(
             AppStartState.RequiresOnboarding -> RootDestination.ONBOARDING
             AppStartState.Ready -> RootDestination.MAIN
         }
-        is SaaSStartupState.RequiresTenantSetup -> RootDestination.SETUP_REQUIRED
+        is SaaSStartupState.RequiresTenantSetup -> RootDestination.TENANT_SETUP
         is SaaSStartupState.RequiresLocalSetup -> RootDestination.CLOUD_LOCAL_SETUP
         SaaSStartupState.NetworkRequired -> RootDestination.NETWORK_REQUIRED
         SaaSStartupState.DeviceRevoked -> RootDestination.DEVICE_REVOKED

@@ -1289,4 +1289,14 @@
     <string name="saas_multiple_message">Esta cuenta tiene acceso a varios restaurantes. La selección aún no está disponible.</string>
     <string name="saas_error_title">No se puede iniciar</string>
     <string name="saas_error_message">Ocurrió un problema al preparar la aplicación. Inténtelo de nuevo más tarde.</string>
+    <string name="tenant_setup_title">Configura tu negocio</string>
+    <string name="tenant_setup_description">Crea la organización y el restaurante conectados a esta cuenta.</string>
+    <string name="tenant_setup_organization">Nombre de la organización o negocio</string>
+    <string name="tenant_setup_restaurant">Nombre del restaurante</string>
+    <string name="tenant_setup_currency">Moneda</string>
+    <string name="tenant_setup_timezone">Zona horaria</string>
+    <string name="tenant_setup_locale">Idioma de la aplicación</string>
+    <string name="tenant_setup_action">Crear organización y restaurante</string>
+    <string name="tenant_setup_required">Este campo es obligatorio.</string>
+    <string name="tenant_setup_error">No pudimos crear la organización y el restaurante. Revisa tu conexión antes de intentarlo de nuevo.</string>
 </resources>

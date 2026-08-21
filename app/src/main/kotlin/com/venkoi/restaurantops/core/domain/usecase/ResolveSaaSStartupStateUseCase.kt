@@ -12,6 +12,7 @@ import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.RestaurantRepository
 import com.venkoi.restaurantops.core.domain.repository.TenantRepository
 import com.venkoi.restaurantops.core.model.restaurant.Restaurant
+import com.venkoi.restaurantops.core.domain.startup.SaaSStartupRefresh
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -27,14 +28,16 @@ class ResolveSaaSStartupStateUseCase @Inject constructor(
     private val tenantRepository: TenantRepository,
     private val deviceInstallationRepository: DeviceInstallationRepository,
     private val localSetupRepository: LocalSetupRepository,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val startupRefresh: SaaSStartupRefresh
 ) {
 
     operator fun invoke(): Flow<SaaSStartupState> = combine(
         authRepository.sessionState,
         localSetupRepository.observeIsSetupComplete(),
-        restaurantRepository.observeRestaurant()
-    ) { authState, isLocalSetupComplete, localRestaurant ->
+        restaurantRepository.observeRestaurant(),
+        startupRefresh.revision
+    ) { authState, isLocalSetupComplete, localRestaurant, _ ->
         ResolutionInput(authState, isLocalSetupComplete, localRestaurant)
     }.flatMapLatest { input ->
         flow { emit(resolve(input)) }

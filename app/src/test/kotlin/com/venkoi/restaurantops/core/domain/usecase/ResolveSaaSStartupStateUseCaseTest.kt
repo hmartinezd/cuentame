@@ -18,6 +18,7 @@ import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
 import com.venkoi.restaurantops.core.domain.repository.RestaurantRepository
 import com.venkoi.restaurantops.core.domain.repository.TenantRepository
+import com.venkoi.restaurantops.core.domain.startup.SaaSStartupRefresh
 import com.venkoi.restaurantops.core.model.restaurant.Restaurant
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
@@ -26,7 +27,10 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Test
 
 class ResolveSaaSStartupStateUseCaseTest {
@@ -171,6 +175,49 @@ class ResolveSaaSStartupStateUseCaseTest {
         assertThat(resolved.await()).isEqualTo(SaaSStartupState.RequiresAuthentication)
     }
 
+    @Test
+    fun `startup refresh reruns tenant lookup without auth or local changes`() = runTest {
+        val fixture = fixture(signedIn())
+        fixture.tenant.lookupResult = Result.success(emptyList())
+        val states = async { fixture.states(2) }
+        runCurrent()
+
+        fixture.tenant.lookupResult = Result.success(listOf(access("cloud-restaurant")))
+        fixture.requestRefresh()
+
+        assertThat(states.await()).containsExactly(
+            SaaSStartupState.RequiresTenantSetup(USER),
+            SaaSStartupState.RequiresLocalSetup(USER, access("cloud-restaurant"))
+        ).inOrder()
+        assertThat(fixture.tenant.lookupCalls).isEqualTo(2)
+    }
+
+    @Test
+    fun `startup refresh cancels stale tenant lookup`() = runTest {
+        val fixture = fixture(signedIn())
+        val firstStarted = CompletableDeferred<Unit>()
+        val firstCancelled = CompletableDeferred<Unit>()
+        fixture.tenant.lookupBlock = {
+            if (fixture.tenant.lookupCalls == 1) {
+                firstStarted.complete(Unit)
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstCancelled.complete(Unit)
+                }
+            } else {
+                Result.success(emptyList())
+            }
+        }
+        val resolved = async { fixture.resolve() }
+        firstStarted.await()
+
+        fixture.requestRefresh()
+
+        assertThat(resolved.await()).isEqualTo(SaaSStartupState.RequiresTenantSetup(USER))
+        firstCancelled.await()
+    }
+
     private fun fixture(
         auth: AuthSessionState,
         restaurant: Restaurant? = null,
@@ -213,15 +260,19 @@ class ResolveSaaSStartupStateUseCaseTest {
         private val authRepository = FakeAuthRepository(auth)
         private val localSetup = FakeLocalSetupRepository(setupComplete)
         private val restaurants = FakeRestaurantRepository(restaurant)
+        private val startupRefresh = SaaSStartupRefresh()
         private val useCase = ResolveSaaSStartupStateUseCase(
             authRepository = authRepository,
             tenantRepository = tenant,
             deviceInstallationRepository = device,
             localSetupRepository = localSetup,
-            restaurantRepository = restaurants
+            restaurantRepository = restaurants,
+            startupRefresh = startupRefresh
         )
 
         suspend fun resolve(): SaaSStartupState = useCase().first()
+        suspend fun states(count: Int): List<SaaSStartupState> = useCase().take(count).toList()
+        fun requestRefresh() = startupRefresh.requestRefresh()
 
         fun setAuth(state: AuthSessionState) {
             authRepository.sessionState.value = state
@@ -239,8 +290,12 @@ class ResolveSaaSStartupStateUseCaseTest {
         var lookupResult: Result<List<RestaurantAccess>> = Result.success(emptyList())
         var lookupBlock: suspend () -> Result<List<RestaurantAccess>> = { lookupResult }
         var createCalls = 0
+        var lookupCalls = 0
 
-        override suspend fun getAccessibleRestaurants() = lookupBlock()
+        override suspend fun getAccessibleRestaurants(): Result<List<RestaurantAccess>> {
+            lookupCalls += 1
+            return lookupBlock()
+        }
 
         override suspend fun createOrganizationWithRestaurant(
             organizationName: String,

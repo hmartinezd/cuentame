@@ -17,7 +17,7 @@ class RootRoutingTest {
     @Test fun `recovery required overrides authentication`() {
         assertThat(resolveRootDestination(RestoreStartupState.RecoveryRequired, SaaSStartupState.RequiresAuthentication, AppStartState.Ready)).isEqualTo(RootDestination.RECOVERY_REQUIRED)
     }
-    @Test fun `tenant setup never routes legacy onboarding`() { assertRoute(SaaSStartupState.RequiresTenantSetup(USER), AppStartState.RequiresOnboarding, RootDestination.SETUP_REQUIRED) }
+    @Test fun `tenant setup routes tenant setup UI`() { assertRoute(SaaSStartupState.RequiresTenantSetup(USER), AppStartState.RequiresOnboarding, RootDestination.TENANT_SETUP) }
     @Test fun `local setup routes cloud backed onboarding`() { assertRoute(SaaSStartupState.RequiresLocalSetup(USER, ACCESS), AppStartState.RequiresOnboarding, RootDestination.CLOUD_LOCAL_SETUP) }
     @Test fun `device revoked blocks main`() { assertRoute(SaaSStartupState.DeviceRevoked, AppStartState.Ready, RootDestination.DEVICE_REVOKED) }
 

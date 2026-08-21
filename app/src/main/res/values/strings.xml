@@ -1334,4 +1334,14 @@
     <string name="saas_multiple_message">This account has access to multiple restaurants. Restaurant selection is not supported yet.</string>
     <string name="saas_error_title">Unable to start</string>
     <string name="saas_error_message">Something went wrong while preparing the app. Please try again later.</string>
+    <string name="tenant_setup_title">Set up your business</string>
+    <string name="tenant_setup_description">Create the organization and restaurant connected to this account.</string>
+    <string name="tenant_setup_organization">Organization or business name</string>
+    <string name="tenant_setup_restaurant">Restaurant name</string>
+    <string name="tenant_setup_currency">Currency</string>
+    <string name="tenant_setup_timezone">Timezone</string>
+    <string name="tenant_setup_locale">Application language</string>
+    <string name="tenant_setup_action">Create organization and restaurant</string>
+    <string name="tenant_setup_required">This field is required.</string>
+    <string name="tenant_setup_error">We couldn’t create the organization and restaurant. Please review your connection before trying again.</string>
 </resources>
