@@ -117,6 +117,12 @@
     <string name="settings_about">About</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_dynamic_color">Dynamic Color</string>
+    <string name="settings_modules">Modules</string>
+    <string name="inventory_management">Inventory Management</string>
+    <string name="menu_management">Menu Management</string>
+    <string name="menu_management_module_desc">Menus, categories, and menu items</string>
+    <string name="module_required">Required</string>
+    <string name="module_on">On</string>
     <string name="theme_system">System Default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
@@ -882,6 +888,8 @@
     <string name="ocr_materialization_error_generic">An error occurred while applying the invoice: %1$s</string>
 
   <string name="dashboard_title">Dashboard</string>
+  <string name="dashboard_overview_label">Overview</string>
+  <string name="quick_actions_label">Quick actions</string>
   <string name="range_7_days">7 days</string>
   <string name="range_30_days">30 days</string>
   <string name="range_90_days">90 days</string>
@@ -1067,10 +1075,23 @@
   <string name="historical_output_cost_format">Historical output cost: %1$s / %2$s</string>
     <string name="menu_items_title">Menu items</string>
     <string name="menu_item_title">Menu item</string>
+    <string name="menu_detail_load_failed">Could not load this menu item. Try again.</string>
     <string name="menu_create_title">Create menu item</string>
     <string name="menu_empty">No menu items yet</string>
     <string name="menu_show_archived">Show archived</string>
+    <string name="menu_hide_archived">Hide archived</string>
+    <string name="menu_new_item">New menu item</string>
+    <string name="menu_empty_body">Create a menu item to define its price, costing, and recipe.</string>
+    <string name="menu_fully_costed">Fully costed</string>
+    <string name="menu_partially_costed_status">Partially costed</string>
+    <string name="menu_uncosted_status">Uncosted</string>
+    <string name="menu_archived_status">Archived</string>
+    <string name="menu_cost_profitability">Cost &amp; profitability</string>
+    <string name="menu_item_overview">Item overview</string>
+    <string name="menu_recipe_components">Recipe / components</string>
     <string name="menu_name">Menu item name</string>
+    <string name="catalog_menu_name">Menu Name</string>
+    <string name="category_name">Category Name</string>
     <string name="menu_selling_price">Selling price</string>
     <string name="menu_selling_not_set">Selling price not set</string>
     <string name="menu_basic_info">Basic info</string>
@@ -1114,6 +1135,58 @@
     <string name="menu_error_unit_inactive">This unit is no longer available. Choose another unit.</string>
     <string name="menu_error_ownership">This menu item could not be updated. Refresh and try again.</string>
     <string name="menu_error_save_failed">Could not save changes. Try again.</string>
+    <string name="menu_cash_discount">Cash discount</string>
+    <string name="menu_cash_use_default">Use menu default</string>
+    <string name="menu_cash_none">No cash discount</string>
+    <string name="catalog_menus">Menus</string>
+    <string name="catalog_menu">Menu</string>
+    <string name="catalog_create">Create menu</string>
+    <string name="catalog_new_menu">New menu</string>
+    <string name="catalog_edit">Edit menu</string>
+    <string name="catalog_description">Description (optional)</string>
+    <string name="catalog_discount_percent">Default cash discount %</string>
+    <string name="catalog_empty_title">No menus yet</string>
+    <string name="catalog_empty_body">Create your first menu to organize items for service.</string>
+    <string name="catalog_counts">%1$d categories • %2$d items</string>
+    <string name="catalog_default_discount">Default cash discount: %1$s%%</string>
+    <string name="catalog_archived">Archived</string>
+    <string name="catalog_item_archived">Archived</string>
+    <string name="catalog_restore">Restore menu</string>
+    <string name="catalog_archive">Archive menu</string>
+    <string name="catalog_hide_archived">Hide archived</string>
+    <string name="catalog_categories">Categories</string>
+    <string name="catalog_overview">Menu overview</string>
+    <string name="catalog_structure">Menu structure</string>
+    <string name="catalog_more_actions">More actions for %1$s</string>
+    <string name="catalog_move_up">Move %1$s up</string>
+    <string name="catalog_move_down">Move %1$s down</string>
+    <string name="catalog_add_category">Add category</string>
+    <string name="catalog_category_name">Category name</string>
+    <string name="catalog_no_categories">Add a category to start organizing this menu.</string>
+    <string name="catalog_add_item">Add item</string>
+    <string name="catalog_add_to">Add item to %1$s</string>
+    <string name="catalog_search_items">Search Menu Items</string>
+    <string name="catalog_no_available_items">No matching Menu Items are available.</string>
+    <string name="catalog_create_menu_item">Create new Menu Item</string>
+    <string name="catalog_no_existing_items">No existing Menu Items yet.</string>
+    <string name="catalog_create_item_in">Create Menu Item in %1$s</string>
+    <string name="catalog_error_placement_failed">The Menu Item was created, but it could not be added to this category. You can add it as an existing item.</string>
+    <string name="catalog_move">Move to…</string>
+    <string name="catalog_remove">Remove</string>
+    <string name="catalog_move_item">Move %1$s to…</string>
+    <string name="catalog_delete_category_title">Delete “%1$s”?</string>
+    <string name="catalog_delete_category_body">%1$d items will be removed from this menu. The Menu Items themselves will not be deleted.</string>
+    <string name="catalog_remove_item_title">Remove %1$s from %2$s?</string>
+    <string name="catalog_remove_item_body">The Menu Item and its recipe will not be deleted or changed.</string>
+    <string name="catalog_not_published">Publication: Not published yet</string>
+    <string name="catalog_published_revision">Published revision %1$d</string>
+    <string name="catalog_load_failed">Could not load this menu. Try again.</string>
+    <string name="catalog_error_invalid">Enter a name and a cash discount from 0 up to (but not including) 100.</string>
+    <string name="catalog_error_duplicate_menu">An active menu with this name already exists.</string>
+    <string name="catalog_error_duplicate_category">This menu already has a category with this name.</string>
+    <string name="catalog_error_duplicate_item">This Menu Item is already in this menu.</string>
+    <string name="catalog_error_ownership">These records do not belong to the same restaurant or menu. Refresh and try again.</string>
+    <string name="action_delete">Delete</string>
     <string name="reorder_assistance">Reorder assistance</string>
     <string name="reorder_assistance_desc">See what to buy, package quantities, and suppliers</string>
     <string name="reorder_configuration">Reorder configuration</string>
@@ -1171,4 +1244,66 @@
     <string name="export_diagnostics_title">Export diagnostics</string>
     <string name="export_diagnostics_desc">Generate a technical report to share with support. Contains no private business data.</string>
     <string name="export_diagnostics_action">Export technical report</string>
+    <string name="catalog_publish">Publish</string>
+    <string name="catalog_publish_title">Publish %1$s?</string>
+    <string name="catalog_publish_body">This creates an immutable revision using the current categories, items, prices, and recipes. Future edits will not change it.</string>
+    <string name="catalog_publish_revision">Current published revision: %1$d\nNext publication: %2$d</string>
+    <string name="catalog_publish_success">Published revision %1$d</string>
+    <string name="catalog_publication_history">Publication history</string>
+    <string name="catalog_history_row">Revision %1$d    %2$s</string>
+    <string name="catalog_publish_error_archived">Archived menus cannot be published. Restore this menu first.</string>
+    <string name="catalog_publish_error_empty">Add at least one category and one Menu Item before publishing.</string>
+    <string name="catalog_publish_error_item_archived">%1$s is archived. Restore it or remove it from this menu before publishing.</string>
+    <string name="catalog_publish_error_price">%1$s does not have a selling price. Set its price before publishing.</string>
+    <string name="catalog_publish_error_catalog">The menu contains an invalid catalog relationship. Correct it before publishing.</string>
+    <string name="catalog_publish_error_save">The publication could not be saved. No revision was created.</string>
+    <string name="catalog_export">Export</string>
+    <string name="catalog_export_success">Menu package exported.</string>
+    <string name="catalog_export_error_not_found">This publication is no longer available.</string>
+    <string name="catalog_export_error_malformed">This publication cannot be exported because its snapshot is invalid.</string>
+    <string name="catalog_export_error_write">The menu package could not be written.</string>
+    <string name="catalog_share">Share</string>
+    <string name="catalog_share_title">Share menu package</string>
+    <string name="catalog_publish_to_export">Publish the menu first to create an exportable version.</string>
+    <string name="menu_basic_information">Basic information</string>
+    <string name="menu_item_name">Menu Item Name</string>
+    <string name="menu_save_item">Save Item</string>
+    <string name="menu_cash_use_default_percent">Use menu default (%1$s%%)</string>
+    <string name="menu_no_ingredients">No ingredients are available yet.</string>
+    <string name="menu_no_ingredients_body">Create or import ingredients before adding recipe components. Recipe components are required for inventory consumption and food-cost calculations.</string>
+    <string name="menu_go_inventory">Go to Inventory</string>
+    <string name="menu_import_ingredients">Import Ingredients</string>
+    <string name="menu_recipe_not_configured">Recipe not configured</string>
+    <string name="menu_recipe_not_configured_body">Until components are added, food cost cannot be fully calculated and sales cannot correctly deduct ingredient inventory for this item.</string>
+    <string name="menu_create_recovery">The menu item was saved, but it could not be added to this category. Return to the menu and add the saved item from the existing-item picker.</string>
+    <string name="menu_inventory_area_required">Inventory area required</string>
+    <string name="sales_title">Sales</string><string name="sales_import">Import sales</string><string name="sales_history">Sales history</string>
+    <string name="sales_empty">No sales imported yet.</string><string name="sales_empty_body">Import a sales file from your Sales Terminal to begin building sales history.</string>
+    <string name="sales_terminal">Terminal: %1$s</string><string name="sales_revision">Revision %1$d</string><string name="sales_imported">Imported %1$s</string>
+    <string name="sales_preview_title">Import sales?</string><string name="sales_business_date">Business date</string><string name="sales_terminal_label">Terminal</string><string name="sales_generated">Generated</string><string name="sales_revision_label">Menu revision</string><string name="sales_currency">Currency</string>
+    <string name="sales_transactions_summary">%1$d completed · %2$d voided</string><string name="sales_line_count">%1$d lines</string><string name="sales_gross">Gross sales</string><string name="sales_discounts">Discounts</string><string name="sales_net">Net sales</string><string name="sales_import_action">Import</string><string name="sales_import_success">Sales imported.</string><string name="sales_import_inventory_updated">Sales imported. Inventory updated.</string><string name="sales_import_inventory_attention">Sales imported. Some inventory updates need attention.</string>
+    <string name="sales_duplicate_title">This sales file has already been imported.</string><string name="sales_duplicate_body">Business date: %1$s\nImported: %2$s</string><string name="sales_view_import">View import</string>
+    <string name="sales_import_detail">Sales import</string><string name="sales_imported_label">Imported</string><string name="sales_transactions">Transactions</string><string name="sales_counts">%1$d transactions · %2$d completed · %3$d voided</string><string name="sales_transaction_row">%1$s · %2$d lines</string><string name="sales_audit">Audit details</string>
+    <string name="sales_transaction">Transaction</string><string name="sales_current_status">Current transaction status</string><string name="sales_opened">Opened</string><string name="sales_closed">Closed</string><string name="sales_completed">Completed</string><string name="sales_voided">Voided</string><string name="sales_load_error">Unable to load sales.</string>
+    <string name="sales_error_too_large">This file is too large to import.</string><string name="sales_error_unreadable">Unable to read this file.</string><string name="sales_error_permission">Permission to read this file was denied.</string><string name="sales_error_invalid">This is not a valid Cuentame sales file.</string><string name="sales_error_restaurant">This sales file belongs to a different restaurant.</string><string name="sales_error_unknown_menu">The menu revision used by these sales is not available in Cuentame.</string><string name="sales_error_menu_mismatch">The sales file does not match its published menu.</string><string name="sales_error_item_mismatch">One or more sold items do not match the published menu revision.</string><string name="sales_error_export_conflict">A different sales file with this export identity was already imported.</string><string name="sales_error_history_conflict">These sales conflict with previously imported transaction history.</string><string name="sales_error_save">The sales could not be saved. Nothing was imported.</string>
+    <string name="sales_history_support">Durable imports from your Sales Terminal</string><string name="sales_revision_currency">Menu revision %1$d · %2$s</string><string name="sales_preparing">Preparing sales file…</string><string name="sales_importing">Importing…</string>
+    <string name="sales_file_details">File details</string><string name="sales_transaction_count">Transaction count</string><string name="sales_lines">Lines</string><string name="sales_completed_sales">Completed sales</string><string name="sales_import_summary">Import summary</string>
+    <string name="sales_duplicate_status">Already imported</string><string name="sales_attention_status">Needs attention</string><string name="sales_error_status">Import failed</string><string name="sales_import_problem">Unable to import sales</string>
+    <string name="sales_import_load_error">Unable to load this sales import.</string><string name="sales_transaction_load_error">Unable to load this transaction.</string><string name="sales_transaction_overview">Transaction overview</string><string name="sales_sale_lines">Sale lines</string>
+    <string name="sales_export_id">Export ID</string><string name="sales_sha256">SHA-256</string><string name="sales_menu_id">Menu ID</string><string name="sales_quantity_price">%1$s × %2$s</string><string name="sales_net_value">%1$s net</string>
+    <string name="inventory_activity_sales_consumption">Sales consumption</string>
+    <string name="catalog_publish_error_ingredient_area">%1$s needs a default inventory area before this menu can be published.</string>
+    <string name="sales_inventory_impact">Inventory impact</string>
+    <string name="sales_inventory_updating">Updating inventory…</string>
+    <string name="sales_inventory_updated">Inventory matches the current sales transaction states.</string>
+    <string name="sales_inventory_no_effect">These transactions have no inventory effect.</string>
+    <string name="sales_inventory_attention">Some sales could not be applied to inventory.</string>
+    <string name="sales_inventory_retry">Retry inventory update</string>
+    <string name="import_map_columns">Map columns</string>
+    <string name="import_map_columns_help">Review how your spreadsheet columns will be imported. Required fields must be mapped.</string>
+    <string name="import_ignore">Ignore</string>
+    <string name="import_change_mapping">Change column mapping</string>
+    <string name="import_required_mapping_missing">Required: map %1$s</string>
+    <string name="import_preview_action">Preview import</string>
+    <string name="no_ingredients_yet">No ingredients yet</string><string name="no_ingredients_guidance">Import your existing ingredient list or add your first ingredient.</string><string name="no_ingredients_match_search">No ingredients match your search.</string><string name="no_ingredients_match_filters">No ingredients match these filters.</string><string name="clear_search">Clear search</string><string name="clear_filters">Clear filters</string><string name="import_existing_csv">Import existing CSV</string><string name="add_ingredient_manually">Add ingredient manually</string><string name="use_sample_catalog">Use sample ingredient catalog</string><string name="sample_catalog_confirm_title">Add sample ingredients?</string><string name="sample_catalog_confirm_body">This adds a starter set of common restaurant ingredients and categories. You can edit or archive them afterward.</string><string name="sample_catalog_confirm_action">Add sample catalog</string><string name="sample_catalog_adding">Adding sample catalog…</string><string name="sample_catalog_failure">We couldn’t add the sample catalog.</string><string name="sample_catalog_result">%1$d ingredients created, %2$d skipped · %3$d categories created, %4$d reused · %5$d unit options created</string>
 </resources>

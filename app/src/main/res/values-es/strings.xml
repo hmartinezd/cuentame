@@ -31,6 +31,14 @@
     <string name="onboarding_restaurant_title">Detalles del Restaurante</string>
     <string name="onboarding_restaurant_desc">Cuéntenos un poco sobre su negocio.</string>
     <string name="onboarding_field_name">Nombre del Restaurante</string>
+    <string name="settings_modules">Módulos</string>
+    <string name="inventory_management">Gestión de inventario</string>
+    <string name="menu_management">Gestión de menús</string>
+    <string name="menu_management_module_desc">Menús, categorías y platos del menú</string>
+    <string name="module_required">Obligatorio</string>
+    <string name="module_on">Activado</string>
+    <string name="catalog_menu_name">Nombre del menú</string>
+    <string name="category_name">Nombre de la categoría</string>
     <string name="onboarding_field_currency">Moneda</string>
     <string name="onboarding_field_language">Idioma de la Aplicación</string>
     <string name="onboarding_currency_note">La moneda se utiliza para calcular el valor total del inventario.</string>
@@ -865,6 +873,8 @@
     <string name="ocr_materialization_error_generic">Ocurrió un error al aplicar la factura: %1$s</string>
 
   <string name="dashboard_title">Panel de Control</string>
+  <string name="dashboard_overview_label">Resumen</string>
+  <string name="quick_actions_label">Acciones rápidas</string>
   <string name="range_7_days">7 días</string>
   <string name="range_30_days">30 días</string>
   <string name="range_90_days">90 días</string>
@@ -1058,9 +1068,26 @@
   <string name="historical_output_cost_format">Costo histórico de salida: %1$s / %2$s</string>
     <string name="menu_items_title">Platos del menú</string>
     <string name="menu_item_title">Plato del menú</string>
+    <string name="menu_detail_load_failed">No se pudo cargar este plato del menú. Inténtalo de nuevo.</string>
     <string name="menu_create_title">Crear plato del menú</string>
     <string name="menu_empty">Aún no hay platos del menú</string>
     <string name="menu_show_archived">Mostrar archivados</string>
+    <string name="menu_hide_archived">Ocultar archivados</string>
+    <string name="menu_new_item">Nuevo artículo de menú</string>
+    <string name="menu_empty_body">Crea un artículo para definir su precio, costo y receta.</string>
+    <string name="menu_fully_costed">Costo completo</string>
+    <string name="menu_partially_costed_status">Costo parcial</string>
+    <string name="menu_uncosted_status">Sin costo</string>
+    <string name="menu_archived_status">Archivado</string>
+    <string name="menu_cost_profitability">Costo y rentabilidad</string>
+    <string name="menu_item_overview">Resumen del artículo</string>
+    <string name="menu_recipe_components">Receta / componentes</string>
+    <string name="catalog_new_menu">Nuevo menú</string>
+    <string name="catalog_overview">Resumen del menú</string>
+    <string name="catalog_structure">Estructura del menú</string>
+    <string name="catalog_more_actions">Más acciones para %1$s</string>
+    <string name="catalog_move_up">Mover %1$s hacia arriba</string>
+    <string name="catalog_move_down">Mover %1$s hacia abajo</string>
     <string name="menu_name">Nombre del plato</string>
     <string name="menu_selling_price">Precio de venta</string>
     <string name="menu_selling_not_set">Precio de venta sin definir</string>
@@ -1172,4 +1199,66 @@
     <string name="ocr_product_name">Descripción / nombre del producto</string>
     <string name="ocr_vendor_code">SKU / código del proveedor</string>
     <string name="ocr_package_description">Descripción del empaque</string>
+    <string name="catalog_publish">Publicar</string>
+    <string name="catalog_publish_title">¿Publicar %1$s?</string>
+    <string name="catalog_publish_body">Esto crea una revisión inmutable con las categorías, artículos, precios y recetas actuales. Los cambios futuros no la modificarán.</string>
+    <string name="catalog_publish_revision">Revisión publicada actual: %1$d\nPróxima publicación: %2$d</string>
+    <string name="catalog_publish_success">Revisión %1$d publicada</string>
+    <string name="catalog_publication_history">Historial de publicaciones</string>
+    <string name="catalog_history_row">Revisión %1$d    %2$s</string>
+    <string name="catalog_publish_error_archived">No se puede publicar un menú archivado. Restáuralo primero.</string>
+    <string name="catalog_publish_error_empty">Agrega al menos una categoría y un artículo de menú antes de publicar.</string>
+    <string name="catalog_publish_error_item_archived">%1$s está archivado. Restáuralo o elimínalo de este menú antes de publicar.</string>
+    <string name="catalog_publish_error_price">%1$s no tiene precio de venta. Define el precio antes de publicar.</string>
+    <string name="catalog_publish_error_catalog">El menú contiene una relación de catálogo inválida. Corrígela antes de publicar.</string>
+    <string name="catalog_publish_error_save">No se pudo guardar la publicación. No se creó ninguna revisión.</string>
+    <string name="catalog_export">Exportar</string>
+    <string name="catalog_export_success">Paquete de menú exportado.</string>
+    <string name="catalog_export_error_not_found">Esta publicación ya no está disponible.</string>
+    <string name="catalog_export_error_malformed">Esta publicación no se puede exportar porque su instantánea no es válida.</string>
+    <string name="catalog_export_error_write">No se pudo escribir el paquete de menú.</string>
+    <string name="catalog_share">Compartir</string>
+    <string name="catalog_share_title">Compartir paquete de menú</string>
+    <string name="catalog_publish_to_export">Publica el menú primero para crear una versión exportable.</string>
+    <string name="menu_basic_information">Información básica</string>
+    <string name="menu_item_name">Nombre del artículo del menú</string>
+    <string name="menu_save_item">Guardar artículo</string>
+    <string name="menu_cash_use_default_percent">Usar valor predeterminado del menú (%1$s%%)</string>
+    <string name="menu_no_ingredients">Todavía no hay ingredientes disponibles.</string>
+    <string name="menu_no_ingredients_body">Crea o importa ingredientes antes de agregar componentes. Los componentes son necesarios para el consumo de inventario y los cálculos de costo de alimentos.</string>
+    <string name="menu_go_inventory">Ir a Inventario</string>
+    <string name="menu_import_ingredients">Importar ingredientes</string>
+    <string name="menu_recipe_not_configured">Receta no configurada</string>
+    <string name="menu_recipe_not_configured_body">Hasta que agregues componentes, no se podrá calcular por completo el costo de alimentos ni descontar correctamente el inventario al registrar ventas.</string>
+    <string name="menu_create_recovery">El artículo se guardó, pero no se pudo agregar a esta categoría. Regresa al menú y agrega el artículo guardado desde la lista de artículos existentes.</string>
+    <string name="menu_inventory_area_required">Se requiere un área de inventario</string>
+    <string name="sales_title">Ventas</string><string name="sales_import">Importar ventas</string><string name="sales_history">Historial de ventas</string>
+    <string name="sales_empty">Aún no hay ventas importadas.</string><string name="sales_empty_body">Importa un archivo de tu terminal de ventas para comenzar el historial.</string>
+    <string name="sales_terminal">Terminal: %1$s</string><string name="sales_revision">Revisión %1$d</string><string name="sales_imported">Importado %1$s</string>
+    <string name="sales_preview_title">¿Importar ventas?</string><string name="sales_business_date">Fecha comercial</string><string name="sales_terminal_label">Terminal</string><string name="sales_generated">Generado</string><string name="sales_revision_label">Revisión del menú</string><string name="sales_currency">Moneda</string>
+    <string name="sales_transactions_summary">%1$d completadas · %2$d anuladas</string><string name="sales_line_count">%1$d líneas</string><string name="sales_gross">Ventas brutas</string><string name="sales_discounts">Descuentos</string><string name="sales_net">Ventas netas</string><string name="sales_import_action">Importar</string><string name="sales_import_success">Ventas importadas.</string><string name="sales_import_inventory_updated">Ventas importadas. Inventario actualizado.</string><string name="sales_import_inventory_attention">Ventas importadas. Algunas actualizaciones de inventario requieren atención.</string>
+    <string name="sales_duplicate_title">Este archivo de ventas ya fue importado.</string><string name="sales_duplicate_body">Fecha comercial: %1$s\nImportado: %2$s</string><string name="sales_view_import">Ver importación</string>
+    <string name="sales_import_detail">Importación de ventas</string><string name="sales_imported_label">Importado</string><string name="sales_transactions">Transacciones</string><string name="sales_counts">%1$d transacciones · %2$d completadas · %3$d anuladas</string><string name="sales_transaction_row">%1$s · %2$d líneas</string><string name="sales_audit">Detalles de auditoría</string>
+    <string name="sales_transaction">Transacción</string><string name="sales_current_status">Estado actual de la transacción</string><string name="sales_opened">Abierta</string><string name="sales_closed">Cerrada</string><string name="sales_completed">Completada</string><string name="sales_voided">Anulada</string><string name="sales_load_error">No se pudieron cargar las ventas.</string>
+    <string name="sales_error_too_large">Este archivo es demasiado grande para importar.</string><string name="sales_error_unreadable">No se puede leer este archivo.</string><string name="sales_error_permission">Se denegó el permiso para leer este archivo.</string><string name="sales_error_invalid">Este no es un archivo de ventas válido de Cuentame.</string><string name="sales_error_restaurant">Este archivo de ventas pertenece a otro restaurante.</string><string name="sales_error_unknown_menu">La revisión de menú usada por estas ventas no está disponible en Cuentame.</string><string name="sales_error_menu_mismatch">El archivo de ventas no coincide con su menú publicado.</string><string name="sales_error_item_mismatch">Uno o más artículos vendidos no coinciden con la revisión publicada.</string><string name="sales_error_export_conflict">Ya se importó otro archivo de ventas con esta identidad.</string><string name="sales_error_history_conflict">Estas ventas entran en conflicto con el historial importado.</string><string name="sales_error_save">No se pudieron guardar las ventas. No se importó nada.</string>
+    <string name="sales_history_support">Importaciones duraderas de tu terminal de ventas</string><string name="sales_revision_currency">Revisión del menú %1$d · %2$s</string><string name="sales_preparing">Preparando el archivo de ventas…</string><string name="sales_importing">Importando…</string>
+    <string name="sales_file_details">Detalles del archivo</string><string name="sales_transaction_count">Cantidad de transacciones</string><string name="sales_lines">Líneas</string><string name="sales_completed_sales">Ventas completadas</string><string name="sales_import_summary">Resumen de importación</string>
+    <string name="sales_duplicate_status">Ya importado</string><string name="sales_attention_status">Requiere atención</string><string name="sales_error_status">Importación fallida</string><string name="sales_import_problem">No se pudieron importar las ventas</string>
+    <string name="sales_import_load_error">No se pudo cargar esta importación de ventas.</string><string name="sales_transaction_load_error">No se pudo cargar esta transacción.</string><string name="sales_transaction_overview">Resumen de la transacción</string><string name="sales_sale_lines">Líneas de venta</string>
+    <string name="sales_export_id">ID de exportación</string><string name="sales_sha256">SHA-256</string><string name="sales_menu_id">ID del menú</string><string name="sales_quantity_price">%1$s × %2$s</string><string name="sales_net_value">%1$s neto</string>
+    <string name="inventory_activity_sales_consumption">Consumo por ventas</string>
+    <string name="catalog_publish_error_ingredient_area">%1$s necesita un área de inventario predeterminada antes de publicar este menú.</string>
+    <string name="sales_inventory_impact">Impacto en inventario</string>
+    <string name="sales_inventory_updating">Actualizando inventario…</string>
+    <string name="sales_inventory_updated">El inventario coincide con el estado actual de las ventas.</string>
+    <string name="sales_inventory_no_effect">Estas transacciones no tienen efecto en inventario.</string>
+    <string name="sales_inventory_attention">Algunas ventas no se pudieron aplicar al inventario.</string>
+    <string name="sales_inventory_retry">Reintentar actualización</string>
+    <string name="import_map_columns">Asignar columnas</string>
+    <string name="import_map_columns_help">Revisa cómo se importarán las columnas de tu hoja. Los campos obligatorios deben estar asignados.</string>
+    <string name="import_ignore">Ignorar</string>
+    <string name="import_change_mapping">Cambiar asignación de columnas</string>
+    <string name="import_required_mapping_missing">Obligatorio: asigna %1$s</string>
+    <string name="import_preview_action">Vista previa</string>
+    <string name="no_ingredients_yet">Aún no hay ingredientes</string><string name="no_ingredients_guidance">Importa tu lista de ingredientes o añade el primero.</string><string name="no_ingredients_match_search">Ningún ingrediente coincide con tu búsqueda.</string><string name="no_ingredients_match_filters">Ningún ingrediente coincide con estos filtros.</string><string name="clear_search">Borrar búsqueda</string><string name="clear_filters">Borrar filtros</string><string name="import_existing_csv">Importar CSV existente</string><string name="add_ingredient_manually">Añadir ingrediente manualmente</string><string name="use_sample_catalog">Usar catálogo de ingredientes de muestra</string><string name="sample_catalog_confirm_title">¿Añadir ingredientes de muestra?</string><string name="sample_catalog_confirm_body">Esto añade un conjunto inicial de ingredientes y categorías comunes. Puedes editarlos o archivarlos después.</string><string name="sample_catalog_confirm_action">Añadir catálogo de muestra</string><string name="sample_catalog_adding">Añadiendo catálogo de muestra…</string><string name="sample_catalog_failure">No pudimos añadir el catálogo de muestra.</string><string name="sample_catalog_result">%1$d ingredientes creados, %2$d omitidos · %3$d categorías creadas, %4$d reutilizadas · %5$d opciones de unidad creadas</string>
 </resources>

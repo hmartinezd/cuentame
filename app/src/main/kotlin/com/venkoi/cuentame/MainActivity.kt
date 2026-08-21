@@ -1,0 +1,59 @@
+package com.venkoi.cuentame
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.venkoi.cuentame.app.ui.AppPreferencesState
+import com.venkoi.cuentame.app.ui.AppViewModel
+import com.venkoi.cuentame.app.ui.CuentameApp
+import com.venkoi.cuentame.app.ui.theme.AppTheme
+import com.venkoi.cuentame.core.preferences.model.ThemeMode
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : AppCompatActivity() {
+    
+    private val viewModel: AppViewModel by viewModels()
+
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            val windowSizeClass = calculateWindowSizeClass(this)
+            val prefState by viewModel.preferencesState.collectAsStateWithLifecycle()
+            
+            val preferences = (prefState as? AppPreferencesState.Ready)?.preferences
+
+            LaunchedEffect(preferences?.appLocaleTag) {
+                preferences?.appLocaleTag?.let { tag ->
+                    val appLocales = LocaleListCompat.forLanguageTags(tag)
+                    if (AppCompatDelegate.getApplicationLocales() != appLocales) {
+                        AppCompatDelegate.setApplicationLocales(appLocales)
+                    }
+                }
+            }
+
+            AppTheme(
+                darkTheme = when (preferences?.themeMode) {
+                    ThemeMode.SYSTEM, ThemeMode.UNKNOWN, null -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                },
+                dynamicColor = preferences?.dynamicColorEnabled ?: false
+            ) {
+                CuentameApp(windowSizeClass = windowSizeClass)
+            }
+        }
+    }
+}

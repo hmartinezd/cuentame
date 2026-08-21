@@ -2,2539 +2,2539 @@
   "current_revision": "1d2c5b544c11015d1121627dab139c9287999ae7",
   "tests": [
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ExampleUnitTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ExampleUnitTest.kt",
       "class": "ExampleUnitTest",
       "method": "addition_isCorrect",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "enforcePackageBoundaries",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "ruleModelToDatabaseViolationDetected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "rulePureBackupToDatabaseViolationDetected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "ruleDomainToComposeViolationDetected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "ruleCoreToFeatureViolationDetected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/ArchitectureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/ArchitectureTest.kt",
       "class": "ArchitectureTest",
       "method": "aliasedForbiddenImportDetected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "validPostedHistory_passes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "positiveWasteQuantity_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "wrongRestaurant_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "costWithoutTotal_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "incorrectTotalEquation_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "validVoidedHistory_passes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "reversalOfReversal_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "zeroWasteQuantity_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "wrongIngredient_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "wrongArea_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "missingReversal_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "wrongReversalTarget_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/WasteMovementHistoryValidatorTest.kt",
       "class": "WasteMovementHistoryValidatorTest",
       "method": "wrongReversalOperationId_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "empty data returns zeroed snapshot",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "calculate inventory valuation with multiple areas and negative quantities",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "invalid inventory decimal throws error",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "negative cost throws error",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "calculate purchase spend comparison correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "waste value uses historical snapshots",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "null waste valuation throws error",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "completed count summary is independent of lines",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryTest.kt",
       "class": "RoomDashboardRepositoryTest",
       "method": "recent activity uses structured data without fallback prose",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatCurrency_US_Locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatCurrency_ES_Locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatCurrency_invalidCode_fallbackToLiteral",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatPercent_US_Locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatPercent_ES_Locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatQuantity_stripsZeros",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/designsystem/util/FormattersTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/designsystem/util/FormattersTest.kt",
       "class": "FormattersTest",
       "method": "formatQuantity_roundsToThreePlaces",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
       "class": "DecimalPersistenceTest",
       "method": "toStorageString preserves plain format",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
       "class": "DecimalPersistenceTest",
       "method": "toBigDecimalValue parses canonical string",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/decimal/DecimalPersistenceTest.kt",
       "class": "DecimalPersistenceTest",
       "method": "toBigDecimalValue fails on invalid string",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/time/TimeProviderTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/time/TimeProviderTest.kt",
       "class": "TimeProviderTest",
       "method": "now returns current time",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/ids/IdGeneratorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/ids/IdGeneratorTest.kt",
       "class": "IdGeneratorTest",
       "method": "newId returns non-empty string",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/ids/IdGeneratorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/ids/IdGeneratorTest.kt",
       "class": "IdGeneratorTest",
       "method": "newId returns unique strings",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/text/NameNormalizationTest.kt",
       "class": "NameNormalizationTest",
       "method": "normalizeName trims and collapses spaces",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/text/NameNormalizationTest.kt",
       "class": "NameNormalizationTest",
       "method": "normalizeName lowercases root locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/common/text/NameNormalizationTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/common/text/NameNormalizationTest.kt",
       "class": "NameNormalizationTest",
       "method": "normalizeName handles empty string",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupByteMathTest.kt",
       "class": "BackupByteMathTest",
       "method": "addExact_success",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupByteMathTest.kt",
       "class": "BackupByteMathTest",
       "method": "addExact_overflow_throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupByteMathTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupByteMathTest.kt",
       "class": "BackupByteMathTest",
       "method": "addExact_rejectsNegative",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt",
       "class": "BackupSnapshotIntegrityNumericTest",
       "method": "rejects negative purchase quantity",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityNumericTest.kt",
       "class": "BackupSnapshotIntegrityNumericTest",
       "method": "rejects malformed decimal",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
       "class": "InsufficientStorageDetectionTest",
       "method": "detects ENOSPC from message",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
       "class": "InsufficientStorageDetectionTest",
       "method": "detects SecurityException as PermissionDenied",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
       "class": "InsufficientStorageDetectionTest",
       "method": "detects open failure as DestinationUnavailable",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/InsufficientStorageDetectionTest.kt",
       "class": "InsufficientStorageDetectionTest",
       "method": "falls back to GenericIo for generic IOException",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "successful deterministic plan",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "plan ensures defensive copies of byte arrays",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "plan reflects attachment list from binding",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "maps missing restaurant to RestaurantDisappeared",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "maps reconciliation failure to LocaleReconciliationFailed",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "rejects plan if schema version mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "rejects plan if attachment ID is invalid",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCreationPlannerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCreationPlannerTest.kt",
       "class": "BackupCreationPlannerTest",
       "method": "fails with MissingAttachmentSource when binding is missing",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
       "class": "BackupCleanupCoordinatorTest",
       "method": "returns Deleted when delete succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
       "class": "BackupCleanupCoordinatorTest",
       "method": "returns Truncated when delete fails but truncate succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
       "class": "BackupCleanupCoordinatorTest",
       "method": "returns Failed when both fail",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupCoordinatorTest.kt",
       "class": "BackupCleanupCoordinatorTest",
       "method": "returns Failed when delete throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "writer releases resources and does not close underlying stream",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "writer rejects plan whose calculated total exceeds configured limit during prevalidation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "database payload checksum mismatch rejected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "preferences payload checksum mismatch rejected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "writer rejects calculated total above configured limit during prevalidation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "runtime cumulative limit exceeded",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "exact total limit succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "attachment checksum map disagreement rejected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "attachment disappears after planning results in failure",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "writer detects attachment growth during write",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "two writer instances with different limits remain isolated",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveWriterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveWriterTest.kt",
       "class": "BackupArchiveWriterTest",
       "method": "checksum map mismatch rejected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityProjectionTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityProjectionTest.kt",
       "class": "BackupSnapshotIntegrityProjectionTest",
       "method": "rejects balance projection mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/SupportedAppLocaleTest.kt",
       "class": "SupportedAppLocaleTest",
       "method": "languageTags contains all supported tags",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/SupportedAppLocaleTest.kt",
       "class": "SupportedAppLocaleTest",
       "method": "fromLanguageTag returns correct enum for valid tags",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/SupportedAppLocaleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/SupportedAppLocaleTest.kt",
       "class": "SupportedAppLocaleTest",
       "method": "fromLanguageTag returns null for invalid tags",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
       "class": "AttachmentFilenameSanitizerTest",
       "method": "sanitize removes dangerous characters",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
       "class": "AttachmentFilenameSanitizerTest",
       "method": "sanitize preserves extensions",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/AttachmentFilenameSanitizerTest.kt",
       "class": "AttachmentFilenameSanitizerTest",
       "method": "isValid validates correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/TestTagConsistencyTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/TestTagConsistencyTest.kt",
       "class": "TestTagConsistencyTest",
       "method": "ensure no obsolete tags are used in android tests",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/TestTagConsistencyTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/TestTagConsistencyTest.kt",
       "class": "TestTagConsistencyTest",
       "method": "ensure critical tags exist in production source",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/TestTagConsistencyTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/TestTagConsistencyTest.kt",
       "class": "TestTagConsistencyTest",
       "method": "HomeUiTest must not reference reports_view_inventory_details without navigation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse empty input fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse empty object fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse valid sorted object succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse duplicate key fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse non-hex hash fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse self reference fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse malformed escape fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse trailing comma fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumParserTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumParserTest.kt",
       "class": "ChecksumParserTest",
       "method": "parse trailing content fails",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupManifestValidatorTest.kt",
       "class": "BackupManifestValidatorTest",
       "method": "valid manifest passes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupManifestValidatorTest.kt",
       "class": "BackupManifestValidatorTest",
       "method": "rejects unsupported format version",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupManifestValidatorTest.kt",
       "class": "BackupManifestValidatorTest",
       "method": "rejects overlong attachment list",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupManifestValidatorTest.kt",
       "class": "BackupManifestValidatorTest",
       "method": "rejects invalid locale",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupManifestValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupManifestValidatorTest.kt",
       "class": "BackupManifestValidatorTest",
       "method": "rejects missing table metadata",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
       "class": "BackupSnapshotIntegrityValidatorTest",
       "method": "validate accepts valid simple snapshot",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
       "class": "BackupSnapshotIntegrityValidatorTest",
       "method": "validate rejects zero purchase quantity",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
       "class": "BackupSnapshotIntegrityValidatorTest",
       "method": "validate rejects balance projection mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityValidatorTest.kt",
       "class": "BackupSnapshotIntegrityValidatorTest",
       "method": "validate rejects posted purchase receipt without movement",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
       "class": "BackupCleanupLifecycleTest",
       "method": "preflight failure does not open destination for write",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
       "class": "BackupCleanupLifecycleTest",
       "method": "creation failure triggers cleanup",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupCleanupLifecycleTest.kt",
       "class": "BackupCleanupLifecycleTest",
       "method": "failed deletion falls back to truncate",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupSnapshotIntegrityReversalTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupSnapshotIntegrityReversalTest.kt",
       "class": "BackupSnapshotIntegrityReversalTest",
       "method": "rejects reversal targeting another reversal",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumTest.kt",
       "class": "ChecksumTest",
       "method": "ImmutableBackupBytes sha256 matches manual digest",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ChecksumTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ChecksumTest.kt",
       "class": "ChecksumTest",
       "method": "sha256 is deterministic",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "create with valid data succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "plan is immutable and performs defensive copies",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "exposed collections cannot mutate plan",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "original attachment list mutation cannot change plan",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "original manifest lists mutation cannot change plan",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "create rejects total size mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "rejects manifest metadata mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "rejects duplicate manifest attachment ID",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "rejects duplicate manifest reference",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupPlanTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupPlanTest.kt",
       "class": "BackupPlanTest",
       "method": "rejects attachment checksum mismatch with expected map",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
       "class": "AndroidBackupRepositoryTest",
       "method": "full successful orchestration sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
       "class": "AndroidBackupRepositoryTest",
       "method": "cleans destination on planning failure",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupRoundTripTest.kt",
       "class": "BackupRoundTripTest",
       "method": "complete round trip with no attachments",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupRoundTripTest.kt",
       "class": "BackupRoundTripTest",
       "method": "complete round trip with shared attachments",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupRoundTripTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupRoundTripTest.kt",
       "class": "BackupRoundTripTest",
       "method": "archive determinism - identical inputs produce identical bytes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create with valid data succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects invalid attachment ID",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects non-canonical archive path",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects unsafe path",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects absolute path",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects traversal path",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects forward slash in display name",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects backslash in display name",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects negative size",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects invalid checksum",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects empty references",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects duplicate references",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects unsupported record type",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "create rejects blank reference record ID",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "original reference list mutation cannot change attachment",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/PlannedBackupAttachmentTest.kt",
       "class": "PlannedBackupAttachmentTest",
       "method": "returned references cannot mutate attachment",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe rejects absolute paths",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe rejects relative traversal",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe accepts simple alphanumeric paths",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe accepts valid attachment paths",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe rejects backslashes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/ArchiveEntryValidatorTest.kt",
       "class": "ArchiveEntryValidatorTest",
       "method": "isSafe rejects blank names",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "positive control - valid archive passes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with missing manifest",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with duplicate entry",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with checksum key mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with malformed UTF-8 manifest",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with schema version mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with checksum value mismatch",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with traversal path",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupArchiveValidatorAdversarialTest.kt",
       "class": "BackupArchiveValidatorAdversarialTest",
       "method": "rejects archive with unexpected entry",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
       "class": "BackupFilenameGeneratorTest",
       "method": "generates valid name with restaurant",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
       "class": "BackupFilenameGeneratorTest",
       "method": "generates valid name without restaurant",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/backup/BackupFilenameGeneratorTest.kt",
       "class": "BackupFilenameGeneratorTest",
       "method": "sanitizes restaurant name",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/IngredientUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/IngredientUnitConverterTest.kt",
       "class": "IngredientUnitConverterTest",
       "method": "toBase converts case to lb",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/IngredientUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/IngredientUnitConverterTest.kt",
       "class": "IngredientUnitConverterTest",
       "method": "fromBase converts lb to case",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
       "class": "ReportingPeriodCalculatorTest",
       "method": "calculatePeriods_7Days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
       "class": "ReportingPeriodCalculatorTest",
       "method": "calculatePeriods_30Days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/ReportingPeriodCalculatorTest.kt",
       "class": "ReportingPeriodCalculatorTest",
       "method": "calculatePeriods_90Days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/ChickenFixtureTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/ChickenFixtureTest.kt",
       "class": "ChickenFixtureTest",
       "method": "Chicken Breast fixture domain validation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountComparisonCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/CountComparisonCalculatorTest.kt",
       "class": "CountComparisonCalculatorTest",
       "method": "calculateUnclassifiedUsage with simple values",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryMovementServiceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/InventoryMovementServiceTest.kt",
       "class": "InventoryMovementServiceTest",
       "method": "createReversal returns negative quantity and references original",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryMovementServiceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/InventoryMovementServiceTest.kt",
       "class": "InventoryMovementServiceTest",
       "method": "cannot reverse a reversal",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
       "class": "WeightedAverageCostCalculatorTest",
       "method": "calculate first purchase",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
       "class": "WeightedAverageCostCalculatorTest",
       "method": "calculate with existing inventory",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/WeightedAverageCostCalculatorTest.kt",
       "class": "WeightedAverageCostCalculatorTest",
       "method": "calculate with zero cost purchase",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt",
       "class": "CountAdjustmentCalculatorTest",
       "method": "positive adjustment",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/CountAdjustmentCalculatorTest.kt",
       "class": "CountAdjustmentCalculatorTest",
       "method": "negative adjustment",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt",
       "class": "InventoryBalanceCalculatorTest",
       "method": "calculateBalance sums quantities",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/InventoryBalanceCalculatorTest.kt",
       "class": "InventoryBalanceCalculatorTest",
       "method": "calculateBalance handles empty list",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/StandardUnitConverterTest.kt",
       "class": "StandardUnitConverterTest",
       "method": "convert same units returns same value",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/StandardUnitConverterTest.kt",
       "class": "StandardUnitConverterTest",
       "method": "convert kg to grams",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/StandardUnitConverterTest.kt",
       "class": "StandardUnitConverterTest",
       "method": "convert lb to grams",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/service/StandardUnitConverterTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/service/StandardUnitConverterTest.kt",
       "class": "StandardUnitConverterTest",
       "method": "convert incompatible dimensions throws",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
       "class": "ResolveAppStartStateUseCaseTest",
       "method": "both incomplete returns RequiresOnboarding",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
       "class": "ResolveAppStartStateUseCaseTest",
       "method": "both complete returns Ready",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
       "class": "ResolveAppStartStateUseCaseTest",
       "method": "db complete but locale mismatch repairs DataStore and returns Ready",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/ResolveAppStartStateUseCaseTest.kt",
       "class": "ResolveAppStartStateUseCaseTest",
       "method": "db incomplete but DataStore says complete repairs DataStore and returns RequiresOnboarding",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt",
       "class": "CompleteOnboardingUseCaseTest",
       "method": "Success updates DataStore and clears draft",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/CompleteOnboardingUseCaseTest.kt",
       "class": "CompleteOnboardingUseCaseTest",
       "method": "AlreadyCompleted uses Room locale as authoritative",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/PreviewWasteUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/PreviewWasteUseCaseTest.kt",
       "class": "PreviewWasteUseCaseTest",
       "method": "calculates preview correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt",
       "class": "AppLocaleUseCaseTest",
       "method": "reconciler rethrows cancellation exception",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/core/domain/usecase/locale/AppLocaleUseCaseTest.kt",
       "class": "AppLocaleUseCaseTest",
       "method": "reconciler handles room failure as ordinary failure",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "initial state is Idle",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "two simultaneous create requests only start one operation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "reset cancels active preparation job",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "restored CREATING state shows OperationInterrupted error",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "stale repository emissions are ignored after reset",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "interrupted survives second recreation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "malformed WAITING state with active ID -1 becomes Idle",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/settings/viewmodel/BackupViewModelTest.kt",
       "class": "BackupViewModelTest",
       "method": "stale file selection is rejected",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeScreenStateTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeScreenStateTest.kt",
       "class": "HomeScreenStateTest",
       "method": "Ready state can be copied and updated",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "initial state sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "initial repository failure triggers Error state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "retry after initial failure resubscribes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "coverage mapping handles edge cases",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "mapComparison handles states correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "scale-independent zero handling",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "account switch resets to full Loading and hides old data",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "range refresh sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "rapid range selection handles cancellation",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/home/HomeViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/home/HomeViewModelTest.kt",
       "class": "HomeViewModelTest",
       "method": "selecting same range is no-op",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "void purchase success updates state to VOIDED",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt",
       "class": "PurchaseListViewModelTest",
       "method": "list updates when repository emits new purchases",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseListViewModelTest.kt",
       "class": "PurchaseListViewModelTest",
       "method": "search updates filter",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
       "class": "PurchaseLineViewModelTest",
       "method": "initial state is loading then ready for new line",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
       "class": "PurchaseLineViewModelTest",
       "method": "ingredient selection updates options and previews",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseLineViewModelTest.kt",
       "class": "PurchaseLineViewModelTest",
       "method": "rapid ingredient selection cancels previous work",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt",
       "class": "PurchaseDraftViewModelTest",
       "method": "post purchase success emits event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/purchases/viewmodel/PurchaseDraftViewModelTest.kt",
       "class": "PurchaseDraftViewModelTest",
       "method": "delete line success emits event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/suppliers/viewmodel/SupplierListViewModelTest.kt",
       "class": "SupplierListViewModelTest",
       "method": "list updates when repository emits new suppliers",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/suppliers/viewmodel/SupplierFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/suppliers/viewmodel/SupplierFormViewModelTest.kt",
       "class": "SupplierFormViewModelTest",
       "method": "save supplier success emits event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "initial state loads ingredient",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "options are reactive",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "add standard option emits success event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "add package option emits success event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "update package option emits success event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "archive option emits success event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientDetailViewModelTest.kt",
       "class": "IngredientDetailViewModelTest",
       "method": "default change emits success event",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
       "class": "IngredientListViewModelTest",
       "method": "search filters ingredients with normalization",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
       "class": "IngredientListViewModelTest",
       "method": "search filters ingredients case-insensitive",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
       "class": "IngredientListViewModelTest",
       "method": "category filter filters ingredients",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientListViewModelTest.kt",
       "class": "IngredientListViewModelTest",
       "method": "archived toggle updates includeArchived flag",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
       "class": "IngredientFormViewModelTest",
       "method": "initial state is not loading",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
       "class": "IngredientFormViewModelTest",
       "method": "onSave fails with blank name",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
       "class": "IngredientFormViewModelTest",
       "method": "onSave fails without dimension and base unit in create mode",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
       "class": "IngredientFormViewModelTest",
       "method": "dimension selection resets base unit",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/ingredients/viewmodel/IngredientFormViewModelTest.kt",
       "class": "IngredientFormViewModelTest",
       "method": "edit mode hides unit mutation controls",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteListViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteListViewModelTest.kt",
       "class": "WasteListViewModelTest",
       "method": "initial state shows events from repository",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "loading to ready state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "not found state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "invalid route state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "ownership mismatch state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
       "class": "WasteFormViewModelTest",
       "method": "initial state is Loading then Ready",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
       "class": "WasteFormViewModelTest",
       "method": "selecting ingredient updates unit options and handles loading state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
       "class": "WasteFormViewModelTest",
       "method": "unit option repository failure produces error and disables save",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
       "class": "WasteFormViewModelTest",
       "method": "attachment permission failure handles error and preserves existing",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteFormViewModelTest.kt",
       "class": "WasteFormViewModelTest",
       "method": "preview failure handles error and clears preview",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteRaceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteRaceTest.kt",
       "class": "WasteRaceTest",
       "method": "ingredientRace_lastSelectionWins",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/waste/viewmodel/WasteRaceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/waste/viewmodel/WasteRaceTest.kt",
       "class": "WasteRaceTest",
       "method": "previewCancellation_latestRequestWins",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
       "class": "ControllableStockCountRepository",
       "method": "Delete during CREATE captures generated ID and removes line",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
       "class": "ControllableStockCountRepository",
       "method": "Queued save and delete complete in order without deadlock",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelRaceTest.kt",
       "class": "ControllableStockCountRepository",
       "method": "Flush during CREATE does not create duplicate line",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "initial state loads correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "Archived unit becomes disabled after changing away",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "untouched suggestions are not pending",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "user edit makes line pending",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "rapid unit selection preserves final selection",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "invalid input blocks completion",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "back navigation flushes pending saves",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountAreaViewModelTest.kt",
       "class": "StockCountAreaViewModelTest",
       "method": "stale save result does not overwrite newer state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
       "class": "StartStockCountViewModelTest",
       "method": "initial state loads areas",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
       "class": "StartStockCountViewModelTest",
       "method": "area selection works",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
       "class": "StartStockCountViewModelTest",
       "method": "start count fails with future date",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
       "class": "StartStockCountViewModelTest",
       "method": "start count succeeds with valid input",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StartStockCountViewModelTest.kt",
       "class": "StartStockCountViewModelTest",
       "method": "overlapping area is disabled",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
       "class": "StockCountDetailViewModelTest",
       "method": "initial state loads correctly",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
       "class": "StockCountDetailViewModelTest",
       "method": "ownership mismatch state works",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
       "class": "StockCountDetailViewModelTest",
       "method": "not found state works",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/counts/viewmodel/StockCountDetailViewModelTest.kt",
       "class": "StockCountDetailViewModelTest",
       "method": "complete count resets state after success",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "initial state loads defaults when no draft exists",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "autosave persists changes with debounce for name",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "autosave persists selections immediately",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "next step persists the NEW step immediately",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "reordering updates sort order and persists immediately",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/onboarding/viewmodel/OnboardingViewModelTest.kt",
       "class": "OnboardingViewModelTest",
       "method": "draft save failure is visible in UI state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/ReportsScreenStateTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/ReportsScreenStateTest.kt",
       "class": "ReportsScreenStateTest",
       "method": "readyStateCanBeCopied",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "navigation-provided 7-day range",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "navigation-provided 90-day range",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "missing range defaults to 30 days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "malformed range defaults to 30 days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "initial state sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "initial error and retry",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "selecting same range is no-op",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "range change triggers refreshing sequence with distinct periods",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "refresh failure preserves old data",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/WasteDetailViewModelTest.kt",
       "class": "WasteDetailViewModelTest",
       "method": "account switch resets identity",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "navigation-provided 7-day range",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "navigation-provided 90-day range",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "missing range defaults to 30 days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "malformed range defaults to 30 days",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "initial state is Loading then SetupRequired when no restaurant",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "Ready state success sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "initial repository failure triggers Error state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "initial retry resubscribes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "range change triggers refreshing sequence with distinct periods",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "selecting same range does not trigger new request",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/PurchaseDetailViewModelTest.kt",
       "class": "PurchaseDetailViewModelTest",
       "method": "account switch resets to Loading",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
       "class": "InventoryDetailViewModelTest",
       "method": "initial state is Loading then SetupRequired when no restaurant",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
       "class": "InventoryDetailViewModelTest",
       "method": "Ready state refresh sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
       "class": "InventoryDetailViewModelTest",
       "method": "account switch resets to full Loading and hides old data",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/InventoryDetailViewModelTest.kt",
       "class": "InventoryDetailViewModelTest",
       "method": "refresh failure preserves old data",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "initial state is Loading then SetupRequired when no restaurant",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "initial repository failure triggers Error state",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "retry after initial failure resubscribes",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "Ready state refresh sequence",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "account switch resets to full Loading and hides old data",
       "disabled": false
     },
     {
-      "file": "app/src/test/kotlin/com/miara/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
+      "file": "app/src/test/kotlin/com/venkoi/cuentame/feature/reports/viewmodel/ReportsViewModelTest.kt",
       "class": "ReportsViewModelTest",
       "method": "mapping coverage and fields",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/ExampleInstrumentedTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/ExampleInstrumentedTest.kt",
       "class": "ExampleInstrumentedTest",
       "method": "useAppContext",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/NavigationTest.kt",
       "class": "NavigationTest",
       "method": "app_startsOnOnboarding_whenNoRestaurant",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/NavigationTest.kt",
       "class": "NavigationTest",
       "method": "app_startsOnHome_whenRestaurantExists",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/NavigationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/NavigationTest.kt",
       "class": "NavigationTest",
       "method": "navigateToSettingsAndBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/MigrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/MigrationTest.kt",
       "class": "MigrationTest",
       "method": "migrate1To2",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/ParentUpdateTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/ParentUpdateTest.kt",
       "class": "ParentUpdateTest",
       "method": "updateReceiptPreservesLines",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/DatabaseTest.kt",
       "class": "DatabaseTest",
       "method": "writeAndReadRestaurant",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/DatabaseTest.kt",
       "class": "DatabaseTest",
       "method": "seedUnitsExist",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/DatabaseTest.kt",
       "class": "DatabaseTest",
       "method": "movementIdempotency",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/DatabaseSeedingTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/DatabaseSeedingTest.kt",
       "class": "DatabaseSeedingTest",
       "method": "unitsAreSeededSynchronouslyOnCreate",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/ReversalTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/ReversalTest.kt",
       "class": "ReversalTest",
       "method": "onlyOneReversalAllowedPerMovement",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupIsolationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupIsolationTest.kt",
       "class": "BackupIsolationTest",
       "method": "createSnapshot_isolatesAllTablesByRestaurant",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomWasteRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomWasteRepositoryTest.kt",
       "class": "RoomWasteRepositoryTest",
       "method": "fullLifecycle_create_post_void",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_aggregatesAreasAndCalculatesValue",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_alertOnlyRow_aggregateZeroButNegativeArea",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_excludedRow_allZeroNoNegative",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_missingCost_onlyForStocked",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_zeroCost_isValid",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeInventoryDetails_strictDecimalValidation",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observePurchaseDetails_strictDecimalValidation",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDetailedReportsRepositoryTest.kt",
       "class": "RoomDetailedReportsRepositoryTest",
       "method": "observeWasteDetails_strictSnapshotValidation",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomStockCountRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomStockCountRepositoryTest.kt",
       "class": "RoomStockCountRepositoryTest",
       "method": "fullLifecycle_start_save_complete_void",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt",
       "class": "RoomRestaurantRepositoryTest",
       "method": "save_newRestaurant_inserts",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomRestaurantRepositoryTest.kt",
       "class": "RoomRestaurantRepositoryTest",
       "method": "save_existingRestaurant_updates",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
       "class": "RoomInventoryAreaRepositoryTest",
       "method": "archiveFinalArea_throwsError",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
       "class": "RoomInventoryAreaRepositoryTest",
       "method": "archiveFinalArea_scopedByRestaurant",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
       "class": "RoomInventoryAreaRepositoryTest",
       "method": "reorder_updatesSortOrderContiguously",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
       "class": "RoomInventoryAreaRepositoryTest",
       "method": "reorder_subset_throwsError",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventoryAreaRepositoryTest.kt",
       "class": "RoomInventoryAreaRepositoryTest",
       "method": "reorder_otherRestaurant_throwsError",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
       "class": "RoomInventorySnapshotServiceTest",
       "method": "calculateAt_noHistory_returnsEmpty",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
       "class": "RoomInventorySnapshotServiceTest",
       "method": "calculateAt_withHistory_returnsSnapshot",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
       "class": "RoomInventorySnapshotServiceTest",
       "method": "calculateAt_reversal_cancelsOriginal",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
       "class": "RoomInventorySnapshotServiceTest",
       "method": "calculateAt_futureReversal_doesNotCancel",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceTest.kt",
       "class": "RoomInventorySnapshotServiceTest",
       "method": "calculateAt_historyWithoutCost_returnsNullCost",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomDashboardRepositoryIntegrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomDashboardRepositoryIntegrationTest.kt",
       "class": "RoomDashboardRepositoryIntegrationTest",
       "method": "observeDashboard_emptyDatabase_returnsZeros",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/SupplierRepositoryTest.kt",
       "class": "SupplierRepositoryTest",
       "method": "createSupplier_succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/SupplierRepositoryTest.kt",
       "class": "SupplierRepositoryTest",
       "method": "createSupplier_failsOnDuplicateName",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/SupplierRepositoryTest.kt",
       "class": "SupplierRepositoryTest",
       "method": "updateSupplier_updatesAllowedFieldsOnly",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/SupplierRepositoryTest.kt",
       "class": "SupplierRepositoryTest",
       "method": "createSupplier_failsOnOwnershipMismatch",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/SupplierRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/SupplierRepositoryTest.kt",
       "class": "SupplierRepositoryTest",
       "method": "archiveSupplier_removesFromActiveList",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/ReportingIsolationTest.kt",
       "class": "ReportingIsolationTest",
       "method": "inventoryDetails_hardenedIsolation_excludesCrossRestaurantMetadata",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/ReportingIsolationTest.kt",
       "class": "ReportingIsolationTest",
       "method": "purchaseDetails_hardenedIsolation_excludesCrossRestaurantSuppliers",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/ReportingIsolationTest.kt",
       "class": "ReportingIsolationTest",
       "method": "wasteDetails_hardenedIsolation_excludesCrossRestaurantMetadata",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/ReportingIsolationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/ReportingIsolationTest.kt",
       "class": "ReportingIsolationTest",
       "method": "recentWasteActivity_hardenedIsolation_excludesCrossRestaurantMetadata",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomPurchaseRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomPurchaseRepositoryTest.kt",
       "class": "RoomPurchaseRepositoryTest",
       "method": "fullLifecycle_draft_to_posted_to_void",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomIngredientRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomIngredientRepositoryTest.kt",
       "class": "RoomIngredientRepositoryTest",
       "method": "createIngredientWithBaseOption_succeeds",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt",
       "class": "RoomInventorySnapshotServiceFailureTest",
       "method": "calculateAt_reversalWithoutTarget_throws",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/RoomInventorySnapshotServiceFailureTest.kt",
       "class": "RoomInventorySnapshotServiceFailureTest",
       "method": "calculateAt_reversalOfReversal_throws",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchasePost_failure_afterMovements_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchasePost_failure_afterProjections_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchasePost_failure_afterMarkPosted_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchaseVoid_failure_afterReversals_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchaseVoid_failure_afterProjections_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/repository/BackupHardeningRepositoryTest.kt",
       "class": "BackupHardeningRepositoryTest",
       "method": "purchaseVoid_failure_afterMarkVoided_rollsBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "valuationRows_isolatesByRestaurant",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "spendRows_filtersByStatusAndDate",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "wasteValueRows_filtersByStatusAndDate",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "stockCountSummaries_independentOfLines",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "adjustedLineCount_providesPersistedValues",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DashboardDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DashboardDaoTest.kt",
       "class": "DashboardDaoTest",
       "method": "recentActivity_deterministicOrdering",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/BackupDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/BackupDaoTest.kt",
       "class": "BackupDaoTest",
       "method": "createSnapshot_includesAllTables",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
       "class": "DetailedReportsDaoTest",
       "method": "inventoryValuationRows_joinsMetadata",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
       "class": "DetailedReportsDaoTest",
       "method": "inventoryValuationRows_includesNegativeBalances",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
       "class": "DetailedReportsDaoTest",
       "method": "purchaseSpendRows_filtersByStatus",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
       "class": "DetailedReportsDaoTest",
       "method": "purchaseSpendRows_filtersByDateRange",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/dao/DetailedReportsDaoTest.kt",
       "class": "DetailedReportsDaoTest",
       "method": "wasteValueRows_filtersByStatus",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/migration/RoomMigrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/migration/RoomMigrationTest.kt",
       "class": "RoomMigrationTest",
       "method": "migrate1To2_preservesData_supportsNullCost_andOpensInRoom",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/database/migration/RoomMigrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/database/migration/RoomMigrationTest.kt",
       "class": "RoomMigrationTest",
       "method": "createDatabaseDirectlyAtVersion2",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
       "class": "DataStoreAppPreferencesRepositoryTest",
       "method": "saveAndObservePreferences",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
       "class": "DataStoreAppPreferencesRepositoryTest",
       "method": "saveAndLoadDraft",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
       "class": "DataStoreAppPreferencesRepositoryTest",
       "method": "corruptDraft_isRemovedSynchronously",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/preferences/datastore/DataStoreAppPreferencesRepositoryTest.kt",
       "class": "DataStoreAppPreferencesRepositoryTest",
       "method": "unsupportedVersion_isRemovedSynchronously",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openForWrite_validFileUri_returnsStream",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openForRead_validFileUri_returnsStream",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openForRead_nonExistent_throwsWrapped",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "truncate_validFile_emptiesFile",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "closeSuppressing_attachesFailure",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "closeSuppressing_rethrowsFatal",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "delete_validFile_returnsTrue",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openStream_securityException_isPropagated",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openStream_nullDescriptor_throwsOpenException",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupDocumentStoreTest.kt",
       "class": "AndroidBackupDocumentStoreTest",
       "method": "openStream_ioExceptionDuringConstruction_closesDescriptor",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/AndroidBackupRepositoryTest.kt",
       "class": "AndroidBackupRepositoryTest",
       "method": "createBackup_successful_sequence",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/backup/BackupProductionIntegrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/backup/BackupProductionIntegrationTest.kt",
       "class": "BackupProductionIntegrationTest",
       "method": "fullBackupPipeline_producesValidArchive",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/domain/service/PurchaseIntegrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/domain/service/PurchaseIntegrationTest.kt",
       "class": "PurchaseIntegrationTest",
       "method": "insertAndReadPurchase",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/core/domain/service/ChickenIntegrationTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/core/domain/service/ChickenIntegrationTest.kt",
       "class": "ChickenIntegrationTest",
       "method": "createChickenIngredientWithMultipleUnits",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/settings/ui/SettingsBackupUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/settings/ui/SettingsBackupUiTest.kt",
       "class": "SettingsBackupUiTest",
       "method": "createBackup_buttonExists",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/home/HomeUiTest.kt",
       "class": "HomeUiTest",
       "method": "dashboard_emptyState_whenNoActivity",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/home/HomeUiTest.kt",
       "class": "HomeUiTest",
       "method": "dashboard_fullVerification_populatedData",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/home/HomeUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/home/HomeUiTest.kt",
       "class": "HomeUiTest",
       "method": "dashboard_navigation_to_reports",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/purchases/ui/PurchaseFailureUiTest.kt",
       "class": "PurchaseFailureUiTest",
       "method": "purchasePost_rollback_andRetry_onFailure",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/purchases/ui/PurchaseUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/purchases/ui/PurchaseUiTest.kt",
       "class": "PurchaseUiTest",
       "method": "complete_purchase_lifecycle",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/ingredients/ui/IngredientUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/ingredients/ui/IngredientUiTest.kt",
       "class": "IngredientUiTest",
       "method": "complete_ingredient_e2e_flow",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/ingredients/ui/IngredientDetailUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/ingredients/ui/IngredientDetailUiTest.kt",
       "class": "IngredientDetailUiTest",
       "method": "archive_ingredient_flow",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
       "class": "WasteFailureUiTest",
       "method": "wastePost_failureRollback_andRetrySuccess",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
       "class": "WasteFailureUiTest",
       "method": "wasteVoid_failureRollback_andRetrySuccess",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteFailureUiTest.kt",
       "class": "WasteFailureUiTest",
       "method": "wasteDelete_failureRollback_andRetrySuccess",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_existingArchivedReferences_displayedAndPreservedOnSave",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_changingAwayFromArchivedReferences_persistsActiveValues",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_missingIngredientReference_showsSafeErrorAndDisablesSave",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_missingAreaReference_showsSafeError",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_missingUnitOptionReference_showsSafeError",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteArchiveUiTest.kt",
       "class": "WasteArchiveUiTest",
       "method": "wasteForm_crossIngredientUnitOption_showsSafeErrorAndPreventsSave",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/waste/ui/WasteLifecycleTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/waste/ui/WasteLifecycleTest.kt",
       "class": "WasteLifecycleTest",
       "method": "navigateToWasteAndBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/counts/ui/StockCountLifecycleTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/counts/ui/StockCountLifecycleTest.kt",
       "class": "StockCountLifecycleTest",
       "method": "full_lifecycle_test",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/counts/ui/StockCountUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/counts/ui/StockCountUiTest.kt",
       "class": "StockCountUiTest",
       "method": "start_count_flow",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/onboarding/ui/OnboardingUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/onboarding/ui/OnboardingUiTest.kt",
       "class": "OnboardingUiTest",
       "method": "onboarding_start_navigation",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/onboarding/ui/OnboardingUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/onboarding/ui/OnboardingUiTest.kt",
       "class": "OnboardingUiTest",
       "method": "onboarding_fullFlow_persistsRestaurantAndNavigatesToHome",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/DetailedReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/DetailedReportsUiTest.kt",
       "class": "DetailedReportsUiTest",
       "method": "reports_display_seeded_values",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/PurchaseDetailScreenTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/PurchaseDetailScreenTest.kt",
       "class": "PurchaseDetailScreenTest",
       "method": "purchaseDetail_exists",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/WasteDetailScreenTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/WasteDetailScreenTest.kt",
       "class": "WasteDetailScreenTest",
       "method": "wasteDetail_exists",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/InventoryDetailScreenTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/InventoryDetailScreenTest.kt",
       "class": "InventoryDetailScreenTest",
       "method": "inventoryDetail_exists",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportsUiTest.kt",
       "class": "ReportsUiTest",
       "method": "reports_populatedData_verification",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportsUiTest.kt",
       "class": "ReportsUiTest",
       "method": "reports_rangeSwitching_7_days",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportsUiTest.kt",
       "class": "ReportsUiTest",
       "method": "reports_rangeSwitching_90_days",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportsUiTest.kt",
       "class": "ReportsUiTest",
       "method": "reports_navigation_homeToReports_andBack",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportsUiTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportsUiTest.kt",
       "class": "ReportsUiTest",
       "method": "reportsOverview_rangeRefresh_noFlicker",
       "disabled": false
     },
     {
-      "file": "app/src/androidTest/kotlin/com/miara/cuentame/feature/reports/ReportingRefreshComposeTest.kt",
+      "file": "app/src/androidTest/kotlin/com/venkoi/cuentame/feature/reports/ReportingRefreshComposeTest.kt",
       "class": "ReportingRefreshComposeTest",
       "method": "reportsRefresh_exists",
       "disabled": false

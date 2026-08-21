@@ -1,0 +1,67 @@
+{
+  "format": "cuentame-sales-export",
+  "formatVersion": 1,
+  "exportId": "export-1",
+  "terminalId": "terminal-1",
+  "restaurantId": "restaurant-1",
+  "generatedAt": "2026-08-16T23:00:00Z",
+  "businessDate": "2026-08-16",
+  "menuPackageId": "publication-3",
+  "menuId": "menu-1",
+  "publicationRevision": 3,
+  "currency": "USD",
+  "transactions": [
+    {
+      "transactionId": "sale-1",
+      "openedAt": "2026-08-16T18:40:00Z",
+      "closedAt": "2026-08-16T18:47:00Z",
+      "status": "COMPLETED",
+      "lines": [
+        {
+          "saleLineId": "line-1",
+          "sellableItemId": "burger",
+          "displayNameSnapshot": "Burger",
+          "quantity": "2",
+          "unitPrice": "13",
+          "gross": "26",
+          "discount": "0.78",
+          "net": "25.22",
+          "commercialRevision": 4,
+          "consumptionRevision": 7
+        },
+        {
+          "saleLineId": "line-2",
+          "sellableItemId": "wings",
+          "displayNameSnapshot": "Wings",
+          "quantity": "1",
+          "unitPrice": "12",
+          "gross": "12",
+          "discount": "0",
+          "net": "12",
+          "commercialRevision": 2,
+          "consumptionRevision": 5
+        }
+      ]
+    },
+    {
+      "transactionId": "sale-2",
+      "openedAt": "2026-08-16T20:10:00Z",
+      "closedAt": "2026-08-16T20:12:00Z",
+      "status": "VOIDED",
+      "lines": [
+        {
+          "saleLineId": "line-3",
+          "sellableItemId": "burger",
+          "displayNameSnapshot": "Burger",
+          "quantity": "1",
+          "unitPrice": "13",
+          "gross": "13",
+          "discount": "0",
+          "net": "13",
+          "commercialRevision": 4,
+          "consumptionRevision": 7
+        }
+      ]
+    }
+  ]
+}

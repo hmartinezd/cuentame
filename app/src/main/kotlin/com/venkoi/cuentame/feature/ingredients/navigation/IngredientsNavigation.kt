@@ -1,0 +1,84 @@
+package com.venkoi.cuentame.feature.ingredients.navigation
+
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.composable
+import com.venkoi.cuentame.core.presentation.navigation.Destination
+import com.venkoi.cuentame.core.presentation.navigation.TopLevelDestination
+import com.venkoi.cuentame.core.presentation.navigation.AppRoutes
+import com.venkoi.cuentame.core.common.ids.IngredientId
+import com.venkoi.cuentame.feature.ingredients.ui.IngredientDetailRoute
+import com.venkoi.cuentame.feature.ingredients.ui.IngredientFormRoute
+import com.venkoi.cuentame.feature.ingredients.ui.IngredientListRoute
+import com.venkoi.cuentame.feature.ingredients.csvimport.ui.CsvImportRoute
+
+fun NavGraphBuilder.ingredientsGraph(navController: NavHostController) {
+    composable(route = TopLevelDestination.INVENTORY.route) {
+        IngredientListRoute(
+            onIngredientClick = { id -> navController.navigate(AppRoutes.ingredientDetail(id)) },
+            onAddIngredient = { navController.navigate(AppRoutes.ingredientCreate()) },
+            onImportCsv = { navController.navigate(Destination.INGREDIENT_IMPORT.route) },
+            onManagePreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) }
+            ,onReorder = { navController.navigate(Destination.REORDER_ASSISTANCE.route) }
+        )
+    }
+    composable(route = Destination.INGREDIENT_IMPORT.route) {
+        CsvImportRoute(
+            onBack = { navController.popBackStack() },
+            onViewIngredients = { navController.completeIngredientImport() }
+        )
+    }
+    composable(
+        route = Destination.INGREDIENT_CREATE.route,
+        arguments = listOf(
+            androidx.navigation.navArgument("prefillName") { 
+                nullable = true
+                defaultValue = null
+            }
+        )
+    ) {
+        IngredientFormRoute(
+            ingredientId = null,
+            onBack = { navController.popBackStack() },
+            onSaveSuccess = { id ->
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set("createdIngredientId", id.value)
+                navController.popBackStack()
+            }
+        )
+    }
+    composable(route = Destination.INGREDIENT_DETAIL.route) { backStackEntry ->
+        val idStr = backStackEntry.arguments?.getString("ingredientId")
+        if (idStr != null) {
+            IngredientDetailRoute(
+                ingredientId = IngredientId(idStr),
+                onEditClick = { id -> navController.navigate(AppRoutes.ingredientEdit(id)) },
+                onViewActivity = { id -> navController.navigate(AppRoutes.inventoryActivity(ingredientId = id)) },
+                onViewPriceHistory = { id -> navController.navigate(AppRoutes.ingredientPriceHistory(id)) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+    }
+    composable(route = Destination.INGREDIENT_EDIT.route) { backStackEntry ->
+        val idStr = backStackEntry.arguments?.getString("ingredientId")
+        if (idStr != null) {
+            IngredientFormRoute(
+                ingredientId = IngredientId(idStr),
+                onBack = { navController.popBackStack() },
+                onSaveSuccess = { navController.popBackStack() }
+            )
+        }
+    }
+}
+
+internal fun NavHostController.completeIngredientImport() {
+    if (popBackStack(TopLevelDestination.INVENTORY.route, inclusive = false)) return
+
+    navigate(TopLevelDestination.INVENTORY.route) {
+        popUpTo(Destination.INGREDIENT_IMPORT.route) {
+            inclusive = true
+        }
+        launchSingleTop = true
+    }
+}

@@ -1,0 +1,58 @@
+{
+  "format": "cuentame-menu-package",
+  "formatVersion": 1,
+  "packageId": "publication-3",
+  "restaurantId": "restaurant-1",
+  "publishedAt": "2026-08-16T17:30:00Z",
+  "currency": "USD",
+  "menu": {
+    "menuId": "menu-1",
+    "name": "Dinner Menu",
+    "description": "Dinner service",
+    "publicationRevision": 3,
+    "defaultCashDiscountPercent": "3",
+    "categories": [
+      {
+        "categoryId": "appetizers",
+        "name": "Appetizers",
+        "sortOrder": 10,
+        "items": [
+          {
+            "sellableItemId": "wings",
+            "displayName": "Wings",
+            "price": "12",
+            "sortOrder": 20,
+            "cashDiscountBehavior": "APPLY_DEFAULT",
+            "commercialRevision": 2,
+            "consumptionRevision": 5
+          }
+        ]
+      },
+      {
+        "categoryId": "entrees",
+        "name": "Entrees",
+        "sortOrder": 20,
+        "items": [
+          {
+            "sellableItemId": "burger",
+            "displayName": "Burger",
+            "price": "13",
+            "sortOrder": 10,
+            "cashDiscountBehavior": "NONE",
+            "commercialRevision": 4,
+            "consumptionRevision": 7
+          },
+          {
+            "sellableItemId": "steak",
+            "displayName": "Steak",
+            "price": "25.5",
+            "sortOrder": 20,
+            "cashDiscountBehavior": "APPLY_DEFAULT",
+            "commercialRevision": 6,
+            "consumptionRevision": 8
+          }
+        ]
+      }
+    ]
+  }
+}

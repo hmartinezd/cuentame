@@ -1,0 +1,32 @@
+package com.venkoi.cuentame.feature.home.navigation
+
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.composable
+import com.venkoi.cuentame.core.presentation.navigation.AppRoutes
+import com.venkoi.cuentame.core.presentation.navigation.Destination
+import com.venkoi.cuentame.core.presentation.navigation.TopLevelDestination
+import com.venkoi.cuentame.feature.home.HomeRoute
+
+fun NavGraphBuilder.homeGraph(navController: NavHostController) {
+    composable(route = TopLevelDestination.HOME.route) {
+        HomeRoute(
+            onLogWaste = { navController.navigate(Destination.WASTE_CREATE.route) },
+            onViewWaste = { navController.navigate(Destination.WASTE_LIST.route) },
+            onViewActivity = { navController.navigate(AppRoutes.inventoryActivity()) },
+            onNewPurchase = { navController.navigate(Destination.PURCHASE_CREATE.route) },
+            onStartCount = { navController.navigate(Destination.STOCK_COUNT_START.route) },
+            onManageAreas = { navController.navigate(Destination.SETTINGS_AREAS.route) },
+            onManageIngredients = { navController.navigate(TopLevelDestination.INVENTORY.route) },
+            onImportIngredients = { navController.navigate(Destination.INGREDIENT_IMPORT.route) },
+            onViewReports = { navController.navigate(TopLevelDestination.REPORTS.route) },
+            onViewPreparations = { navController.navigate(Destination.PREPARATION_RECIPE_LIST.route) },
+            onViewMenus = { navController.navigate(Destination.MENU_CATALOG_LIST.route) },
+            onViewProduction = { navController.navigate(Destination.PRODUCTION_BATCH_LIST.route) },
+            onViewInventoryDetail = { filter -> navController.navigate(AppRoutes.reportInventoryDetail(filter)) },
+            onViewPurchaseDetail = { range -> navController.navigate(AppRoutes.reportPurchaseDetail(range.name)) },
+            onViewReorder = { navController.navigate(Destination.REORDER_ASSISTANCE.route) },
+            onViewSales = { navController.navigate(Destination.SALES_IMPORT_LIST.route) }
+        )
+    }
+}
