@@ -1,9 +1,38 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
+}
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.isFile) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun requiredLocalProperty(name: String): String =
+    localProperties.getProperty(name)?.trim()?.takeIf(String::isNotEmpty)
+        ?: throw GradleException(
+            "Missing required $name in root local.properties. " +
+                "Add the Supabase mobile development value locally; do not commit credentials."
+        )
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val supabaseUrl = requiredLocalProperty("SUPABASE_URL")
+val supabasePublishableKey = requiredLocalProperty("SUPABASE_PUBLISHABLE_KEY")
+
+require(supabaseUrl.startsWith("https://") || supabaseUrl.startsWith("http://")) {
+    "SUPABASE_URL in root local.properties must be an HTTP(S) project URL."
+}
+require(supabasePublishableKey.startsWith("sb_publishable_")) {
+    "SUPABASE_PUBLISHABLE_KEY in root local.properties must be a low-privilege sb_publishable_ key."
 }
 
 android {
@@ -21,6 +50,13 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "SUPABASE_URL", supabaseUrl.asBuildConfigString())
+        buildConfigField(
+            "String",
+            "SUPABASE_PUBLISHABLE_KEY",
+            supabasePublishableKey.asBuildConfigString()
+        )
     }
 
     buildTypes {
@@ -108,6 +144,12 @@ dependencies {
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
+
+    // Cloud infrastructure
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.ktor.client.android)
     
     // ML Kit
     implementation(libs.google.mlkit.document.scanner)
