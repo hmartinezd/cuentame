@@ -1,0 +1,73 @@
+package com.venkoi.cuentame.core.database.repository
+
+import androidx.room.withTransaction
+import com.venkoi.cuentame.core.common.ids.IngredientCategoryId
+import com.venkoi.cuentame.core.common.text.normalizeName
+import com.venkoi.cuentame.core.database.RestaurantInventoryDatabase
+import com.venkoi.cuentame.core.database.dao.IngredientCategoryDao
+import com.venkoi.cuentame.core.database.mapper.toDomain
+import com.venkoi.cuentame.core.database.mapper.toEntity
+import com.venkoi.cuentame.core.domain.repository.IngredientCategoryRepository
+import com.venkoi.cuentame.core.domain.validation.ValidationError
+import com.venkoi.cuentame.core.model.ingredient.IngredientCategory
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.Instant
+import javax.inject.Inject
+
+class RoomIngredientCategoryRepository @Inject constructor(
+    private val database: RestaurantInventoryDatabase,
+    private val categoryDao: IngredientCategoryDao
+) : IngredientCategoryRepository {
+    override fun observeActiveCategories(): Flow<List<IngredientCategory>> {
+        return categoryDao.observeActiveCategories().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun observeAllCategories(): Flow<List<IngredientCategory>> {
+        return categoryDao.observeAllCategories().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override suspend fun getAllCategoriesForRestaurant(restaurantId: com.venkoi.cuentame.core.common.ids.RestaurantId): List<IngredientCategory> =
+        categoryDao.getAllCategoriesForRestaurant(restaurantId.value).map { it.toDomain() }
+
+    override suspend fun getById(id: IngredientCategoryId): IngredientCategory? {
+        return categoryDao.getById(id.value)?.toDomain()
+    }
+
+    override suspend fun save(category: IngredientCategory) {
+        val normalizedName = category.name.normalizeName()
+        if (normalizedName.isBlank()) throw ValidationError.InvalidName
+
+        val duplicate = categoryDao.findByNormalizedName(category.restaurantId.value, normalizedName)
+        if (duplicate != null && duplicate.id != category.id.value) throw ValidationError.DuplicateActiveName
+
+        categoryDao.upsert(category.copy(normalizedName = normalizedName).toEntity())
+    }
+
+    override suspend fun archive(id: IngredientCategoryId, at: Instant) {
+        categoryDao.softArchive(id.value, at.toEpochMilli())
+    }
+
+    override suspend fun reorder(ids: List<IngredientCategoryId>) {
+        if (ids.isEmpty()) return
+        database.withTransaction {
+            val firstEntity = categoryDao.getById(ids.first().value) ?: throw ValidationError.InvalidSetupState
+            val restaurantId = firstEntity.restaurantId
+            
+            val activeIds = categoryDao.getActiveIds(restaurantId).toSet()
+            val inputIds = ids.map { it.value }.toSet()
+            
+            if (inputIds.size != ids.size) throw ValidationError.InvalidSetupState
+            if (inputIds != activeIds) throw ValidationError.InvalidSetupState
+            
+            ids.forEachIndexed { index, id ->
+                val entity = categoryDao.getById(id.value)!!
+                categoryDao.upsert(entity.copy(sortOrder = index))
+            }
+        }
+    }
+}

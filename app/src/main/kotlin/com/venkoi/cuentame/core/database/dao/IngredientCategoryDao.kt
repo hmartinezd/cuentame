@@ -1,0 +1,38 @@
+package com.venkoi.cuentame.core.database.dao
+
+import androidx.room.*
+import com.venkoi.cuentame.core.database.entity.IngredientCategoryEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface IngredientCategoryDao {
+    @Query("SELECT * FROM ingredient_categories WHERE isActive = 1 AND deletedAt IS NULL ORDER BY sortOrder")
+    fun observeActiveCategories(): Flow<List<IngredientCategoryEntity>>
+
+    @Query("SELECT * FROM ingredient_categories WHERE deletedAt IS NULL ORDER BY sortOrder")
+    fun observeAllCategories(): Flow<List<IngredientCategoryEntity>>
+
+    @Query("SELECT * FROM ingredient_categories WHERE deletedAt IS NULL ORDER BY sortOrder")
+    suspend fun getAllCategoriesSync(): List<IngredientCategoryEntity>
+
+    @Query("SELECT * FROM ingredient_categories WHERE restaurantId = :restaurantId ORDER BY sortOrder")
+    suspend fun getAllCategoriesForRestaurant(restaurantId: String): List<IngredientCategoryEntity>
+
+    @Query("SELECT * FROM ingredient_categories WHERE id = :id")
+    suspend fun getById(id: String): IngredientCategoryEntity?
+
+    @Query("SELECT * FROM ingredient_categories WHERE restaurantId = :restaurantId AND normalizedName = :normalizedName AND deletedAt IS NULL LIMIT 1")
+    suspend fun findByNormalizedName(restaurantId: String, normalizedName: String): IngredientCategoryEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(category: IngredientCategoryEntity)
+
+    @Query("UPDATE ingredient_categories SET isActive = 0, deletedAt = :at WHERE id = :id")
+    suspend fun softArchive(id: String, at: Long)
+
+    @Query("SELECT id FROM ingredient_categories WHERE restaurantId = :restaurantId AND isActive = 1 AND deletedAt IS NULL")
+    suspend fun getActiveIds(restaurantId: String): List<String>
+
+    @Update
+    suspend fun updateAll(categories: List<IngredientCategoryEntity>)
+}
