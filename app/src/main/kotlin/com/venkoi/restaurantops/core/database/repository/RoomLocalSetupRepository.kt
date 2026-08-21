@@ -64,6 +64,13 @@ class RoomLocalSetupRepository @Inject constructor(
             database.withTransaction {
                 val existing = restaurantDao.getRestaurant()
                 val now = timeProvider.now().toEpochMilli()
+
+                if (existing != null &&
+                    command.restaurantId != null &&
+                    existing.id != command.restaurantId.value
+                ) {
+                    throw LocalRestaurantIdentityMismatchException()
+                }
                 
                 val restaurantId = if (existing != null) {
                     // Check if setup is already complete
@@ -81,7 +88,7 @@ class RoomLocalSetupRepository @Inject constructor(
                     )
                     existing.id
                 } else {
-                    val newId = idGenerator.newId()
+                    val newId = command.restaurantId?.value ?: idGenerator.newId()
                     android.util.Log.i("LocalSetupRepository", "Creating new restaurant: $newId - ${command.restaurantName}")
                     restaurantDao.insert(
                         RestaurantEntity(
@@ -135,3 +142,7 @@ class RoomLocalSetupRepository @Inject constructor(
         }
     }
 }
+
+class LocalRestaurantIdentityMismatchException : IllegalStateException(
+    "The authoritative restaurant identity does not match the existing local restaurant"
+)

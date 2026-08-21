@@ -1,5 +1,6 @@
 package com.venkoi.restaurantops.core.domain.repository
 
+import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import kotlinx.coroutines.flow.Flow
 
 sealed interface LocalSetupResult {
@@ -23,7 +24,8 @@ data class CompleteLocalSetupCommand(
     val currencyCode: String,
     val localeTag: String,
     val areas: List<SetupAreaInput>,
-    val categories: List<SetupCategoryInput>
+    val categories: List<SetupCategoryInput>,
+    val restaurantId: RestaurantId? = null
 )
 
 interface LocalSetupRepository {
@@ -31,4 +33,3 @@ interface LocalSetupRepository {
     fun observeIsSetupComplete(): Flow<Boolean>
     suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult
 }
-
