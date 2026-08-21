@@ -1,0 +1,70 @@
+package com.venkoi.restaurantops.core.backup
+
+object PackageArchitectureRules {
+    data class ArchitectureViolation(val file: String, val forbiddenImport: String)
+
+    fun violations(relativePath: String, sourceText: String): List<ArchitectureViolation> {
+        val lines = sourceText.lines().map { it.trim() }
+        val violations = mutableListOf<ArchitectureViolation>()
+
+        fun check(forbidden: String) {
+            if (lines.any { it.startsWith("import $forbidden") || it.startsWith("import ") && it.endsWith(".$forbidden") }) {
+                violations.add(ArchitectureViolation(relativePath, forbidden))
+            }
+            // Detect aliases
+            if (lines.any { it.startsWith("import ") && it.contains(" as ") && it.contains(forbidden) }) {
+                violations.add(ArchitectureViolation(relativePath, "Alias of $forbidden"))
+            }
+        }
+
+        val isCore = relativePath.startsWith("core/")
+
+        when {
+            relativePath.startsWith("core/model/") -> {
+                check("androidx.room")
+                check("com.venkoi.restaurantops.core.database")
+                check("android.content.Context")
+                if (!relativePath.endsWith("OnboardingTemplates.kt")) {
+                    check("com.venkoi.restaurantops.R")
+                }
+            }
+            relativePath.startsWith("core/domain/") -> {
+                check("androidx.compose")
+                check("androidx.room")
+                check("com.venkoi.restaurantops.core.database")
+                check("com.venkoi.restaurantops.R")
+                check("android.widget")
+                check("android.view")
+            }
+            relativePath.startsWith("feature/") -> {
+                val featureName = relativePath.removePrefix("feature/").substringBefore("/")
+                val otherFeatureImport = lines.filter { 
+                    it.startsWith("import com.venkoi.restaurantops.feature.") && !it.contains(".feature.$featureName.")
+                }
+                otherFeatureImport.forEach { violations.add(ArchitectureViolation(relativePath, it)) }
+                check("com.venkoi.restaurantops.app.navigation")
+            }
+            relativePath.startsWith("core/data/") || relativePath.startsWith("core/database/") -> {
+                if (lines.any { it.startsWith("import com.venkoi.restaurantops.feature.") }) {
+                    violations.add(ArchitectureViolation(relativePath, "com.venkoi.restaurantops.feature"))
+                }
+            }
+            relativePath.startsWith("core/backup/api/") || 
+            relativePath.startsWith("core/backup/model/") ||
+            relativePath.startsWith("core/backup/BackupFormatV1Contract.kt") ||
+            relativePath.startsWith("core/backup/BackupByteMath.kt") ||
+            relativePath.startsWith("core/backup/BackupChecksumException.kt") -> {
+                check("com.venkoi.restaurantops.core.database")
+                check("androidx.room")
+            }
+        }
+
+        if (isCore) {
+            if (lines.any { it.startsWith("import com.venkoi.restaurantops.feature.") }) {
+                 violations.add(ArchitectureViolation(relativePath, "com.venkoi.restaurantops.feature"))
+            }
+        }
+
+        return violations
+    }
+}

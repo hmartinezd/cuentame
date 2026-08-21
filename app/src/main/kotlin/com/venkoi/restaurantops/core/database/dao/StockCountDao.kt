@@ -1,0 +1,206 @@
+package com.venkoi.restaurantops.core.database.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import com.venkoi.restaurantops.core.database.entity.StockCountAreaEntity
+import com.venkoi.restaurantops.core.database.entity.StockCountEntity
+import com.venkoi.restaurantops.core.database.entity.StockCountLineEntity
+import com.venkoi.restaurantops.core.database.entity.StockCountItemOrderEntity
+import com.venkoi.restaurantops.core.database.model.CompletedCountLineRow
+import com.venkoi.restaurantops.core.database.model.CompletedCountSummaryRow
+import com.venkoi.restaurantops.core.database.model.RecentCountActivityRow
+import com.venkoi.restaurantops.core.domain.repository.StockCountExportRow
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface StockCountDao {
+    @Query("SELECT * FROM stock_count_item_order WHERE areaId = :areaId ORDER BY sortOrder, ingredientId")
+    suspend fun getItemOrder(areaId: String): List<StockCountItemOrderEntity>
+
+    @Query("DELETE FROM stock_count_item_order WHERE areaId = :areaId")
+    suspend fun deleteItemOrder(areaId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemOrder(items: List<StockCountItemOrderEntity>)
+
+    @Query("""
+        SELECT 
+            id as stockCountId,
+            completedAt
+        FROM stock_counts
+        WHERE restaurantId = :restaurantId
+        AND status = 'COMPLETED'
+        AND completedAt >= :startInclusive
+        AND completedAt < :endExclusive
+    """)
+    fun observeCompletedCountSummaries(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<CompletedCountSummaryRow>>
+
+    @Query("""
+        SELECT 
+            sc.id as stockCountId,
+            scl.ingredientId,
+            scl.adjustmentQuantityBase
+        FROM stock_counts sc
+        JOIN stock_count_areas sca ON sc.id = sca.stockCountId
+        JOIN stock_count_lines scl ON sca.id = scl.stockCountAreaId
+        WHERE sc.restaurantId = :restaurantId
+        AND sc.status = 'COMPLETED'
+        AND sc.completedAt >= :startInclusive
+        AND sc.completedAt < :endExclusive
+    """)
+    fun observeCompletedCountLines(
+        restaurantId: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Flow<List<CompletedCountLineRow>>
+
+    @Query("""
+        SELECT 
+            id,
+            status,
+            completedAt,
+            name
+        FROM stock_counts
+        WHERE restaurantId = :restaurantId
+        AND status = 'COMPLETED'
+        ORDER BY completedAt DESC, id ASC
+        LIMIT :limit
+    """)
+    fun observeRecentCountActivity(
+        restaurantId: String,
+        limit: Int
+    ): Flow<List<RecentCountActivityRow>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertCount(count: StockCountEntity)
+
+    @Update
+    suspend fun updateCount(count: StockCountEntity): Int
+
+    @Query("DELETE FROM stock_counts WHERE id = :id AND status = 'DRAFT'")
+    suspend fun deleteDraftCount(id: String): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertCountAreas(areas: List<StockCountAreaEntity>)
+
+    @Update
+    suspend fun updateCountArea(area: StockCountAreaEntity): Int
+
+    @Query("DELETE FROM stock_count_areas WHERE stockCountId = :countId")
+    suspend fun deleteAreasForCount(countId: String)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertCountLine(line: StockCountLineEntity)
+
+    @Update
+    suspend fun updateCountLine(line: StockCountLineEntity): Int
+
+    @Query("DELETE FROM stock_count_lines WHERE id = :id")
+    suspend fun deleteLine(id: String): Int
+
+    @Query("DELETE FROM stock_count_lines WHERE stockCountAreaId = :areaId")
+    suspend fun deleteLinesForArea(areaId: String)
+
+    @Query("""
+        SELECT * FROM stock_counts 
+        WHERE restaurantId = :restaurantId 
+        AND (:status IS NULL OR status = :status)
+        AND (:query IS NULL OR name LIKE '%' || :query || '%')
+        ORDER BY effectiveAt DESC, updatedAt DESC, createdAt DESC, id ASC
+    """)
+    fun observeFilteredCounts(
+        restaurantId: String,
+        status: String?,
+        query: String?
+    ): Flow<List<StockCountEntity>>
+
+    @Query("SELECT * FROM stock_counts WHERE id = :id")
+    suspend fun getCountById(id: String): StockCountEntity?
+
+    @Query("SELECT * FROM stock_counts WHERE restaurantId = :restaurantId AND status = :status")
+    suspend fun getCountsByStatus(restaurantId: String, status: String): List<StockCountEntity>
+
+    @Query("SELECT * FROM stock_counts WHERE id = :id")
+    fun observeCountById(id: String): Flow<StockCountEntity?>
+
+    @Query("""
+        SELECT EXISTS(
+            SELECT 1 FROM stock_counts
+            WHERE restaurantId = :restaurantId
+            AND status = 'COMPLETED'
+        )
+    """)
+    fun observeHasCompletedCount(restaurantId: String): Flow<Boolean>
+
+    @Query("SELECT * FROM stock_count_areas WHERE stockCountId = :countId ORDER BY sortOrder ASC")
+    suspend fun getAreasForCount(countId: String): List<StockCountAreaEntity>
+
+    @Query("SELECT * FROM stock_count_areas WHERE stockCountId = :countId ORDER BY sortOrder ASC")
+    fun observeAreasForCount(countId: String): Flow<List<StockCountAreaEntity>>
+
+    @Query("SELECT * FROM stock_count_areas WHERE id = :id")
+    suspend fun getAreaById(id: String): StockCountAreaEntity?
+
+    @Query("SELECT * FROM stock_count_areas WHERE id = :id")
+    fun observeAreaById(id: String): Flow<StockCountAreaEntity?>
+
+    @Query("SELECT * FROM stock_count_lines WHERE stockCountAreaId = :areaId ORDER BY createdAt ASC")
+    suspend fun getLinesForArea(areaId: String): List<StockCountLineEntity>
+
+    @Query("SELECT * FROM stock_count_lines WHERE stockCountAreaId = :areaId ORDER BY createdAt ASC")
+    fun observeLinesForArea(areaId: String): Flow<List<StockCountLineEntity>>
+
+    @Query("SELECT * FROM stock_count_lines WHERE id = :id")
+    suspend fun getLineById(id: String): StockCountLineEntity?
+
+    @Query("""
+        SELECT scl.* FROM stock_count_lines scl
+        JOIN stock_count_areas sca ON scl.stockCountAreaId = sca.id
+        WHERE sca.stockCountId = :countId
+    """)
+    suspend fun getAllLinesForCount(countId: String): List<StockCountLineEntity>
+
+    @Query("""
+        SELECT EXISTS(
+            SELECT 1 FROM stock_counts sc
+            JOIN stock_count_areas sca ON sc.id = sca.stockCountId
+            WHERE sc.status = 'DRAFT' AND sca.areaId = :areaId
+        )
+    """)
+    suspend fun isAreaInAnyDraftCount(areaId: String): Boolean
+
+    @Query("""
+        SELECT 
+            ia.name as areaName,
+            i.name as ingredientName,
+            u.symbol as baseUnitSymbol,
+            scl.expectedQuantityBaseSnapshot as expectedQuantityBase,
+            scl.quantityBase as countedQuantityBase,
+            scl.adjustmentQuantityBase as adjustmentQuantityBase,
+            scl.notes
+        FROM stock_count_lines scl
+        JOIN stock_count_areas sca ON scl.stockCountAreaId = sca.id
+        JOIN inventory_areas ia ON sca.areaId = ia.id
+        JOIN ingredients i ON scl.ingredientId = i.id
+        JOIN units u ON i.baseUnitId = u.id
+        WHERE sca.stockCountId = :countId
+        ORDER BY ia.name ASC, i.name ASC
+    """)
+    suspend fun getExportRows(countId: String): List<StockCountExportRow>
+
+    @Transaction
+    suspend fun deleteDraftWithGraph(countId: String) {
+        val areas = getAreasForCount(countId)
+        areas.forEach { deleteLinesForArea(it.id) }
+        deleteAreasForCount(countId)
+        deleteDraftCount(countId)
+    }
+}

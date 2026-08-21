@@ -3,9 +3,9 @@
 ## Initial State Discovery
 
 * **Project Name:** Cuentame
-* **Root Package:** `com.venkoi.cuentame`
-* **Namespace:** `com.venkoi.cuentame`
-* **Application ID:** `com.venkoi.cuentame`
+* **Root Package:** `com.venkoi.restaurantops`
+* **Namespace:** `com.venkoi.restaurantops`
+* **Application ID:** `com.venkoi.restaurantops`
 * **Min SDK:** 28
 * **Target SDK:** 36
 * **Compile SDK:** 36

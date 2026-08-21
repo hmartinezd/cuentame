@@ -1,0 +1,31 @@
+package com.venkoi.restaurantops.core.database.repository
+
+import com.venkoi.restaurantops.core.common.ids.UnitId
+import com.venkoi.restaurantops.core.database.dao.UnitDao
+import com.venkoi.restaurantops.core.database.mapper.toDomain
+import com.venkoi.restaurantops.core.domain.repository.UnitRepository
+import com.venkoi.restaurantops.core.model.inventory.UnitDimension
+import com.venkoi.restaurantops.core.model.inventory.UnitOfMeasure
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+
+class RoomUnitRepository @Inject constructor(
+    private val unitDao: UnitDao
+) : UnitRepository {
+    override fun observeAll(): Flow<List<UnitOfMeasure>> {
+        return unitDao.observeAll().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun observeByDimension(dimension: UnitDimension): Flow<List<UnitOfMeasure>> {
+        return unitDao.observeByDimension(dimension.name).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override suspend fun getById(id: UnitId): UnitOfMeasure? {
+        return unitDao.getById(id.value)?.toDomain()
+    }
+}

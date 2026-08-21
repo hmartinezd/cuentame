@@ -1,0 +1,241 @@
+package com.venkoi.restaurantops.core.backup
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.truth.Truth.assertThat
+import com.venkoi.restaurantops.core.backup.api.*
+import com.venkoi.restaurantops.core.backup.internal.RestoreDatabaseApplier
+import com.venkoi.restaurantops.core.backup.model.BackupSnapshotDto
+import com.venkoi.restaurantops.core.backup.model.RestaurantBackupDto
+import com.venkoi.restaurantops.core.backup.platform.BackupManifestContractValidator
+import com.venkoi.restaurantops.core.common.AppVersionProvider
+import com.venkoi.restaurantops.core.common.ids.*
+import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
+import com.venkoi.restaurantops.core.database.entity.*
+import com.venkoi.restaurantops.core.model.inventory.DocumentStatus
+import com.venkoi.restaurantops.core.domain.repository.CreateProductionBatchDraftCommand
+import com.venkoi.restaurantops.core.domain.repository.ProductionBatchRepository
+import com.venkoi.restaurantops.core.domain.repository.PurchaseRepository
+import com.venkoi.restaurantops.core.model.ingredient.PreparationRecipeStatus
+import com.venkoi.restaurantops.core.model.inventory.InventoryMovementType
+import com.venkoi.restaurantops.core.model.inventory.SourceDocumentType
+import com.venkoi.restaurantops.core.model.restaurant.Restaurant
+import com.venkoi.restaurantops.test.TestSeeder
+import com.venkoi.restaurantops.test.TestStateManager
+import com.venkoi.restaurantops.test.PostedPurchaseFixture
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.math.BigDecimal
+import java.time.Instant
+import javax.inject.Inject
+
+@HiltAndroidTest
+@RunWith(AndroidJUnit4::class)
+class BackupSchema4RoundTripTest {
+
+    @get:Rule
+    var hiltRule = HiltAndroidRule(this)
+
+    @Inject
+    lateinit var planner: BackupCreationPlanner
+
+    @Inject
+    lateinit var snapshotSource: BackupSnapshotSource
+
+    @Inject
+    lateinit var applier: RestoreDatabaseApplier
+
+    @Inject
+    lateinit var database: RestaurantInventoryDatabase
+
+    @Inject
+    lateinit var repository: ProductionBatchRepository
+
+    @Inject
+    lateinit var purchaseRepository: PurchaseRepository
+
+    @Inject
+    lateinit var testStateManager: TestStateManager
+
+    private val restId = RestaurantId("rest-1")
+
+    @Before
+    fun init() {
+        hiltRule.inject()
+    }
+
+    @Test
+    fun schema4BackupRoundTrip_realPostingAndMutation_preservesAllProductionData() = runBlocking {
+        // 1. Seed base data
+        testStateManager.resetAll()
+        seedBaseData()
+        
+        // 2. Establish component quantity and cost through a real purchase
+        val scenarioTime = Instant.parse("2026-01-01T10:00:00Z")
+        val compIngId = IngredientId("ing-comp")
+        val areaId = InventoryAreaId("a1")
+        val optId = IngredientUnitOptionId("opt-2")
+
+        TestSeeder.seedPostedPurchase(
+            db = database,
+            repo = purchaseRepository,
+            restaurantId = restId,
+            ingredientId = compIngId,
+            areaId = areaId,
+            unitOptionId = optId,
+            quantityEntered = BigDecimal("10"),
+            unitCostBase = BigDecimal("10.00"),
+            effectiveAt = scenarioTime
+        )
+
+        // 3. Create Production Draft and Post
+        val recipeId = PreparationRecipeId("r-1")
+        val effectiveAt = scenarioTime.plusSeconds(3600)
+        val batchId = repository.createDraft(CreateProductionBatchDraftCommand(
+            restaurantId = restId, recipeId = recipeId, batchMultiplier = BigDecimal("2"),
+            outputAreaId = areaId, actualOutputQuantityEntered = null,
+            outputUnitOptionId = null, effectiveAt = effectiveAt, notes = "Initial Notes"
+        ))
+        repository.post(batchId)
+
+        // Confirm the state passes BackupSnapshotIntegrityValidator
+        val snapshotBefore = snapshotSource.loadSnapshot(restId.value).dto
+        val manifest = createManifestForSnapshot(
+            snapshot = snapshotBefore,
+            schemaVersion = 4,
+            restaurantName = "Test Restaurant",
+            localeTag = "en-US",
+            currencyCode = "USD"
+        )
+        
+        // Manifest count validation before capture
+        assertThat(
+            BackupManifestContractValidator.validateSnapshotConsistency(manifest, snapshotBefore)
+        ).isNull()
+        
+        // Snapshot integrity before capture
+        val integrityResult = BackupSnapshotIntegrityValidator.validate(snapshotBefore, manifest)
+        assertThat(integrityResult.isSuccess).isTrue()
+
+        // 4. Capture backup plan
+        val restaurant = Restaurant(restId, "Test Restaurant", "USD", "en-US", Instant.EPOCH, Instant.EPOCH)
+        val planResult = planner.createPlan(restaurant, BackupSnapshotResult(snapshotBefore, emptyList()))
+        
+        assertThat(planResult).isInstanceOf(BackupPlanningResult.Success::class.java)
+        val plan = (planResult as BackupPlanningResult.Success).plan
+
+        // 5. Mutate database materially
+        // Rename a recipe
+        database.preparationRecipeDao().update(database.preparationRecipeDao().getById("r-1")!!.copy(name = "Renamed Recipe"))
+        // Create another valid Draft batch
+        repository.createDraft(CreateProductionBatchDraftCommand(
+            restId, recipeId, BigDecimal.ONE, areaId, null, null, effectiveAt.plusSeconds(60), "Another Draft"
+        ))
+        // Verify mutation is present in a fresh snapshot
+        val mutatedSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        assertThat(mutatedSnapshot.preparationRecipes[0].name).isEqualTo("Renamed Recipe")
+        assertThat(mutatedSnapshot.productionBatches).hasSize(2)
+        
+        // 6. Restore backup
+        applier.replaceWithBackup(plan.snapshotDto, plan.manifest)
+
+        // 7. Verify exact equality
+        val restoredSnapshot = snapshotSource.loadSnapshot(restId.value).dto
+        
+        // Validate manifest consistency after restore
+        val postManifest = createManifestForSnapshot(
+            snapshot = restoredSnapshot,
+            schemaVersion = 4,
+            restaurantName = "Test Restaurant",
+            localeTag = "en-US",
+            currencyCode = "USD"
+        )
+        
+        assertThat(postManifest.tableMetadata.keys).containsExactlyElementsIn(BackupFormatV1Contract.expectedTablesForSchema(4))
+        assertThat(BackupManifestContractValidator.validateSnapshotConsistency(postManifest, restoredSnapshot)).isNull()
+        assertThat(BackupSnapshotIntegrityValidator.validate(restoredSnapshot, postManifest).isSuccess).isTrue()
+
+        assertThat(restoredSnapshot).isEqualTo(snapshotBefore)
+        
+        // Verify mutation records are gone exactly (Instruction 20)
+        assertThat(restoredSnapshot.preparationRecipes[0].name).isEqualTo("Recipe")
+        assertThat(restoredSnapshot.productionBatches).hasSize(1)
+        assertThat(restoredSnapshot.productionBatches[0].notes).isEqualTo("Initial Notes")
+        
+        assertThat(database.preparationRecipeDao().getById("r-1")?.name).isEqualTo("Recipe")
+    }
+
+    private suspend fun seedBaseData() {
+        database.restaurantDao().insert(RestaurantEntity(restId.value, "Test Restaurant", "USD", "en-US", 0, 0, null))
+        database.inventoryAreaDao().upsert(InventoryAreaEntity("a1", restId.value, "Area", "area", 0, true, 0, 0, null))
+        database.unitDao().insertSeedUnits(listOf(UnitEntity("u1", "U", "u", "MASS", BigDecimal.ONE, true, 0)))
+        
+        val ingOutput = "ing-output"
+        val ingComp = "ing-comp"
+        database.ingredientDao().insert(IngredientEntity(ingOutput, restId.value, "Output", "output", null, "u1", "a1", null, null, null, true, 100, 100, null))
+        database.ingredientDao().insert(IngredientEntity(ingComp, restId.value, "Comp", "comp", null, "u1", "a1", null, null, null, true, 100, 100, null))
+        
+        val opt1 = "opt-1"
+        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt1, ingOutput, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
+        val opt2 = "opt-2"
+        database.ingredientUnitOptionDao().insert(IngredientUnitOptionEntity(opt2, ingComp, "Unit", "unit", null, BigDecimal.ONE, true, true, true, true, 100, 100, null))
+
+        // Recipe
+        database.preparationRecipeDao().insert(PreparationRecipeEntity("r-1", restId.value, ingOutput, "Recipe", "recipe", BigDecimal.ONE, BigDecimal.ONE, opt1, "ACTIVE", null, 100, 100, null))
+        database.preparationRecipeDao().upsertComponent(PreparationRecipeComponentEntity("c-1", "r-1", ingComp, opt2, BigDecimal("0.5"), BigDecimal("0.5"), 0, null, 100, 100))
+    }
+
+    @Test
+    fun backwardCompatibility_restoresSchema3BackupSuccessfully() = runBlocking {
+        // 1. Create a Schema 3 DTO (no production)
+        val schema3Snapshot = BackupSnapshotDto(
+            restaurants = listOf(RestaurantBackupDto(restId.value, "Schema 3", "USD", "en-US", 0, 0, null)),
+            inventoryAreas = emptyList(),
+            ingredientCategories = emptyList(),
+            units = emptyList(),
+            ingredients = emptyList(),
+            ingredientUnitOptions = emptyList(),
+            suppliers = emptyList(),
+            purchaseReceipts = emptyList(),
+            purchaseLines = emptyList(),
+            stockCounts = emptyList(),
+            stockCountAreas = emptyList(),
+            stockCountLines = emptyList(),
+            wasteEvents = emptyList(),
+            inventoryMovements = emptyList(),
+            inventoryBalanceProjections = emptyList(),
+            ingredientCostProjections = emptyList(),
+            preparationRecipes = emptyList(),
+            preparationRecipeComponents = emptyList()
+            // production fields default to empty
+        )
+
+        // 2. Restore
+        val manifest = com.venkoi.restaurantops.core.model.backup.BackupManifest(
+            backupFormatVersion = 1,
+            createdAtUtc = "2026-01-01T12:00:00Z",
+            applicationId = "com.venkoi.restaurantops",
+            appVersionName = "1.0",
+            appVersionCode = 1,
+            databaseSchemaVersion = 3,
+            restaurantId = restId.value,
+            restaurantName = "Schema 3",
+            localeTag = "en-US",
+            currencyCode = "USD",
+            tableMetadata = emptyMap(),
+            attachments = emptyList(),
+            includedSections = listOf("data", "preferences", "attachments")
+        )
+        applier.replaceWithBackup(schema3Snapshot, manifest)
+
+        // 3. Verify
+        val restored = snapshotSource.loadSnapshot(restId.value).dto
+        assertThat(restored.restaurants[0].name).isEqualTo("Schema 3")
+        assertThat(restored.productionBatches).isEmpty()
+        assertThat(restored.productionBatchComponents).isEmpty()
+    }
+}

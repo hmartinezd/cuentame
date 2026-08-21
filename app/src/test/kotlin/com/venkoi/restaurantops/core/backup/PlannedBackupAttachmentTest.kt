@@ -1,0 +1,178 @@
+package com.venkoi.restaurantops.core.backup
+
+import com.google.common.truth.Truth.assertThat
+import com.venkoi.restaurantops.core.backup.api.*
+import com.venkoi.restaurantops.core.model.backup.BackupAttachmentReference
+import org.junit.Assert.assertThrows
+import org.junit.Test
+
+class PlannedBackupAttachmentTest {
+
+    private val validId = "0123456789abcdef"
+    private val validUri = AttachmentSourceUri("content://img")
+    private val validName = "photo.jpg"
+    private val validPath = "attachments/$validId/$validName"
+    private val validChecksum = "a".repeat(64)
+    private val validRef = BackupAttachmentReference("WASTE_EVENT", "w1")
+
+    @Test
+    fun `create with valid data succeeds`() {
+        val att = PlannedBackupAttachment.create(
+            sourceUri = validUri,
+            attachmentId = validId,
+            archivePath = validPath,
+            displayName = validName,
+            mimeType = "image/jpeg",
+            sizeBytes = 100L,
+            checksumSha256 = validChecksum,
+            references = listOf(validRef)
+        )
+        assertThat(att.attachmentId).isEqualTo(validId)
+    }
+
+    @Test
+    fun `create rejects invalid attachment ID`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, "invalid-id", validPath, validName, null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects non-canonical archive path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "wrong/path/file.jpg", validName, null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects unsafe path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/../../etc/passwd", "../../etc/passwd", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects absolute path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "/attachments/$validId/$validName", validName, null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects traversal path`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/../etc/passwd", "../etc/passwd", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects forward slash in display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/a/b.jpg", "a/b.jpg", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects backslash in display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, "attachments/$validId/a\\b.jpg", "a\\b.jpg", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects invalid display name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, "   ", null, 100L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects negative size`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, -1L, validChecksum, listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects invalid checksum`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, "short", listOf(validRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects empty references`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, emptyList()
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects duplicate references`() {
+        val dupRef = BackupAttachmentReference("WASTE_EVENT", "w1")
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, listOf(validRef, dupRef)
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects unsupported record type`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, 
+                listOf(BackupAttachmentReference("INVALID_TYPE", "r1"))
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects blank reference record ID`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlannedBackupAttachment.create(
+                validUri, validId, validPath, validName, null, 100L, validChecksum, 
+                listOf(BackupAttachmentReference("WASTE_EVENT", "  "))
+            )
+        }
+    }
+
+    @Test
+    fun `original reference list mutation cannot change attachment`() {
+        val mutableRefs = mutableListOf(validRef)
+        val att = PlannedBackupAttachment.create(validUri, validId, validPath, validName, null, 100L, validChecksum, mutableRefs)
+        
+        mutableRefs.clear()
+        assertThat(att.references).hasSize(1)
+    }
+
+    @Test
+    fun `returned references cannot mutate attachment`() {
+        val att = PlannedBackupAttachment.create(validUri, validId, validPath, validName, null, 100L, validChecksum, listOf(validRef))
+        assertThrows(UnsupportedOperationException::class.java) {
+            (att.references as MutableList).clear()
+        }
+    }
+}

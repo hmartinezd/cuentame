@@ -1,0 +1,239 @@
+package com.venkoi.restaurantops.feature.ingredients.viewmodel
+
+import androidx.lifecycle.SavedStateHandle
+import app.cash.turbine.test
+import com.google.common.truth.Truth.assertThat
+import com.venkoi.restaurantops.core.common.ids.IngredientCategoryId
+import com.venkoi.restaurantops.core.common.ids.IngredientId
+import com.venkoi.restaurantops.core.common.ids.IngredientUnitOptionId
+import com.venkoi.restaurantops.core.common.ids.RestaurantId
+import com.venkoi.restaurantops.core.common.ids.UnitId
+import com.venkoi.restaurantops.core.common.time.TimeProvider
+import com.venkoi.restaurantops.core.domain.repository.IngredientCategoryRepository
+import com.venkoi.restaurantops.core.domain.repository.IngredientRepository
+import com.venkoi.restaurantops.core.domain.repository.RestaurantRepository
+import com.venkoi.restaurantops.core.domain.repository.UnitRepository
+import com.venkoi.restaurantops.core.domain.usecase.CreateIngredientUseCase
+import com.venkoi.restaurantops.core.domain.usecase.GetIngredientDetailUseCase
+import com.venkoi.restaurantops.core.domain.usecase.ObserveCompatibleSystemUnitsUseCase
+import com.venkoi.restaurantops.core.domain.usecase.ObserveIngredientCategoriesUseCase
+import com.venkoi.restaurantops.core.domain.usecase.ObserveIngredientUnitOptionsUseCase
+import com.venkoi.restaurantops.core.domain.usecase.PreviewUnitConversionUseCase
+import com.venkoi.restaurantops.core.domain.usecase.UpdateIngredientUseCase
+import com.venkoi.restaurantops.core.domain.service.StandardUnitConverter
+import com.venkoi.restaurantops.core.model.ingredient.Ingredient
+import com.venkoi.restaurantops.core.model.ingredient.IngredientUnitOption
+import com.venkoi.restaurantops.core.model.inventory.UnitOfMeasure
+import com.venkoi.restaurantops.core.model.inventory.UnitDimension
+import com.venkoi.restaurantops.core.model.restaurant.Restaurant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import java.math.BigDecimal
+import java.time.Instant
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class IngredientFormViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    
+    private val fakeIngredientRepository = object : IngredientRepository {
+        override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
+        override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = emptyList()
+        override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(null)
+        override suspend fun getById(id: IngredientId): Ingredient? = null
+        override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = null
+        override suspend fun updateIngredient(command: com.venkoi.restaurantops.core.domain.repository.UpdateIngredientCommand) {}
+        override suspend fun archive(id: IngredientId, at: Instant) {}
+        override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
+        override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): List<IngredientUnitOption> = emptyList()
+        override suspend fun addStandardUnitOption(command: com.venkoi.restaurantops.core.domain.repository.AddStandardUnitOptionCommand) {}
+        override suspend fun addPackageUnitOption(command: com.venkoi.restaurantops.core.domain.repository.AddPackageUnitOptionCommand) {}
+        override suspend fun updatePackageUnitOption(command: com.venkoi.restaurantops.core.domain.repository.UpdatePackageUnitOptionCommand) {}
+        override suspend fun setDefaultCountOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+        override suspend fun setDefaultPurchaseOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+        override suspend fun archiveUnitOption(id: IngredientUnitOptionId, at: Instant) {}
+        override suspend fun createIngredientWithBaseOption(ingredient: Ingredient, baseOption: IngredientUnitOption, additionalOptions: List<IngredientUnitOption>) {}
+    }
+
+    private val fakeCategoryRepository = object : IngredientCategoryRepository {
+        override fun observeActiveCategories(): Flow<List<com.venkoi.restaurantops.core.model.ingredient.IngredientCategory>> = MutableStateFlow(emptyList())
+        override fun observeAllCategories(): Flow<List<com.venkoi.restaurantops.core.model.ingredient.IngredientCategory>> = MutableStateFlow(emptyList())
+        override suspend fun getById(id: IngredientCategoryId): com.venkoi.restaurantops.core.model.ingredient.IngredientCategory? = null
+        override suspend fun save(category: com.venkoi.restaurantops.core.model.ingredient.IngredientCategory) {}
+        override suspend fun archive(id: IngredientCategoryId, at: Instant) {}
+        override suspend fun reorder(ids: List<IngredientCategoryId>) {}
+    }
+
+    private val fakeRestaurantRepository = object : RestaurantRepository {
+        override fun observeRestaurant(): Flow<Restaurant?> = MutableStateFlow(null)
+        override suspend fun getRestaurant(): Restaurant = Restaurant(RestaurantId("r1"), "R1", "USD", "en-US", Instant.now(), Instant.now())
+        override suspend fun save(restaurant: Restaurant) {}
+    }
+
+    private val fakeUnitRepository = object : UnitRepository {
+        override fun observeAll(): Flow<List<UnitOfMeasure>> = MutableStateFlow(emptyList())
+        override fun observeByDimension(dimension: UnitDimension): Flow<List<UnitOfMeasure>> = MutableStateFlow(emptyList())
+        override suspend fun getById(id: UnitId): UnitOfMeasure = UnitOfMeasure(id, "Unit", "u", UnitDimension.MASS, BigDecimal.ONE, true, 0)
+    }
+
+    private var idCounter = 0
+    private val idGenerator = object : com.venkoi.restaurantops.core.common.ids.IdGenerator {
+        override fun newId(): String = "id_${++idCounter}"
+    }
+
+    private val timeProvider = object : TimeProvider {
+        override fun now(): Instant = Instant.parse("2024-01-01T00:00:00Z")
+    }
+
+    private lateinit var viewModel: IngredientFormViewModel
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        val observeCategoriesUseCase = ObserveIngredientCategoriesUseCase(fakeCategoryRepository)
+        val observeCompatibleUnitsUseCase = ObserveCompatibleSystemUnitsUseCase(fakeUnitRepository)
+        val getDetailUseCase = GetIngredientDetailUseCase(fakeIngredientRepository)
+        val createUseCase = CreateIngredientUseCase(fakeIngredientRepository)
+        val updateUseCase = UpdateIngredientUseCase(fakeIngredientRepository)
+        val observeOptionsUseCase = ObserveIngredientUnitOptionsUseCase(fakeIngredientRepository)
+        val previewUseCase = PreviewUnitConversionUseCase(StandardUnitConverter())
+
+        viewModel = IngredientFormViewModel(
+            SavedStateHandle(),
+            getDetailUseCase,
+            observeOptionsUseCase,
+            observeCategoriesUseCase,
+            observeCompatibleUnitsUseCase,
+            createUseCase,
+            updateUseCase,
+            previewUseCase,
+            fakeRestaurantRepository,
+            fakeUnitRepository,
+            idGenerator,
+            timeProvider
+        )
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `initial state is not loading`() = runTest {
+        runCurrent()
+        assertThat(viewModel.uiState.value.isLoading).isFalse()
+    }
+
+    @Test
+    fun `onSave fails with blank name`() = runTest {
+        viewModel.onNameChanged("")
+        viewModel.onSave()
+        
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("name")
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+    }
+
+    @Test
+    fun `onSave fails without dimension and base unit in create mode`() = runTest {
+        viewModel.onNameChanged("Chicken")
+        viewModel.onSave()
+        
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("dimension")
+        assertThat(viewModel.uiState.value.fieldErrors).containsKey("baseUnit")
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+    }
+
+    @Test
+    fun `reorder configuration validation follows canonical BigDecimal rules`() = runTest {
+        data class Case(val par: String, val point: String, val parInvalid: Boolean, val pointInvalid: Boolean)
+        val cases = listOf(
+            Case("-1", "", parInvalid = true, pointInvalid = false),
+            Case("", "-1", parInvalid = false, pointInvalid = true),
+            Case("10", "5", parInvalid = false, pointInvalid = false),
+            Case("10", "10", parInvalid = false, pointInvalid = false),
+            Case("10", "11", parInvalid = false, pointInvalid = true),
+            Case("", "", parInvalid = false, pointInvalid = false),
+            Case("10", "", parInvalid = false, pointInvalid = false)
+        )
+
+        cases.forEach { case ->
+            viewModel.onParLevelChanged(case.par)
+            viewModel.onReorderPointChanged(case.point)
+            viewModel.onSave()
+
+            assertThat(viewModel.uiState.value.fieldErrors.containsKey("par")).isEqualTo(case.parInvalid)
+            assertThat(viewModel.uiState.value.fieldErrors.containsKey("reorderPoint")).isEqualTo(case.pointInvalid)
+        }
+    }
+
+    @Test
+    fun `dimension selection resets base unit`() = runTest {
+        viewModel.onDimensionSelected(UnitDimension.MASS)
+        val unit = UnitOfMeasure(UnitId("lb"), "Pound", "lb", UnitDimension.MASS, BigDecimal.ONE, true, 0)
+        viewModel.onBaseUnitSelected(unit)
+        
+        assertThat(viewModel.uiState.value.selectedBaseUnitId).isEqualTo(UnitId("lb"))
+        
+        viewModel.onDimensionSelected(UnitDimension.VOLUME)
+        assertThat(viewModel.uiState.value.selectedBaseUnitId).isNull()
+    }
+
+    @Test
+    fun `edit mode hides unit mutation controls`() = runTest {
+        val ingId = "ing_1"
+        val ingredient = Ingredient(IngredientId(ingId), RestaurantId("r1"), "Chicken", "chicken", null, UnitId("lb"), null, null, null, null, true, Instant.now(), Instant.now())
+        
+        val fakeRepo = object : IngredientRepository {
+            override fun observeIngredients(restaurantId: RestaurantId, includeArchived: Boolean): Flow<List<Ingredient>> = MutableStateFlow(emptyList())
+            override suspend fun getIngredients(restaurantId: RestaurantId, includeArchived: Boolean): List<Ingredient> = emptyList()
+            override fun observeIngredient(id: IngredientId): Flow<Ingredient?> = MutableStateFlow(ingredient)
+            override suspend fun getById(id: IngredientId): Ingredient? = ingredient
+            override suspend fun getUnitOption(id: IngredientUnitOptionId): IngredientUnitOption? = null
+            override suspend fun updateIngredient(command: com.venkoi.restaurantops.core.domain.repository.UpdateIngredientCommand) {}
+            override suspend fun archive(id: IngredientId, at: Instant) {}
+            override fun observeUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): Flow<List<IngredientUnitOption>> = MutableStateFlow(emptyList())
+            override suspend fun getUnitOptions(ingredientId: IngredientId, includeArchived: Boolean): List<IngredientUnitOption> = emptyList()
+            override suspend fun addStandardUnitOption(command: com.venkoi.restaurantops.core.domain.repository.AddStandardUnitOptionCommand) {}
+            override suspend fun addPackageUnitOption(command: com.venkoi.restaurantops.core.domain.repository.AddPackageUnitOptionCommand) {}
+            override suspend fun updatePackageUnitOption(command: com.venkoi.restaurantops.core.domain.repository.UpdatePackageUnitOptionCommand) {}
+            override suspend fun setDefaultCountOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+            override suspend fun setDefaultPurchaseOption(ingredientId: IngredientId, optionId: IngredientUnitOptionId) {}
+            override suspend fun archiveUnitOption(id: IngredientUnitOptionId, at: Instant) {}
+            override suspend fun createIngredientWithBaseOption(ingredient: Ingredient, baseOption: IngredientUnitOption, additionalOptions: List<IngredientUnitOption>) {}
+        }
+
+        val vm = IngredientFormViewModel(
+            SavedStateHandle(mapOf("ingredientId" to ingId)),
+            GetIngredientDetailUseCase(fakeRepo),
+            ObserveIngredientUnitOptionsUseCase(fakeRepo),
+            ObserveIngredientCategoriesUseCase(fakeCategoryRepository),
+            ObserveCompatibleSystemUnitsUseCase(fakeUnitRepository),
+            CreateIngredientUseCase(fakeRepo),
+            UpdateIngredientUseCase(fakeRepo),
+            PreviewUnitConversionUseCase(StandardUnitConverter()),
+            fakeRestaurantRepository,
+            fakeUnitRepository,
+            idGenerator,
+            timeProvider
+        )
+        
+        runCurrent()
+        assertThat(vm.uiState.value.isEditMode).isTrue()
+        assertThat(vm.uiState.value.selectedDimension).isEqualTo(UnitDimension.MASS)
+        
+        // Try selecting another dimension - should be ignored in edit mode
+        vm.onDimensionSelected(UnitDimension.VOLUME)
+        assertThat(vm.uiState.value.selectedDimension).isEqualTo(UnitDimension.MASS)
+    }
+}

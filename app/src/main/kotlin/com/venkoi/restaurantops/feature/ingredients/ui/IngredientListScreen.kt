@@ -1,0 +1,349 @@
+package com.venkoi.restaurantops.feature.ingredients.ui
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SoupKitchen
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.venkoi.restaurantops.R
+import com.venkoi.restaurantops.core.common.ids.IngredientId
+import com.venkoi.restaurantops.core.model.ingredient.Ingredient
+import com.venkoi.restaurantops.core.model.ingredient.IngredientCategory
+import com.venkoi.restaurantops.feature.ingredients.viewmodel.IngredientCategoryFilter
+import com.venkoi.restaurantops.feature.ingredients.viewmodel.IngredientListUiState
+import com.venkoi.restaurantops.feature.ingredients.viewmodel.IngredientListViewModel
+
+@Composable
+fun IngredientListRoute(
+    onAddIngredient: () -> Unit,
+    onImportCsv: () -> Unit,
+    onIngredientClick: (IngredientId) -> Unit,
+    onManagePreparations: () -> Unit,
+    onReorder: () -> Unit = {},
+    viewModel: IngredientListViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var confirmSample by remember { mutableStateOf(false) }
+    
+    IngredientListScreen(
+        uiState = uiState,
+        onSearchQueryChanged = viewModel::onSearchQueryChanged,
+        onCategoryFilterChanged = viewModel::onCategoryFilterChanged,
+        onShowArchivedToggled = viewModel::onShowArchivedToggled,
+        onAddIngredient = onAddIngredient,
+        onImportCsv = onImportCsv,
+        onIngredientClick = onIngredientClick,
+        onManagePreparations = onManagePreparations,
+        onReorder = onReorder,
+        onUseSampleCatalog = { confirmSample = true }
+    )
+    if (confirmSample) AlertDialog(
+        onDismissRequest = { confirmSample = false },
+        title = { Text(stringResource(R.string.sample_catalog_confirm_title)) },
+        text = { Text(stringResource(R.string.sample_catalog_confirm_body)) },
+        dismissButton = { TextButton(onClick = { confirmSample = false }) { Text(stringResource(R.string.action_cancel)) } },
+        confirmButton = { Button(onClick = { confirmSample = false; viewModel.addSampleCatalog() }, enabled = !uiState.isAddingSampleCatalog) { Text(stringResource(R.string.sample_catalog_confirm_action)) } }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IngredientListScreen(
+    uiState: IngredientListUiState,
+    onSearchQueryChanged: (String) -> Unit,
+    onCategoryFilterChanged: (IngredientCategoryFilter) -> Unit,
+    onShowArchivedToggled: (Boolean) -> Unit,
+    onAddIngredient: () -> Unit,
+    onImportCsv: () -> Unit,
+    onIngredientClick: (IngredientId) -> Unit,
+    onManagePreparations: () -> Unit,
+    onReorder: () -> Unit = {},
+    onUseSampleCatalog: () -> Unit = {}
+) {
+    Scaffold(
+        modifier = Modifier.testTag("ingredient_list_screen"),
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddIngredient,
+                modifier = Modifier.testTag("add_ingredient_fab")
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_ingredient))
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            SearchAndFilterBar(
+                query = uiState.searchQuery,
+                onQueryChange = onSearchQueryChanged,
+                categories = uiState.categories,
+                currentFilter = uiState.categoryFilter,
+                onFilterChange = onCategoryFilterChanged,
+                showArchived = uiState.showArchived,
+                onShowArchivedToggle = onShowArchivedToggled,
+                onImportCsv = onImportCsv
+            )
+
+            ElevatedCard(
+                onClick = onReorder,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("reorder_assistance_entry")
+            ) {
+                ListItem(headlineContent = { Text(stringResource(R.string.reorder_assistance)) }, supportingContent = { Text(stringResource(R.string.reorder_assistance_desc)) }, trailingContent = { Icon(Icons.Default.ShoppingCart, null) })
+            }
+
+            ElevatedCard(
+                onClick = onManagePreparations,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .testTag("manage_preparation_recipes")
+            ) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.manage_preparation_recipes)) },
+                    supportingContent = { Text(stringResource(R.string.preparation_recipes_dashboard_desc)) },
+                    trailingContent = { Icon(Icons.Default.SoupKitchen, contentDescription = null) },
+                    colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
+
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (!uiState.hasAnyIngredients) {
+                Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.weight(1f))
+                    Text(text = stringResource(R.string.no_ingredients_yet), style = MaterialTheme.typography.headlineSmall)
+                    Text(text = stringResource(R.string.no_ingredients_guidance), modifier = Modifier.padding(vertical = 12.dp))
+                    Button(onClick = onImportCsv, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_existing_csv)) }
+                    OutlinedButton(onClick = onAddIngredient, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.add_ingredient_manually)) }
+                    TextButton(onClick = onUseSampleCatalog, enabled = !uiState.isAddingSampleCatalog) { Text(stringResource(R.string.use_sample_catalog)) }
+                    if (uiState.isAddingSampleCatalog) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.sample_catalog_adding))
+                        }
+                    }
+                    val result = uiState.sampleCatalogResult
+                    if (result is com.venkoi.restaurantops.core.domain.service.StarterCatalogSeedResult.Success) {
+                        Text(stringResource(R.string.sample_catalog_result, result.ingredientsInserted, result.ingredientsSkipped, result.categoriesInserted, result.categoriesReused, result.unitOptionsInserted))
+                    } else if (result is com.venkoi.restaurantops.core.domain.service.StarterCatalogSeedResult.Failure) {
+                        Text(stringResource(R.string.sample_catalog_failure), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = onUseSampleCatalog, enabled = !uiState.isAddingSampleCatalog) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            } else if (uiState.ingredients.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        stringResource(if (uiState.searchQuery.isNotBlank()) R.string.no_ingredients_match_search else R.string.no_ingredients_match_filters),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    if (uiState.searchQuery.isNotBlank()) {
+                        TextButton(onClick = { onSearchQueryChanged("") }) { Text(stringResource(R.string.clear_search)) }
+                    }
+                    if (uiState.categoryFilter !is IngredientCategoryFilter.All) {
+                        TextButton(onClick = { onCategoryFilterChanged(IngredientCategoryFilter.All) }) { Text(stringResource(R.string.clear_filters)) }
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
+            } else {
+                LazyColumn(modifier = Modifier.testTag("ingredient_list")) {
+                    items(uiState.ingredients) { ingredient ->
+                        IngredientItem(
+                            ingredient = ingredient,
+                            category = uiState.categories.find { it.id == ingredient.categoryId },
+                            onClick = { onIngredientClick(ingredient.id) }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchAndFilterBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    categories: List<IngredientCategory>,
+    currentFilter: IngredientCategoryFilter,
+    onFilterChange: (IngredientCategoryFilter) -> Unit,
+    showArchived: Boolean,
+    onShowArchivedToggle: (Boolean) -> Unit,
+    onImportCsv: () -> Unit
+) {
+    var filterMenuExpanded by remember { mutableStateOf(false) }
+
+    Column {
+        TextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("ingredient_search_field"),
+            placeholder = { Text(stringResource(R.string.search_ingredients)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                Box {
+                    IconButton(onClick = { filterMenuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = stringResource(R.string.filter_by_category),
+                            tint = if (currentFilter !is IngredientCategoryFilter.All) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = filterMenuExpanded,
+                        onDismissRequest = { filterMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ingredients_title)) },
+                            onClick = {
+                                onFilterChange(IngredientCategoryFilter.All)
+                                filterMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.uncategorized)) },
+                            onClick = {
+                                onFilterChange(IngredientCategoryFilter.Uncategorized)
+                                filterMenuExpanded = false
+                            }
+                        )
+                        categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = {
+                                    onFilterChange(IngredientCategoryFilter.Category(category.id))
+                                    filterMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+            )
+        )
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.show_archived),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = showArchived,
+                onCheckedChange = onShowArchivedToggle
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            TextButton(onClick = onImportCsv) {
+                Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.import_csv))
+            }
+        }
+    }
+}
+
+@Composable
+fun IngredientItem(
+    ingredient: Ingredient,
+    category: IngredientCategory?,
+    onClick: () -> Unit
+) {
+    ListItem(
+        headlineContent = { 
+            Text(
+                text = ingredient.name,
+                color = if (ingredient.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            ) 
+        },
+        supportingContent = { 
+            Text(category?.name ?: stringResource(R.string.uncategorized))
+        },
+        trailingContent = {
+            if (!ingredient.isActive) {
+                Text(
+                    text = stringResource(R.string.archived_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        modifier = Modifier
+            .testTag("ingredient_item_${ingredient.id.value}")
+            .clickable(onClick = onClick)
+    )
+}

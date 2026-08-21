@@ -7,17 +7,17 @@ plugins {
 }
 
 android {
-    namespace = "com.venkoi.cuentame"
+    namespace = "com.venkoi.restaurantops"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.venkoi.cuentame"
+        applicationId = "com.venkoi.restaurantops"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "com.venkoi.cuentame.CustomTestRunner"
+        testInstrumentationRunner = "com.venkoi.restaurantops.CustomTestRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -54,7 +54,7 @@ android {
         unitTests.all { testTask ->
             testTask.jvmArgs("-Xmx4096m", "-XX:MaxMetaspaceSize=1024m")
             testTask.maxParallelForks = 1
-            testTask.systemProperty("cuentame.repoRoot", rootProject.projectDir.absolutePath)
+            testTask.systemProperty("venkoi.repoRoot", rootProject.projectDir.absolutePath)
         }
     }
 
