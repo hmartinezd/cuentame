@@ -1,6 +1,6 @@
 # Preparation Recipes Domain
 
-This document describes the implementation of restaurant preparation recipes in the Cuentame application.
+This document describes the implementation of restaurant preparation recipes in the Venkoi Restaurant Ops application.
 
 ## Overview
 

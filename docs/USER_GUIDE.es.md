@@ -1,10 +1,10 @@
-# Guía del Usuario de Cuentame
+# Guía del Usuario de Venkoi Restaurant Ops
 
-Bienvenido a **Cuentame**, su gestor de inventario para restaurantes con almacenamiento local. Esta guía explica cómo usar la aplicación para mantener niveles de stock precisos y monitorear tendencias de valor de inventario, compras y mermas.
+Bienvenido a **Venkoi Restaurant Ops**, su gestor de inventario para restaurantes con almacenamiento local. Esta guía explica cómo usar la aplicación para mantener niveles de stock precisos y monitorear tendencias de valor de inventario, compras y mermas.
 
 ## 1. Configuración Inicial
 
-Al abrir Cuentame por primera vez, se le guiará por el proceso de **Onboarding**:
+Al abrir Venkoi Restaurant Ops por primera vez, se le guiará por el proceso de **Onboarding**:
 *   **Nombre del Restaurante:** Ingrese el nombre de su establecimiento.
 *   **Moneda e Idioma:** Elija su moneda principal (ej. USD) y su idioma de preferencia.
 
@@ -84,7 +84,7 @@ Puede profundizar en cada sección del Resumen de Reportes para ver los registro
 
 ## 6. Datos y Copias de Seguridad
 
-Cuentame guarda todos sus datos localmente en su dispositivo para máxima privacidad y disponibilidad sin conexión.
+Venkoi Restaurant Ops guarda todos sus datos localmente en su dispositivo para máxima privacidad y disponibilidad sin conexión.
 
 ### Crear una Copia de Seguridad
 Recomendamos crear copias de seguridad periódicas para proteger sus datos contra la pérdida o daño del dispositivo.

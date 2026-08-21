@@ -24,7 +24,7 @@ import com.venkoi.restaurantops.feature.reorder.reorderGraph
 import com.venkoi.restaurantops.feature.sales.salesGraph
 
 @Composable
-fun CuentameNavHost(
+fun RestaurantOpsNavHost(
     navController: NavHostController,
     onBackClick: () -> Unit,
     menuManagementEnabled: Boolean = true,

@@ -34,6 +34,6 @@ class AutoBackupScheduler @Inject constructor(
     }
 
     companion object {
-        private const val WORK_NAME = "cuentame_auto_backup"
+        private const val WORK_NAME = "restaurantops_auto_backup"
     }
 }

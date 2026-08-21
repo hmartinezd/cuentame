@@ -76,7 +76,7 @@ class NavigationTest {
                 composeTestRule.onAllNodes(hasTestTag("home_screen")).fetchSemanticsNodes().isNotEmpty()
             }
             
-            // Using nav_settings tag which is applied to the settings icon in CuentameApp.kt
+            // Using nav_settings tag which is applied to the settings icon in RestaurantOpsApp.kt
             composeTestRule.onNodeWithTag("nav_settings", useUnmergedTree = true).performClick()
             
             composeTestRule.waitUntil(15000) {

@@ -1,10 +1,10 @@
-# Cuentame User Guide
+# Venkoi Restaurant Ops User Guide
 
-Welcome to **Cuentame**, your local-first restaurant inventory manager. This guide explains how to use the app to maintain accurate stock levels and monitor inventory value, purchasing and Waste trends.
+Welcome to **Venkoi Restaurant Ops**, your local-first restaurant inventory manager. This guide explains how to use the app to maintain accurate stock levels and monitor inventory value, purchasing and Waste trends.
 
 ## 1. Initial Setup
 
-When you first open Cuentame, you will be guided through the **Onboarding** process:
+When you first open Venkoi Restaurant Ops, you will be guided through the **Onboarding** process:
 *   **Restaurant Name:** Enter the name of your establishment.
 *   **Currency & Language:** Choose your primary currency (e.g., USD) and preferred app language.
 
@@ -84,7 +84,7 @@ You can drill down into each section of the Reports Overview to see the exact re
 
 ## 6. Data and Backup
 
-Cuentame stores all your data locally on your device for maximum privacy and offline availability.
+Venkoi Restaurant Ops stores all your data locally on your device for maximum privacy and offline availability.
 
 ### Creating a Backup
 We recommend creating regular backups to protect your data against device loss or damage.

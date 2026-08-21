@@ -1,6 +1,6 @@
-# Cuentame
+# Venkoi Restaurant Ops
 
-**Cuentame** is a professional, native Android inventory management application designed for restaurants. It provides a local-first, auditable, and high-precision solution for tracking ingredients, purchases, waste, and production.
+**Venkoi Restaurant Ops** is a professional, native Android inventory management application designed for restaurants. It provides a local-first, auditable, and high-precision solution for tracking ingredients, purchases, waste, and production.
 
 ## Key Features
 
@@ -46,7 +46,7 @@
 
 ## Project Ownership
 
-This repository is publicly viewable, but Cuentame is a privately developed project. External contributions, unsolicited pull requests, and feature submissions are not currently accepted. Public repository visibility should not be interpreted as an open contribution process.
+This repository is publicly viewable, but Venkoi Restaurant Ops is a privately developed project. External contributions, unsolicited pull requests, and feature submissions are not currently accepted. Public repository visibility should not be interpreted as an open contribution process.
 
 ---
 

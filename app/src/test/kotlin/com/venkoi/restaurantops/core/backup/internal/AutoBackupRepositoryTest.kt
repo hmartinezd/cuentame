@@ -61,7 +61,7 @@ class AutoBackupRepositoryTest {
         assertThat(backupDir.exists()).isTrue()
         val backups = backupDir.listFiles { f -> f.extension == "zip" }
         assertThat(backups).hasLength(1)
-        assertThat(backups!![0].name).isEqualTo("cuentame-auto-2026-08-12T213000Z.zip")
+        assertThat(backups!![0].name).isEqualTo("restaurantops-auto-2026-08-12T213000Z.zip")
 
         coVerify { 
             preferencesRepository.updateAutoBackupStatus(
@@ -80,7 +80,7 @@ class AutoBackupRepositoryTest {
         // Create 10 old backups
         for (i in 1..10) {
             val day = i.toString().padStart(2, '0')
-            File(backupDir, "cuentame-auto-2026-08-${day}T000000Z.zip").createNewFile()
+            File(backupDir, "restaurantops-auto-2026-08-${day}T000000Z.zip").createNewFile()
         }
 
         val manifest = mockk<BackupManifest>()
@@ -100,15 +100,15 @@ class AutoBackupRepositoryTest {
         // New: 12
         // Sorted desc: 12, 10, 09, 08, 07, 06, 05
         // 04, 03, 02, 01 deleted.
-        assertThat(backups!![0].name).isEqualTo("cuentame-auto-2026-08-05T000000Z.zip")
-        assertThat(backups.last().name).isEqualTo("cuentame-auto-2026-08-12T213000Z.zip")
+        assertThat(backups!![0].name).isEqualTo("restaurantops-auto-2026-08-05T000000Z.zip")
+        assertThat(backups.last().name).isEqualTo("restaurantops-auto-2026-08-12T213000Z.zip")
     }
 
     @Test
     fun `failed backup does not delete previous backups`() = runBlocking {
         val backupDir = File(filesDir, "backups")
         backupDir.mkdirs()
-        val oldBackup = File(backupDir, "cuentame-auto-2026-08-11T000000Z.zip")
+        val oldBackup = File(backupDir, "restaurantops-auto-2026-08-11T000000Z.zip")
         oldBackup.createNewFile()
 
         every { backupRepository.createBackup(any()) } returns flowOf(BackupOperationStatus.Error(mockk(relaxed = true)))

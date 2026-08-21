@@ -97,7 +97,7 @@ fun AppTheme(
 /** Temporary source-compatible bridge while callers migrate to the neutral name. */
 @Deprecated("Use AppTheme", ReplaceWith("AppTheme(darkTheme, dynamicColor, content)"))
 @Composable
-fun CuentameTheme(
+fun RestaurantOpsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,

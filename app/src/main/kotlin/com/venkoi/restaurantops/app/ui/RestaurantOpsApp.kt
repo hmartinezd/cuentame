@@ -51,7 +51,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navOptions
-import com.venkoi.restaurantops.app.navigation.CuentameNavHost
+import com.venkoi.restaurantops.app.navigation.RestaurantOpsNavHost
 import com.venkoi.restaurantops.core.backup.api.RestoreStartupState
 import com.venkoi.restaurantops.core.presentation.navigation.Destination
 import com.venkoi.restaurantops.core.presentation.navigation.TopLevelDestination
@@ -61,7 +61,7 @@ import com.venkoi.restaurantops.app.ui.theme.AppSpacing
 import com.venkoi.restaurantops.app.ui.theme.AppTheme
 
 @Composable
-fun CuentameApp(
+fun RestaurantOpsApp(
     windowSizeClass: WindowSizeClass,
     viewModel: AppViewModel = hiltViewModel()
 ) {
@@ -218,7 +218,7 @@ fun MainAppContent(
         },
         bottomBar = {
             if (shouldShowBottomBar) {
-                CuentameBottomBar(
+                RestaurantOpsBottomBar(
                     destinations = TopLevelDestination.entries,
                     onNavigateToDestination = { destination ->
                         navigateToTopLevelDestination(navController, destination)
@@ -236,7 +236,7 @@ fun MainAppContent(
                 .consumeWindowInsets(padding)
         ) {
             if (shouldShowNavRail) {
-                CuentameNavRail(
+                RestaurantOpsNavRail(
                     destinations = TopLevelDestination.entries,
                     onNavigateToDestination = { destination ->
                         navigateToTopLevelDestination(navController, destination)
@@ -257,7 +257,7 @@ fun MainAppContent(
                 )
             }
 
-            CuentameNavHost(
+            RestaurantOpsNavHost(
                 navController = navController,
                 onBackClick = { navController.popBackStack() },
                 menuManagementEnabled = menuManagementEnabled,
@@ -317,7 +317,7 @@ private fun AppNavigationSidebar(
 
 
 @Composable
-private fun CuentameBottomBar(
+private fun RestaurantOpsBottomBar(
     destinations: List<TopLevelDestination>,
     onNavigateToDestination: (TopLevelDestination) -> Unit,
     currentDestination: NavDestination?,
@@ -346,7 +346,7 @@ private fun CuentameBottomBar(
 }
 
 @Composable
-private fun CuentameNavRail(
+private fun RestaurantOpsNavRail(
     destinations: List<TopLevelDestination>,
     onNavigateToDestination: (TopLevelDestination) -> Unit,
     currentDestination: NavDestination?,

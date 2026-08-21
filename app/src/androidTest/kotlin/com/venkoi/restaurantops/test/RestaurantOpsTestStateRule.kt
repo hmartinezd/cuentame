@@ -7,7 +7,7 @@ import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import javax.inject.Inject
 
-class CuentameTestStateRule @Inject constructor(
+class RestaurantOpsTestStateRule @Inject constructor(
     private val database: RestaurantInventoryDatabase,
     private val preferences: AppPreferencesRepository
 ) : TestWatcher() {

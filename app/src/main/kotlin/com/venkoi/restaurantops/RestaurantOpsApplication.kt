@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
-class CuentameApplication : Application(), Configuration.Provider {
+class RestaurantOpsApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var recoveryBootstrapper: RecoveryBootstrapper
 

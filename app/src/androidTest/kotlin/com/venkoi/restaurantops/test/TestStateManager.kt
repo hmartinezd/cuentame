@@ -44,7 +44,7 @@ class TestStateManager @Inject constructor(
                 if (name.startsWith("integration_test_") || 
                     name.startsWith("backup_integration_") ||
                     name.contains("test_attachment") ||
-                    name.contains("cuentame_test_backup")) {
+                    name.contains("restaurantops_test_backup")) {
                     file.deleteRecursively()
                 }
             }

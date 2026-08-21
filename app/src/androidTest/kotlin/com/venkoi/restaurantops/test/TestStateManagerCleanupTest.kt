@@ -45,7 +45,7 @@ class TestStateManagerCleanupTest {
             val filesDir = context.filesDir
 
             val matchingFile = File(cacheDir, "integration_test_file.txt").apply { createNewFile() }
-            val matchingDir = File(filesDir, "cuentame_test_backup_dir").apply { mkdir() }
+            val matchingDir = File(filesDir, "restaurantops_test_backup_dir").apply { mkdir() }
             val nestedMatchingFile = File(matchingDir, "nested.txt").apply { createNewFile() }
             val matchingTopDir = File(filesDir, "test_attachment_top").apply { mkdir() }
             val normalFile = File(filesDir, "important_data.txt").apply { createNewFile() }

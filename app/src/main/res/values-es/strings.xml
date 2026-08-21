@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Cuéntame</string>
+    <string name="app_name">Venkoi Restaurant Ops</string>
 
     <!-- Navigation -->
     <string name="nav_home">Panel</string>
@@ -13,7 +13,7 @@
 
     <!-- Placeholders -->
     <string name="home_title">Panel de Control</string>
-    <string name="home_description">Bienvenido al Inventario de Cuéntame. El resumen del estado de su restaurante aparecerá aquí.</string>
+    <string name="home_description">Bienvenido a Venkoi Restaurant Ops. El resumen del estado de su restaurante aparecerá aquí.</string>
     <string name="inventory_title">Ingredientes</string>
     <string name="inventory_description">Gestione sus ingredientes, unidades y empaques.</string>
     <string name="count_title">Conteos Físicos</string>
@@ -24,8 +24,8 @@
     <string name="reports_description">Vea informes de valor de inventario y uso.</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_welcome_title">Bienvenido a Cuéntame</string>
-    <string name="onboarding_welcome_desc">Cuéntame es su gestor de inventario local. Rastree todo sin conexión, con control total sobre sus datos.</string>
+    <string name="onboarding_welcome_title">Bienvenido a Venkoi Restaurant Ops</string>
+    <string name="onboarding_welcome_desc">Venkoi Restaurant Ops es su gestor de inventario local. Rastree todo sin conexión, con control total sobre sus datos.</string>
     <string name="onboarding_welcome_note">No se preocupe, puede cambiar sus ajustes más tarde.</string>
     <string name="onboarding_setup_action">Configurar restaurante</string>
     <string name="onboarding_restaurant_title">Detalles del Restaurante</string>
@@ -131,7 +131,7 @@
     <string name="theme_dark">Modo oscuro</string>
     <string name="lang_en">English</string>
     <string name="lang_es">Español</string>
-    <string name="about_desc">Cuéntame es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
+    <string name="about_desc">Venkoi Restaurant Ops es una solución de gestión de inventario local. Todos sus datos permanecen en este dispositivo.</string>
     <string name="about_version">Versión %s</string>
 
     <!-- Errors -->
@@ -680,7 +680,7 @@
     <!-- Backup & Restore -->
     <string name="settings_data_backup_section">Datos y copia de seguridad</string>
     <string name="create_backup_title">Crear copia de seguridad</string>
-    <string name="create_backup_desc">Crea una copia completa de sus datos locales de Cuentame que usted elige dónde guardar.</string>
+    <string name="create_backup_desc">Crea una copia completa de sus datos locales de Venkoi Restaurant Ops que usted elige dónde guardar.</string>
     <string name="backup_waiting_for_destination">Esperando destino…</string>
     <string name="backup_creating">Creando copia de seguridad…</string>
     <string name="backup_validating">Validando copia de seguridad…</string>
@@ -700,7 +700,7 @@
     <string name="backup_error_unsupported">Datos persistentes no compatibles.</string>
     <string name="backup_error_unknown">Se ha producido un error desconocido: %1$s</string>
     <string name="restore_backup_title">Restaurar copia de seguridad</string>
-    <string name="restore_backup_desc">Inspeccionar y restaurar datos desde un archivo de copia de seguridad de Cuéntame.</string>
+    <string name="restore_backup_desc">Inspeccionar y restaurar datos desde un archivo de copia de seguridad de Venkoi Restaurant Ops.</string>
     <string name="restore_inspecting">Inspeccionando copia de seguridad…</string>
     <string name="restore_preview_title">Vista Previa de la Copia</string>
     <string name="restore_preview_restaurant">Restaurante: %1$s</string>
@@ -1240,7 +1240,7 @@
     <string name="sales_duplicate_title">Este archivo de ventas ya fue importado.</string><string name="sales_duplicate_body">Fecha comercial: %1$s\nImportado: %2$s</string><string name="sales_view_import">Ver importación</string>
     <string name="sales_import_detail">Importación de ventas</string><string name="sales_imported_label">Importado</string><string name="sales_transactions">Transacciones</string><string name="sales_counts">%1$d transacciones · %2$d completadas · %3$d anuladas</string><string name="sales_transaction_row">%1$s · %2$d líneas</string><string name="sales_audit">Detalles de auditoría</string>
     <string name="sales_transaction">Transacción</string><string name="sales_current_status">Estado actual de la transacción</string><string name="sales_opened">Abierta</string><string name="sales_closed">Cerrada</string><string name="sales_completed">Completada</string><string name="sales_voided">Anulada</string><string name="sales_load_error">No se pudieron cargar las ventas.</string>
-    <string name="sales_error_too_large">Este archivo es demasiado grande para importar.</string><string name="sales_error_unreadable">No se puede leer este archivo.</string><string name="sales_error_permission">Se denegó el permiso para leer este archivo.</string><string name="sales_error_invalid">Este no es un archivo de ventas válido de Cuentame.</string><string name="sales_error_restaurant">Este archivo de ventas pertenece a otro restaurante.</string><string name="sales_error_unknown_menu">La revisión de menú usada por estas ventas no está disponible en Cuentame.</string><string name="sales_error_menu_mismatch">El archivo de ventas no coincide con su menú publicado.</string><string name="sales_error_item_mismatch">Uno o más artículos vendidos no coinciden con la revisión publicada.</string><string name="sales_error_export_conflict">Ya se importó otro archivo de ventas con esta identidad.</string><string name="sales_error_history_conflict">Estas ventas entran en conflicto con el historial importado.</string><string name="sales_error_save">No se pudieron guardar las ventas. No se importó nada.</string>
+    <string name="sales_error_too_large">Este archivo es demasiado grande para importar.</string><string name="sales_error_unreadable">No se puede leer este archivo.</string><string name="sales_error_permission">Se denegó el permiso para leer este archivo.</string><string name="sales_error_invalid">Este no es un archivo de ventas válido de Venkoi Restaurant Ops.</string><string name="sales_error_restaurant">Este archivo de ventas pertenece a otro restaurante.</string><string name="sales_error_unknown_menu">La revisión de menú usada por estas ventas no está disponible en Venkoi Restaurant Ops.</string><string name="sales_error_menu_mismatch">El archivo de ventas no coincide con su menú publicado.</string><string name="sales_error_item_mismatch">Uno o más artículos vendidos no coinciden con la revisión publicada.</string><string name="sales_error_export_conflict">Ya se importó otro archivo de ventas con esta identidad.</string><string name="sales_error_history_conflict">Estas ventas entran en conflicto con el historial importado.</string><string name="sales_error_save">No se pudieron guardar las ventas. No se importó nada.</string>
     <string name="sales_history_support">Importaciones duraderas de tu terminal de ventas</string><string name="sales_revision_currency">Revisión del menú %1$d · %2$s</string><string name="sales_preparing">Preparando el archivo de ventas…</string><string name="sales_importing">Importando…</string>
     <string name="sales_file_details">Detalles del archivo</string><string name="sales_transaction_count">Cantidad de transacciones</string><string name="sales_lines">Líneas</string><string name="sales_completed_sales">Ventas completadas</string><string name="sales_import_summary">Resumen de importación</string>
     <string name="sales_duplicate_status">Ya importado</string><string name="sales_attention_status">Requiere atención</string><string name="sales_error_status">Importación fallida</string><string name="sales_import_problem">No se pudieron importar las ventas</string>

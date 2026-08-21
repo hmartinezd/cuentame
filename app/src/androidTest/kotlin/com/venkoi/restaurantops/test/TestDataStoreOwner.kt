@@ -37,7 +37,7 @@ class TestDataStoreOwner @Inject constructor(
         private val scope = CoroutineScope(Dispatchers.IO + job)
 
         private fun createDataStore(context: Context): DataStore<Preferences> {
-            val file = context.preferencesDataStoreFile("cuentame-instrumentation-test")
+            val file = context.preferencesDataStoreFile("restaurantops-instrumentation-test")
             if (file.exists()) {
                 file.delete()
             }

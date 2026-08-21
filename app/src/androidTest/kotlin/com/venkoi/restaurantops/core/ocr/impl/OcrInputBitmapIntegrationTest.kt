@@ -81,7 +81,7 @@ class OcrInputBitmapIntegrationTest {
         val file = File.createTempFile("ocr-paper", ".pdf")
         val document = PdfDocument()
         val page = document.startPage(PdfDocument.PageInfo.Builder(600, 800, 1).create())
-        page.canvas.drawText("CUENTAME INVOICE", 70f, 130f, Paint().apply {
+        page.canvas.drawText("RESTAURANT OPS INVOICE", 70f, 130f, Paint().apply {
             color = Color.BLACK
             textSize = 52f
         })
@@ -194,7 +194,7 @@ class OcrInputBitmapIntegrationTest {
     fun realMlKit_recognizesKnownTextFromTransparentRaster() = runBlocking {
         val bitmap = Bitmap.createBitmap(1200, 500, Bitmap.Config.ARGB_8888).apply {
             eraseColor(Color.TRANSPARENT)
-            Canvas(this).drawText("CUENTAME INVOICE", 80f, 260f, Paint().apply {
+            Canvas(this).drawText("RESTAURANT OPS INVOICE", 80f, 260f, Paint().apply {
                 color = Color.BLACK
                 textSize = 120f
                 isAntiAlias = true

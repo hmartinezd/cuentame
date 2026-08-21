@@ -38,7 +38,7 @@ class AutoBackupRepository @Inject constructor(
             return AutoBackupOutcome.PERMANENT_FAILURE
         }
 
-        val filename = "cuentame-auto-${DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss'Z'").withZone(ZoneId.of("UTC")).format(timestamp)}.zip"
+        val filename = "restaurantops-auto-${DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss'Z'").withZone(ZoneId.of("UTC")).format(timestamp)}.zip"
         val tempFile = File(autoBackupDir, "$filename.tmp")
         val finalFile = File(autoBackupDir, filename)
 
@@ -99,7 +99,7 @@ class AutoBackupRepository @Inject constructor(
 
     private fun rotateBackups() {
         val backups = autoBackupDir.listFiles { file ->
-            file.isFile && file.name.startsWith("cuentame-auto-") && file.name.endsWith(".zip")
+            file.isFile && file.name.startsWith("restaurantops-auto-") && file.name.endsWith(".zip")
         }?.sortedByDescending { it.name } ?: return
         backups.drop(7).forEach { it.delete() }
     }

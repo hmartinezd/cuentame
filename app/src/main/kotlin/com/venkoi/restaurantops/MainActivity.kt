@@ -15,7 +15,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.venkoi.restaurantops.app.ui.AppPreferencesState
 import com.venkoi.restaurantops.app.ui.AppViewModel
-import com.venkoi.restaurantops.app.ui.CuentameApp
+import com.venkoi.restaurantops.app.ui.RestaurantOpsApp
 import com.venkoi.restaurantops.app.ui.theme.AppTheme
 import com.venkoi.restaurantops.core.preferences.model.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
                 },
                 dynamicColor = preferences?.dynamicColorEnabled ?: false
             ) {
-                CuentameApp(windowSizeClass = windowSizeClass)
+                RestaurantOpsApp(windowSizeClass = windowSizeClass)
             }
         }
     }

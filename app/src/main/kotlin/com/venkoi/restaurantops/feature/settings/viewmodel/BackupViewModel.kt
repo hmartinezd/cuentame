@@ -361,7 +361,7 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val reportJson = diagnosticExporter.generateReport()
-                val filename = "cuentame-diagnostic-${DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss'Z'").withZone(ZoneId.of("UTC")).format(timeProvider.now())}.json"
+                val filename = "restaurantops-diagnostic-${DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss'Z'").withZone(ZoneId.of("UTC")).format(timeProvider.now())}.json"
                 _events.send(BackupUiEvent.ShareDiagnosticReport(filename, reportJson))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

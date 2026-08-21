@@ -17,6 +17,6 @@ object BackupFilenameGenerator {
             ?: "Backup"
 
         val formattedDate = formatter.format(timestamp)
-        return "Cuentame_${sanitizedName}_$formattedDate.cuentame-backup"
+        return "RestaurantOps_${sanitizedName}_$formattedDate.cuentame-backup"
     }
 }

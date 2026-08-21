@@ -75,7 +75,7 @@ fun CsvImportRoute(
         uiState = uiState,
         onBack = onBack,
         onChooseFile = { filePicker.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "text/plain")) },
-        onDownloadTemplate = { templatePicker.launch("cuentame_ingredient_template.csv") },
+        onDownloadTemplate = { templatePicker.launch("restaurantops_ingredient_template.csv") },
         onToggleSelection = viewModel::toggleRowSelection,
         onEditRow = { editingRow = it },
         onConfirm = viewModel::confirmImport,
