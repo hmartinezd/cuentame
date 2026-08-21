@@ -1261,4 +1261,32 @@
     <string name="import_required_mapping_missing">Obligatorio: asigna %1$s</string>
     <string name="import_preview_action">Vista previa</string>
     <string name="no_ingredients_yet">Aún no hay ingredientes</string><string name="no_ingredients_guidance">Importa tu lista de ingredientes o añade el primero.</string><string name="no_ingredients_match_search">Ningún ingrediente coincide con tu búsqueda.</string><string name="no_ingredients_match_filters">Ningún ingrediente coincide con estos filtros.</string><string name="clear_search">Borrar búsqueda</string><string name="clear_filters">Borrar filtros</string><string name="import_existing_csv">Importar CSV existente</string><string name="add_ingredient_manually">Añadir ingrediente manualmente</string><string name="use_sample_catalog">Usar catálogo de ingredientes de muestra</string><string name="sample_catalog_confirm_title">¿Añadir ingredientes de muestra?</string><string name="sample_catalog_confirm_body">Esto añade un conjunto inicial de ingredientes y categorías comunes. Puedes editarlos o archivarlos después.</string><string name="sample_catalog_confirm_action">Añadir catálogo de muestra</string><string name="sample_catalog_adding">Añadiendo catálogo de muestra…</string><string name="sample_catalog_failure">No pudimos añadir el catálogo de muestra.</string><string name="sample_catalog_result">%1$d ingredientes creados, %2$d omitidos · %3$d categorías creadas, %4$d reutilizadas · %5$d opciones de unidad creadas</string>
+    <!-- Autenticación e inicio SaaS -->
+    <string name="auth_sign_in_title">Iniciar sesión</string>
+    <string name="auth_sign_up_title">Crear su cuenta</string>
+    <string name="auth_email">Correo electrónico</string>
+    <string name="auth_password">Contraseña</string>
+    <string name="auth_show_password">Mostrar contraseña</string>
+    <string name="auth_hide_password">Ocultar contraseña</string>
+    <string name="auth_sign_in_action">Iniciar sesión</string>
+    <string name="auth_sign_up_action">Crear cuenta</string>
+    <string name="auth_switch_to_sign_up">¿Es nuevo? Cree una cuenta</string>
+    <string name="auth_switch_to_sign_in">¿Ya tiene una cuenta? Inicie sesión</string>
+    <string name="auth_sign_out">Cerrar sesión</string>
+    <string name="auth_error_email">Ingrese un correo electrónico válido.</string>
+    <string name="auth_error_password_required">Ingrese su contraseña.</string>
+    <string name="auth_error_password_short">La contraseña debe tener al menos 6 caracteres.</string>
+    <string name="auth_error_generic">No pudimos completar la solicitud. Revise sus datos y conexión e inténtelo de nuevo.</string>
+    <string name="saas_setup_required_title">Configuración de cuenta requerida</string>
+    <string name="saas_setup_required_message">Continúe la configuración para conectar su organización y restaurante.</string>
+    <string name="saas_network_required_title">Se requiere conexión a Internet</string>
+    <string name="saas_network_required_message">Conéctese a Internet para terminar de configurar esta cuenta.</string>
+    <string name="saas_device_revoked_title">Acceso del dispositivo eliminado</string>
+    <string name="saas_device_revoked_message">Este dispositivo ya no tiene acceso al restaurante.</string>
+    <string name="saas_access_mismatch_title">El acceso al restaurante no coincide</string>
+    <string name="saas_access_mismatch_message">Esta cuenta no tiene acceso al restaurante guardado en este dispositivo.</string>
+    <string name="saas_multiple_title">Se requiere seleccionar un restaurante</string>
+    <string name="saas_multiple_message">Esta cuenta tiene acceso a varios restaurantes. La selección aún no está disponible.</string>
+    <string name="saas_error_title">No se puede iniciar</string>
+    <string name="saas_error_message">Ocurrió un problema al preparar la aplicación. Inténtelo de nuevo más tarde.</string>
 </resources>

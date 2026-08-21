@@ -1306,4 +1306,32 @@
     <string name="import_required_mapping_missing">Required: map %1$s</string>
     <string name="import_preview_action">Preview import</string>
     <string name="no_ingredients_yet">No ingredients yet</string><string name="no_ingredients_guidance">Import your existing ingredient list or add your first ingredient.</string><string name="no_ingredients_match_search">No ingredients match your search.</string><string name="no_ingredients_match_filters">No ingredients match these filters.</string><string name="clear_search">Clear search</string><string name="clear_filters">Clear filters</string><string name="import_existing_csv">Import existing CSV</string><string name="add_ingredient_manually">Add ingredient manually</string><string name="use_sample_catalog">Use sample ingredient catalog</string><string name="sample_catalog_confirm_title">Add sample ingredients?</string><string name="sample_catalog_confirm_body">This adds a starter set of common restaurant ingredients and categories. You can edit or archive them afterward.</string><string name="sample_catalog_confirm_action">Add sample catalog</string><string name="sample_catalog_adding">Adding sample catalog…</string><string name="sample_catalog_failure">We couldn’t add the sample catalog.</string><string name="sample_catalog_result">%1$d ingredients created, %2$d skipped · %3$d categories created, %4$d reused · %5$d unit options created</string>
+    <!-- SaaS authentication and startup -->
+    <string name="auth_sign_in_title">Sign in</string>
+    <string name="auth_sign_up_title">Create your account</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_show_password">Show password</string>
+    <string name="auth_hide_password">Hide password</string>
+    <string name="auth_sign_in_action">Sign in</string>
+    <string name="auth_sign_up_action">Create account</string>
+    <string name="auth_switch_to_sign_up">New here? Create an account</string>
+    <string name="auth_switch_to_sign_in">Already have an account? Sign in</string>
+    <string name="auth_sign_out">Sign out</string>
+    <string name="auth_error_email">Enter a valid email address.</string>
+    <string name="auth_error_password_required">Enter your password.</string>
+    <string name="auth_error_password_short">Password must be at least 6 characters.</string>
+    <string name="auth_error_generic">We couldn’t complete that request. Check your details and connection, then try again.</string>
+    <string name="saas_setup_required_title">Account setup required</string>
+    <string name="saas_setup_required_message">Continue account setup to connect your organization and restaurant.</string>
+    <string name="saas_network_required_title">Internet connection required</string>
+    <string name="saas_network_required_message">Connect to the Internet to finish setting up this account.</string>
+    <string name="saas_device_revoked_title">Device access removed</string>
+    <string name="saas_device_revoked_message">This device no longer has access to the restaurant.</string>
+    <string name="saas_access_mismatch_title">Restaurant access mismatch</string>
+    <string name="saas_access_mismatch_message">This account does not have access to the restaurant stored on this device.</string>
+    <string name="saas_multiple_title">Restaurant selection required</string>
+    <string name="saas_multiple_message">This account has access to multiple restaurants. Restaurant selection is not supported yet.</string>
+    <string name="saas_error_title">Unable to start</string>
+    <string name="saas_error_message">Something went wrong while preparing the app. Please try again later.</string>
 </resources>

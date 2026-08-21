@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -56,6 +57,9 @@ import com.venkoi.restaurantops.core.backup.api.RestoreStartupState
 import com.venkoi.restaurantops.core.presentation.navigation.Destination
 import com.venkoi.restaurantops.core.presentation.navigation.TopLevelDestination
 import com.venkoi.restaurantops.core.domain.usecase.AppStartState
+import com.venkoi.restaurantops.core.domain.model.startup.SaaSStartupState
+import com.venkoi.restaurantops.feature.auth.AuthRoute
+import com.venkoi.restaurantops.feature.auth.AuthViewModel
 import com.venkoi.restaurantops.feature.onboarding.ui.OnboardingRoute
 import com.venkoi.restaurantops.app.ui.theme.AppSpacing
 import com.venkoi.restaurantops.app.ui.theme.AppTheme
@@ -67,31 +71,103 @@ fun RestaurantOpsApp(
 ) {
     val startState by viewModel.startState.collectAsStateWithLifecycle()
     val recoveryState by viewModel.recoveryState.collectAsStateWithLifecycle()
+    val saasStartupState by viewModel.saasStartupState.collectAsStateWithLifecycle()
     val preferencesState by viewModel.preferencesState.collectAsStateWithLifecycle()
 
-    when {
-        recoveryState is RestoreStartupState.NotStarted || recoveryState is RestoreStartupState.Recovering -> {
+    when (resolveRootDestination(recoveryState, saasStartupState, startState)) {
+        RootDestination.LOADING -> {
             LoadingContent(stringResource(com.venkoi.restaurantops.R.string.state_loading_desc))
         }
-        recoveryState is RestoreStartupState.RecoveryRequired -> {
+        RootDestination.RECOVERY_REQUIRED -> {
             RecoveryRequiredContent(onRetry = { viewModel.retryRecovery() })
         }
-        else -> {
-            when (startState) {
-                AppStartState.Loading -> {
-                    LoadingContent(stringResource(com.venkoi.restaurantops.R.string.state_loading_desc))
-                }
-                AppStartState.RequiresOnboarding -> {
-                    OnboardingFlow()
-                }
-                AppStartState.Ready -> {
-                    MainAppContent(
-                        windowSizeClass = windowSizeClass,
-                        menuManagementEnabled = (preferencesState as? AppPreferencesState.Ready)
-                            ?.preferences?.menuManagementEnabled ?: true
-                    )
-                }
-            }
+        RootDestination.AUTH -> AuthRoute()
+        RootDestination.ONBOARDING -> OnboardingFlow()
+        RootDestination.MAIN -> MainAppContent(
+            windowSizeClass = windowSizeClass,
+            menuManagementEnabled = (preferencesState as? AppPreferencesState.Ready)
+                ?.preferences?.menuManagementEnabled ?: true
+        )
+        RootDestination.SETUP_REQUIRED -> StartupMessageContent(
+            title = stringResource(com.venkoi.restaurantops.R.string.saas_setup_required_title),
+            message = stringResource(com.venkoi.restaurantops.R.string.saas_setup_required_message),
+            tag = "saas_setup_required"
+        )
+        RootDestination.NETWORK_REQUIRED -> StartupMessageContent(
+            title = stringResource(com.venkoi.restaurantops.R.string.saas_network_required_title),
+            message = stringResource(com.venkoi.restaurantops.R.string.saas_network_required_message),
+            tag = "saas_network_required"
+        )
+        RootDestination.DEVICE_REVOKED -> DeviceRevokedRoute()
+        RootDestination.TENANT_MISMATCH -> StartupMessageContent(
+            stringResource(com.venkoi.restaurantops.R.string.saas_access_mismatch_title),
+            stringResource(com.venkoi.restaurantops.R.string.saas_access_mismatch_message),
+            "saas_tenant_mismatch"
+        )
+        RootDestination.MULTIPLE_UNSUPPORTED -> StartupMessageContent(
+            stringResource(com.venkoi.restaurantops.R.string.saas_multiple_title),
+            stringResource(com.venkoi.restaurantops.R.string.saas_multiple_message),
+            "saas_multiple_unsupported"
+        )
+        RootDestination.ERROR -> StartupMessageContent(
+            stringResource(com.venkoi.restaurantops.R.string.saas_error_title),
+            stringResource(com.venkoi.restaurantops.R.string.saas_error_message),
+            "saas_startup_error"
+        )
+    }
+}
+
+internal enum class RootDestination {
+    LOADING, RECOVERY_REQUIRED, AUTH, ONBOARDING, MAIN, SETUP_REQUIRED,
+    NETWORK_REQUIRED, DEVICE_REVOKED, TENANT_MISMATCH, MULTIPLE_UNSUPPORTED, ERROR
+}
+
+internal fun resolveRootDestination(
+    recovery: RestoreStartupState,
+    saas: SaaSStartupState,
+    local: AppStartState
+): RootDestination {
+    if (recovery is RestoreStartupState.NotStarted || recovery is RestoreStartupState.Recovering) return RootDestination.LOADING
+    if (recovery is RestoreStartupState.RecoveryRequired) return RootDestination.RECOVERY_REQUIRED
+    return when (saas) {
+        SaaSStartupState.Loading -> RootDestination.LOADING
+        SaaSStartupState.RequiresAuthentication -> RootDestination.AUTH
+        is SaaSStartupState.ReadyOnline, SaaSStartupState.ReadyOffline -> when (local) {
+            AppStartState.Loading -> RootDestination.LOADING
+            AppStartState.RequiresOnboarding -> RootDestination.ONBOARDING
+            AppStartState.Ready -> RootDestination.MAIN
+        }
+        is SaaSStartupState.RequiresTenantSetup, is SaaSStartupState.RequiresLocalSetup -> RootDestination.SETUP_REQUIRED
+        SaaSStartupState.NetworkRequired -> RootDestination.NETWORK_REQUIRED
+        SaaSStartupState.DeviceRevoked -> RootDestination.DEVICE_REVOKED
+        SaaSStartupState.TenantAccessMismatch -> RootDestination.TENANT_MISMATCH
+        SaaSStartupState.MultipleRestaurantsUnsupported -> RootDestination.MULTIPLE_UNSUPPORTED
+        SaaSStartupState.Error -> RootDestination.ERROR
+    }
+}
+
+@Composable
+private fun StartupMessageContent(title: String, message: String, tag: String, action: (@Composable () -> Unit)? = null) {
+    Box(Modifier.fillMaxSize().padding(24.dp).testTag(tag), contentAlignment = Alignment.Center) {
+        Column(Modifier.widthIn(max = 560.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
+            Text(message, style = MaterialTheme.typography.bodyLarge)
+            action?.let { Spacer(Modifier.height(16.dp)); it() }
+        }
+    }
+}
+
+@Composable
+private fun DeviceRevokedRoute(viewModel: AuthViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    StartupMessageContent(
+        stringResource(com.venkoi.restaurantops.R.string.saas_device_revoked_title),
+        stringResource(com.venkoi.restaurantops.R.string.saas_device_revoked_message),
+        "saas_device_revoked"
+    ) {
+        androidx.compose.material3.Button(onClick = viewModel::signOut, enabled = !state.submitting) {
+            Text(stringResource(com.venkoi.restaurantops.R.string.auth_sign_out))
         }
     }
 }

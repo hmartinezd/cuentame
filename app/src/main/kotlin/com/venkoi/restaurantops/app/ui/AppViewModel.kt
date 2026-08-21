@@ -6,6 +6,8 @@ import com.venkoi.restaurantops.core.backup.api.RestoreStartupState
 import com.venkoi.restaurantops.core.backup.internal.RestoreOperationGate
 import com.venkoi.restaurantops.core.domain.usecase.AppStartState
 import com.venkoi.restaurantops.core.domain.usecase.ResolveAppStartStateUseCase
+import com.venkoi.restaurantops.core.domain.model.startup.SaaSStartupState
+import com.venkoi.restaurantops.core.domain.usecase.ResolveSaaSStartupStateUseCase
 import com.venkoi.restaurantops.core.preferences.model.AppPreferences
 import com.venkoi.restaurantops.core.preferences.repository.AppPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,10 +23,14 @@ sealed interface AppPreferencesState {
 @HiltViewModel
 class AppViewModel @Inject constructor(
     resolveAppStartStateUseCase: ResolveAppStartStateUseCase,
+    resolveSaaSStartupStateUseCase: ResolveSaaSStartupStateUseCase,
     preferencesRepository: AppPreferencesRepository,
     operationGate: RestoreOperationGate,
     private val restoreCoordinator: com.venkoi.restaurantops.core.backup.api.BackupRestoreCoordinator
 ) : ViewModel() {
+
+    val saasStartupState: StateFlow<SaaSStartupState> = resolveSaaSStartupStateUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SaaSStartupState.Loading)
 
     val startState: StateFlow<AppStartState> = resolveAppStartStateUseCase()
         .stateIn(
