@@ -71,6 +71,12 @@ object TestStorageModule {
     @Provides
     fun provideInventoryAreaDao(db: RestaurantInventoryDatabase) = db.inventoryAreaDao()
     @Provides
+    fun provideSyncEntityMetadataDao(db: RestaurantInventoryDatabase) = db.syncEntityMetadataDao()
+    @Provides
+    fun provideSyncCursorDao(db: RestaurantInventoryDatabase) = db.syncCursorDao()
+    @Provides
+    fun provideSyncOutboxDao(db: RestaurantInventoryDatabase) = db.syncOutboxDao()
+    @Provides
     fun provideIngredientCategoryDao(db: RestaurantInventoryDatabase) = db.ingredientCategoryDao()
     @Provides
     fun provideUnitDao(db: RestaurantInventoryDatabase) = db.unitDao()
