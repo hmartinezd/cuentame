@@ -3,9 +3,9 @@
 ## Initial State Discovery
 
 * **Project Name:** Cuentame
-* **Root Package:** `com.miara.cuentame`
-* **Namespace:** `com.miara.cuentame`
-* **Application ID:** `com.miara.cuentame`
+* **Root Package:** `com.venkoi.cuentame`
+* **Namespace:** `com.venkoi.cuentame`
+* **Application ID:** `com.venkoi.cuentame`
 * **Min SDK:** 28
 * **Target SDK:** 36
 * **Compile SDK:** 36

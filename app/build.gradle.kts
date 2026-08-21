@@ -7,17 +7,17 @@ plugins {
 }
 
 android {
-    namespace = "com.miara.cuentame"
+    namespace = "com.venkoi.cuentame"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.miara.cuentame"
+        applicationId = "com.venkoi.cuentame"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "com.miara.cuentame.CustomTestRunner"
+        testInstrumentationRunner = "com.venkoi.cuentame.CustomTestRunner"
         vectorDrawables {
             useSupportLibrary = true
         }

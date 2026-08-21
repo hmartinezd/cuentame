@@ -9,7 +9,7 @@ The project is intentionally consolidated into a single Gradle module (`:app`) t
 ### Internal Package Layout
 
 ```text
-com.miara.cuentame.
+com.venkoi.cuentame.
   app/              # Application composition, root navigation, dependency injection
   core/
     common/         # Pure Kotlin helpers (IDs, time, math)
