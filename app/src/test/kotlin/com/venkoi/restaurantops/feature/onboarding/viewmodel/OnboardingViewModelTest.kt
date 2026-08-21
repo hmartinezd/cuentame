@@ -14,7 +14,10 @@ import com.venkoi.restaurantops.core.preferences.model.AppPreferences
 import com.venkoi.restaurantops.core.preferences.model.ThemeMode
 import com.venkoi.restaurantops.core.preferences.repository.AppPreferencesRepository
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingDraft
+import com.venkoi.restaurantops.core.model.onboarding.OnboardingItemDraft
+import com.venkoi.restaurantops.core.model.onboarding.CloudRestaurantSetupContext
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingStep
+import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +41,8 @@ class OnboardingViewModelTest {
     private var shouldFailLocaleUpdate = false
     private var localeTagValue = AppPreferences.DEFAULT.appLocaleTag
     private val persistenceCalls = mutableListOf<String>()
+    private var setupResult: LocalSetupResult = LocalSetupResult.Success
+    private var completedCommand: CompleteLocalSetupCommand? = null
 
     private val fakePreferencesRepository = object : AppPreferencesRepository {
         override fun observePreferences(): Flow<AppPreferences> = MutableStateFlow(AppPreferences.DEFAULT)
@@ -68,7 +73,10 @@ class OnboardingViewModelTest {
     private val fakeSetupRepository = object : LocalSetupRepository {
         override suspend fun isSetupComplete(): Boolean = false
         override fun observeIsSetupComplete(): Flow<Boolean> = MutableStateFlow(false)
-        override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult = LocalSetupResult.Success
+        override suspend fun completeSetup(command: CompleteLocalSetupCommand): LocalSetupResult {
+            completedCommand = command
+            return setupResult
+        }
     }
 
     private val fakeRestaurantRepository = object : RestaurantRepository {
@@ -95,6 +103,10 @@ class OnboardingViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        createViewModel()
+    }
+
+    private fun createViewModel() {
         val completeOnboardingUseCase = CompleteOnboardingUseCase(
             fakeSetupRepository, 
             fakeRestaurantRepository, 
@@ -216,4 +228,84 @@ class OnboardingViewModelTest {
         assertThat(viewModel.uiState.value.draftSaveError).isNotNull()
         assertThat(viewModel.uiState.value.draftSaveError).isEqualTo(ValidationError.OnboardingDraftSaveFailed)
     }
+
+    @Test
+    fun `cloud context overrides stale draft metadata but preserves editable items`() = runTest {
+        draftValue = OnboardingDraft(
+            restaurantName = "Stale restaurant",
+            currencyCode = "EUR",
+            localeTag = "es-US",
+            areas = listOf(OnboardingItemDraft("draft-area", customName = "Patio", isSelected = true, sortOrder = 0)),
+            categories = listOf(OnboardingItemDraft("draft-category", customName = "Wine", isSelected = true, sortOrder = 0))
+        )
+        createViewModel()
+        val context = cloudContext()
+
+        viewModel.applyCloudRestaurantContext(context)
+
+        assertThat(viewModel.uiState.value.restaurantName).isEqualTo("Cloud Restaurant")
+        assertThat(viewModel.uiState.value.currencyCode).isEqualTo("USD")
+        assertThat(viewModel.uiState.value.localeTag).isEqualTo("en-US")
+        assertThat(viewModel.uiState.value.areas.single().customName).isEqualTo("Patio")
+        assertThat(viewModel.uiState.value.categories.single().customName).isEqualTo("Wine")
+
+        viewModel.onAddItem(isArea = true, name = "Terrace")
+        viewModel.onAddItem(isArea = false, name = "Dessert")
+        runCurrent()
+        assertThat(viewModel.uiState.value.areas.mapNotNull { it.customName }).contains("Terrace")
+        assertThat(viewModel.uiState.value.categories.mapNotNull { it.customName }).contains("Dessert")
+    }
+
+    @Test
+    fun `cloud completion uses exact authoritative identity and metadata`() = runTest {
+        draftValue = OnboardingDraft(
+            restaurantName = "Stale restaurant",
+            currencyCode = "EUR",
+            localeTag = "es-US",
+            areas = listOf(
+                OnboardingItemDraft("draft-area", customName = "Kitchen", isSelected = true, sortOrder = 0)
+            )
+        )
+        createViewModel()
+        viewModel.applyCloudRestaurantContext(cloudContext())
+
+        viewModel.onRestaurantNameChanged("Local drift")
+        viewModel.onCurrencySelected("EUR")
+        viewModel.onLocaleSelected("es-US")
+        viewModel.events.test {
+            viewModel.onCompleteClicked(emptyMap(), emptyMap())
+            runCurrent()
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        assertThat(completedCommand?.restaurantId).isEqualTo(RestaurantId("cloud-restaurant-id"))
+        assertThat(completedCommand?.restaurantName).isEqualTo("Cloud Restaurant")
+        assertThat(completedCommand?.currencyCode).isEqualTo("USD")
+        assertThat(completedCommand?.localeTag).isEqualTo("en-US")
+    }
+
+    @Test
+    fun `cloud setup failure remains in onboarding and emits safe error`() = runTest {
+        runCurrent()
+        val failure = IllegalStateException("local setup failed")
+        setupResult = LocalSetupResult.Failure(failure)
+        viewModel.applyCloudRestaurantContext(cloudContext())
+
+        viewModel.events.test {
+            viewModel.onCompleteClicked(emptyMap(), emptyMap())
+            runCurrent()
+
+            assertThat(awaitItem()).isEqualTo(OnboardingEvent.ShowError(failure))
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun cloudContext() = CloudRestaurantSetupContext(
+        restaurantId = RestaurantId("cloud-restaurant-id"),
+        restaurantName = "Cloud Restaurant",
+        currencyCode = "USD",
+        localeTag = "en-US"
+    )
 }

@@ -14,6 +14,7 @@ import com.venkoi.restaurantops.core.domain.usecase.LocalSetupValidator
 import com.venkoi.restaurantops.core.domain.validation.ValidationError
 import com.venkoi.restaurantops.core.preferences.repository.AppPreferencesRepository
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingDraft
+import com.venkoi.restaurantops.core.model.onboarding.CloudRestaurantSetupContext
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingItemDraft
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingItemUiModel
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingStep
@@ -23,6 +24,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +48,8 @@ data class OnboardingUiState(
     val canGoBack: Boolean = false,
     val canContinue: Boolean = false,
     val draftSaveError: Throwable? = null,
-    val isDraftSaving: Boolean = false
+    val isDraftSaving: Boolean = false,
+    val isCloudBacked: Boolean = false
 )
 
 sealed interface OnboardingEvent {
@@ -70,6 +73,8 @@ class OnboardingViewModel @Inject constructor(
 
     private val saveMutex = Mutex()
     private var pendingDebouncedSaveJob: Job? = null
+    private val initializationReady = CompletableDeferred<Unit>()
+    private var cloudContext: CloudRestaurantSetupContext? = null
 
     init {
         viewModelScope.launch {
@@ -81,12 +86,31 @@ class OnboardingViewModel @Inject constructor(
                 null
             }
             
-            if (draft == null) {
-                initializeWithDefaults()
-            } else {
-                restoreFromDraft(draft)
+            try {
+                if (draft == null) {
+                    initializeWithDefaults()
+                } else {
+                    restoreFromDraft(draft)
+                }
+            } finally {
+                initializationReady.complete(Unit)
             }
         }
+    }
+
+    suspend fun applyCloudRestaurantContext(context: CloudRestaurantSetupContext) {
+        initializationReady.await()
+        cloudContext = context
+        _uiState.update {
+            it.copy(
+                restaurantName = context.restaurantName,
+                currencyCode = context.currencyCode,
+                localeTag = context.localeTag,
+                validationErrors = it.validationErrors - "restaurantName",
+                isCloudBacked = true
+            )
+        }
+        updateCanContinue()
     }
 
     private fun initializeWithDefaults() {
@@ -157,17 +181,20 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun onRestaurantNameChanged(value: String) {
+        if (cloudContext != null) return
         _uiState.update { it.copy(restaurantName = value, validationErrors = it.validationErrors - "restaurantName") }
         updateCanContinue()
         scheduleDebouncedSave()
     }
 
     fun onCurrencySelected(code: String) {
+        if (cloudContext != null) return
         _uiState.update { it.copy(currencyCode = code) }
         scheduleImmediateSave()
     }
 
     fun onLocaleSelected(tag: String) {
+        if (cloudContext != null) return
         _uiState.update { it.copy(localeTag = tag) }
         pendingDebouncedSaveJob?.cancel()
         viewModelScope.launch {
@@ -348,12 +375,14 @@ class OnboardingViewModel @Inject constructor(
             try {
                 flushDraft()
                 val state = _uiState.value
+                val authoritativeCloudContext = cloudContext
                 val command = CompleteLocalSetupCommand(
-                    restaurantName = state.restaurantName,
-                    currencyCode = state.currencyCode,
-                    localeTag = state.localeTag,
+                    restaurantName = authoritativeCloudContext?.restaurantName ?: state.restaurantName,
+                    currencyCode = authoritativeCloudContext?.currencyCode ?: state.currencyCode,
+                    localeTag = authoritativeCloudContext?.localeTag ?: state.localeTag,
                     areas = getFinalAreas(state, suggestedAreaLabels),
-                    categories = getFinalCategories(state, suggestedCategoryLabels)
+                    categories = getFinalCategories(state, suggestedCategoryLabels),
+                    restaurantId = authoritativeCloudContext?.restaurantId
                 )
                 
                 validator.validate(command)

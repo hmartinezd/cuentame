@@ -60,17 +60,26 @@ import com.venkoi.restaurantops.R
 import com.venkoi.restaurantops.core.presentation.validation.toUserMessageRes
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingItemUiModel
 import com.venkoi.restaurantops.core.model.onboarding.OnboardingStep
+import com.venkoi.restaurantops.core.domain.model.tenant.RestaurantAccess
+import com.venkoi.restaurantops.core.model.onboarding.CloudRestaurantSetupContext
 import com.venkoi.restaurantops.feature.onboarding.viewmodel.OnboardingEvent
 import com.venkoi.restaurantops.feature.onboarding.viewmodel.OnboardingUiState
 import com.venkoi.restaurantops.feature.onboarding.viewmodel.OnboardingViewModel
 
 @Composable
 fun OnboardingRoute(
+    restaurantAccess: RestaurantAccess? = null,
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    LaunchedEffect(restaurantAccess) {
+        restaurantAccess?.let {
+            viewModel.applyCloudRestaurantContext(CloudRestaurantSetupContext.from(it))
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -86,7 +95,11 @@ fun OnboardingRoute(
     val suggestedCategoryLabels = uiState.categories.filter { it.isSuggested }.associate { it.templateKey!! to stringResource(it.labelResId!!) }
 
     OnboardingScreen(
-        uiState = uiState,
+        uiState = if (restaurantAccess != null && !uiState.isCloudBacked) {
+            uiState.copy(isLoading = true)
+        } else {
+            uiState
+        },
         snackbarHostState = snackbarHostState,
         onRestaurantNameChanged = viewModel::onRestaurantNameChanged,
         onCurrencySelected = viewModel::onCurrencySelected,
@@ -189,6 +202,7 @@ fun OnboardingScreen(
                             currency = uiState.currencyCode,
                             locale = uiState.localeTag,
                             errorResId = uiState.validationErrors["restaurantName"],
+                            isAuthoritative = uiState.isCloudBacked,
                             onNameChanged = onRestaurantNameChanged,
                             onCurrencySelected = onCurrencySelected,
                             onLocaleSelected = onLocaleSelected
@@ -253,6 +267,7 @@ fun RestaurantStep(
     currency: String,
     locale: String,
     errorResId: Int?,
+    isAuthoritative: Boolean,
     onNameChanged: (String) -> Unit,
     onCurrencySelected: (String) -> Unit,
     onLocaleSelected: (String) -> Unit
@@ -266,6 +281,7 @@ fun RestaurantStep(
             label = { Text(stringResource(R.string.onboarding_field_name)) },
             modifier = Modifier.fillMaxWidth().testTag("onboarding_restaurant_name"),
             singleLine = true,
+            readOnly = isAuthoritative,
             isError = errorResId != null,
             supportingText = errorResId?.let { { Text(stringResource(it)) } },
             keyboardOptions = KeyboardOptions(
@@ -278,8 +294,8 @@ fun RestaurantStep(
         var expanded by remember { mutableStateOf(false) }
         val currencies = listOf("USD", "EUR", "GBP", "CAD", "MXN")
         ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
+            expanded = expanded && !isAuthoritative,
+            onExpandedChange = { if (!isAuthoritative) expanded = !expanded }
         ) {
             OutlinedTextField(
                 value = currency,
@@ -287,6 +303,7 @@ fun RestaurantStep(
                 readOnly = true,
                 label = { Text(stringResource(R.string.onboarding_field_currency)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                enabled = !isAuthoritative,
                 modifier = Modifier.menuAnchor().fillMaxWidth()
             )
             ExposedDropdownMenu(
@@ -309,8 +326,8 @@ fun RestaurantStep(
         var langExpanded by remember { mutableStateOf(false) }
         val locales = mapOf("en-US" to stringResource(R.string.lang_en), "es-US" to stringResource(R.string.lang_es))
         ExposedDropdownMenuBox(
-            expanded = langExpanded,
-            onExpandedChange = { langExpanded = !langExpanded }
+            expanded = langExpanded && !isAuthoritative,
+            onExpandedChange = { if (!isAuthoritative) langExpanded = !langExpanded }
         ) {
             OutlinedTextField(
                 value = locales[locale] ?: locale,
@@ -318,6 +335,7 @@ fun RestaurantStep(
                 readOnly = true,
                 label = { Text(stringResource(R.string.onboarding_field_language)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = langExpanded) },
+                enabled = !isAuthoritative,
                 modifier = Modifier
                     .menuAnchor()
                     .fillMaxWidth()

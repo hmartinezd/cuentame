@@ -83,6 +83,10 @@ fun RestaurantOpsApp(
         }
         RootDestination.AUTH -> AuthRoute()
         RootDestination.ONBOARDING -> OnboardingFlow()
+        RootDestination.CLOUD_LOCAL_SETUP -> {
+            val state = saasStartupState as SaaSStartupState.RequiresLocalSetup
+            OnboardingRoute(restaurantAccess = state.restaurantAccess)
+        }
         RootDestination.MAIN -> MainAppContent(
             windowSizeClass = windowSizeClass,
             menuManagementEnabled = (preferencesState as? AppPreferencesState.Ready)
@@ -118,7 +122,7 @@ fun RestaurantOpsApp(
 }
 
 internal enum class RootDestination {
-    LOADING, RECOVERY_REQUIRED, AUTH, ONBOARDING, MAIN, SETUP_REQUIRED,
+    LOADING, RECOVERY_REQUIRED, AUTH, ONBOARDING, CLOUD_LOCAL_SETUP, MAIN, SETUP_REQUIRED,
     NETWORK_REQUIRED, DEVICE_REVOKED, TENANT_MISMATCH, MULTIPLE_UNSUPPORTED, ERROR
 }
 
@@ -137,7 +141,8 @@ internal fun resolveRootDestination(
             AppStartState.RequiresOnboarding -> RootDestination.ONBOARDING
             AppStartState.Ready -> RootDestination.MAIN
         }
-        is SaaSStartupState.RequiresTenantSetup, is SaaSStartupState.RequiresLocalSetup -> RootDestination.SETUP_REQUIRED
+        is SaaSStartupState.RequiresTenantSetup -> RootDestination.SETUP_REQUIRED
+        is SaaSStartupState.RequiresLocalSetup -> RootDestination.CLOUD_LOCAL_SETUP
         SaaSStartupState.NetworkRequired -> RootDestination.NETWORK_REQUIRED
         SaaSStartupState.DeviceRevoked -> RootDestination.DEVICE_REVOKED
         SaaSStartupState.TenantAccessMismatch -> RootDestination.TENANT_MISMATCH
