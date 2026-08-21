@@ -91,7 +91,7 @@ We recommend creating regular backups to protect your data against device loss o
 1.  Go to **Settings** -> **Data and backup**.
 2.  Tap **Create backup**.
 3.  Choose a destination where you want to save the backup file (e.g., Google Drive, an SD card, or another folder on your device).
-4.  The file will have a `.cuentame-backup` extension and contains all your ingredients, history, and attachments.
+4.  The file will have a `.venkoi-backup` extension and contains all your ingredients, history, and attachments.
 5.  **Validation:** After creation, the app automatically validates the backup archive to ensure it was written correctly.
 
 **Important Security Note:** Backups contain confidential business data and are not encrypted by the app. Store them in a secure location. The backup file is a ZIP archive containing JSON data and attachments.

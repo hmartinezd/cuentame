@@ -91,7 +91,7 @@ Recomendamos crear copias de seguridad periódicas para proteger sus datos contr
 1.  Vaya a **Configuración** -> **Datos y copia de seguridad**.
 2.  Toque **Crear copia de seguridad**.
 3.  Elija un destino donde desee guardar el archivo de respaldo (ej. Google Drive, una tarjeta SD u otra carpeta en su dispositivo).
-4.  El archivo tendrá la extensión `.cuentame-backup` y contiene todos sus ingredientes, historial y archivos adjuntos.
+4.  El archivo tendrá la extensión `.venkoi-backup` y contiene todos sus ingredientes, historial y archivos adjuntos.
 5.  **Validación:** Después de la creación, la aplicación valida automáticamente el archivo de respaldo para asegurar que se escribió correctamente.
 
 **Nota importante de seguridad:** Las copias de seguridad contienen datos comerciales confidenciales y no están cifradas por la aplicación. Guárdelas en un lugar seguro. El archivo de respaldo es un archivo ZIP que contiene datos JSON y adjuntos.

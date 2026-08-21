@@ -1,6 +1,6 @@
 # Persisted Data Inventory & Backup Specification (Version 1)
 
-This document specifies the authoritative format and strategy for Cuentame versioned backups (`.cuentame-backup`).
+This document specifies the authoritative format and strategy for Venkoi Restaurant Ops versioned backups (`.venkoi-backup`).
 
 ## Backup and Restore v1 Status
 
