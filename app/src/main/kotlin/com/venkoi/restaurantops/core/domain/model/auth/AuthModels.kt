@@ -8,5 +8,6 @@ data class AuthUser(
 sealed interface AuthSessionState {
     data object Initializing : AuthSessionState
     data object SignedOut : AuthSessionState
+    data object RefreshFailed : AuthSessionState
     data class SignedIn(val user: AuthUser) : AuthSessionState
 }

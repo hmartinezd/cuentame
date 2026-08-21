@@ -3,6 +3,7 @@ package com.venkoi.restaurantops.core.cloud.auth
 import com.google.common.truth.Truth.assertThat
 import com.venkoi.restaurantops.core.domain.model.auth.AuthSessionState
 import com.venkoi.restaurantops.core.domain.model.auth.AuthUser
+import io.github.jan.supabase.auth.status.RefreshFailureCause
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.auth.user.UserSession
@@ -40,5 +41,17 @@ class SessionStatusMapperTest {
                     AuthUser(id = "user-123", email = "owner@example.com")
                 )
             )
+    }
+
+    @Test
+    fun `refresh failure maps to refresh failed and not signed out`() {
+        val status = SessionStatus.RefreshFailure(
+            RefreshFailureCause.NetworkError(IllegalStateException("offline"))
+        )
+
+        val mapped = mapSessionStatus(status)
+
+        assertThat(mapped).isEqualTo(AuthSessionState.RefreshFailed)
+        assertThat(mapped).isNotEqualTo(AuthSessionState.SignedOut)
     }
 }

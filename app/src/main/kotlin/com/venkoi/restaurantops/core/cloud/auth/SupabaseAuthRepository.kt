@@ -43,8 +43,8 @@ class SupabaseAuthRepository @Inject constructor(
 
 internal fun mapSessionStatus(status: SessionStatus): AuthSessionState = when (status) {
     SessionStatus.Initializing -> AuthSessionState.Initializing
-    is SessionStatus.NotAuthenticated,
-    is SessionStatus.RefreshFailure -> AuthSessionState.SignedOut
+    is SessionStatus.NotAuthenticated -> AuthSessionState.SignedOut
+    is SessionStatus.RefreshFailure -> AuthSessionState.RefreshFailed
     is SessionStatus.Authenticated -> status.session.user?.let { user ->
         AuthSessionState.SignedIn(
             AuthUser(
