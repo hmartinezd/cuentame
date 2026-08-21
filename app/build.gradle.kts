@@ -37,7 +37,7 @@ require(supabasePublishableKey.startsWith("sb_publishable_")) {
 
 android {
     namespace = "com.venkoi.restaurantops"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.venkoi.restaurantops"
