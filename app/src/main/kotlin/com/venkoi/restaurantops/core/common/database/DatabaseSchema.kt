@@ -6,5 +6,5 @@ package com.venkoi.restaurantops.core.common.database
  * to ensure backup manifests and Room migrations cannot drift silently.
  */
 object DatabaseSchema {
-    const val VERSION = 16
+    const val VERSION = 17
 }

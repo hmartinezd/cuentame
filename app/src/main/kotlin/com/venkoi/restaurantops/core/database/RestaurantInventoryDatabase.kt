@@ -52,7 +52,10 @@ import com.venkoi.restaurantops.core.common.database.DatabaseSchema
         SalesImportEntity::class,
         ImportedSaleTransactionEntity::class,
         ImportedSaleLineEntity::class,
-        SalesImportTransactionRefEntity::class
+        SalesImportTransactionRefEntity::class,
+        SyncEntityMetadataEntity::class,
+        SyncCursorEntity::class,
+        SyncOutboxEntity::class
     ],
     version = DatabaseSchema.VERSION,
     exportSchema = true
@@ -85,6 +88,9 @@ abstract class RestaurantInventoryDatabase : RoomDatabase() {
     abstract fun backupDao(): BackupDao
     abstract fun restoreDao(): RestoreDao
     abstract fun salesImportDao(): SalesImportDao
+    abstract fun syncEntityMetadataDao(): SyncEntityMetadataDao
+    abstract fun syncCursorDao(): SyncCursorDao
+    abstract fun syncOutboxDao(): SyncOutboxDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {

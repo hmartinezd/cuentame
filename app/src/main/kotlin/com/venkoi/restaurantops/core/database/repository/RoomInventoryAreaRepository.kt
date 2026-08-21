@@ -8,6 +8,7 @@ import com.venkoi.restaurantops.core.database.dao.InventoryAreaDao
 import com.venkoi.restaurantops.core.database.dao.RestaurantDao
 import com.venkoi.restaurantops.core.database.mapper.toDomain
 import com.venkoi.restaurantops.core.database.mapper.toEntity
+import com.venkoi.restaurantops.core.database.sync.InventoryAreaSyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.repository.InventoryAreaRepository
 import com.venkoi.restaurantops.core.domain.validation.ValidationError
 import com.venkoi.restaurantops.core.model.inventory.InventoryArea
@@ -24,8 +25,27 @@ class RoomInventoryAreaRepository @Inject constructor(
     private val database: RestaurantInventoryDatabase,
     private val inventoryAreaDao: InventoryAreaDao,
     private val restaurantDao: RestaurantDao,
-    private val batchDao: com.venkoi.restaurantops.core.database.dao.ProductionBatchDao
+    private val batchDao: com.venkoi.restaurantops.core.database.dao.ProductionBatchDao,
+    private val outboxWriter: InventoryAreaSyncOutboxWriter
 ) : InventoryAreaRepository {
+    constructor(
+        database: RestaurantInventoryDatabase,
+        inventoryAreaDao: InventoryAreaDao,
+        restaurantDao: RestaurantDao,
+        batchDao: com.venkoi.restaurantops.core.database.dao.ProductionBatchDao
+    ) : this(
+        database,
+        inventoryAreaDao,
+        restaurantDao,
+        batchDao,
+        InventoryAreaSyncOutboxWriter(
+            database.syncEntityMetadataDao(), database.syncOutboxDao(),
+            com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(),
+            com.venkoi.restaurantops.core.common.time.SystemTimeProvider(),
+            kotlinx.serialization.json.Json { encodeDefaults = true }
+        )
+    )
+
     override fun observeActiveAreas(): Flow<List<InventoryArea>> {
         return restaurantDao.observeRestaurant().flatMapLatest { restaurant ->
             if (restaurant == null) flowOf(emptyList())
@@ -55,7 +75,11 @@ class RoomInventoryAreaRepository @Inject constructor(
         val duplicate = inventoryAreaDao.findByNormalizedName(area.restaurantId.value, normalizedName)
         if (duplicate != null && duplicate.id != area.id.value) throw ValidationError.DuplicateActiveName
 
-        inventoryAreaDao.upsert(area.copy(normalizedName = normalizedName).toEntity())
+        database.withTransaction {
+            val persisted = area.copy(normalizedName = normalizedName).toEntity()
+            inventoryAreaDao.upsert(persisted)
+            outboxWriter.record(persisted)
+        }
     }
 
     override suspend fun archive(id: InventoryAreaId, at: Instant) {
@@ -71,6 +95,8 @@ class RoomInventoryAreaRepository @Inject constructor(
             if (batchDao.countDraftsUsingComponentSourceArea(id.value) > 0) throw ValidationError.AreaUsedByProductionDraft
 
             inventoryAreaDao.softArchive(id.value, at.toEpochMilli())
+            val tombstone = inventoryAreaDao.getById(id.value)!!
+            outboxWriter.record(tombstone)
         }
     }
 
@@ -88,7 +114,11 @@ class RoomInventoryAreaRepository @Inject constructor(
             
             ids.forEachIndexed { index, id ->
                 val entity = inventoryAreaDao.getById(id.value)!!
-                inventoryAreaDao.upsert(entity.copy(sortOrder = index))
+                if (entity.sortOrder != index) {
+                    val reordered = entity.copy(sortOrder = index)
+                    inventoryAreaDao.upsert(reordered)
+                    outboxWriter.record(reordered)
+                }
             }
         }
     }

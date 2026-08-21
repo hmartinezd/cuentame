@@ -11,6 +11,7 @@ import com.venkoi.restaurantops.core.database.dao.RestaurantDao
 import com.venkoi.restaurantops.core.database.entity.IngredientCategoryEntity
 import com.venkoi.restaurantops.core.database.entity.InventoryAreaEntity
 import com.venkoi.restaurantops.core.database.entity.RestaurantEntity
+import com.venkoi.restaurantops.core.database.sync.InventoryAreaSyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.repository.CompleteLocalSetupCommand
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
@@ -32,8 +33,25 @@ class RoomLocalSetupRepository @Inject constructor(
     private val categoryDao: IngredientCategoryDao,
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider,
-    private val validator: LocalSetupValidator
+    private val validator: LocalSetupValidator,
+    private val outboxWriter: InventoryAreaSyncOutboxWriter
 ) : LocalSetupRepository {
+    constructor(
+        database: RestaurantInventoryDatabase,
+        restaurantDao: RestaurantDao,
+        areaDao: InventoryAreaDao,
+        categoryDao: IngredientCategoryDao,
+        idGenerator: IdGenerator,
+        timeProvider: TimeProvider,
+        validator: LocalSetupValidator
+    ) : this(
+        database, restaurantDao, areaDao, categoryDao, idGenerator, timeProvider, validator,
+        InventoryAreaSyncOutboxWriter(
+            database.syncEntityMetadataDao(), database.syncOutboxDao(),
+            com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(), timeProvider,
+            kotlinx.serialization.json.Json { encodeDefaults = true }
+        )
+    )
 
     override suspend fun isSetupComplete(): Boolean {
         val restaurant = restaurantDao.getRestaurant()
@@ -105,8 +123,7 @@ class RoomLocalSetupRepository @Inject constructor(
                 }
 
                 command.areas.forEach { areaInput ->
-                    areaDao.upsert(
-                        InventoryAreaEntity(
+                    val area = InventoryAreaEntity(
                             id = idGenerator.newId(),
                             restaurantId = restaurantId,
                             name = areaInput.name,
@@ -117,7 +134,8 @@ class RoomLocalSetupRepository @Inject constructor(
                             updatedAt = now,
                             deletedAt = null
                         )
-                    )
+                    areaDao.upsert(area)
+                    outboxWriter.record(area)
                 }
 
                 command.categories.forEach { categoryInput ->

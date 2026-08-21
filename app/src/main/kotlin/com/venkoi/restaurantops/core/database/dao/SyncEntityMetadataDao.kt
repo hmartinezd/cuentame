@@ -1,0 +1,18 @@
+package com.venkoi.restaurantops.core.database.dao
+
+import androidx.room.Dao
+import androidx.room.Query
+import androidx.room.Upsert
+import com.venkoi.restaurantops.core.database.entity.SyncEntityMetadataEntity
+
+@Dao
+interface SyncEntityMetadataDao {
+    @Query("SELECT * FROM sync_entity_metadata WHERE entityType = :entityType AND entityId = :entityId")
+    suspend fun get(entityType: String, entityId: String): SyncEntityMetadataEntity?
+
+    @Upsert
+    suspend fun upsert(metadata: SyncEntityMetadataEntity)
+
+    @Query("DELETE FROM sync_entity_metadata WHERE entityType = :entityType AND entityId = :entityId")
+    suspend fun delete(entityType: String, entityId: String)
+}

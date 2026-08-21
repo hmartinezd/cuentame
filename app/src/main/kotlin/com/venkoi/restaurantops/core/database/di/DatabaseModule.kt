@@ -30,6 +30,9 @@ import com.venkoi.restaurantops.core.database.dao.StockCountDao
 import com.venkoi.restaurantops.core.database.dao.SupplierDao
 import com.venkoi.restaurantops.core.database.dao.UnitDao
 import com.venkoi.restaurantops.core.database.dao.WasteDao
+import com.venkoi.restaurantops.core.database.dao.SyncEntityMetadataDao
+import com.venkoi.restaurantops.core.database.dao.SyncCursorDao
+import com.venkoi.restaurantops.core.database.dao.SyncOutboxDao
 import com.venkoi.restaurantops.core.database.seed.SystemUnitSeeder
 import dagger.Module
 import dagger.Provides
@@ -87,6 +90,15 @@ object DatabaseModule {
 
     @Provides
     fun provideInventoryAreaDao(db: RestaurantInventoryDatabase): InventoryAreaDao = db.inventoryAreaDao()
+
+    @Provides
+    fun provideSyncEntityMetadataDao(db: RestaurantInventoryDatabase): SyncEntityMetadataDao = db.syncEntityMetadataDao()
+
+    @Provides
+    fun provideSyncCursorDao(db: RestaurantInventoryDatabase): SyncCursorDao = db.syncCursorDao()
+
+    @Provides
+    fun provideSyncOutboxDao(db: RestaurantInventoryDatabase): SyncOutboxDao = db.syncOutboxDao()
 
     @Provides
     fun provideIngredientCategoryDao(db: RestaurantInventoryDatabase): IngredientCategoryDao = db.ingredientCategoryDao()

@@ -8,6 +8,7 @@ import com.venkoi.restaurantops.core.common.time.TimeProvider
 import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
 import com.venkoi.restaurantops.core.database.entity.InventoryAreaEntity
 import com.venkoi.restaurantops.core.database.entity.RestaurantEntity
+import com.venkoi.restaurantops.core.database.sync.INVENTORY_AREA_ENTITY_TYPE
 import com.venkoi.restaurantops.core.domain.repository.CompleteLocalSetupCommand
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
 import com.venkoi.restaurantops.core.domain.repository.SetupAreaInput
@@ -60,6 +61,11 @@ class RoomLocalSetupRepositoryIdentityTest {
 
         assertThat(result).isEqualTo(LocalSetupResult.Success)
         assertThat(database.restaurantDao().getRestaurant()?.id).isEqualTo("cloud-restaurant")
+        val operation = database.syncOutboxDao()
+            .getPending("cloud-restaurant", INVENTORY_AREA_ENTITY_TYPE, 10)
+            .single()
+        assertThat(operation.restaurantId).isEqualTo("cloud-restaurant")
+        assertThat(operation.entityId).isEqualTo("area-1")
     }
 
     @Test
