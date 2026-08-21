@@ -1,8 +1,8 @@
-package com.miara.cuentame.core.ocr.fixture
+package com.venkoi.cuentame.core.ocr.fixture
 
-import com.miara.cuentame.core.ocr.parser.InvoiceParseWarning
-import com.miara.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
-import com.miara.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
+import com.venkoi.cuentame.core.ocr.parser.InvoiceParseWarning
+import com.venkoi.cuentame.core.ocr.parser.ParsedInvoiceLineCandidate
+import com.venkoi.cuentame.core.ocr.parser.PurchaseInvoiceParseResult
 import java.math.BigDecimal
 import java.time.LocalDate
 import org.junit.Assert.fail

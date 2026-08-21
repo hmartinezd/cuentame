@@ -1,7 +1,6 @@
-package com.miara.cuentame.core.ocr.fixture
+package com.venkoi.cuentame.core.ocr.fixture
 
-import com.miara.cuentame.core.ocr.api.OcrPageEvidence
-import kotlinx.serialization.decodeFromString
+import com.venkoi.cuentame.core.ocr.api.OcrPageEvidence
 import kotlinx.serialization.json.Json
 
 object OcrEvidenceFixtureLoader {
