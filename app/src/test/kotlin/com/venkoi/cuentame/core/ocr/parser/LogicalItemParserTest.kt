@@ -49,7 +49,7 @@ class LogicalItemParserTest {
         val result = parser.parse(listOf(page))
 
         assertEquals(2, result.lines.size)
-        assertNotNull(result.subtotal.normalizedValue)
+        assertEquals(0, BigDecimal("30.00").compareTo(result.subtotal.normalizedValue))
     }
 
     @Test

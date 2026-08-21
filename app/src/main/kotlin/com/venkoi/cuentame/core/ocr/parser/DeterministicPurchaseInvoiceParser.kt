@@ -751,7 +751,7 @@ class DeterministicPurchaseInvoiceParser @Inject constructor() : PurchaseInvoice
 
     private fun isCredibleSummaryRow(row: Row, labels: Set<String>): Boolean {
         val words = row.tokens.filter { it.text.any(Char::isLetter) }
-        val labelText = words.joinToString(" ").lowercase().trim()
+        val labelText = words.joinToString(" ") { it.text }.lowercase().trim()
         
         if (labelText.isEmpty()) return false
 
