@@ -48,7 +48,8 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
     private val restaurants: RestaurantRepository,
     private val syncService: InventoryAreaSyncService,
     private val resolver: InventoryAreaConflictResolver,
-    private val previewLoader: InventoryAreaConflictPreviewLoader
+    private val previewLoader: InventoryAreaConflictPreviewLoader,
+    private val mutationGate: InventoryAreaMutationGate
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<InventoryAreaManualSyncUiState>(InventoryAreaManualSyncUiState.Idle)
     val uiState: StateFlow<InventoryAreaManualSyncUiState> = _uiState.asStateFlow()
@@ -73,7 +74,10 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
         if (operation?.isActive == true) return
         if (_uiState.value is InventoryAreaManualSyncUiState.Conflict ||
             _uiState.value is InventoryAreaManualSyncUiState.PreviewUnavailable
-        ) _uiState.value = InventoryAreaManualSyncUiState.Idle
+        ) {
+            mutationGate.unlockConflict()
+            _uiState.value = InventoryAreaManualSyncUiState.Idle
+        }
     }
 
     fun clearResult() {
@@ -92,8 +96,8 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
             else resolver.resolveUseCloud(state.conflict)
             when (result) {
                 is InventoryAreaConflictResolutionResult.KeepLocalPrepared,
-                is InventoryAreaConflictResolutionResult.CloudAccepted -> runFreshSync()
-                InventoryAreaConflictResolutionResult.StaleConflict -> runFreshSync()
+                is InventoryAreaConflictResolutionResult.CloudAccepted -> continueAfterResolution()
+                InventoryAreaConflictResolutionResult.StaleConflict -> continueAfterResolution()
                 InventoryAreaConflictResolutionResult.RemoteFailure ->
                     _uiState.value = state.copy(message = InventoryAreaConflictMessage.REMOTE_FAILURE)
                 InventoryAreaConflictResolutionResult.ProtocolFailure ->
@@ -113,6 +117,7 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
+            mutationGate.unlockConflict()
             _uiState.value = InventoryAreaManualSyncUiState.Error
         }
     }
@@ -126,9 +131,13 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
         }
         when (val result = syncService.sync(restaurant.id)) {
             is InventoryAreaSyncResult.Success -> _uiState.value = InventoryAreaManualSyncUiState.Success
-            is InventoryAreaSyncResult.Conflict -> loadPreview(
-                InventoryAreaConflictRef(restaurant.id, result.entityId, result.operationId)
-            )
+            is InventoryAreaSyncResult.Conflict -> {
+                val conflict = InventoryAreaConflictRef(restaurant.id, result.entityId, result.operationId)
+                mutationGate.lockForConflict()
+                _uiState.value = InventoryAreaManualSyncUiState.LoadingConflict(conflict)
+                mutationGate.awaitAcceptedMutations()
+                loadPreview(conflict)
+            }
             InventoryAreaSyncResult.RemoteFailure -> _uiState.value = InventoryAreaManualSyncUiState.RemoteFailure
             else -> _uiState.value = InventoryAreaManualSyncUiState.Error
         }
@@ -144,5 +153,15 @@ class InventoryAreaManualSyncViewModel @Inject constructor(
             is InventoryAreaConflictPreviewResult.Unavailable ->
                 InventoryAreaManualSyncUiState.PreviewUnavailable(conflict, result.local, remoteFailure = false)
         }
+    }
+
+    private suspend fun continueAfterResolution() {
+        mutationGate.unlockConflict()
+        runFreshSync()
+    }
+
+    override fun onCleared() {
+        mutationGate.unlockConflict()
+        super.onCleared()
     }
 }

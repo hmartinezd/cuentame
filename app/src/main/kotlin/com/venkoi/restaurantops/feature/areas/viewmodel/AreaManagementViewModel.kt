@@ -43,7 +43,8 @@ class AreaManagementViewModel @Inject constructor(
     private val reorderInventoryAreasUseCase: ReorderInventoryAreasUseCase,
     private val restaurantRepository: RestaurantRepository,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val mutationGate: InventoryAreaMutationGate
 ) : ViewModel() {
 
     private val _isSaving = MutableStateFlow(false)
@@ -71,6 +72,7 @@ class AreaManagementViewModel @Inject constructor(
 
     fun onAddArea(name: String) {
         if (_isSaving.value) return
+        val mutation = mutationGate.tryBeginMutation() ?: return
         _isSaving.value = true
         _error.value = null
         
@@ -88,45 +90,50 @@ class AreaManagementViewModel @Inject constructor(
                     updatedAt = timeProvider.now()
                 )
                 createInventoryAreaUseCase(area)
-                _isSaving.value = false
                 _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
-                _isSaving.value = false
                 _error.value = e
+            } finally {
+                _isSaving.value = false
+                mutation.complete()
             }
         }
     }
 
     fun onUpdateArea(area: InventoryArea) {
         if (_isSaving.value) return
+        val mutation = mutationGate.tryBeginMutation() ?: return
         _isSaving.value = true
         _error.value = null
         
         viewModelScope.launch {
             try {
                 updateInventoryAreaUseCase(area.copy(updatedAt = timeProvider.now()))
-                _isSaving.value = false
                 _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
-                _isSaving.value = false
                 _error.value = e
+            } finally {
+                _isSaving.value = false
+                mutation.complete()
             }
         }
     }
 
     fun onArchiveArea(id: InventoryAreaId) {
         if (_isSaving.value) return
+        val mutation = mutationGate.tryBeginMutation() ?: return
         _isSaving.value = true
         _error.value = null
         
         viewModelScope.launch {
             try {
                 archiveInventoryAreaUseCase(id, timeProvider.now())
-                _isSaving.value = false
                 _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
-                _isSaving.value = false
                 _error.value = e
+            } finally {
+                _isSaving.value = false
+                mutation.complete()
             }
         }
     }
@@ -148,16 +155,18 @@ class AreaManagementViewModel @Inject constructor(
     }
 
     private fun executeReorder(newList: List<InventoryArea>) {
+        val mutation = mutationGate.tryBeginMutation() ?: return
         _isSaving.value = true
         _error.value = null
         viewModelScope.launch {
             try {
                 reorderInventoryAreasUseCase(newList.map { it.id })
-                _isSaving.value = false
                 _events.send(AreaManagementEvent.OperationSuccess)
             } catch (e: Exception) {
-                _isSaving.value = false
                 _error.value = e
+            } finally {
+                _isSaving.value = false
+                mutation.complete()
             }
         }
     }

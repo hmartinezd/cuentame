@@ -38,12 +38,14 @@ class InventoryAreaManualSyncViewModelTest {
     private val sync = mockk<InventoryAreaSyncService>()
     private val resolver = mockk<InventoryAreaConflictResolver>()
     private val previews = mockk<InventoryAreaConflictPreviewLoader>()
+    private lateinit var mutationGate: InventoryAreaMutationGate
     private lateinit var viewModel: InventoryAreaManualSyncViewModel
 
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { restaurants.getRestaurant() } returns RESTAURANT
-        viewModel = InventoryAreaManualSyncViewModel(restaurants, sync, resolver, previews)
+        mutationGate = InventoryAreaMutationGate()
+        viewModel = InventoryAreaManualSyncViewModel(restaurants, sync, resolver, previews, mutationGate)
     }
 
     @After fun tearDown() = Dispatchers.resetMain()
@@ -71,6 +73,27 @@ class InventoryAreaManualSyncViewModelTest {
         assertThat(state.preview.local.name).isEqualTo("Local")
         assertThat(state.preview.cloud.name).isEqualTo("Cloud")
         coVerify(exactly = 1) { previews.load(state.conflict) }
+    }
+
+    @Test fun `conflict preview waits for mutation accepted before conflict lock`() = runTest {
+        val acceptedMutation = requireNotNull(mutationGate.tryBeginMutation())
+        coEvery { sync.sync(RESTAURANT_ID) } returns conflict("operation-x")
+        coEvery { previews.load(any()) } returns InventoryAreaConflictPreviewResult.Available(PREVIEW)
+
+        viewModel.syncNow()
+        runCurrent()
+
+        assertThat(viewModel.uiState.value)
+            .isInstanceOf(InventoryAreaManualSyncUiState.LoadingConflict::class.java)
+        coVerify(exactly = 0) { previews.load(any()) }
+        assertThat(mutationGate.tryBeginMutation()).isNull()
+
+        acceptedMutation.complete()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value)
+            .isInstanceOf(InventoryAreaManualSyncUiState.Conflict::class.java)
+        coVerify(exactly = 1) { previews.load(any()) }
     }
 
     @Test fun `preview failure disables resolution and can retry`() = runTest {
