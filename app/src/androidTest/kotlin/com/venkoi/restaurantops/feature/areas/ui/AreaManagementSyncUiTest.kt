@@ -1,6 +1,9 @@
 package com.venkoi.restaurantops.feature.areas.ui
 
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -86,31 +89,103 @@ class AreaManagementSyncUiTest {
         compose.onNodeWithText("Use cloud version").assertDoesNotExist()
     }
 
+    @Test fun loadingConflictIsModalAndBlocksEveryMutationEntryPoint() {
+        var mutations = 0
+        setScreen(
+            InventoryAreaManualSyncUiState.LoadingConflict(CONFLICT.conflict),
+            onAdd = { mutations++ }, onMoveUp = { mutations++ }, onMoveDown = { mutations++ }
+        )
+
+        compose.onNodeWithText("Loading both versions…").assertIsDisplayed()
+        compose.onNodeWithTag("conflict_loading_progress").assertIsDisplayed()
+        assertMutationControlsDisabled()
+        compose.onNodeWithTag("area_sync_now").assertIsNotEnabled()
+        compose.onNodeWithText("Use this device").assertDoesNotExist()
+        compose.onNodeWithText("Use cloud version").assertDoesNotExist()
+        compose.onNodeWithTag("area_add").performClick()
+        compose.onNodeWithContentDescription("Move Storage up").performClick()
+        compose.onNodeWithContentDescription("Move Prep down").performClick()
+        assertThat(mutations).isEqualTo(0)
+    }
+
+    @Test fun conflictKeepsMutationsLockedWhileDecisionsRemainAvailable() {
+        setScreen(CONFLICT)
+
+        assertMutationControlsDisabled()
+        compose.onNodeWithText("Use this device").assertIsEnabled()
+        compose.onNodeWithText("Use cloud version").assertIsEnabled()
+    }
+
+    @Test fun previewFailureLocksMutationsAndCancelUnlocksThem() {
+        var state by mutableStateOf<InventoryAreaManualSyncUiState>(
+            InventoryAreaManualSyncUiState.PreviewUnavailable(CONFLICT.conflict, LOCAL, remoteFailure = true)
+        )
+        setScreen(
+            state,
+            onDismiss = { state = InventoryAreaManualSyncUiState.Idle },
+            syncStateProvider = { state }
+        )
+        assertMutationControlsDisabled()
+        compose.onNodeWithText("Retry").assertIsEnabled()
+        compose.onNodeWithText("Use cloud version").assertDoesNotExist()
+
+        compose.onNodeWithText("Cancel").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("area_add").assertIsEnabled()
+        compose.onNodeWithTag("area_menu_${LOCAL.id.value}").assertIsEnabled()
+        compose.onNodeWithContentDescription("Move Prep down").assertIsEnabled()
+    }
+
+    @Test fun protectedLocalSnapshotIsTheOneShownWhenPreviewCompletes() {
+        var mutations = 0
+        var state by mutableStateOf<InventoryAreaManualSyncUiState>(
+            InventoryAreaManualSyncUiState.LoadingConflict(CONFLICT.conflict)
+        )
+        setScreen(
+            state,
+            onAdd = { mutations++ }, onMoveDown = { mutations++ },
+            syncStateProvider = { state }
+        )
+        compose.onNodeWithTag("area_add").performClick()
+        compose.onNodeWithContentDescription("Move Prep down").performClick()
+        assertThat(mutations).isEqualTo(0)
+
+        state = CONFLICT
+        compose.waitForIdle()
+        compose.onNodeWithTag("conflict_this_device").assertIsDisplayed()
+        compose.onNode(hasText("Prep") and hasAnyAncestor(hasTestTag("conflict_this_device"))).assertIsDisplayed()
+    }
+
     private fun setScreen(
         syncState: InventoryAreaManualSyncUiState,
         onDismiss: () -> Unit = {},
         onUseDevice: () -> Unit = {},
         onUseCloud: () -> Unit = {},
-        onRetry: () -> Unit = {}
+        onRetry: () -> Unit = {},
+        onAdd: (String) -> Unit = {},
+        onMoveUp: (Int) -> Unit = {},
+        onMoveDown: (Int) -> Unit = {},
+        syncStateProvider: (() -> InventoryAreaManualSyncUiState)? = null
     ) {
         compose.setContent {
             AppTheme {
+                val currentSyncState = syncStateProvider?.invoke() ?: syncState
                 AreaManagementScreen(
-                    uiState = AreaManagementUiState(areas = emptyList(), isLoading = false),
-                    syncUiState = syncState,
+                    uiState = AreaManagementUiState(areas = listOf(LOCAL, SECOND), isLoading = false),
+                    syncUiState = currentSyncState,
                     areaToArchive = null,
                     areaToEdit = null,
-                    newAreaName = "",
+                    newAreaName = "New area",
                     snackbarHostState = SnackbarHostState(),
                     onNewAreaNameChange = {},
                     onSetAreaToArchive = {},
                     onSetAreaToEdit = {},
                     onViewActivity = {},
-                    onAddArea = {},
+                    onAddArea = onAdd,
                     onUpdateArea = {},
                     onArchiveArea = {},
-                    onMoveUp = {},
-                    onMoveDown = {},
+                    onMoveUp = onMoveUp,
+                    onMoveDown = onMoveDown,
                     onSyncNow = {},
                     onRetrySync = onRetry,
                     onRetryPreview = onRetry,
@@ -124,11 +199,20 @@ class AreaManagementSyncUiTest {
         }
     }
 
+    private fun assertMutationControlsDisabled() {
+        compose.onNodeWithTag("area_add").assertIsNotEnabled()
+        compose.onNodeWithTag("area_menu_${LOCAL.id.value}").assertIsNotEnabled()
+        compose.onNodeWithTag("area_menu_${SECOND.id.value}").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Move Prep down").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Move Storage up").assertIsNotEnabled()
+    }
+
     private companion object {
         val RESTAURANT = RestaurantId("restaurant")
         val AREA = InventoryAreaId("area")
         val LOCAL = InventoryArea(AREA, RESTAURANT, "Prep", "prep", 0, true, Instant.EPOCH, Instant.EPOCH)
         val CLOUD = LOCAL.copy(name = "Kitchen", normalizedName = "kitchen", isActive = false, deletedAt = Instant.EPOCH)
+        val SECOND = LOCAL.copy(id = InventoryAreaId("second"), name = "Storage", normalizedName = "storage", sortOrder = 1)
         val CONFLICT = InventoryAreaManualSyncUiState.Conflict(
             InventoryAreaConflictRef(RESTAURANT, AREA.value, "operation"),
             InventoryAreaConflictPreview(LOCAL, CLOUD)

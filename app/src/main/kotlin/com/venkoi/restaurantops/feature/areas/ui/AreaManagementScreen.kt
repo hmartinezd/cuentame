@@ -140,6 +140,10 @@ fun AreaManagementScreen(
     onClearSyncResult: () -> Unit,
     onBack: () -> Unit
 ) {
+    val isConflictDecisionActive = syncUiState is InventoryAreaManualSyncUiState.LoadingConflict ||
+        syncUiState is InventoryAreaManualSyncUiState.PreviewUnavailable ||
+        syncUiState is InventoryAreaManualSyncUiState.Conflict
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -156,8 +160,7 @@ fun AreaManagementScreen(
                     TextButton(
                         onClick = onSyncNow,
                         enabled = syncUiState !is InventoryAreaManualSyncUiState.Syncing &&
-                            syncUiState !is InventoryAreaManualSyncUiState.LoadingConflict &&
-                            !(syncUiState is InventoryAreaManualSyncUiState.Conflict && syncUiState.isResolving),
+                            !isConflictDecisionActive,
                         modifier = Modifier.testTag("area_sync_now")
                     ) {
                         if (syncUiState is InventoryAreaManualSyncUiState.Syncing ||
@@ -205,11 +208,12 @@ fun AreaManagementScreen(
                     onValueChange = onNewAreaNameChange,
                     label = { Text(stringResource(R.string.onboarding_add_area)) },
                     modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving && !isConflictDecisionActive
                 )
                 IconButton(onClick = { 
                     onAddArea(newAreaName)
-                }, enabled = !uiState.isSaving && newAreaName.isNotBlank()) {
+                }, enabled = !uiState.isSaving && !isConflictDecisionActive && newAreaName.isNotBlank(),
+                    modifier = Modifier.testTag("area_add")) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     } else {
@@ -222,9 +226,9 @@ fun AreaManagementScreen(
                 itemsIndexed(uiState.areas) { index, area ->
                     AreaItem(
                         area = area,
-                        canMoveUp = index > 0 && !uiState.isSaving,
-                        canMoveDown = index < uiState.areas.size - 1 && !uiState.isSaving,
-                        isEnabled = !uiState.isSaving,
+                        canMoveUp = index > 0 && !uiState.isSaving && !isConflictDecisionActive,
+                        canMoveDown = index < uiState.areas.size - 1 && !uiState.isSaving && !isConflictDecisionActive,
+                        isEnabled = !uiState.isSaving && !isConflictDecisionActive,
                         onMoveUp = { onMoveUp(index) },
                         onMoveDown = { onMoveDown(index) },
                         onArchive = { onSetAreaToArchive(area) },
@@ -243,7 +247,11 @@ fun AreaManagementScreen(
             title = { Text(stringResource(R.string.action_archive)) },
             text = { Text(stringResource(R.string.archive_area_confirmation, area.name)) },
             confirmButton = {
-                TextButton(onClick = { onArchiveArea(area) }, enabled = !uiState.isSaving) {
+                TextButton(
+                    onClick = { onArchiveArea(area) },
+                    enabled = !uiState.isSaving && !isConflictDecisionActive,
+                    modifier = Modifier.testTag("area_archive_confirm")
+                ) {
                     Text(stringResource(R.string.archive_confirm_action))
                 }
             },
@@ -265,11 +273,15 @@ fun AreaManagementScreen(
                     value = editName,
                     onValueChange = { editName = it },
                     label = { Text(stringResource(R.string.onboarding_field_name)) },
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving && !isConflictDecisionActive
                 )
             },
             confirmButton = {
-                TextButton(onClick = { onUpdateArea(area.copy(name = editName)) }, enabled = !uiState.isSaving && editName.isNotBlank()) {
+                TextButton(
+                    onClick = { onUpdateArea(area.copy(name = editName)) },
+                    enabled = !uiState.isSaving && !isConflictDecisionActive && editName.isNotBlank(),
+                    modifier = Modifier.testTag("area_edit_confirm")
+                ) {
                     Text(stringResource(R.string.action_save))
                 }
             },
@@ -283,6 +295,20 @@ fun AreaManagementScreen(
 
 
     when (val state = syncUiState) {
+        is InventoryAreaManualSyncUiState.LoadingConflict -> AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.area_conflict_title)) },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp).testTag("conflict_loading_progress"))
+                    Text(stringResource(R.string.area_conflict_loading))
+                }
+            },
+            confirmButton = {}
+        )
         is InventoryAreaManualSyncUiState.Conflict -> InventoryAreaConflictDialog(
             state = state,
             onUseThisDevice = onUseThisDevice,

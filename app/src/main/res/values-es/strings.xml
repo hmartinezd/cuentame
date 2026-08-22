@@ -1317,7 +1317,7 @@
     <string name="area_conflict_different">Diferente</string>
     <string name="area_conflict_use_device">Usar este dispositivo</string>
     <string name="area_conflict_use_cloud">Usar versión de la nube</string>
-    <string name="area_conflict_loading">Cargando versión de la nube…</string>
+    <string name="area_conflict_loading">Cargando ambas versiones…</string>
     <string name="area_conflict_preview_failure">No se pudo cargar la versión de la nube.</string>
     <string name="area_conflict_constraint">La versión de la nube usa un nombre que ya utiliza otra área en este dispositivo. Cambia el nombre o archiva la otra área antes de usar la versión de la nube.</string>
 </resources>
