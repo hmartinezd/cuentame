@@ -11,6 +11,8 @@ import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
 import com.venkoi.restaurantops.core.database.entity.IngredientCategoryEntity
 import com.venkoi.restaurantops.core.database.entity.IngredientEntity
 import com.venkoi.restaurantops.core.database.entity.RestaurantEntity
+import com.venkoi.restaurantops.core.database.sync.INGREDIENT_CATEGORY_ENTITY_TYPE
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncPayload
 import com.venkoi.restaurantops.core.domain.service.StarterCatalogSeedResult
 import com.venkoi.restaurantops.core.model.catalog.CubanFoodiesStarterCatalog
 import com.venkoi.restaurantops.core.model.catalog.StarterItemDefinition
@@ -19,6 +21,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -67,6 +71,21 @@ class StarterCatalogSeederIntegrationTest {
         // Verify some data
         val categories = db.ingredientCategoryDao().observeAllCategories().first()
         assertThat(categories).hasSize(9)
+        val firstCategory = categories.first()
+        val firstOperation = db.syncOutboxDao()
+            .getForEntity(INGREDIENT_CATEGORY_ENTITY_TYPE, firstCategory.id).single()
+        assertThat(firstOperation.restaurantId).isEqualTo(restaurantId)
+        assertThat(firstOperation.baseServerVersion).isEqualTo(0)
+        assertThat(Json.decodeFromString<IngredientCategorySyncPayload>(firstOperation.payloadJson))
+            .isEqualTo(
+                IngredientCategorySyncPayload(
+                    firstCategory.id, firstCategory.restaurantId, firstCategory.name,
+                    firstCategory.normalizedName, firstCategory.sortOrder, firstCategory.isActive,
+                    firstCategory.createdAt, firstCategory.updatedAt, firstCategory.deletedAt
+                )
+            )
+        assertThat(db.syncOutboxDao().getPending(restaurantId, INGREDIENT_CATEGORY_ENTITY_TYPE, 20))
+            .hasSize(9)
         
         val ingredients = db.ingredientDao().getAllIngredients(restaurantId)
         assertThat(ingredients).hasSize(89)
@@ -84,6 +103,8 @@ class StarterCatalogSeederIntegrationTest {
         // Totals remain same
         assertThat(db.ingredientCategoryDao().observeAllCategories().first()).hasSize(9)
         assertThat(db.ingredientDao().getAllIngredients(restaurantId)).hasSize(89)
+        assertThat(db.syncOutboxDao().getPending(restaurantId, INGREDIENT_CATEGORY_ENTITY_TYPE, 20))
+            .hasSize(9)
     }
 
     @Test
@@ -137,6 +158,10 @@ class StarterCatalogSeederIntegrationTest {
         
         // Verify no ingredients were committed (transaction rolled back)
         assertThat(dbNoUnits.ingredientDao().getAllIngredients(restaurantId)).isEmpty()
+        assertThat(dbNoUnits.ingredientCategoryDao().getAllCategoriesForRestaurant(restaurantId))
+            .isEmpty()
+        assertThat(dbNoUnits.syncOutboxDao()
+            .getPending(restaurantId, INGREDIENT_CATEGORY_ENTITY_TYPE, 20)).isEmpty()
         dbNoUnits.close()
     }
 

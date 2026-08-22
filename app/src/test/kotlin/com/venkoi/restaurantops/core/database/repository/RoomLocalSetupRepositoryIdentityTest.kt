@@ -8,13 +8,20 @@ import com.venkoi.restaurantops.core.common.time.TimeProvider
 import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
 import com.venkoi.restaurantops.core.database.entity.InventoryAreaEntity
 import com.venkoi.restaurantops.core.database.entity.RestaurantEntity
+import com.venkoi.restaurantops.core.database.entity.SyncOutboxEntity
+import com.venkoi.restaurantops.core.database.sync.INGREDIENT_CATEGORY_ENTITY_TYPE
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncOutboxWriter
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncPayload
 import com.venkoi.restaurantops.core.database.sync.INVENTORY_AREA_ENTITY_TYPE
+import com.venkoi.restaurantops.core.database.sync.InventoryAreaSyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.repository.CompleteLocalSetupCommand
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
 import com.venkoi.restaurantops.core.domain.repository.SetupAreaInput
 import com.venkoi.restaurantops.core.domain.repository.SetupCategoryInput
 import com.venkoi.restaurantops.core.domain.usecase.LocalSetupValidator
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -66,6 +73,64 @@ class RoomLocalSetupRepositoryIdentityTest {
             .single()
         assertThat(operation.restaurantId).isEqualTo("cloud-restaurant")
         assertThat(operation.entityId).isEqualTo("area-1")
+        val category = database.ingredientCategoryDao().getById("category-1")!!
+        val categoryOperation = database.syncOutboxDao()
+            .getForEntity(INGREDIENT_CATEGORY_ENTITY_TYPE, category.id).single()
+        assertThat(categoryOperation.restaurantId).isEqualTo(category.restaurantId)
+        assertThat(categoryOperation.entityId).isEqualTo(category.id)
+        assertThat(categoryOperation.baseServerVersion).isEqualTo(0)
+        assertThat(Json.decodeFromString<IngredientCategorySyncPayload>(categoryOperation.payloadJson))
+            .isEqualTo(category.toSyncPayload())
+    }
+
+    @Test
+    fun `category outbox failure rolls back entire local setup transaction`() = runTest {
+        val repeatedOperationId = "11111111-1111-4111-8111-111111111111"
+        database.syncOutboxDao().insert(
+            SyncOutboxEntity(
+                operationId = repeatedOperationId,
+                restaurantId = "preexisting",
+                entityType = "TEST",
+                entityId = "preexisting",
+                baseServerVersion = 0,
+                payloadJson = "{}",
+                createdAt = NOW
+            )
+        )
+        val normalWriterIds = object : IdGenerator {
+            override fun newId() = "22222222-2222-4222-8222-222222222222"
+        }
+        val duplicateWriterIds = object : IdGenerator {
+            override fun newId() = repeatedOperationId
+        }
+        val failingRepository = RoomLocalSetupRepository(
+            database,
+            database.restaurantDao(),
+            database.inventoryAreaDao(),
+            database.ingredientCategoryDao(),
+            ids,
+            FixedTimeProvider,
+            LocalSetupValidator(),
+            InventoryAreaSyncOutboxWriter(
+                database.syncEntityMetadataDao(), database.syncOutboxDao(), normalWriterIds,
+                FixedTimeProvider, Json { encodeDefaults = true }
+            ),
+            IngredientCategorySyncOutboxWriter(
+                database.syncEntityMetadataDao(), database.syncOutboxDao(), duplicateWriterIds,
+                FixedTimeProvider, Json { encodeDefaults = true }
+            )
+        )
+        ids.enqueue("area-1", "category-1")
+
+        val result = failingRepository.completeSetup(command(RestaurantId("cloud-restaurant")))
+
+        assertThat(result).isInstanceOf(LocalSetupResult.Failure::class.java)
+        assertThat(database.restaurantDao().getRestaurant()).isNull()
+        assertThat(database.inventoryAreaDao().getActiveCount("cloud-restaurant")).isEqualTo(0)
+        assertThat(database.ingredientCategoryDao().getAllCategoriesForRestaurant("cloud-restaurant"))
+            .isEmpty()
+        assertThat(database.syncOutboxDao().getAll().map { it.operationId })
+            .containsExactly(repeatedOperationId)
     }
 
     @Test
@@ -175,6 +240,12 @@ class RoomLocalSetupRepositoryIdentityTest {
     private object FixedTimeProvider : TimeProvider {
         override fun now(): Instant = Instant.ofEpochMilli(NOW)
     }
+
+    private fun com.venkoi.restaurantops.core.database.entity.IngredientCategoryEntity.toSyncPayload() =
+        IngredientCategorySyncPayload(
+            id, restaurantId, name, normalizedName, sortOrder, isActive,
+            createdAt, updatedAt, deletedAt
+        )
 
     private companion object {
         const val NOW = 1_700_000_000_000L
