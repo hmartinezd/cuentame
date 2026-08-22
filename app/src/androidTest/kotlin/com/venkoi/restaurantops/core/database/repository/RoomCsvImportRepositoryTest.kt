@@ -10,6 +10,9 @@ import com.venkoi.restaurantops.core.common.ids.RestaurantId
 import com.venkoi.restaurantops.core.common.ids.UnitId
 import com.venkoi.restaurantops.core.common.time.TimeProvider
 import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
+import com.venkoi.restaurantops.core.database.sync.INGREDIENT_CATEGORY_ENTITY_TYPE
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncOutboxWriter
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncPayload
 import com.venkoi.restaurantops.core.domain.repository.ImportFailure
 import com.venkoi.restaurantops.core.domain.repository.ImportResult
 import com.venkoi.restaurantops.core.domain.service.StandardUnitConverter
@@ -24,6 +27,8 @@ import com.venkoi.restaurantops.core.ocr.parser.matching.InventoryNormalization
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -130,6 +135,55 @@ class RoomCsvImportRepositoryTest {
         assertThat(ingredients).hasSize(1)
         assertThat(ingredients[0].name).isEqualTo("Tomato")
         assertThat(ingredients[0].sku).isEqualTo("TOM001")
+        val category = db.ingredientCategoryDao().getAllCategoriesForRestaurant(restId.value).single()
+        val operation = db.syncOutboxDao()
+            .getForEntity(INGREDIENT_CATEGORY_ENTITY_TYPE, category.id).single()
+        assertThat(operation.baseServerVersion).isEqualTo(0)
+        assertThat(Json.decodeFromString<IngredientCategorySyncPayload>(operation.payloadJson))
+            .isEqualTo(
+                IngredientCategorySyncPayload(
+                    category.id, category.restaurantId, category.name, category.normalizedName,
+                    category.sortOrder, category.isActive, category.createdAt, category.updatedAt,
+                    category.deletedAt
+                )
+            )
+    }
+
+    @Test
+    fun commitImport_rollsBackCategoryAndOutboxWhenSecondCategoryOutboxFails() = runBlocking {
+        val repeatedOperationId = "11111111-1111-4111-8111-111111111111"
+        val failingWriter = IngredientCategorySyncOutboxWriter(
+            db.syncEntityMetadataDao(),
+            db.syncOutboxDao(),
+            object : IdGenerator { override fun newId() = repeatedOperationId },
+            testTime,
+            Json { encodeDefaults = true }
+        )
+        val failingRepository = RoomCsvImportRepository(
+            db, db.ingredientDao(), db.ingredientUnitOptionDao(), db.ingredientCategoryDao(),
+            db.supplierDao(), db.supplierItemMappingDao(), db.ingredientCostProjectionDao(),
+            db.unitDao(), db.restaurantDao(), db.inventoryAreaDao(), StandardUnitConverter(),
+            testIds, testTime, failingWriter
+        )
+        val document = importService.processCsv(restId, listOf(
+            mapOf(
+                CsvParser.HEADER_INGREDIENT_NAME to "Tomato",
+                CsvParser.HEADER_BASE_UNIT to "lb",
+                CsvParser.HEADER_CATEGORY to "Produce"
+            ),
+            mapOf(
+                CsvParser.HEADER_INGREDIENT_NAME to "Chicken",
+                CsvParser.HEADER_BASE_UNIT to "lb",
+                CsvParser.HEADER_CATEGORY to "Meat"
+            )
+        ))
+
+        val result = failingRepository.commitImport(restId, document)
+
+        assertThat(result).isInstanceOf(ImportResult.Failure::class.java)
+        assertThat(db.ingredientCategoryDao().getAllCategoriesForRestaurant(restId.value)).isEmpty()
+        assertThat(db.syncOutboxDao().getAll()).isEmpty()
+        assertThat(db.ingredientDao().getActiveIngredients(restId.value)).isEmpty()
     }
 
     @Test

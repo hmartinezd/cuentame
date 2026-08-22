@@ -12,6 +12,7 @@ import com.venkoi.restaurantops.core.database.entity.IngredientCategoryEntity
 import com.venkoi.restaurantops.core.database.entity.InventoryAreaEntity
 import com.venkoi.restaurantops.core.database.entity.RestaurantEntity
 import com.venkoi.restaurantops.core.database.sync.InventoryAreaSyncOutboxWriter
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.repository.CompleteLocalSetupCommand
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupRepository
 import com.venkoi.restaurantops.core.domain.repository.LocalSetupResult
@@ -34,7 +35,8 @@ class RoomLocalSetupRepository @Inject constructor(
     private val idGenerator: IdGenerator,
     private val timeProvider: TimeProvider,
     private val validator: LocalSetupValidator,
-    private val outboxWriter: InventoryAreaSyncOutboxWriter
+    private val outboxWriter: InventoryAreaSyncOutboxWriter,
+    private val categoryOutboxWriter: IngredientCategorySyncOutboxWriter
 ) : LocalSetupRepository {
     constructor(
         database: RestaurantInventoryDatabase,
@@ -47,6 +49,11 @@ class RoomLocalSetupRepository @Inject constructor(
     ) : this(
         database, restaurantDao, areaDao, categoryDao, idGenerator, timeProvider, validator,
         InventoryAreaSyncOutboxWriter(
+            database.syncEntityMetadataDao(), database.syncOutboxDao(),
+            com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(), timeProvider,
+            kotlinx.serialization.json.Json { encodeDefaults = true }
+        ),
+        IngredientCategorySyncOutboxWriter(
             database.syncEntityMetadataDao(), database.syncOutboxDao(),
             com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(), timeProvider,
             kotlinx.serialization.json.Json { encodeDefaults = true }
@@ -139,19 +146,19 @@ class RoomLocalSetupRepository @Inject constructor(
                 }
 
                 command.categories.forEach { categoryInput ->
-                    categoryDao.upsert(
-                        IngredientCategoryEntity(
-                            id = idGenerator.newId(),
-                            restaurantId = restaurantId,
-                            name = categoryInput.name,
-                            normalizedName = categoryInput.name.normalizeName(),
-                            sortOrder = categoryInput.sortOrder,
-                            isActive = true,
-                            createdAt = now,
-                            updatedAt = now,
-                            deletedAt = null
-                        )
+                    val category = IngredientCategoryEntity(
+                        id = idGenerator.newId(),
+                        restaurantId = restaurantId,
+                        name = categoryInput.name,
+                        normalizedName = categoryInput.name.normalizeName(),
+                        sortOrder = categoryInput.sortOrder,
+                        isActive = true,
+                        createdAt = now,
+                        updatedAt = now,
+                        deletedAt = null
                     )
+                    categoryDao.upsert(category)
+                    categoryOutboxWriter.record(category)
                 }
                 LocalSetupResult.Success
             }

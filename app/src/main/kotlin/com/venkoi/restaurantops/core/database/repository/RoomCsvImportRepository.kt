@@ -26,6 +26,7 @@ import com.venkoi.restaurantops.core.database.entity.IngredientUnitOptionEntity
 import com.venkoi.restaurantops.core.database.entity.SupplierEntity
 import com.venkoi.restaurantops.core.database.entity.SupplierItemMappingEntity
 import com.venkoi.restaurantops.core.database.mapper.toDomain
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.repository.CsvImportRepository
 import com.venkoi.restaurantops.core.domain.repository.ImportFailure
 import com.venkoi.restaurantops.core.domain.repository.ImportResult
@@ -50,8 +51,32 @@ class RoomCsvImportRepository @Inject constructor(
     private val areaDao: InventoryAreaDao,
     private val converter: StandardUnitConverter,
     private val idGenerator: IdGenerator,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val categoryOutboxWriter: IngredientCategorySyncOutboxWriter
 ) : CsvImportRepository {
+    constructor(
+        database: RestaurantInventoryDatabase,
+        ingredientDao: IngredientDao,
+        unitOptionDao: IngredientUnitOptionDao,
+        categoryDao: IngredientCategoryDao,
+        supplierDao: SupplierDao,
+        mappingDao: SupplierItemMappingDao,
+        costDao: IngredientCostProjectionDao,
+        unitDao: UnitDao,
+        restaurantDao: RestaurantDao,
+        areaDao: InventoryAreaDao,
+        converter: StandardUnitConverter,
+        idGenerator: IdGenerator,
+        timeProvider: TimeProvider
+    ) : this(
+        database, ingredientDao, unitOptionDao, categoryDao, supplierDao, mappingDao,
+        costDao, unitDao, restaurantDao, areaDao, converter, idGenerator, timeProvider,
+        IngredientCategorySyncOutboxWriter(
+            database.syncEntityMetadataDao(), database.syncOutboxDao(),
+            com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(), timeProvider,
+            kotlinx.serialization.json.Json { encodeDefaults = true }
+        )
+    )
 
     override suspend fun commitImport(
         restaurantId: RestaurantId,
@@ -221,19 +246,19 @@ class RoomCsvImportRepository @Inject constructor(
                         if (!categoryCache.containsKey(norm)) {
                             // Already checked in re-validation
                             val newId = IngredientCategoryId(idGenerator.newId())
-                            categoryDao.upsert(
-                                IngredientCategoryEntity(
-                                    id = newId.value,
-                                    restaurantId = restaurantId.value,
-                                    name = catName,
-                                    normalizedName = norm,
-                                    sortOrder = 0,
-                                    isActive = true,
-                                    createdAt = now.toEpochMilli(),
-                                    updatedAt = now.toEpochMilli(),
-                                    deletedAt = null
-                                )
+                            val category = IngredientCategoryEntity(
+                                id = newId.value,
+                                restaurantId = restaurantId.value,
+                                name = catName,
+                                normalizedName = norm,
+                                sortOrder = 0,
+                                isActive = true,
+                                createdAt = now.toEpochMilli(),
+                                updatedAt = now.toEpochMilli(),
+                                deletedAt = null
                             )
+                            categoryDao.upsert(category)
+                            categoryOutboxWriter.record(category)
                             categoryCache[norm] = newId
                             categoriesCreated++
                         }

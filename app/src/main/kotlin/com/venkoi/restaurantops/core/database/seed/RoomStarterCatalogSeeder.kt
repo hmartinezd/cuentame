@@ -7,6 +7,7 @@ import com.venkoi.restaurantops.core.database.RestaurantInventoryDatabase
 import com.venkoi.restaurantops.core.database.entity.IngredientCategoryEntity
 import com.venkoi.restaurantops.core.database.entity.IngredientEntity
 import com.venkoi.restaurantops.core.database.entity.IngredientUnitOptionEntity
+import com.venkoi.restaurantops.core.database.sync.IngredientCategorySyncOutboxWriter
 import com.venkoi.restaurantops.core.domain.service.StarterCatalogSeedFailure
 import com.venkoi.restaurantops.core.domain.service.StarterCatalogSeedResult
 import com.venkoi.restaurantops.core.domain.service.StarterCatalogSeeder
@@ -16,8 +17,21 @@ import javax.inject.Inject
 
 class RoomStarterCatalogSeeder @Inject constructor(
     private val database: RestaurantInventoryDatabase,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val categoryOutboxWriter: IngredientCategorySyncOutboxWriter
 ) : StarterCatalogSeeder {
+    constructor(
+        database: RestaurantInventoryDatabase,
+        timeProvider: TimeProvider
+    ) : this(
+        database,
+        timeProvider,
+        IngredientCategorySyncOutboxWriter(
+            database.syncEntityMetadataDao(), database.syncOutboxDao(),
+            com.venkoi.restaurantops.core.common.ids.UuidIdGenerator(), timeProvider,
+            kotlinx.serialization.json.Json { encodeDefaults = true }
+        )
+    )
 
     override suspend fun seedNewRestaurant(
         restaurantId: String,
@@ -46,19 +60,19 @@ class RoomStarterCatalogSeeder @Inject constructor(
                         val newId = generateDeterministicId(
                             catalog, restaurantId, "category", normalized
                         )
-                        database.ingredientCategoryDao().upsert(
-                            IngredientCategoryEntity(
-                                id = newId,
-                                restaurantId = restaurantId,
-                                name = catDef.sourceName,
-                                normalizedName = normalized,
-                                sortOrder = catDef.sortOrder,
-                                isActive = true,
-                                createdAt = now,
-                                updatedAt = now,
-                                deletedAt = null
-                            )
+                        val category = IngredientCategoryEntity(
+                            id = newId,
+                            restaurantId = restaurantId,
+                            name = catDef.sourceName,
+                            normalizedName = normalized,
+                            sortOrder = catDef.sortOrder,
+                            isActive = true,
+                            createdAt = now,
+                            updatedAt = now,
+                            deletedAt = null
                         )
+                        database.ingredientCategoryDao().upsert(category)
+                        categoryOutboxWriter.record(category)
                         categoriesInserted++
                         newId
                     }
