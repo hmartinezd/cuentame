@@ -130,6 +130,48 @@ class InventoryAreaConflictResolverTest {
         assertThat(db.syncOutboxDao().getAll()).isEmpty()
     }
 
+    @Test fun `duplicate local name blocks use cloud with zero mutation`() = runTest {
+        seed("Prep"); insertOperation(1, "conflict-x", "Prep")
+        db.inventoryAreaDao().upsert(area("Kitchen", id = OTHER_AREA_ID))
+        insertOperation(2, "other-op", "Kitchen", entityId = OTHER_AREA_ID)
+        db.syncCursorDao().upsert(SyncCursorEntity(RESTAURANT.value, INVENTORY_AREA_ENTITY_TYPE, 40))
+        remote.current = remoteArea("Kitchen", version = 5, seq = 42)
+        val beforeAreas = db.inventoryAreaDao().getAllForRestaurantSync(RESTAURANT.value)
+        val beforeOutbox = db.syncOutboxDao().getAll()
+        val beforeMetadata = db.syncEntityMetadataDao().getAll()
+
+        assertThat(resolver.resolveUseCloud(CONFLICT)).isEqualTo(
+            InventoryAreaConflictResolutionResult.LocalConstraintConflict(AREA_ID, OTHER_AREA_ID)
+        )
+        assertThat(db.inventoryAreaDao().getAllForRestaurantSync(RESTAURANT.value)).isEqualTo(beforeAreas)
+        assertThat(db.syncOutboxDao().getAll()).isEqualTo(beforeOutbox)
+        assertThat(db.syncEntityMetadataDao().getAll()).isEqualTo(beforeMetadata)
+        assertThat(db.syncCursorDao().get(RESTAURANT.value, INVENTORY_AREA_ENTITY_TYPE)?.changeSeq).isEqualTo(40)
+    }
+
+    @Test fun `same entity name does not block use cloud`() = runTest {
+        seed("Kitchen"); insertOperation(1, "conflict-x", "Kitchen")
+        remote.current = remoteArea("Kitchen", version = 5, seq = 42)
+
+        assertThat(resolver.resolveUseCloud(CONFLICT)).isEqualTo(
+            InventoryAreaConflictResolutionResult.CloudAccepted(AREA_ID, 5, 42)
+        )
+        assertThat(db.syncOutboxDao().getAll()).isEmpty()
+    }
+
+    @Test fun `remote tombstone does not collide with another active local name`() = runTest {
+        seed("Prep"); insertOperation(1, "conflict-x", "Prep")
+        db.inventoryAreaDao().upsert(area("Kitchen", id = OTHER_AREA_ID))
+        insertOperation(2, "other-op", "Kitchen", entityId = OTHER_AREA_ID)
+        remote.current = remoteArea("Kitchen", version = 5, seq = 42, isActive = false, deletedAt = 900)
+
+        assertThat(resolver.resolveUseCloud(CONFLICT)).isEqualTo(
+            InventoryAreaConflictResolutionResult.CloudAccepted(AREA_ID, 5, 42)
+        )
+        assertThat(db.inventoryAreaDao().getById(AREA_ID)?.deletedAt).isEqualTo(900)
+        assertThat(db.syncOutboxDao().getAll().map { it.operationId }).containsExactly("other-op")
+    }
+
     @Test fun `keep local preserves local tombstone in replacement payload`() = runTest {
         seed("Archived Local", isActive = false, deletedAt = 800); insertOperation(1, "conflict-x", "Old")
         remote.current = remoteArea("Cloud", version = 5, seq = 42)
@@ -181,7 +223,9 @@ class InventoryAreaConflictResolverTest {
             remoteArea("Cloud", 5, 42).copy(restaurantId = "wrong"),
             remoteArea("Cloud", 5, 42).copy(id = "wrong"),
             remoteArea("Cloud", 0, 42),
-            remoteArea("Cloud", 5, 0)
+            remoteArea("Cloud", 5, 0),
+            remoteArea("Cloud", 5, 42, isActive = true, deletedAt = 900),
+            remoteArea("Cloud", 5, 42, isActive = false, deletedAt = null)
         )
 
         invalidRows.forEach { row ->
@@ -233,8 +277,13 @@ class InventoryAreaConflictResolverTest {
         ))
     }
 
-    private fun area(name: String, isActive: Boolean, deletedAt: Long?) = InventoryAreaEntity(
-        AREA_ID, RESTAURANT.value, name, name.lowercase(), 0, isActive, 100, 200, deletedAt
+    private fun area(
+        name: String,
+        isActive: Boolean = true,
+        deletedAt: Long? = null,
+        id: String = AREA_ID
+    ) = InventoryAreaEntity(
+        id, RESTAURANT.value, name, name.lowercase(), 0, isActive, 100, 200, deletedAt
     )
 
     private fun payload(name: String) = InventoryAreaSyncPayload(
@@ -296,6 +345,7 @@ class InventoryAreaConflictResolverTest {
     private companion object {
         val RESTAURANT = RestaurantId("restaurant")
         const val AREA_ID = "area"
+        const val OTHER_AREA_ID = "other-area"
         const val NEW_UUID = "11111111-1111-4111-8111-111111111111"
         val CONFLICT = InventoryAreaConflictRef(RESTAURANT, AREA_ID, "conflict-x")
     }

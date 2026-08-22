@@ -28,6 +28,11 @@ sealed interface InventoryAreaConflictResolutionResult {
         val changeSeq: Long
     ) : InventoryAreaConflictResolutionResult
 
+    data class LocalConstraintConflict(
+        val entityId: String,
+        val conflictingEntityId: String
+    ) : InventoryAreaConflictResolutionResult
+
     data object StaleConflict : InventoryAreaConflictResolutionResult
     data object RemoteFailure : InventoryAreaConflictResolutionResult
     data object ProtocolFailure : InventoryAreaConflictResolutionResult
@@ -66,6 +71,16 @@ class InventoryAreaConflictResolver @Inject constructor(
         database.withTransaction {
             if (!hasMatchingOperation(conflict)) {
                 return@withTransaction InventoryAreaConflictResolutionResult.StaleConflict
+            }
+            if (remoteRow.isActive) {
+                val duplicate = database.inventoryAreaDao().findOtherByNormalizedName(
+                    conflict.restaurantId.value, remoteRow.normalizedName, remoteRow.id
+                )
+                if (duplicate != null) {
+                    return@withTransaction InventoryAreaConflictResolutionResult.LocalConstraintConflict(
+                        remoteRow.id, duplicate.id
+                    )
+                }
             }
             database.syncOutboxDao().deleteForEntity(
                 conflict.restaurantId.value, INVENTORY_AREA_ENTITY_TYPE, conflict.entityId
@@ -122,7 +137,7 @@ private fun RemoteInventoryArea.isValidFor(conflict: InventoryAreaConflictRef): 
         name.isNotBlank() && normalizedName.isNotBlank() &&
         serverVersion > 0 && changeSeq > 0 &&
         createdAt >= 0 && updatedAt >= createdAt &&
-        (isActive || deletedAt != null)
+        isActive == (deletedAt == null)
 
 private fun RemoteInventoryArea.toEntity() = InventoryAreaEntity(
     id, restaurantId, name, normalizedName, sortOrder, isActive,
