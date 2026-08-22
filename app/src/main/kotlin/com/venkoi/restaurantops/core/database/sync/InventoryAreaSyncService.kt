@@ -47,7 +47,8 @@ class InventoryAreaSyncService @Inject constructor(
                     pushedCount++
                 }
                 is InventoryAreaRemoteApplyResult.Conflict -> return InventoryAreaSyncResult.Conflict(
-                    response.entityId, response.currentServerVersion, response.currentChangeSeq
+                    response.entityId, operation.operationId,
+                    response.currentServerVersion, response.currentChangeSeq
                 )
                 is InventoryAreaRemoteApplyResult.InvalidOperation ->
                     return InventoryAreaSyncResult.InvalidOperation(response.entityId)

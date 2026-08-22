@@ -55,6 +55,19 @@ class SupabaseInventoryAreaSyncRemoteDataSource @Inject constructor(
             limit(limit.toLong())
         }.decodeList<RemoteInventoryAreaDto>().map { it.toRemote() }
     }
+
+    override suspend fun getCurrent(
+        restaurantId: RestaurantId,
+        entityId: String
+    ): Result<RemoteInventoryArea?> = cloudOperation {
+        supabase.from("inventory_areas").select {
+            filter {
+                eq("restaurant_id", restaurantId.value)
+                eq("id", entityId)
+            }
+            limit(1)
+        }.decodeList<RemoteInventoryAreaDto>().singleOrNull()?.toRemote()
+    }
 }
 
 internal fun epochMillisToIso(value: Long): String = Instant.ofEpochMilli(value).toString()

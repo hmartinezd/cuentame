@@ -5,6 +5,7 @@ sealed interface InventoryAreaSyncResult {
 
     data class Conflict(
         val entityId: String,
+        val operationId: String,
         val currentServerVersion: Long,
         val currentChangeSeq: Long?
     ) : InventoryAreaSyncResult

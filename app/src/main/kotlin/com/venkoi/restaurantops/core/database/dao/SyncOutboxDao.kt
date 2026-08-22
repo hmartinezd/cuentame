@@ -22,6 +22,9 @@ interface SyncOutboxDao {
     @Query("SELECT * FROM sync_outbox WHERE localSequence = :localSequence")
     suspend fun getByLocalSequence(localSequence: Long): SyncOutboxEntity?
 
+    @Query("SELECT * FROM sync_outbox WHERE operationId = :operationId")
+    suspend fun getByOperationId(operationId: String): SyncOutboxEntity?
+
     @Query("SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE restaurantId = :restaurantId AND entityType = :entityType)")
     suspend fun hasPendingForRestaurant(restaurantId: String, entityType: String): Boolean
 
@@ -33,6 +36,9 @@ interface SyncOutboxDao {
 
     @Query("DELETE FROM sync_outbox WHERE operationId = :operationId")
     suspend fun deleteByOperationId(operationId: String): Int
+
+    @Query("DELETE FROM sync_outbox WHERE restaurantId = :restaurantId AND entityType = :entityType AND entityId = :entityId")
+    suspend fun deleteForEntity(restaurantId: String, entityType: String, entityId: String): Int
 
     @Query("""
         UPDATE sync_outbox SET baseServerVersion = :newBaseServerVersion

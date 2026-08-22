@@ -10,6 +10,11 @@ interface InventoryAreaSyncRemoteDataSource {
         afterChangeSeq: Long,
         limit: Int
     ): Result<List<RemoteInventoryArea>>
+
+    suspend fun getCurrent(
+        restaurantId: RestaurantId,
+        entityId: String
+    ): Result<RemoteInventoryArea?>
 }
 
 data class InventoryAreaRemoteOperation(

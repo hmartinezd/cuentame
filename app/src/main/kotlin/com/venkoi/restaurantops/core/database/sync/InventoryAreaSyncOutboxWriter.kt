@@ -20,20 +20,27 @@ class InventoryAreaSyncOutboxWriter @Inject constructor(
     /** Must be called inside the transaction that persists [area]. */
     suspend fun record(area: InventoryAreaEntity) {
         val baseVersion = metadataDao.get(INVENTORY_AREA_ENTITY_TYPE, area.id)?.serverVersion ?: 0L
+        recordWithBase(area, baseVersion)
+    }
+
+    /** Creates a new immutable intent using an explicitly observed cloud base version. */
+    suspend fun recordWithBase(area: InventoryAreaEntity, baseServerVersion: Long): String {
         val payload = InventoryAreaSyncPayload(
             area.id, area.restaurantId, area.name, area.normalizedName, area.sortOrder,
             area.isActive, area.createdAt, area.updatedAt, area.deletedAt
         )
+        val operationId = idGenerator.newId()
         outboxDao.insert(
             SyncOutboxEntity(
-                operationId = idGenerator.newId(),
+                operationId = operationId,
                 restaurantId = area.restaurantId,
                 entityType = INVENTORY_AREA_ENTITY_TYPE,
                 entityId = area.id,
-                baseServerVersion = baseVersion,
+                baseServerVersion = baseServerVersion,
                 payloadJson = json.encodeToString(payload),
                 createdAt = timeProvider.now().toEpochMilli()
             )
         )
+        return operationId
     }
 }

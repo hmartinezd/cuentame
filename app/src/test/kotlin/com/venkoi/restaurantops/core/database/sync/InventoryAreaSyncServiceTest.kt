@@ -117,7 +117,7 @@ class InventoryAreaSyncServiceTest {
         insertOperation(1, "op", "area", 2)
         remote.applyHandler = { InventoryAreaRemoteApplyResult.Conflict(it.entityId, 5, 9) }
 
-        assertThat(service.sync(RESTAURANT)).isEqualTo(InventoryAreaSyncResult.Conflict("area", 5, 9))
+        assertThat(service.sync(RESTAURANT)).isEqualTo(InventoryAreaSyncResult.Conflict("area", "op", 5, 9))
         assertThat(db.syncOutboxDao().getAll()).hasSize(1)
         assertThat(db.syncEntityMetadataDao().get(INVENTORY_AREA_ENTITY_TYPE, "area")?.serverVersion).isEqualTo(2)
         assertThat(db.inventoryAreaDao().getById("area")).isEqualTo(local)
@@ -256,6 +256,11 @@ class InventoryAreaSyncServiceTest {
             pulls += Triple(restaurantId.value, afterChangeSeq, limit)
             return Result.success(pullHandler?.invoke(restaurantId, afterChangeSeq, limit) ?: pages.removeFirstOrNull().orEmpty())
         }
+
+        override suspend fun getCurrent(
+            restaurantId: RestaurantId,
+            entityId: String
+        ): Result<RemoteInventoryArea?> = Result.success(null)
     }
 
     private class QueueIds : IdGenerator {
