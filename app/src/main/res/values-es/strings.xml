@@ -1299,4 +1299,25 @@
     <string name="tenant_setup_action">Crear organización y restaurante</string>
     <string name="tenant_setup_required">Este campo es obligatorio.</string>
     <string name="tenant_setup_error">No pudimos crear la organización y el restaurante. Revisa tu conexión antes de intentarlo de nuevo.</string>
+    <string name="area_sync_now">Sincronizar ahora</string>
+    <string name="area_syncing">Sincronizando…</string>
+    <string name="area_sync_success">Áreas de inventario sincronizadas.</string>
+    <string name="area_sync_retry">Reintentar</string>
+    <string name="area_sync_remote_failure">No se pudo sincronizar ahora. Tus cambios están guardados en este dispositivo.</string>
+    <string name="area_sync_error">No se pudo completar la sincronización.</string>
+    <string name="area_conflict_title">Esta área cambió en otro dispositivo</string>
+    <string name="area_conflict_support">Elige qué versión quieres conservar.</string>
+    <string name="area_conflict_this_device">Este dispositivo</string>
+    <string name="area_conflict_cloud">Nube</string>
+    <string name="area_conflict_name">Nombre del área</string>
+    <string name="area_conflict_status">Estado</string>
+    <string name="area_conflict_position">Posición</string>
+    <string name="area_conflict_active">Activa</string>
+    <string name="area_conflict_archived">Archivada</string>
+    <string name="area_conflict_different">Diferente</string>
+    <string name="area_conflict_use_device">Usar este dispositivo</string>
+    <string name="area_conflict_use_cloud">Usar versión de la nube</string>
+    <string name="area_conflict_loading">Cargando versión de la nube…</string>
+    <string name="area_conflict_preview_failure">No se pudo cargar la versión de la nube.</string>
+    <string name="area_conflict_constraint">La versión de la nube usa un nombre que ya utiliza otra área en este dispositivo. Cambia el nombre o archiva la otra área antes de usar la versión de la nube.</string>
 </resources>

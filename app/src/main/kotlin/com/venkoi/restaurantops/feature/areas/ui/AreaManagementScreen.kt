@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +40,9 @@ import com.venkoi.restaurantops.core.common.ids.InventoryAreaId
 import com.venkoi.restaurantops.core.presentation.validation.toUserMessageRes
 import com.venkoi.restaurantops.feature.areas.viewmodel.AreaManagementEvent
 import com.venkoi.restaurantops.feature.areas.viewmodel.AreaManagementViewModel
+import com.venkoi.restaurantops.feature.areas.viewmodel.InventoryAreaConflictMessage
+import com.venkoi.restaurantops.feature.areas.viewmodel.InventoryAreaManualSyncUiState
+import com.venkoi.restaurantops.feature.areas.viewmodel.InventoryAreaManualSyncViewModel
 
 @Composable
 fun AreaManagementRoute(
@@ -46,7 +50,9 @@ fun AreaManagementRoute(
     onViewActivity: (InventoryAreaId) -> Unit,
     viewModel: AreaManagementViewModel = hiltViewModel()
 ) {
+    val syncViewModel: InventoryAreaManualSyncViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val syncUiState by syncViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -73,8 +79,16 @@ fun AreaManagementRoute(
         }
     }
 
+    LaunchedEffect(syncUiState) {
+        if (syncUiState is InventoryAreaManualSyncUiState.Success) {
+            snackbarHostState.showSnackbar(context.getString(R.string.area_sync_success))
+            syncViewModel.clearResult()
+        }
+    }
+
     AreaManagementScreen(
         uiState = uiState,
+        syncUiState = syncUiState,
         areaToArchive = areaToArchive,
         areaToEdit = areaToEdit,
         newAreaName = newAreaName,
@@ -88,6 +102,13 @@ fun AreaManagementRoute(
         onArchiveArea = { viewModel.onArchiveArea(it.id) },
         onMoveUp = viewModel::onMoveUp,
         onMoveDown = viewModel::onMoveDown,
+        onSyncNow = syncViewModel::syncNow,
+        onRetrySync = syncViewModel::syncNow,
+        onRetryPreview = syncViewModel::retryPreview,
+        onUseThisDevice = syncViewModel::useThisDevice,
+        onUseCloudVersion = syncViewModel::useCloudVersion,
+        onDismissConflict = syncViewModel::dismissConflict,
+        onClearSyncResult = syncViewModel::clearResult,
         onBack = onBack
     )
 }
@@ -96,6 +117,7 @@ fun AreaManagementRoute(
 @Composable
 fun AreaManagementScreen(
     uiState: com.venkoi.restaurantops.feature.areas.viewmodel.AreaManagementUiState,
+    syncUiState: InventoryAreaManualSyncUiState,
     areaToArchive: com.venkoi.restaurantops.core.model.inventory.InventoryArea?,
     areaToEdit: com.venkoi.restaurantops.core.model.inventory.InventoryArea?,
     newAreaName: String,
@@ -109,6 +131,13 @@ fun AreaManagementScreen(
     onArchiveArea: (com.venkoi.restaurantops.core.model.inventory.InventoryArea) -> Unit,
     onMoveUp: (Int) -> Unit,
     onMoveDown: (Int) -> Unit,
+    onSyncNow: () -> Unit,
+    onRetrySync: () -> Unit,
+    onRetryPreview: () -> Unit,
+    onUseThisDevice: () -> Unit,
+    onUseCloudVersion: () -> Unit,
+    onDismissConflict: () -> Unit,
+    onClearSyncResult: () -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -122,12 +151,48 @@ fun AreaManagementScreen(
                             contentDescription = stringResource(R.string.action_back)
                         )
                     }
+                },
+                actions = {
+                    TextButton(
+                        onClick = onSyncNow,
+                        enabled = syncUiState !is InventoryAreaManualSyncUiState.Syncing &&
+                            syncUiState !is InventoryAreaManualSyncUiState.LoadingConflict &&
+                            !(syncUiState is InventoryAreaManualSyncUiState.Conflict && syncUiState.isResolving),
+                        modifier = Modifier.testTag("area_sync_now")
+                    ) {
+                        if (syncUiState is InventoryAreaManualSyncUiState.Syncing ||
+                            syncUiState is InventoryAreaManualSyncUiState.LoadingConflict
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp).testTag("area_sync_progress"),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Sync, contentDescription = null)
+                        }
+                        Text(
+                            text = stringResource(
+                                if (syncUiState is InventoryAreaManualSyncUiState.Syncing) R.string.area_syncing
+                                else R.string.area_sync_now
+                            ),
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            when (syncUiState) {
+                InventoryAreaManualSyncUiState.RemoteFailure -> SyncMessage(
+                    stringResource(R.string.area_sync_remote_failure), onRetrySync, onClearSyncResult
+                )
+                InventoryAreaManualSyncUiState.Error -> SyncMessage(
+                    stringResource(R.string.area_sync_error), onRetrySync, onClearSyncResult
+                )
+                else -> Unit
+            }
             Text(text = stringResource(R.string.settings_areas), style = MaterialTheme.typography.headlineSmall)
             
             Row(
@@ -213,6 +278,159 @@ fun AreaManagementScreen(
                     Text(stringResource(android.R.string.cancel))
                 }
             }
+        )
+    }
+
+
+    when (val state = syncUiState) {
+        is InventoryAreaManualSyncUiState.Conflict -> InventoryAreaConflictDialog(
+            state = state,
+            onUseThisDevice = onUseThisDevice,
+            onUseCloudVersion = onUseCloudVersion,
+            onDismiss = onDismissConflict
+        )
+        is InventoryAreaManualSyncUiState.PreviewUnavailable -> AlertDialog(
+            onDismissRequest = onDismissConflict,
+            title = { Text(stringResource(R.string.area_conflict_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.local?.let {
+                        ConflictVersionCard(
+                            stringResource(R.string.area_conflict_this_device), it,
+                            nameDifferent = false, statusDifferent = false, positionDifferent = false,
+                            modifier = Modifier.fillMaxWidth().testTag("conflict_this_device")
+                        )
+                    }
+                    Text(stringResource(R.string.area_conflict_preview_failure))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onRetryPreview) { Text(stringResource(R.string.area_sync_retry)) }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissConflict) { Text(stringResource(android.R.string.cancel)) }
+            }
+        )
+        else -> Unit
+    }
+}
+
+@Composable
+private fun SyncMessage(message: String, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag("area_sync_message")
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(message, modifier = Modifier.weight(1f))
+            TextButton(onClick = onRetry) { Text(stringResource(R.string.area_sync_retry)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        }
+    }
+}
+
+@Composable
+private fun InventoryAreaConflictDialog(
+    state: InventoryAreaManualSyncUiState.Conflict,
+    onUseThisDevice: () -> Unit,
+    onUseCloudVersion: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val local = state.preview.local
+    val cloud = state.preview.cloud
+    AlertDialog(
+        onDismissRequest = { if (!state.isResolving) onDismiss() },
+        title = { Text(stringResource(R.string.area_conflict_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.area_conflict_support))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ConflictVersionCard(
+                        stringResource(R.string.area_conflict_this_device), local,
+                        local.name != cloud.name, local.isActive != cloud.isActive,
+                        local.sortOrder != cloud.sortOrder, Modifier.weight(1f).testTag("conflict_this_device")
+                    )
+                    ConflictVersionCard(
+                        stringResource(R.string.area_conflict_cloud), cloud,
+                        local.name != cloud.name, local.isActive != cloud.isActive,
+                        local.sortOrder != cloud.sortOrder, Modifier.weight(1f).testTag("conflict_cloud")
+                    )
+                }
+                when (state.message) {
+                    InventoryAreaConflictMessage.LOCAL_CONSTRAINT -> Text(
+                        stringResource(R.string.area_conflict_constraint),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.testTag("conflict_constraint_message")
+                    )
+                    InventoryAreaConflictMessage.REMOTE_FAILURE -> Text(
+                        stringResource(R.string.area_sync_remote_failure),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    InventoryAreaConflictMessage.GENERIC_FAILURE -> Text(
+                        stringResource(R.string.area_sync_error), color = MaterialTheme.colorScheme.error
+                    )
+                    null -> Unit
+                }
+                if (state.isResolving) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("conflict_progress"))
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onUseThisDevice, enabled = !state.isResolving) {
+                    Text(stringResource(R.string.area_conflict_use_device))
+                }
+                Button(onClick = onUseCloudVersion, enabled = !state.isResolving) {
+                    Text(stringResource(R.string.area_conflict_use_cloud))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.isResolving) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ConflictVersionCard(
+    heading: String,
+    area: com.venkoi.restaurantops.core.model.inventory.InventoryArea,
+    nameDifferent: Boolean,
+    statusDifferent: Boolean,
+    positionDifferent: Boolean,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(modifier) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(heading, style = MaterialTheme.typography.titleMedium)
+            ConflictField(stringResource(R.string.area_conflict_name), area.name, nameDifferent)
+            ConflictField(
+                stringResource(R.string.area_conflict_status),
+                stringResource(if (area.isActive) R.string.area_conflict_active else R.string.area_conflict_archived),
+                statusDifferent
+            )
+            ConflictField(stringResource(R.string.area_conflict_position), (area.sortOrder + 1).toString(), positionDifferent)
+        }
+    }
+}
+
+@Composable
+private fun ConflictField(label: String, value: String, different: Boolean) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
+        if (different) Text(
+            stringResource(R.string.area_conflict_different),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }

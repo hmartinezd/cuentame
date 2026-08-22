@@ -1344,4 +1344,25 @@
     <string name="tenant_setup_action">Create organization and restaurant</string>
     <string name="tenant_setup_required">This field is required.</string>
     <string name="tenant_setup_error">We couldn’t create the organization and restaurant. Please review your connection before trying again.</string>
+    <string name="area_sync_now">Sync now</string>
+    <string name="area_syncing">Syncing…</string>
+    <string name="area_sync_success">Inventory areas synced.</string>
+    <string name="area_sync_retry">Retry</string>
+    <string name="area_sync_remote_failure">Couldn’t sync right now. Your changes are saved on this device.</string>
+    <string name="area_sync_error">Sync couldn’t be completed.</string>
+    <string name="area_conflict_title">This area changed on another device</string>
+    <string name="area_conflict_support">Choose which version you want to keep.</string>
+    <string name="area_conflict_this_device">This device</string>
+    <string name="area_conflict_cloud">Cloud</string>
+    <string name="area_conflict_name">Area name</string>
+    <string name="area_conflict_status">Status</string>
+    <string name="area_conflict_position">Position</string>
+    <string name="area_conflict_active">Active</string>
+    <string name="area_conflict_archived">Archived</string>
+    <string name="area_conflict_different">Different</string>
+    <string name="area_conflict_use_device">Use this device</string>
+    <string name="area_conflict_use_cloud">Use cloud version</string>
+    <string name="area_conflict_loading">Loading cloud version…</string>
+    <string name="area_conflict_preview_failure">Cloud version couldn’t be loaded.</string>
+    <string name="area_conflict_constraint">The cloud version uses a name that is already used by another area on this device. Rename or archive the other area before using the cloud version.</string>
 </resources>
